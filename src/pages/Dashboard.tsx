@@ -194,7 +194,7 @@ export default function Dashboard() {
         </section>
       )}
 
-      <h2 className="font-display font-semibold text-lg text-foreground pt-2">Dashboard Operacional</h2>
+      <h2 className="font-display font-semibold text-lg text-foreground pt-2">📋 Tarefas do dia</h2>
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Carregando...</div>
@@ -207,11 +207,59 @@ export default function Dashboard() {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {tasksToday.map((t) => (
-            <TaskCard key={t.id_tarefa} task={t} onRefresh={load} />
-          ))}
-        </div>
+        (() => {
+          const isTaskDone = (t: typeof tasksToday[number]) =>
+            t.chapas.length > 0 &&
+            t.chapas.every((c) => c.status_contato === "confirmado") &&
+            (t.validacao_status ?? "aguardando") === "subido_meu_chapa";
+          const pending = tasksToday.filter((t) => !isTaskDone(t));
+          const done = tasksToday.filter(isTaskDone);
+          const allDone = tasksToday.length > 0 && pending.length === 0;
+
+          return (
+            <div className="space-y-3">
+              {allDone && (
+                <div className="px-4 py-3 rounded-lg bg-success/10 border border-success/40 text-success font-semibold text-sm">
+                  ✅ Todas as tarefas do dia foram confirmadas e validadas.
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    Ver tarefas concluídas ({done.length}) abaixo.
+                  </span>
+                </div>
+              )}
+
+              {pending.length > 0 && (
+                <>
+                  <div className="flex items-center gap-3 pt-1">
+                    <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
+                      Pendentes
+                    </span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+                  {pending.map((t) => (
+                    <TaskCard key={t.id_tarefa} task={t} onRefresh={load} />
+                  ))}
+                </>
+              )}
+
+              {done.length > 0 && (
+                <>
+                  <div className="flex items-center gap-3 pt-3">
+                    <span className="text-[11px] uppercase tracking-wider font-semibold text-success flex items-center gap-2">
+                      Concluídas
+                      <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[10px]">
+                        {done.length}
+                      </span>
+                    </span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+                  {done.map((t) => (
+                    <TaskCard key={t.id_tarefa} task={t} onRefresh={load} />
+                  ))}
+                </>
+              )}
+            </div>
+          );
+        })()
       )}
     </div>
   );

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, Download, Copy, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -137,6 +137,63 @@ Precisamos de 1 substituto para esta tarefa.`;
   const isOvernight = !!task.is_overnight;
   const continuing = !!task.continuingFromYesterday;
 
+  const totalChapas = task.chapas.length;
+  const confirmedAll = totalChapas > 0 && task.chapas.every((c) => c.status_contato === "confirmado");
+  const isDone = confirmedAll && vStatus === "subido_meu_chapa";
+
+  // Animate collapse only when the card transitions to "done" during the session.
+  const initiallyDoneRef = useRef(isDone);
+  const [userExpanded, setUserExpanded] = useState(false);
+  const [animateCollapse, setAnimateCollapse] = useState(false);
+  const prevDoneRef = useRef(isDone);
+  useEffect(() => {
+    if (!prevDoneRef.current && isDone && !initiallyDoneRef.current) {
+      setAnimateCollapse(true);
+      const t = setTimeout(() => setAnimateCollapse(false), 350);
+      prevDoneRef.current = isDone;
+      return () => clearTimeout(t);
+    }
+    prevDoneRef.current = isDone;
+  }, [isDone]);
+
+  const showMinimized = isDone && !userExpanded;
+  const hasObs = !!(task.observacoes && task.observacoes.trim().length > 0);
+
+  if (showMinimized) {
+    return (
+      <div
+        className={`bg-card rounded-xl border border-border border-l-2 border-l-success shadow-card overflow-hidden ${
+          animateCollapse ? "animate-fade-in" : ""
+        }`}
+      >
+        <div className="h-12 px-4 flex items-center gap-3">
+          {isOvernight && <Moon className="h-4 w-4 text-overnight shrink-0" aria-label="Overnight" />}
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="text-sm text-muted-foreground truncate">
+              {task.empresa} — {fmtTime(task.data_tarefa)}
+            </span>
+          </div>
+          <span className="text-xs font-semibold text-success shrink-0">
+            {totalChapas}/{totalChapas} ✅
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-overnight/15 text-overnight shrink-0">
+            Subido Meu Chapa ✓
+          </span>
+          {hasObs && (
+            <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Contém observações" />
+          )}
+          <button
+            onClick={() => setUserExpanded(true)}
+            className="shrink-0 h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
+            aria-label="Expandir tarefa"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`bg-card rounded-xl border shadow-card overflow-hidden ${
@@ -147,8 +204,9 @@ Precisamos de 1 substituto para esta tarefa.`;
           : task.urgent
           ? "border-destructive/50 ring-1 ring-destructive/20"
           : "border-border"
-      }`}
+      } ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
+
       <div
         className={`p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border ${
           isOvernight
@@ -187,6 +245,15 @@ Precisamos de 1 substituto para esta tarefa.`;
             <StatusBadge status={task.status_tarefa} />
           )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
+          {isDone && userExpanded && (
+            <button
+              onClick={() => setUserExpanded(false)}
+              className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
+              aria-label="Minimizar tarefa"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
