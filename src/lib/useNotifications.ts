@@ -74,47 +74,76 @@ export function useNotifications() {
           }
         }
 
+        // Quiet hours (22:00 - 06:00) — suppress; will fire once 06:00 hits
+        const quietHours = hour >= 22 || hour < 6;
+
         // Fetch today's tasks + portfolio
         const [{ data: tarefas }, { data: chapas }, { data: carteira }] = await Promise.all([
-          supabase.from("tarefas").select("id, id_tarefa, data_tarefa, empresa, status_tarefa").eq("ativo", true),
+          supabase
+            .from("tarefas")
+            .select("id, id_tarefa, data_tarefa, empresa, status_tarefa, is_overnight, validacao_status")
+            .eq("ativo", true),
           supabase.from("chapas").select("id, id_tarefa, status_contato"),
           supabase.from("carteira").select("nome_fantasia"),
         ]);
 
         if (!tarefas || !carteira) return;
         const names = carteira.map((c) => c.nome_fantasia);
-        const todays = (tarefas as Tarefa[]).filter((t) => {
-          const d = toSP(t.data_tarefa);
-          return (
-            d.toISOString().slice(0, 10) === spNow.toISOString().slice(0, 10) &&
-            companyMatches(t.empresa, names)
-          );
-        });
+        const relevant = (tarefas as Tarefa[]).filter((t) => companyMatches(t.empresa, names));
 
-        for (const t of todays) {
+        for (const t of relevant) {
+          const startMs = new Date(t.data_tarefa).getTime();
+          const minutesSinceStart = (Date.now() - startMs) / 60000;
           const hUntil = hoursUntil(t.data_tarefa);
-          // 2) FUP 3h window
-          if (
-            ["Aguardando Aprovação", "Em Aberto", "Em Análise"].includes(t.status_tarefa) &&
-            hUntil <= 3 &&
-            hUntil > 0
-          ) {
-            if (!(await alreadyFired("fup_3h", t.id_tarefa, dateISO))) {
-              browserNotify(
-                "📋 FUP pendente",
-                `${t.empresa} às ${fmtTime(t.data_tarefa)}. Dispare as mensagens de follow-up.`
-              );
-              await markFired("fup_3h", t.id_tarefa, dateISO);
+          const vStatus = t.validacao_status ?? "aguardando";
+          const taskDateISO = fmtTime(t.data_tarefa); // only for msg
+          const refDate = toSP(t.data_tarefa).toISOString().slice(0, 10);
+
+          // Pre-start alerts only for today's tasks
+          const isToday = toSP(t.data_tarefa).toISOString().slice(0, 10) === spNow.toISOString().slice(0, 10);
+
+          if (isToday && !quietHours) {
+            if (
+              ["Aguardando Aprovação", "Em Aberto", "Em Análise"].includes(t.status_tarefa) &&
+              hUntil <= 3 && hUntil > 0
+            ) {
+              if (!(await alreadyFired("fup_3h", t.id_tarefa, dateISO))) {
+                browserNotify("📋 FUP pendente", `${t.empresa} às ${taskDateISO}. Dispare os follow-ups.`);
+                await markFired("fup_3h", t.id_tarefa, dateISO);
+              }
+            }
+            if (t.status_tarefa === "Aguardando Início" && hUntil <= 1 && hUntil > -0.5) {
+              if (!(await alreadyFired("chapa_1h", t.id_tarefa, dateISO))) {
+                browserNotify("👷 Verificar chapas", `${t.empresa} às ${taskDateISO}. Confirme presença.`);
+                await markFired("chapa_1h", t.id_tarefa, dateISO);
+              }
             }
           }
-          // 3) Chapa 1h window
-          if (t.status_tarefa === "Aguardando Início" && hUntil <= 1 && hUntil > -0.5) {
-            if (!(await alreadyFired("chapa_1h", t.id_tarefa, dateISO))) {
-              browserNotify(
-                "👷 Verificar chapas",
-                `${t.empresa} às ${fmtTime(t.data_tarefa)}. Confirme quem vai comparecer.`
-              );
-              await markFired("chapa_1h", t.id_tarefa, dateISO);
+
+          // Validation alerts (respect quiet hours; queued alerts fire at/after 06:00)
+          if (!quietHours) {
+            // 30 min after start, still pendente
+            if (vStatus === "pendente" && minutesSinceStart >= 30) {
+              if (!(await alreadyFired("val_30m", t.id_tarefa, refDate))) {
+                browserNotify(
+                  "📋 Validação pendente",
+                  `${t.empresa} às ${taskDateISO}. O cliente já pode ter confirmado presenças.`
+                );
+                await markFired("val_30m", t.id_tarefa, refDate);
+              }
+            }
+            // 2h after start, not yet uploaded
+            if (
+              (vStatus === "pendente" || vStatus === "validacao_recebida") &&
+              minutesSinceStart >= 120
+            ) {
+              if (!(await alreadyFired("val_2h", t.id_tarefa, refDate))) {
+                browserNotify(
+                  "⬆️ Lembrete Meu Chapa",
+                  `${t.empresa}. Suba as validações no sistema.`
+                );
+                await markFired("val_2h", t.id_tarefa, refDate);
+              }
             }
           }
         }
