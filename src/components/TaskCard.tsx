@@ -26,15 +26,23 @@ export type TaskWithChapas = {
   cidade_uf: string | null;
   status_tarefa: string;
   quantidade_chapas: number;
+  is_overnight?: boolean | null;
+  validacao_status?: string | null;
+  data_validacao_recebida?: string | null;
+  data_upload_meu_chapa?: string | null;
+  obs_validacao?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;
     telefone_chapa: string | null;
     cpf: string | null;
     status_contato: string;
+    validacao_presenca?: string | null;
   }>;
   fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null }>;
   urgent: boolean;
+  /** When true, this card is rendered in the "started yesterday — still running" section */
+  continuingFromYesterday?: boolean;
 };
 
 const canalLabel: Record<string, string> = {
