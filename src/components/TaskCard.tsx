@@ -17,7 +17,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge, ContactStatusBadge } from "./StatusBadge";
 import { FillRateBar } from "./FillRateBar";
-import { fmtTime, fmtDateTime } from "@/lib/datetime";
+import { OvernightBadge } from "./OvernightBadge";
+import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
+import { ValidationPanel } from "./ValidationPanel";
+import { fmtTime, fmtDateTime, fmtSP } from "@/lib/datetime";
 
 export type TaskWithChapas = {
   id_tarefa: number;
