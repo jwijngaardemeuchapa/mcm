@@ -272,6 +272,14 @@ Precisamos de 1 substituto para esta tarefa.`;
         />
       )}
 
+      <ObservationsPanel
+        id_tarefa={task.id_tarefa}
+        empresa={task.empresa}
+        data_tarefa={task.data_tarefa}
+        observacoes={task.observacoes ?? null}
+        observacoes_updated_at={task.observacoes_updated_at ?? null}
+      />
+
       <Collapsible open={fupOpen} onOpenChange={setFupOpen}>
         <CollapsibleTrigger asChild>
           <button className="w-full px-4 py-2 bg-muted/50 hover:bg-muted flex items-center justify-between text-xs font-semibold text-muted-foreground border-t border-border">
