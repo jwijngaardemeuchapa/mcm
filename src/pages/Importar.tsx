@@ -59,6 +59,14 @@ export default function Importar() {
       const data_tarefa = parseDateBR(pick(row, "Data da Tarefa", "data_tarefa"));
       if (!data_tarefa) continue;
       if (!tarefasMap.has(id_tarefa)) {
+        // São Paulo hour detection for overnight flag
+        const spHourStr = new Date(data_tarefa).toLocaleString("en-US", {
+          timeZone: "America/Sao_Paulo",
+          hour: "2-digit",
+          hour12: false,
+        });
+        const spHour = parseInt(spHourStr, 10);
+        const is_overnight = Number.isFinite(spHour) && spHour >= 20;
         tarefasMap.set(id_tarefa, {
           id_tarefa,
           data_tarefa,
@@ -68,6 +76,8 @@ export default function Importar() {
           status_tarefa: pick(row, "Status da Tarefa", "status_tarefa") || "Em Aberto",
           quantidade_chapas: parseInt(pick(row, "Quantidade de Chapas", "quantidade_chapas"), 10) || 0,
           ativo: true,
+          is_overnight,
+          validacao_status: "aguardando",
           importado_em: new Date().toISOString(),
         });
       }
