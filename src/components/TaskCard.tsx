@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, Download, Copy, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
