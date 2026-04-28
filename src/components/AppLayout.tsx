@@ -12,6 +12,7 @@ import { useUndo } from "@/lib/undo";
 export default function AppLayout() {
   const [now, setNow] = useState(new Date());
   const [lastImport, setLastImport] = useState<string | null>(null);
+  const { last, undo } = useUndo();
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);
