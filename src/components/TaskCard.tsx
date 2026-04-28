@@ -325,7 +325,21 @@ Precisamos de 1 substituto para esta tarefa.`;
                 <div className="font-medium text-sm text-foreground">
                   {c.nome_chapa ?? "Vaga em captação"}
                 </div>
-                <div className="text-xs text-muted-foreground">{c.telefone_chapa ?? "—"}</div>
+                {c.telefone_chapa ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(c.telefone_chapa!);
+                      toast.success(`Telefone copiado: ${c.telefone_chapa}`);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-primary hover:underline cursor-pointer"
+                    title="Clique para copiar"
+                  >
+                    {c.telefone_chapa}
+                  </button>
+                ) : (
+                  <div className="text-xs text-muted-foreground">—</div>
+                )}
               </div>
               <ContactStatusBadge status={c.status_contato} />
               {!placeholder && c.status_contato !== "removido" && (
@@ -342,7 +356,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                   <Button
                     size="sm"
                     className="h-8 gap-1.5 bg-success hover:bg-success/90 text-success-foreground"
-                    onClick={() => updateChapa(c.id, { status_contato: "confirmado" })}
+                    onClick={() => updateChapaWithUndo(c, { status_contato: "confirmado" }, `confirmar ${c.nome_chapa ?? "chapa"}`)}
                   >
                     <Check className="h-3.5 w-3.5" /> Confirmado
                   </Button>
@@ -350,7 +364,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                     size="sm"
                     variant="outline"
                     className="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
-                    onClick={() => updateChapa(c.id, { status_contato: "nao_respondeu" })}
+                    onClick={() => updateChapaWithUndo(c, { status_contato: "nao_respondeu" }, `não respondeu — ${c.nome_chapa ?? "chapa"}`)}
                   >
                     <X className="h-3.5 w-3.5" /> Não respondeu
                   </Button>
