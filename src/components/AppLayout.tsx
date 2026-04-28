@@ -55,6 +55,17 @@ export default function AppLayout() {
                 </span>
               </span>
             </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={undo}
+              disabled={!last}
+              className="gap-1.5 h-8"
+              title={last ? `Desfazer: ${last.label}` : "Nada para desfazer"}
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline text-xs font-semibold">Desfazer</span>
+            </Button>
             <Badge variant="outline" className="gap-1.5 border-primary/30 bg-primary/5 text-primary">
               <Bell className="h-3 w-3" />
               <span className="text-xs font-semibold">Ativo</span>
