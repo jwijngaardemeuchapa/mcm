@@ -145,6 +145,8 @@ export type Database = {
           importado_em: string | null
           is_overnight: boolean | null
           obs_validacao: string | null
+          observacoes: string | null
+          observacoes_updated_at: string | null
           quantidade_chapas: number | null
           status_tarefa: string
           validacao_status: string | null
@@ -162,6 +164,8 @@ export type Database = {
           importado_em?: string | null
           is_overnight?: boolean | null
           obs_validacao?: string | null
+          observacoes?: string | null
+          observacoes_updated_at?: string | null
           quantidade_chapas?: number | null
           status_tarefa: string
           validacao_status?: string | null
@@ -179,6 +183,8 @@ export type Database = {
           importado_em?: string | null
           is_overnight?: boolean | null
           obs_validacao?: string | null
+          observacoes?: string | null
+          observacoes_updated_at?: string | null
           quantidade_chapas?: number | null
           status_tarefa?: string
           validacao_status?: string | null
