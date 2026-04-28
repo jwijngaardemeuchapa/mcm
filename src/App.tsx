@@ -9,6 +9,7 @@ import Carteira from "./pages/Carteira";
 import Importar from "./pages/Importar";
 import Historico from "./pages/Historico";
 import NotFound from "./pages/NotFound";
+import { UndoProvider } from "./lib/undo";
 
 const queryClient = new QueryClient();
 
