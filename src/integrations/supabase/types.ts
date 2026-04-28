@@ -14,7 +14,156 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      carteira: {
+        Row: {
+          cnpj: string | null
+          created_at: string | null
+          id: string
+          nome_fantasia: string
+        }
+        Insert: {
+          cnpj?: string | null
+          created_at?: string | null
+          id?: string
+          nome_fantasia: string
+        }
+        Update: {
+          cnpj?: string | null
+          created_at?: string | null
+          id?: string
+          nome_fantasia?: string
+        }
+        Relationships: []
+      }
+      chapas: {
+        Row: {
+          canal_contato: string | null
+          cpf: string | null
+          created_at: string | null
+          data_contato: string | null
+          data_remocao: string | null
+          id: string
+          id_tarefa: number
+          motivo_remocao: string | null
+          nome_chapa: string | null
+          status_contato: string | null
+          telefone_chapa: string | null
+        }
+        Insert: {
+          canal_contato?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_contato?: string | null
+          data_remocao?: string | null
+          id?: string
+          id_tarefa: number
+          motivo_remocao?: string | null
+          nome_chapa?: string | null
+          status_contato?: string | null
+          telefone_chapa?: string | null
+        }
+        Update: {
+          canal_contato?: string | null
+          cpf?: string | null
+          created_at?: string | null
+          data_contato?: string | null
+          data_remocao?: string | null
+          id?: string
+          id_tarefa?: number
+          motivo_remocao?: string | null
+          nome_chapa?: string | null
+          status_contato?: string | null
+          telefone_chapa?: string | null
+        }
+        Relationships: []
+      }
+      fup_log: {
+        Row: {
+          canal: string
+          data_disparo: string | null
+          id: string
+          id_tarefa: number
+          observacao: string | null
+        }
+        Insert: {
+          canal: string
+          data_disparo?: string | null
+          id?: string
+          id_tarefa: number
+          observacao?: string | null
+        }
+        Update: {
+          canal?: string
+          data_disparo?: string | null
+          id?: string
+          id_tarefa?: number
+          observacao?: string | null
+        }
+        Relationships: []
+      }
+      notificacoes_enviadas: {
+        Row: {
+          disparada_em: string | null
+          id: string
+          id_tarefa: number | null
+          referencia_data: string
+          tipo: string
+        }
+        Insert: {
+          disparada_em?: string | null
+          id?: string
+          id_tarefa?: number | null
+          referencia_data: string
+          tipo: string
+        }
+        Update: {
+          disparada_em?: string | null
+          id?: string
+          id_tarefa?: number | null
+          referencia_data?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
+      tarefas: {
+        Row: {
+          ativo: boolean | null
+          cidade_uf: string | null
+          cnpj: string | null
+          data_tarefa: string
+          empresa: string
+          id: string
+          id_tarefa: number
+          importado_em: string | null
+          quantidade_chapas: number | null
+          status_tarefa: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          cidade_uf?: string | null
+          cnpj?: string | null
+          data_tarefa: string
+          empresa: string
+          id?: string
+          id_tarefa: number
+          importado_em?: string | null
+          quantidade_chapas?: number | null
+          status_tarefa: string
+        }
+        Update: {
+          ativo?: boolean | null
+          cidade_uf?: string | null
+          cnpj?: string | null
+          data_tarefa?: string
+          empresa?: string
+          id?: string
+          id_tarefa?: number
+          importado_em?: string | null
+          quantidade_chapas?: number | null
+          status_tarefa?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
