@@ -9,26 +9,29 @@ import Carteira from "./pages/Carteira";
 import Importar from "./pages/Importar";
 import Historico from "./pages/Historico";
 import NotFound from "./pages/NotFound";
+import { UndoProvider } from "./lib/undo";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/carteira" element={<Carteira />} />
-            <Route path="/importar" element={<Importar />} />
-            <Route path="/historico" element={<Historico />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <UndoProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route element={<AppLayout />}>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/carteira" element={<Carteira />} />
+              <Route path="/importar" element={<Importar />} />
+              <Route path="/historico" element={<Historico />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </UndoProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

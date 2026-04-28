@@ -22,6 +22,7 @@ import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
 import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP } from "@/lib/datetime";
+import { useUndo } from "@/lib/undo";
 
 export type TaskWithChapas = {
   id_tarefa: number;
@@ -44,6 +45,7 @@ export type TaskWithChapas = {
     cpf: string | null;
     status_contato: string;
     validacao_presenca?: string | null;
+    data_validacao?: string | null;
   }>;
   fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null }>;
   urgent: boolean;
@@ -64,39 +66,66 @@ export function TaskCard({ task, onRefresh }: { task: TaskWithChapas; onRefresh:
   const [fupOpen, setFupOpen] = useState(false);
   const [newFupCanal, setNewFupCanal] = useState("whatsapp_web");
   const [newFupObs, setNewFupObs] = useState("");
+  const { push } = useUndo();
 
   const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
 
-  async function updateChapa(id: string, patch: Record<string, unknown>) {
-    const { error } = await supabase.from("chapas").update(patch as never).eq("id", id);
-    if (error) toast.error(error.message);
-    else onRefresh();
+  type ChapaRow = (typeof task.chapas)[number] & {
+    canal_contato?: string | null;
+    data_contato?: string | null;
+    data_remocao?: string | null;
+    motivo_remocao?: string | null;
+  };
+
+  async function updateChapaWithUndo(chapa: ChapaRow, patch: Record<string, unknown>, label: string) {
+    const prev: Record<string, unknown> = {};
+    Object.keys(patch).forEach((k) => {
+      prev[k] = (chapa as Record<string, unknown>)[k] ?? null;
+    });
+    const { error } = await supabase.from("chapas").update(patch as never).eq("id", chapa.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    push({
+      label,
+      revert: async () => {
+        const { error: e } = await supabase.from("chapas").update(prev as never).eq("id", chapa.id);
+        if (e) throw new Error(e.message);
+      },
+      onReverted: onRefresh,
+    });
+    onRefresh();
   }
 
-  function markContact(chapa: (typeof task.chapas)[number], canal: string) {
-    updateChapa(chapa.id, { canal_contato: canal, data_contato: new Date().toISOString() });
+  function markContact(chapa: ChapaRow, canal: string) {
+    updateChapaWithUndo(
+      chapa,
+      { canal_contato: canal, data_contato: new Date().toISOString() },
+      `contato ${canalLabel[canal]} — ${chapa.nome_chapa ?? "chapa"}`,
+    );
     toast.success(`Contato registrado: ${canalLabel[canal]}`);
   }
 
   async function confirmRemoval() {
     if (!removalTarget) return;
-    await supabase
-      .from("chapas")
-      .update({
+    const target = removalTarget as ChapaRow;
+    await updateChapaWithUndo(
+      target,
+      {
         status_contato: "removido",
         data_remocao: new Date().toISOString(),
         motivo_remocao: removalReason || null,
-      })
-      .eq("id", removalTarget.id);
-
+      },
+      `remoção de ${target.nome_chapa ?? "chapa"}`,
+    );
     const msg = `⚠️ Remoção sinalizada — Tarefa #${task.id_tarefa} | ${task.empresa} | ${fmtTime(task.data_tarefa)}
-Chapa removido: ${removalTarget.nome_chapa ?? "(sem nome)"} | Tel: ${removalTarget.telefone_chapa ?? "-"}
+Chapa removido: ${target.nome_chapa ?? "(sem nome)"} | Tel: ${target.telefone_chapa ?? "-"}
 Motivo: ${removalReason || "(não informado)"}
 Precisamos de 1 substituto para esta tarefa.`;
     setRemovalMsg(msg);
     setRemovalTarget(null);
     setRemovalReason("");
-    onRefresh();
   }
 
   function exportCSV() {
@@ -122,10 +151,23 @@ Precisamos de 1 substituto para esta tarefa.`;
   }
 
   async function registerFup() {
-    await supabase.from("fup_log").insert({
-      id_tarefa: task.id_tarefa,
-      canal: newFupCanal,
-      observacao: newFupObs || null,
+    const { data, error } = await supabase
+      .from("fup_log")
+      .insert({ id_tarefa: task.id_tarefa, canal: newFupCanal, observacao: newFupObs || null })
+      .select()
+      .single();
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const fupId = (data as { id: string }).id;
+    push({
+      label: `FUP ${canalLabel[newFupCanal] ?? newFupCanal}`,
+      revert: async () => {
+        const { error: e } = await supabase.from("fup_log").delete().eq("id", fupId);
+        if (e) throw new Error(e.message);
+      },
+      onReverted: onRefresh,
     });
     setNewFupObs("");
     toast.success("FUP registrado");
@@ -283,7 +325,21 @@ Precisamos de 1 substituto para esta tarefa.`;
                 <div className="font-medium text-sm text-foreground">
                   {c.nome_chapa ?? "Vaga em captação"}
                 </div>
-                <div className="text-xs text-muted-foreground">{c.telefone_chapa ?? "—"}</div>
+                {c.telefone_chapa ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(c.telefone_chapa!);
+                      toast.success(`Telefone copiado: ${c.telefone_chapa}`);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-primary hover:underline cursor-pointer"
+                    title="Clique para copiar"
+                  >
+                    {c.telefone_chapa}
+                  </button>
+                ) : (
+                  <div className="text-xs text-muted-foreground">—</div>
+                )}
               </div>
               <ContactStatusBadge status={c.status_contato} />
               {!placeholder && c.status_contato !== "removido" && (
@@ -300,7 +356,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                   <Button
                     size="sm"
                     className="h-8 gap-1.5 bg-success hover:bg-success/90 text-success-foreground"
-                    onClick={() => updateChapa(c.id, { status_contato: "confirmado" })}
+                    onClick={() => updateChapaWithUndo(c, { status_contato: "confirmado" }, `confirmar ${c.nome_chapa ?? "chapa"}`)}
                   >
                     <Check className="h-3.5 w-3.5" /> Confirmado
                   </Button>
@@ -308,7 +364,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                     size="sm"
                     variant="outline"
                     className="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
-                    onClick={() => updateChapa(c.id, { status_contato: "nao_respondeu" })}
+                    onClick={() => updateChapaWithUndo(c, { status_contato: "nao_respondeu" }, `não respondeu — ${c.nome_chapa ?? "chapa"}`)}
                   >
                     <X className="h-3.5 w-3.5" /> Não respondeu
                   </Button>
