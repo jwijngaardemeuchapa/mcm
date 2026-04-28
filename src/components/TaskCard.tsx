@@ -54,7 +54,7 @@ export function TaskCard({ task, onRefresh }: { task: TaskWithChapas; onRefresh:
   const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
 
   async function updateChapa(id: string, patch: Record<string, unknown>) {
-    const { error } = await supabase.from("chapas").update(patch).eq("id", id);
+    const { error } = await supabase.from("chapas").update(patch as never).eq("id", id);
     if (error) toast.error(error.message);
     else onRefresh();
   }
