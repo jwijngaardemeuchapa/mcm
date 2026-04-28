@@ -87,8 +87,8 @@ export default function Importar() {
     const ids = Array.from(tarefasMap.keys());
     await supabase.from("chapas").delete().in("id_tarefa", ids);
     await supabase.from("tarefas").delete().in("id_tarefa", ids);
-    const tErr = (await supabase.from("tarefas").insert(Array.from(tarefasMap.values()))).error;
-    const cErr = chapas.length ? (await supabase.from("chapas").insert(chapas)).error : null;
+    const tErr = (await supabase.from("tarefas").insert(Array.from(tarefasMap.values()) as never)).error;
+    const cErr = chapas.length ? (await supabase.from("chapas").insert(chapas as never)).error : null;
     if (tErr || cErr) { toast.error((tErr ?? cErr)!.message); return; }
     toast.success(`${tarefasMap.size} tarefas e ${chapas.length} chapas importados`);
     setPreview([]);
