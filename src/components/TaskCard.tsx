@@ -44,6 +44,7 @@ export type TaskWithChapas = {
     cpf: string | null;
     status_contato: string;
     validacao_presenca?: string | null;
+    data_validacao?: string | null;
   }>;
   fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null }>;
   urgent: boolean;
