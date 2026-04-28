@@ -19,7 +19,7 @@ type Chapa = {
   id: string;
   nome_chapa: string | null;
   status_contato: string;
-  validacao_presenca: string | null;
+  validacao_presenca?: string | null;
 };
 
 type Props = {
