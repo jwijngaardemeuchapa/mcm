@@ -1,15 +1,17 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toSP, todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
-import { AlertTriangle, Inbox } from "lucide-react";
+import { AlertTriangle, Inbox, Moon } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
 
 export default function Dashboard() {
   useNotifications();
-  const [tasks, setTasks] = useState<TaskWithChapas[]>([]);
+  const [tasksToday, setTasksToday] = useState<TaskWithChapas[]>([]);
+  const [overnightContinuing, setOvernightContinuing] = useState<TaskWithChapas[]>([]);
   const [loading, setLoading] = useState(true);
+  const overnightNotifiedRef = useRef<Set<number>>(new Set());
 
   const load = useCallback(async () => {
     const [{ data: tarefas }, { data: chapas }, { data: fup }, { data: carteira }] = await Promise.all([
@@ -20,37 +22,99 @@ export default function Dashboard() {
     ]);
 
     const names = (carteira ?? []).map((c) => c.nome_fantasia);
-    const today = todayDateISO_SP();
+    const todayISO = todayDateISO_SP();
 
-    const filtered = (tarefas ?? []).filter((t) => {
+    // Auto-transition aguardando -> pendente for tasks whose start time has passed
+    const nowMs = Date.now();
+    const toTransition = (tarefas ?? []).filter(
+      (t) =>
+        (t.validacao_status ?? "aguardando") === "aguardando" &&
+        new Date(t.data_tarefa).getTime() <= nowMs
+    );
+    if (toTransition.length) {
+      await supabase
+        .from("tarefas")
+        .update({ validacao_status: "pendente" })
+        .in(
+          "id_tarefa",
+          toTransition.map((t) => t.id_tarefa)
+        );
+      toTransition.forEach((t) => {
+        t.validacao_status = "pendente";
+      });
+    }
+
+    const inCarteira = (empresa: string) => names.length === 0 || companyMatches(empresa, names);
+
+    // Tasks that started today
+    const todaysTasks = (tarefas ?? []).filter((t) => {
       const dISO = fmtSP(t.data_tarefa, "yyyy-MM-dd");
-      if (dISO !== today) return false;
+      if (dISO !== todayISO) return false;
       if (t.status_tarefa === "Finalizado") return false;
-      if (names.length > 0 && !companyMatches(t.empresa, names)) return false;
-      const d = toSP(t.data_tarefa);
-      const h = d.getHours();
-      // show 06:00-15:00 window OR urgent (already started before 06:00)
-      return (h >= 6 && h <= 15) || h < 6;
+      return inCarteira(t.empresa);
     });
 
-    const mapped: TaskWithChapas[] = filtered
-      .map((t) => {
-        const d = toSP(t.data_tarefa);
-        return {
-          id_tarefa: t.id_tarefa,
-          data_tarefa: t.data_tarefa,
-          empresa: t.empresa,
-          cidade_uf: t.cidade_uf,
-          status_tarefa: t.status_tarefa,
-          quantidade_chapas: t.quantidade_chapas ?? 0,
-          chapas: (chapas ?? []).filter((c) => c.id_tarefa === t.id_tarefa),
-          fup_log: (fup ?? []).filter((f) => f.id_tarefa === t.id_tarefa),
-          urgent: d.getHours() < 6 || d.getTime() < Date.now(),
-        };
-      })
+    // Overnight tasks that started YESTERDAY and are still not fully uploaded — show at top
+    const yesterdayOvernight = (tarefas ?? []).filter((t) => {
+      if (!t.is_overnight) return false;
+      const dISO = fmtSP(t.data_tarefa, "yyyy-MM-dd");
+      // yesterday in SP
+      const y = new Date(`${todayISO}T00:00:00-03:00`);
+      y.setDate(y.getDate() - 1);
+      const yISO = y.toISOString().slice(0, 10);
+      if (dISO !== yISO) return false;
+      if ((t.validacao_status ?? "aguardando") === "subido_meu_chapa") return false;
+      return inCarteira(t.empresa);
+    });
+
+    const buildCard = (t: typeof todaysTasks[number], continuing: boolean): TaskWithChapas => {
+      const d = toSP(t.data_tarefa);
+      return {
+        id_tarefa: t.id_tarefa,
+        data_tarefa: t.data_tarefa,
+        empresa: t.empresa,
+        cidade_uf: t.cidade_uf,
+        status_tarefa: t.status_tarefa,
+        quantidade_chapas: t.quantidade_chapas ?? 0,
+        is_overnight: t.is_overnight,
+        validacao_status: t.validacao_status,
+        data_validacao_recebida: t.data_validacao_recebida,
+        data_upload_meu_chapa: t.data_upload_meu_chapa,
+        obs_validacao: t.obs_validacao,
+        chapas: (chapas ?? []).filter((c) => c.id_tarefa === t.id_tarefa),
+        fup_log: (fup ?? []).filter((f) => f.id_tarefa === t.id_tarefa),
+        urgent: !continuing && (d.getHours() < 6 || d.getTime() < Date.now()),
+        continuingFromYesterday: continuing,
+      };
+    };
+
+    const overnightCards = yesterdayOvernight
+      .map((t) => buildCard(t, true))
       .sort((a, b) => new Date(a.data_tarefa).getTime() - new Date(b.data_tarefa).getTime());
 
-    setTasks(mapped);
+    const todayCards = todaysTasks
+      .map((t) => buildCard(t, false))
+      .sort((a, b) => new Date(a.data_tarefa).getTime() - new Date(b.data_tarefa).getTime());
+
+    // Immediate notification for each overnight task still running (once per session)
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      overnightCards.forEach((t) => {
+        if (!overnightNotifiedRef.current.has(t.id_tarefa)) {
+          overnightNotifiedRef.current.add(t.id_tarefa);
+          try {
+            new Notification("🌙 Tarefa overnight em andamento", {
+              body: `${t.empresa} — confirme presença dos chapas.`,
+              tag: `overnight-${t.id_tarefa}`,
+            });
+          } catch {
+            /* noop */
+          }
+        }
+      });
+    }
+
+    setOvernightContinuing(overnightCards);
+    setTasksToday(todayCards);
     setLoading(false);
   }, []);
 
@@ -60,17 +124,28 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [load]);
 
-  const urgentCount = tasks.filter((t) => t.urgent).length;
-  const totalChapas = tasks.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
-  const confirmedChapas = tasks.reduce(
+  const allCards = [...overnightContinuing, ...tasksToday];
+  const urgentCount = allCards.filter((t) => t.urgent).length;
+  const totalChapas = allCards.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
+  const confirmedChapas = allCards.reduce(
     (a, t) => a + t.chapas.filter((c) => c.status_contato === "confirmado").length,
     0
   );
-  const removedChapas = tasks.reduce(
+  const removedChapas = allCards.reduce(
     (a, t) => a + t.chapas.filter((c) => c.status_contato === "removido").length,
     0
   );
   const fillPct = totalChapas > 0 ? Math.round((confirmedChapas / totalChapas) * 100) : 0;
+
+  const validacaoPendente = allCards.filter((t) => {
+    const started = new Date(t.data_tarefa).getTime() <= Date.now();
+    const s = t.validacao_status ?? "aguardando";
+    return started && s !== "subido_meu_chapa";
+  }).length;
+  const subidoHoje = allCards.filter((t) => {
+    if (!t.data_upload_meu_chapa) return false;
+    return fmtSP(t.data_upload_meu_chapa, "yyyy-MM-dd") === todayDateISO_SP();
+  }).length;
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto">
@@ -84,26 +159,43 @@ export default function Dashboard() {
       )}
 
       {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {[
-          { label: "Tarefas hoje", value: tasks.length, color: "text-primary" },
+          { label: "Tarefas hoje", value: tasksToday.length, color: "text-primary" },
+          { label: "Overnight ativas", value: overnightContinuing.length, color: "text-overnight" },
           { label: "Chapas solicitados", value: totalChapas, color: "text-foreground" },
           { label: "Confirmados", value: confirmedChapas, color: "text-success" },
           { label: "Removidos", value: removedChapas, color: "text-destructive" },
-          { label: "Fill rate", value: `${fillPct}%`, color: "text-primary" },
+          { label: "Validação pendente", value: validacaoPendente, color: "text-warning" },
+          { label: "Subidos Meu Chapa", value: subidoHoje, color: "text-overnight" },
         ].map((s) => (
           <div key={s.label} className="bg-card border border-border rounded-xl p-4 shadow-card">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{s.label}</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{s.label}</div>
             <div className={`text-2xl font-display font-bold mt-1 ${s.color}`}>{s.value}</div>
           </div>
         ))}
+        <div className="bg-card border border-border rounded-xl p-4 shadow-card">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Fill rate</div>
+          <div className="text-2xl font-display font-bold mt-1 text-primary">{fillPct}%</div>
+        </div>
       </div>
+
+      {overnightContinuing.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="font-display font-semibold text-lg text-overnight flex items-center gap-2">
+            <Moon className="h-5 w-5" /> Em andamento — iniciadas ontem
+          </h2>
+          {overnightContinuing.map((t) => (
+            <TaskCard key={`ov-${t.id_tarefa}`} task={t} onRefresh={load} />
+          ))}
+        </section>
+      )}
 
       <h2 className="font-display font-semibold text-lg text-foreground pt-2">Dashboard Operacional</h2>
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Carregando...</div>
-      ) : tasks.length === 0 ? (
+      ) : tasksToday.length === 0 && overnightContinuing.length === 0 ? (
         <div className="bg-card border border-dashed border-border rounded-xl p-12 text-center">
           <Inbox className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
           <div className="font-semibold text-foreground">Nenhuma tarefa para hoje</div>
@@ -113,7 +205,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="space-y-3">
-          {tasks.map((t) => (
+          {tasksToday.map((t) => (
             <TaskCard key={t.id_tarefa} task={t} onRefresh={load} />
           ))}
         </div>
