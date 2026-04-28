@@ -35,6 +35,8 @@ export type TaskWithChapas = {
   data_validacao_recebida?: string | null;
   data_upload_meu_chapa?: string | null;
   obs_validacao?: string | null;
+  observacoes?: string | null;
+  observacoes_updated_at?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;
