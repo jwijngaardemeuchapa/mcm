@@ -42,12 +42,14 @@ export type Database = {
           created_at: string | null
           data_contato: string | null
           data_remocao: string | null
+          data_validacao: string | null
           id: string
           id_tarefa: number
           motivo_remocao: string | null
           nome_chapa: string | null
           status_contato: string | null
           telefone_chapa: string | null
+          validacao_presenca: string | null
         }
         Insert: {
           canal_contato?: string | null
@@ -55,12 +57,14 @@ export type Database = {
           created_at?: string | null
           data_contato?: string | null
           data_remocao?: string | null
+          data_validacao?: string | null
           id?: string
           id_tarefa: number
           motivo_remocao?: string | null
           nome_chapa?: string | null
           status_contato?: string | null
           telefone_chapa?: string | null
+          validacao_presenca?: string | null
         }
         Update: {
           canal_contato?: string | null
@@ -68,12 +72,14 @@ export type Database = {
           created_at?: string | null
           data_contato?: string | null
           data_remocao?: string | null
+          data_validacao?: string | null
           id?: string
           id_tarefa?: number
           motivo_remocao?: string | null
           nome_chapa?: string | null
           status_contato?: string | null
           telefone_chapa?: string | null
+          validacao_presenca?: string | null
         }
         Relationships: []
       }
@@ -131,36 +137,51 @@ export type Database = {
           cidade_uf: string | null
           cnpj: string | null
           data_tarefa: string
+          data_upload_meu_chapa: string | null
+          data_validacao_recebida: string | null
           empresa: string
           id: string
           id_tarefa: number
           importado_em: string | null
+          is_overnight: boolean | null
+          obs_validacao: string | null
           quantidade_chapas: number | null
           status_tarefa: string
+          validacao_status: string | null
         }
         Insert: {
           ativo?: boolean | null
           cidade_uf?: string | null
           cnpj?: string | null
           data_tarefa: string
+          data_upload_meu_chapa?: string | null
+          data_validacao_recebida?: string | null
           empresa: string
           id?: string
           id_tarefa: number
           importado_em?: string | null
+          is_overnight?: boolean | null
+          obs_validacao?: string | null
           quantidade_chapas?: number | null
           status_tarefa: string
+          validacao_status?: string | null
         }
         Update: {
           ativo?: boolean | null
           cidade_uf?: string | null
           cnpj?: string | null
           data_tarefa?: string
+          data_upload_meu_chapa?: string | null
+          data_validacao_recebida?: string | null
           empresa?: string
           id?: string
           id_tarefa?: number
           importado_em?: string | null
+          is_overnight?: boolean | null
+          obs_validacao?: string | null
           quantidade_chapas?: number | null
           status_tarefa?: string
+          validacao_status?: string | null
         }
         Relationships: []
       }

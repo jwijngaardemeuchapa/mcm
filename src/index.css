@@ -47,6 +47,10 @@
     --info: 217 91% 58%;
     --info-foreground: 0 0% 100%;
 
+    --overnight: 255 70% 58%;           /* indigo/purple for overnight tasks */
+    --overnight-foreground: 0 0% 100%;
+    --overnight-soft: 255 80% 96%;
+
     --border: 30 15% 88%;
     --input: 30 15% 90%;
     --ring: 24 100% 50%;

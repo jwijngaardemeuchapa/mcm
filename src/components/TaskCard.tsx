@@ -17,7 +17,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge, ContactStatusBadge } from "./StatusBadge";
 import { FillRateBar } from "./FillRateBar";
-import { fmtTime, fmtDateTime } from "@/lib/datetime";
+import { OvernightBadge } from "./OvernightBadge";
+import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
+import { ValidationPanel } from "./ValidationPanel";
+import { fmtTime, fmtDateTime, fmtSP } from "@/lib/datetime";
 
 export type TaskWithChapas = {
   id_tarefa: number;
@@ -26,15 +29,23 @@ export type TaskWithChapas = {
   cidade_uf: string | null;
   status_tarefa: string;
   quantidade_chapas: number;
+  is_overnight?: boolean | null;
+  validacao_status?: string | null;
+  data_validacao_recebida?: string | null;
+  data_upload_meu_chapa?: string | null;
+  obs_validacao?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;
     telefone_chapa: string | null;
     cpf: string | null;
     status_contato: string;
+    validacao_presenca?: string | null;
   }>;
   fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null }>;
   urgent: boolean;
+  /** When true, this card is rendered in the "started yesterday — still running" section */
+  continuingFromYesterday?: boolean;
 };
 
 const canalLabel: Record<string, string> = {
@@ -118,28 +129,69 @@ Precisamos de 1 substituto para esta tarefa.`;
     onRefresh();
   }
 
+  const taskStarted = new Date(task.data_tarefa).getTime() <= Date.now();
+  const vStatus = (task.validacao_status ?? "aguardando") as ValidationStep;
+  const isOvernight = !!task.is_overnight;
+  const continuing = !!task.continuingFromYesterday;
+
   return (
     <div
       className={`bg-card rounded-xl border shadow-card overflow-hidden ${
-        task.urgent ? "border-destructive/50 ring-1 ring-destructive/20" : "border-border"
+        continuing
+          ? "border-overnight/60 ring-2 ring-overnight/30"
+          : isOvernight
+          ? "border-overnight/40 ring-1 ring-overnight/20"
+          : task.urgent
+          ? "border-destructive/50 ring-1 ring-destructive/20"
+          : "border-border"
       }`}
     >
-      <div className="p-4 flex flex-wrap items-center gap-3 justify-between bg-gradient-to-r from-primary-soft/60 to-transparent border-b border-border">
+      <div
+        className={`p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border ${
+          isOvernight
+            ? "bg-gradient-to-r from-overnight-soft to-transparent"
+            : "bg-gradient-to-r from-primary-soft/60 to-transparent"
+        }`}
+      >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="text-center bg-primary text-primary-foreground rounded-lg px-3 py-2 font-display shrink-0">
+          <div
+            className={`text-center rounded-lg px-3 py-2 font-display shrink-0 ${
+              isOvernight ? "bg-overnight text-overnight-foreground" : "bg-primary text-primary-foreground"
+            }`}
+          >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
             <div className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5">#{task.id_tarefa}</div>
           </div>
           <div className="min-w-0">
-            <div className="font-semibold text-foreground truncate">{task.empresa}</div>
-            <div className="text-xs text-muted-foreground truncate">{task.cidade_uf ?? "—"}</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-foreground truncate">{task.empresa}</span>
+              {isOvernight && <OvernightBadge />}
+            </div>
+            <div className="text-xs text-muted-foreground truncate">
+              {task.cidade_uf ?? "—"}
+              {continuing && (
+                <span className="ml-2 text-overnight font-semibold">
+                  · Início: ontem às {fmtTime(task.data_tarefa)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <StatusBadge status={task.status_tarefa} />
+          {taskStarted ? (
+            <ValidationStepper status={vStatus} />
+          ) : (
+            <StatusBadge status={task.status_tarefa} />
+          )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
         </div>
       </div>
+
+      {continuing && (
+        <div className="px-4 py-2 text-xs font-semibold text-warning-foreground bg-warning/20 border-b border-warning/30">
+          ⚠️ Esta tarefa está em andamento desde ontem ({fmtSP(task.data_tarefa, "dd/MM 'às' HH:mm")})
+        </div>
+      )}
 
       <div className="divide-y divide-border">
         {task.chapas.length === 0 && (
@@ -204,6 +256,18 @@ Precisamos de 1 substituto para esta tarefa.`;
           );
         })}
       </div>
+
+      {taskStarted && vStatus !== "aguardando" && (
+        <ValidationPanel
+          id_tarefa={task.id_tarefa}
+          chapas={task.chapas}
+          validacao_status={vStatus}
+          data_validacao_recebida={task.data_validacao_recebida ?? null}
+          data_upload_meu_chapa={task.data_upload_meu_chapa ?? null}
+          obs_validacao={task.obs_validacao ?? null}
+          onRefresh={onRefresh}
+        />
+      )}
 
       <Collapsible open={fupOpen} onOpenChange={setFupOpen}>
         <CollapsibleTrigger asChild>
