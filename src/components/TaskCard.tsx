@@ -66,39 +66,66 @@ export function TaskCard({ task, onRefresh }: { task: TaskWithChapas; onRefresh:
   const [fupOpen, setFupOpen] = useState(false);
   const [newFupCanal, setNewFupCanal] = useState("whatsapp_web");
   const [newFupObs, setNewFupObs] = useState("");
+  const { push } = useUndo();
 
   const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
 
-  async function updateChapa(id: string, patch: Record<string, unknown>) {
-    const { error } = await supabase.from("chapas").update(patch as never).eq("id", id);
-    if (error) toast.error(error.message);
-    else onRefresh();
+  type ChapaRow = (typeof task.chapas)[number] & {
+    canal_contato?: string | null;
+    data_contato?: string | null;
+    data_remocao?: string | null;
+    motivo_remocao?: string | null;
+  };
+
+  async function updateChapaWithUndo(chapa: ChapaRow, patch: Record<string, unknown>, label: string) {
+    const prev: Record<string, unknown> = {};
+    Object.keys(patch).forEach((k) => {
+      prev[k] = (chapa as Record<string, unknown>)[k] ?? null;
+    });
+    const { error } = await supabase.from("chapas").update(patch as never).eq("id", chapa.id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    push({
+      label,
+      revert: async () => {
+        const { error: e } = await supabase.from("chapas").update(prev as never).eq("id", chapa.id);
+        if (e) throw new Error(e.message);
+      },
+      onReverted: onRefresh,
+    });
+    onRefresh();
   }
 
-  function markContact(chapa: (typeof task.chapas)[number], canal: string) {
-    updateChapa(chapa.id, { canal_contato: canal, data_contato: new Date().toISOString() });
+  function markContact(chapa: ChapaRow, canal: string) {
+    updateChapaWithUndo(
+      chapa,
+      { canal_contato: canal, data_contato: new Date().toISOString() },
+      `contato ${canalLabel[canal]} — ${chapa.nome_chapa ?? "chapa"}`,
+    );
     toast.success(`Contato registrado: ${canalLabel[canal]}`);
   }
 
   async function confirmRemoval() {
     if (!removalTarget) return;
-    await supabase
-      .from("chapas")
-      .update({
+    const target = removalTarget as ChapaRow;
+    await updateChapaWithUndo(
+      target,
+      {
         status_contato: "removido",
         data_remocao: new Date().toISOString(),
         motivo_remocao: removalReason || null,
-      })
-      .eq("id", removalTarget.id);
-
+      },
+      `remoção de ${target.nome_chapa ?? "chapa"}`,
+    );
     const msg = `⚠️ Remoção sinalizada — Tarefa #${task.id_tarefa} | ${task.empresa} | ${fmtTime(task.data_tarefa)}
-Chapa removido: ${removalTarget.nome_chapa ?? "(sem nome)"} | Tel: ${removalTarget.telefone_chapa ?? "-"}
+Chapa removido: ${target.nome_chapa ?? "(sem nome)"} | Tel: ${target.telefone_chapa ?? "-"}
 Motivo: ${removalReason || "(não informado)"}
 Precisamos de 1 substituto para esta tarefa.`;
     setRemovalMsg(msg);
     setRemovalTarget(null);
     setRemovalReason("");
-    onRefresh();
   }
 
   function exportCSV() {
@@ -124,10 +151,23 @@ Precisamos de 1 substituto para esta tarefa.`;
   }
 
   async function registerFup() {
-    await supabase.from("fup_log").insert({
-      id_tarefa: task.id_tarefa,
-      canal: newFupCanal,
-      observacao: newFupObs || null,
+    const { data, error } = await supabase
+      .from("fup_log")
+      .insert({ id_tarefa: task.id_tarefa, canal: newFupCanal, observacao: newFupObs || null })
+      .select()
+      .single();
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const fupId = (data as { id: string }).id;
+    push({
+      label: `FUP ${canalLabel[newFupCanal] ?? newFupCanal}`,
+      revert: async () => {
+        const { error: e } = await supabase.from("fup_log").delete().eq("id", fupId);
+        if (e) throw new Error(e.message);
+      },
+      onReverted: onRefresh,
     });
     setNewFupObs("");
     toast.success("FUP registrado");
