@@ -257,6 +257,18 @@ Precisamos de 1 substituto para esta tarefa.`;
         })}
       </div>
 
+      {taskStarted && vStatus !== "aguardando" && (
+        <ValidationPanel
+          id_tarefa={task.id_tarefa}
+          chapas={task.chapas}
+          validacao_status={vStatus}
+          data_validacao_recebida={task.data_validacao_recebida ?? null}
+          data_upload_meu_chapa={task.data_upload_meu_chapa ?? null}
+          obs_validacao={task.obs_validacao ?? null}
+          onRefresh={onRefresh}
+        />
+      )}
+
       <Collapsible open={fupOpen} onOpenChange={setFupOpen}>
         <CollapsibleTrigger asChild>
           <button className="w-full px-4 py-2 bg-muted/50 hover:bg-muted flex items-center justify-between text-xs font-semibold text-muted-foreground border-t border-border">
