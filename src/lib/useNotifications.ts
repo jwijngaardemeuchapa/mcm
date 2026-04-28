@@ -9,6 +9,8 @@ type Tarefa = {
   data_tarefa: string;
   empresa: string;
   status_tarefa: string;
+  is_overnight?: boolean | null;
+  validacao_status?: string | null;
 };
 type Chapa = { id: string; id_tarefa: number; status_contato: string };
 
