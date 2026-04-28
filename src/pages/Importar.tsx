@@ -93,8 +93,26 @@ export default function Importar() {
       }
     }
 
-    // replace tasks+chapas for the imported IDs
+    // preserve observacoes from existing tasks across reimports
     const ids = Array.from(tarefasMap.keys());
+    const { data: existing } = await supabase
+      .from("tarefas")
+      .select("id_tarefa, observacoes, observacoes_updated_at")
+      .in("id_tarefa", ids);
+    const obsMap = new Map<number, { observacoes: string | null; observacoes_updated_at: string | null }>();
+    (existing ?? []).forEach((e: { id_tarefa: number; observacoes: string | null; observacoes_updated_at: string | null }) => {
+      obsMap.set(e.id_tarefa, {
+        observacoes: e.observacoes ?? null,
+        observacoes_updated_at: e.observacoes_updated_at ?? null,
+      });
+    });
+    tarefasMap.forEach((t, id) => {
+      const prev = obsMap.get(id);
+      t.observacoes = prev?.observacoes ?? null;
+      t.observacoes_updated_at = prev?.observacoes_updated_at ?? null;
+    });
+
+    // replace tasks+chapas for the imported IDs
     await supabase.from("chapas").delete().in("id_tarefa", ids);
     await supabase.from("tarefas").delete().in("id_tarefa", ids);
     const tErr = (await supabase.from("tarefas").insert(Array.from(tarefasMap.values()) as never)).error;

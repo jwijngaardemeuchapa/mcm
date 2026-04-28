@@ -81,6 +81,9 @@ export default function Dashboard() {
         data_validacao_recebida: t.data_validacao_recebida,
         data_upload_meu_chapa: t.data_upload_meu_chapa,
         obs_validacao: t.obs_validacao,
+        observacoes: (t as { observacoes?: string | null }).observacoes ?? null,
+        observacoes_updated_at:
+          (t as { observacoes_updated_at?: string | null }).observacoes_updated_at ?? null,
         chapas: (chapas ?? []).filter((c) => c.id_tarefa === t.id_tarefa),
         fup_log: (fup ?? []).filter((f) => f.id_tarefa === t.id_tarefa),
         urgent: !continuing && (d.getHours() < 6 || d.getTime() < Date.now()),

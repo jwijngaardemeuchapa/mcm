@@ -20,6 +20,7 @@ import { FillRateBar } from "./FillRateBar";
 import { OvernightBadge } from "./OvernightBadge";
 import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
+import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP } from "@/lib/datetime";
 
 export type TaskWithChapas = {
@@ -34,6 +35,8 @@ export type TaskWithChapas = {
   data_validacao_recebida?: string | null;
   data_upload_meu_chapa?: string | null;
   obs_validacao?: string | null;
+  observacoes?: string | null;
+  observacoes_updated_at?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;
@@ -268,6 +271,14 @@ Precisamos de 1 substituto para esta tarefa.`;
           onRefresh={onRefresh}
         />
       )}
+
+      <ObservationsPanel
+        id_tarefa={task.id_tarefa}
+        empresa={task.empresa}
+        data_tarefa={task.data_tarefa}
+        observacoes={task.observacoes ?? null}
+        observacoes_updated_at={task.observacoes_updated_at ?? null}
+      />
 
       <Collapsible open={fupOpen} onOpenChange={setFupOpen}>
         <CollapsibleTrigger asChild>
