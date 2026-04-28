@@ -22,6 +22,7 @@ import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
 import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP } from "@/lib/datetime";
+import { useUndo } from "@/lib/undo";
 
 export type TaskWithChapas = {
   id_tarefa: number;
