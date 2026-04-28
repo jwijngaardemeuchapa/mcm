@@ -20,6 +20,7 @@ import { FillRateBar } from "./FillRateBar";
 import { OvernightBadge } from "./OvernightBadge";
 import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
+import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP } from "@/lib/datetime";
 
 export type TaskWithChapas = {
