@@ -3,9 +3,11 @@ import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { fmtDateLong, timeAgo } from "@/lib/datetime";
-import { Bell, Clock } from "lucide-react";
+import { Bell, Clock, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useUndo } from "@/lib/undo";
 
 export default function AppLayout() {
   const [now, setNow] = useState(new Date());
