@@ -51,6 +51,11 @@ export default {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
+        overnight: {
+          DEFAULT: "hsl(var(--overnight))",
+          foreground: "hsl(var(--overnight-foreground))",
+          soft: "hsl(var(--overnight-soft))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
