@@ -475,6 +475,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           <Copy className="h-3.5 w-3.5" /> Copiar Lista
         </Button>
       </div>
+      </>)}
 
       {/* Removal dialog */}
       <Dialog open={!!removalTarget} onOpenChange={(o) => !o && setRemovalTarget(null)}>
