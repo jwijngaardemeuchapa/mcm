@@ -297,15 +297,25 @@ Precisamos de 1 substituto para esta tarefa.`;
             <StatusBadge status={task.status_tarefa} />
           )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
-          {isDone && userExpanded && (
+          {isDone && userExpanded ? (
             <button
               onClick={() => setUserExpanded(false)}
               className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
               aria-label="Minimizar tarefa"
+              title="Minimizar"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
-          )}
+          ) : !isDone ? (
+            <button
+              onClick={() => setManualCollapsed((v) => !v)}
+              className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
+              aria-label={manualCollapsed ? "Expandir tarefa" : "Colapsar tarefa"}
+              title={manualCollapsed ? "Expandir" : "Colapsar"}
+            >
+              {manualCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </button>
+          ) : null}
         </div>
       </div>
 
