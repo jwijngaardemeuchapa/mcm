@@ -263,7 +263,17 @@ Precisamos de 1 substituto para esta tarefa.`;
             }`}
           >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
-            <div className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5">#{task.id_tarefa}</div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(String(task.id_tarefa));
+                toast.success(`Código copiado: #${task.id_tarefa}`);
+              }}
+              className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5 hover:opacity-100 hover:underline cursor-pointer block w-full"
+              title="Clique para copiar o código da tarefa"
+            >
+              #{task.id_tarefa}
+            </button>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
