@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote } from "lucide-react";
+import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -181,6 +181,12 @@ Precisamos de 1 substituto para esta tarefa.`;
 
   const totalChapas = task.chapas.length;
   const confirmedAll = totalChapas > 0 && task.chapas.every((c) => c.status_contato === "confirmado");
+  const realChapas = task.chapas.filter((c) => c.nome_chapa);
+  const fullyValidated =
+    realChapas.length > 0 &&
+    realChapas.every(
+      (c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente",
+    );
   const isDone = confirmedAll && vStatus === "subido_meu_chapa";
 
   // Animate collapse only when the card transitions to "done" during the session.
