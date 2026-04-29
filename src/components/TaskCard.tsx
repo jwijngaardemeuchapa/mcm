@@ -407,7 +407,7 @@ Precisamos de 1 substituto para esta tarefa.`;
         })}
       </div>
 
-      {taskStarted && vStatus !== "aguardando" && (
+      {taskStarted && (
         <ValidationPanel
           id_tarefa={task.id_tarefa}
           chapas={task.chapas}
