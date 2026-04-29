@@ -186,6 +186,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   // Animate collapse only when the card transitions to "done" during the session.
   const initiallyDoneRef = useRef(isDone);
   const [userExpanded, setUserExpanded] = useState(false);
+  const [manualCollapsed, setManualCollapsed] = useState(false);
   const [animateCollapse, setAnimateCollapse] = useState(false);
   const prevDoneRef = useRef(isDone);
   useEffect(() => {
