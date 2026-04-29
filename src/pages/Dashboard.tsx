@@ -130,7 +130,28 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [load]);
 
-  const allCards = [...overnightContinuing, ...tasksToday];
+  // Hour filter (HH:mm) — applies only to "today" tasks
+  useEffect(() => {
+    if (hourFilter) localStorage.setItem("dash_hour_filter", hourFilter);
+    else localStorage.removeItem("dash_hour_filter");
+  }, [hourFilter]);
+
+  const filteredToday = useMemo(() => {
+    if (!hourFilter) return tasksToday;
+    const m = hourFilter.match(/^(\d{1,2}):?(\d{2})?$/);
+    if (!m) return tasksToday;
+    const h = parseInt(m[1], 10);
+    const mm = parseInt(m[2] ?? "0", 10);
+    if (!Number.isFinite(h)) return tasksToday;
+    const minMinutes = h * 60 + (Number.isFinite(mm) ? mm : 0);
+    return tasksToday.filter((t) => {
+      const hh = parseInt(fmtSP(t.data_tarefa, "HH"), 10);
+      const mi = parseInt(fmtSP(t.data_tarefa, "mm"), 10);
+      return hh * 60 + mi >= minMinutes;
+    });
+  }, [tasksToday, hourFilter]);
+
+  const allCards = [...overnightContinuing, ...filteredToday];
   const urgentCount = allCards.filter((t) => t.urgent).length;
   const totalChapas = allCards.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
   const confirmedChapas = allCards.reduce(
