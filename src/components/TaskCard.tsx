@@ -320,11 +320,14 @@ Precisamos de 1 substituto para esta tarefa.`;
         </div>
       </div>
 
-      {continuing && (
+      {continuing && !manualCollapsed && (
         <div className="px-4 py-2 text-xs font-semibold text-warning-foreground bg-warning/20 border-b border-warning/30">
           ⚠️ Esta tarefa está em andamento desde ontem ({fmtSP(task.data_tarefa, "dd/MM 'às' HH:mm")})
         </div>
       )}
+
+      {!manualCollapsed && (<>
+
 
       <div className="divide-y divide-border">
         {task.chapas.length === 0 && (
