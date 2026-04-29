@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toSP, todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
-import { AlertTriangle, Inbox, Moon } from "lucide-react";
+import { AlertTriangle, Inbox, Moon, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/lib/useNotifications";
 
 export default function Dashboard() {
@@ -11,6 +13,7 @@ export default function Dashboard() {
   const [tasksToday, setTasksToday] = useState<TaskWithChapas[]>([]);
   const [overnightContinuing, setOvernightContinuing] = useState<TaskWithChapas[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hourFilter, setHourFilter] = useState<string>(() => localStorage.getItem("dash_hour_filter") ?? "");
   const overnightNotifiedRef = useRef<Set<number>>(new Set());
 
   const load = useCallback(async () => {
