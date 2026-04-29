@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 export type UndoAction = {
@@ -22,43 +22,56 @@ const UndoContext = createContext<UndoContextValue | null>(null);
 const MAX_STACK = 20;
 
 export function UndoProvider({ children }: { children: ReactNode }) {
-  const [stack, setStack] = useState<UndoAction[]>([]);
+  // Ref is the source of truth — immune to StrictMode double-invocation of state updaters.
+  const stackRef = useRef<UndoAction[]>([]);
+  // State only used to trigger re-renders of consumers (e.g. enabling the Undo button).
+  const [, setTick] = useState(0);
+  const bump = useCallback(() => setTick((t) => t + 1), []);
+  // Guard against concurrent undo clicks reverting the same action twice.
+  const undoingRef = useRef(false);
 
-  const push = useCallback((action: UndoAction) => {
-    setStack((prev) => {
-      const next = [...prev, action];
-      if (next.length > MAX_STACK) next.shift();
-      return next;
-    });
-  }, []);
+  const push = useCallback(
+    (action: UndoAction) => {
+      stackRef.current.push(action);
+      if (stackRef.current.length > MAX_STACK) stackRef.current.shift();
+      bump();
+    },
+    [bump],
+  );
 
   const undo = useCallback(async () => {
-    let action: UndoAction | undefined;
-    setStack((prev) => {
-      if (prev.length === 0) return prev;
-      action = prev[prev.length - 1];
-      return prev.slice(0, -1);
-    });
-    // wait a tick for state to settle, then run revert
-    await Promise.resolve();
+    if (undoingRef.current) return;
+    const action = stackRef.current.pop();
+    bump();
     if (!action) {
       toast.info("Nada para desfazer");
       return;
     }
+    undoingRef.current = true;
     try {
       await action.revert();
       toast.success(`Desfeito: ${action.label}`);
       action.onReverted?.();
     } catch (e) {
+      // Re-add to stack so the user can retry.
+      stackRef.current.push(action);
+      bump();
       const msg = e instanceof Error ? e.message : "Erro ao desfazer";
       toast.error(msg);
+    } finally {
+      undoingRef.current = false;
     }
-  }, []);
+  }, [bump]);
 
-  const clear = useCallback(() => setStack([]), []);
+  const clear = useCallback(() => {
+    stackRef.current = [];
+    bump();
+  }, [bump]);
+
+  const last = stackRef.current[stackRef.current.length - 1] ?? null;
 
   return (
-    <UndoContext.Provider value={{ last: stack[stack.length - 1] ?? null, push, undo, clear }}>
+    <UndoContext.Provider value={{ last, push, undo, clear }}>
       {children}
     </UndoContext.Provider>
   );
