@@ -1,9 +1,11 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toSP, todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
-import { AlertTriangle, Inbox, Moon } from "lucide-react";
+import { AlertTriangle, Inbox, Moon, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/lib/useNotifications";
 
 export default function Dashboard() {
@@ -11,6 +13,7 @@ export default function Dashboard() {
   const [tasksToday, setTasksToday] = useState<TaskWithChapas[]>([]);
   const [overnightContinuing, setOvernightContinuing] = useState<TaskWithChapas[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hourFilter, setHourFilter] = useState<string>(() => localStorage.getItem("dash_hour_filter") ?? "");
   const overnightNotifiedRef = useRef<Set<number>>(new Set());
 
   const load = useCallback(async () => {
@@ -127,7 +130,28 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, [load]);
 
-  const allCards = [...overnightContinuing, ...tasksToday];
+  // Hour filter (HH:mm) — applies only to "today" tasks
+  useEffect(() => {
+    if (hourFilter) localStorage.setItem("dash_hour_filter", hourFilter);
+    else localStorage.removeItem("dash_hour_filter");
+  }, [hourFilter]);
+
+  const filteredToday = useMemo(() => {
+    if (!hourFilter) return tasksToday;
+    const m = hourFilter.match(/^(\d{1,2}):?(\d{2})?$/);
+    if (!m) return tasksToday;
+    const h = parseInt(m[1], 10);
+    const mm = parseInt(m[2] ?? "0", 10);
+    if (!Number.isFinite(h)) return tasksToday;
+    const minMinutes = h * 60 + (Number.isFinite(mm) ? mm : 0);
+    return tasksToday.filter((t) => {
+      const hh = parseInt(fmtSP(t.data_tarefa, "HH"), 10);
+      const mi = parseInt(fmtSP(t.data_tarefa, "mm"), 10);
+      return hh * 60 + mi >= minMinutes;
+    });
+  }, [tasksToday, hourFilter]);
+
+  const allCards = [...overnightContinuing, ...filteredToday];
   const urgentCount = allCards.filter((t) => t.urgent).length;
   const totalChapas = allCards.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
   const confirmedChapas = allCards.reduce(
@@ -194,7 +218,29 @@ export default function Dashboard() {
         </section>
       )}
 
-      <h2 className="font-display font-semibold text-lg text-foreground pt-2">📋 Tarefas do dia</h2>
+      <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
+        <h2 className="font-display font-semibold text-lg text-foreground">📋 Tarefas do dia</h2>
+        <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <label className="text-xs text-muted-foreground">A partir de</label>
+          <Input
+            type="time"
+            value={hourFilter}
+            onChange={(e) => setHourFilter(e.target.value)}
+            className="h-7 w-[110px] text-sm"
+          />
+          {hourFilter && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setHourFilter("")}>
+              Limpar
+            </Button>
+          )}
+          {hourFilter && (
+            <span className="text-xs text-muted-foreground">
+              ({filteredToday.length}/{tasksToday.length})
+            </span>
+          )}
+        </div>
+      </div>
 
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Carregando...</div>
@@ -212,9 +258,9 @@ export default function Dashboard() {
             t.chapas.length > 0 &&
             t.chapas.every((c) => c.status_contato === "confirmado") &&
             (t.validacao_status ?? "aguardando") === "subido_meu_chapa";
-          const pending = tasksToday.filter((t) => !isTaskDone(t));
-          const done = tasksToday.filter(isTaskDone);
-          const allDone = tasksToday.length > 0 && pending.length === 0;
+          const pending = filteredToday.filter((t) => !isTaskDone(t));
+          const done = filteredToday.filter(isTaskDone);
+          const allDone = filteredToday.length > 0 && pending.length === 0;
 
           return (
             <div className="space-y-3">

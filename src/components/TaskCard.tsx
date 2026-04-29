@@ -186,6 +186,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   // Animate collapse only when the card transitions to "done" during the session.
   const initiallyDoneRef = useRef(isDone);
   const [userExpanded, setUserExpanded] = useState(false);
+  const [manualCollapsed, setManualCollapsed] = useState(false);
   const [animateCollapse, setAnimateCollapse] = useState(false);
   const prevDoneRef = useRef(isDone);
   useEffect(() => {
@@ -263,7 +264,17 @@ Precisamos de 1 substituto para esta tarefa.`;
             }`}
           >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
-            <div className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5">#{task.id_tarefa}</div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(String(task.id_tarefa));
+                toast.success(`Código copiado: #${task.id_tarefa}`);
+              }}
+              className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5 hover:opacity-100 hover:underline cursor-pointer block w-full"
+              title="Clique para copiar o código da tarefa"
+            >
+              #{task.id_tarefa}
+            </button>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -287,23 +298,36 @@ Precisamos de 1 substituto para esta tarefa.`;
             <StatusBadge status={task.status_tarefa} />
           )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
-          {isDone && userExpanded && (
+          {isDone && userExpanded ? (
             <button
               onClick={() => setUserExpanded(false)}
               className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
               aria-label="Minimizar tarefa"
+              title="Minimizar"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
-          )}
+          ) : !isDone ? (
+            <button
+              onClick={() => setManualCollapsed((v) => !v)}
+              className="h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
+              aria-label={manualCollapsed ? "Expandir tarefa" : "Colapsar tarefa"}
+              title={manualCollapsed ? "Expandir" : "Colapsar"}
+            >
+              {manualCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </button>
+          ) : null}
         </div>
       </div>
 
-      {continuing && (
+      {continuing && !manualCollapsed && (
         <div className="px-4 py-2 text-xs font-semibold text-warning-foreground bg-warning/20 border-b border-warning/30">
           ⚠️ Esta tarefa está em andamento desde ontem ({fmtSP(task.data_tarefa, "dd/MM 'às' HH:mm")})
         </div>
       )}
+
+      {!manualCollapsed && (<>
+
 
       <div className="divide-y divide-border">
         {task.chapas.length === 0 && (
@@ -451,6 +475,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           <Copy className="h-3.5 w-3.5" /> Copiar Lista
         </Button>
       </div>
+      </>)}
 
       {/* Removal dialog */}
       <Dialog open={!!removalTarget} onOpenChange={(o) => !o && setRemovalTarget(null)}>

@@ -59,7 +59,6 @@ export default function Importar() {
       const data_tarefa = parseDateBR(pick(row, "Data da Tarefa", "data_tarefa"));
       if (!data_tarefa) continue;
       if (!tarefasMap.has(id_tarefa)) {
-        // São Paulo hour detection for overnight flag
         const spHourStr = new Date(data_tarefa).toLocaleString("en-US", {
           timeZone: "America/Sao_Paulo",
           hour: "2-digit",
@@ -77,7 +76,6 @@ export default function Importar() {
           quantidade_chapas: parseInt(pick(row, "Quantidade de Chapas", "quantidade_chapas"), 10) || 0,
           ativo: true,
           is_overnight,
-          validacao_status: "aguardando",
           importado_em: new Date().toISOString(),
         });
       }
@@ -88,37 +86,89 @@ export default function Importar() {
           nome_chapa: nome,
           telefone_chapa: pick(row, "Telefone Chapa", "telefone_chapa") || null,
           cpf: pick(row, "CPF", "cpf") || null,
-          status_contato: "pendente",
         });
       }
     }
 
-    // preserve observacoes from existing tasks across reimports
     const ids = Array.from(tarefasMap.keys());
-    const { data: existing } = await supabase
+
+    // 1) Preserve task progress fields across reimports
+    const { data: existingTarefas } = await supabase
       .from("tarefas")
-      .select("id_tarefa, observacoes, observacoes_updated_at")
+      .select(
+        "id_tarefa, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao",
+      )
       .in("id_tarefa", ids);
-    const obsMap = new Map<number, { observacoes: string | null; observacoes_updated_at: string | null }>();
-    (existing ?? []).forEach((e: { id_tarefa: number; observacoes: string | null; observacoes_updated_at: string | null }) => {
-      obsMap.set(e.id_tarefa, {
-        observacoes: e.observacoes ?? null,
-        observacoes_updated_at: e.observacoes_updated_at ?? null,
-      });
+    const tarefaPrev = new Map<number, Record<string, unknown>>();
+    (existingTarefas ?? []).forEach((e: Record<string, unknown>) => {
+      tarefaPrev.set(e.id_tarefa as number, e);
     });
     tarefasMap.forEach((t, id) => {
-      const prev = obsMap.get(id);
+      const prev = tarefaPrev.get(id);
       t.observacoes = prev?.observacoes ?? null;
       t.observacoes_updated_at = prev?.observacoes_updated_at ?? null;
+      t.validacao_status = prev?.validacao_status ?? "aguardando";
+      t.data_validacao_recebida = prev?.data_validacao_recebida ?? null;
+      t.data_upload_meu_chapa = prev?.data_upload_meu_chapa ?? null;
+      t.obs_validacao = prev?.obs_validacao ?? null;
     });
 
-    // replace tasks+chapas for the imported IDs
+    // 2) Preserve chapa progress (status_contato, validação, contato, remoção) by (id_tarefa, cpf || nome)
+    const { data: existingChapas } = await supabase
+      .from("chapas")
+      .select(
+        "id, id_tarefa, nome_chapa, cpf, telefone_chapa, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao",
+      )
+      .in("id_tarefa", ids);
+
+    const norm = (s: string | null | undefined) =>
+      (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
+    const chapaKey = (id_tarefa: number, cpf: string | null | undefined, nome: string | null | undefined) => {
+      const c = (cpf ?? "").replace(/\D/g, "");
+      return c ? `${id_tarefa}|cpf:${c}` : `${id_tarefa}|nome:${norm(nome)}`;
+    };
+    const chapaPrev = new Map<string, Record<string, unknown>>();
+    (existingChapas ?? []).forEach((c: Record<string, unknown>) => {
+      chapaPrev.set(
+        chapaKey(c.id_tarefa as number, c.cpf as string | null, c.nome_chapa as string | null),
+        c,
+      );
+    });
+
+    const chapasToInsert = chapas.map((c) => {
+      const prev = chapaPrev.get(
+        chapaKey(c.id_tarefa as number, c.cpf as string | null, c.nome_chapa as string | null),
+      );
+      if (prev) {
+        return {
+          ...c,
+          status_contato: prev.status_contato ?? "pendente",
+          validacao_presenca: prev.validacao_presenca ?? "pendente",
+          data_validacao: prev.data_validacao ?? null,
+          data_contato: prev.data_contato ?? null,
+          canal_contato: prev.canal_contato ?? null,
+          data_remocao: prev.data_remocao ?? null,
+          motivo_remocao: prev.motivo_remocao ?? null,
+          telefone_chapa: c.telefone_chapa ?? prev.telefone_chapa ?? null,
+        };
+      }
+      return { ...c, status_contato: "pendente", validacao_presenca: "pendente" };
+    });
+
+    // Replace tasks+chapas atomically (preserved progress is already merged into payload above)
     await supabase.from("chapas").delete().in("id_tarefa", ids);
     await supabase.from("tarefas").delete().in("id_tarefa", ids);
     const tErr = (await supabase.from("tarefas").insert(Array.from(tarefasMap.values()) as never)).error;
-    const cErr = chapas.length ? (await supabase.from("chapas").insert(chapas as never)).error : null;
-    if (tErr || cErr) { toast.error((tErr ?? cErr)!.message); return; }
-    toast.success(`${tarefasMap.size} tarefas e ${chapas.length} chapas importados`);
+    const cErr = chapasToInsert.length
+      ? (await supabase.from("chapas").insert(chapasToInsert as never)).error
+      : null;
+    if (tErr || cErr) {
+      toast.error((tErr ?? cErr)!.message);
+      return;
+    }
+    toast.success(
+      `${tarefasMap.size} tarefas e ${chapasToInsert.length} chapas importados (progresso preservado)`,
+    );
     setPreview([]);
     loadLast();
   }
@@ -144,6 +194,13 @@ export default function Importar() {
           Colunas: ID Tarefa, Data da Tarefa, Cidade/UF, Empresa, CNPJ, Status da Tarefa, Nome do Chapa, Telefone Chapa, Quantidade de Chapas
         </div>
       </label>
+
+      <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-success/10 border border-success/30 text-success text-sm">
+        <span>✅</span>
+        <span>
+          <b>Progresso preservado:</b> chapas já confirmados, validados, contatados ou removidos não voltam a "estaca zero". Observações, validações da tarefa e upload no Meu Chapa também são mantidos. O match é feito por CPF (quando existe) ou pelo nome do chapa.
+        </span>
+      </div>
 
       {preview.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
