@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote } from "lucide-react";
+import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -181,6 +181,12 @@ Precisamos de 1 substituto para esta tarefa.`;
 
   const totalChapas = task.chapas.length;
   const confirmedAll = totalChapas > 0 && task.chapas.every((c) => c.status_contato === "confirmado");
+  const realChapas = task.chapas.filter((c) => c.nome_chapa);
+  const fullyValidated =
+    realChapas.length > 0 &&
+    realChapas.every(
+      (c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente",
+    );
   const isDone = confirmedAll && vStatus === "subido_meu_chapa";
 
   // Animate collapse only when the card transitions to "done" during the session.
@@ -205,12 +211,13 @@ Precisamos de 1 substituto para esta tarefa.`;
   if (showMinimized) {
     return (
       <div
-        className={`bg-card rounded-xl border border-border border-l-2 border-l-success shadow-card overflow-hidden ${
+        className={`bg-card rounded-xl border border-border border-l-4 border-l-success shadow-card overflow-hidden ${
           animateCollapse ? "animate-fade-in" : ""
         }`}
       >
         <div className="h-12 px-4 flex items-center gap-3">
           {isOvernight && <Moon className="h-4 w-4 text-overnight shrink-0" aria-label="Overnight" />}
+          <BadgeCheck className="h-4 w-4 text-success shrink-0" aria-label="Validada" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-sm text-muted-foreground truncate">
               {task.empresa} — {fmtTime(task.data_tarefa)}
@@ -219,8 +226,8 @@ Precisamos de 1 substituto para esta tarefa.`;
           <span className="text-xs font-semibold text-success shrink-0">
             {totalChapas}/{totalChapas} ✅
           </span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-overnight/15 text-overnight shrink-0">
-            Subido Meu Chapa ✓
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-success/15 text-success shrink-0 inline-flex items-center gap-1">
+            <BadgeCheck className="h-3 w-3" /> 100% Validada
           </span>
           {hasObs && (
             <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Contém observações" />
@@ -240,7 +247,11 @@ Precisamos de 1 substituto para esta tarefa.`;
   return (
     <div
       className={`bg-card rounded-xl border shadow-card overflow-hidden ${
-        continuing
+        isDone
+          ? "border-success/60 border-l-4 border-l-success ring-1 ring-success/20"
+          : fullyValidated
+          ? "border-success/50 border-l-4 border-l-success ring-1 ring-success/15"
+          : continuing
           ? "border-overnight/60 ring-2 ring-overnight/30"
           : isOvernight
           ? "border-overnight/40 ring-1 ring-overnight/20"
@@ -292,6 +303,14 @@ Precisamos de 1 substituto para esta tarefa.`;
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {fullyValidated && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-success text-success-foreground shadow-sm"
+              title="Todas as presenças foram marcadas"
+            >
+              <BadgeCheck className="h-3.5 w-3.5" /> 100% Validada
+            </span>
+          )}
           {taskStarted ? (
             <ValidationStepper status={vStatus} />
           ) : (
@@ -323,6 +342,20 @@ Precisamos de 1 substituto para esta tarefa.`;
       {continuing && !manualCollapsed && (
         <div className="px-4 py-2 text-xs font-semibold text-warning-foreground bg-warning/20 border-b border-warning/30">
           ⚠️ Esta tarefa está em andamento desde ontem ({fmtSP(task.data_tarefa, "dd/MM 'às' HH:mm")})
+        </div>
+      )}
+
+      {fullyValidated && !isDone && !manualCollapsed && (
+        <div className="px-4 py-2 text-xs font-semibold bg-success/15 border-b border-success/40 text-success flex items-center gap-2 animate-fade-in">
+          <BadgeCheck className="h-4 w-4 shrink-0" />
+          <span>
+            ✅ Todas as presenças validadas
+            {vStatus === "validacao_recebida"
+              ? " · pronto para subir no Meu Chapa"
+              : vStatus === "pendente"
+              ? " · marque como recebida do cliente"
+              : ""}
+          </span>
         </div>
       )}
 
