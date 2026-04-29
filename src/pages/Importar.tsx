@@ -195,6 +195,13 @@ export default function Importar() {
         </div>
       </label>
 
+      <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-success/10 border border-success/30 text-success text-sm">
+        <span>✅</span>
+        <span>
+          <b>Progresso preservado:</b> chapas já confirmados, validados, contatados ou removidos não voltam a "estaca zero". Observações, validações da tarefa e upload no Meu Chapa também são mantidos. O match é feito por CPF (quando existe) ou pelo nome do chapa.
+        </span>
+      </div>
+
       {preview.length > 0 && (
         <div className="bg-card border border-border rounded-xl overflow-hidden">
           <div className="p-4 flex items-center justify-between border-b border-border">
