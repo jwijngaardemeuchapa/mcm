@@ -211,12 +211,13 @@ Precisamos de 1 substituto para esta tarefa.`;
   if (showMinimized) {
     return (
       <div
-        className={`bg-card rounded-xl border border-border border-l-2 border-l-success shadow-card overflow-hidden ${
+        className={`bg-card rounded-xl border border-border border-l-4 border-l-success shadow-card overflow-hidden ${
           animateCollapse ? "animate-fade-in" : ""
         }`}
       >
         <div className="h-12 px-4 flex items-center gap-3">
           {isOvernight && <Moon className="h-4 w-4 text-overnight shrink-0" aria-label="Overnight" />}
+          <BadgeCheck className="h-4 w-4 text-success shrink-0" aria-label="Validada" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-sm text-muted-foreground truncate">
               {task.empresa} — {fmtTime(task.data_tarefa)}
@@ -225,8 +226,8 @@ Precisamos de 1 substituto para esta tarefa.`;
           <span className="text-xs font-semibold text-success shrink-0">
             {totalChapas}/{totalChapas} ✅
           </span>
-          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-overnight/15 text-overnight shrink-0">
-            Subido Meu Chapa ✓
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-success/15 text-success shrink-0 inline-flex items-center gap-1">
+            <BadgeCheck className="h-3 w-3" /> 100% Validada
           </span>
           {hasObs && (
             <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Contém observações" />
@@ -246,7 +247,11 @@ Precisamos de 1 substituto para esta tarefa.`;
   return (
     <div
       className={`bg-card rounded-xl border shadow-card overflow-hidden ${
-        continuing
+        isDone
+          ? "border-success/60 border-l-4 border-l-success ring-1 ring-success/20"
+          : fullyValidated
+          ? "border-success/50 border-l-4 border-l-success ring-1 ring-success/15"
+          : continuing
           ? "border-overnight/60 ring-2 ring-overnight/30"
           : isOvernight
           ? "border-overnight/40 ring-1 ring-overnight/20"
