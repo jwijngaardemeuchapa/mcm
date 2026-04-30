@@ -203,10 +203,12 @@ Precisamos de 1 substituto para esta tarefa.`;
 
   // Animate collapse only when the card transitions to "done" during the session.
   const initiallyDoneRef = useRef(isDone);
+  // Tasks that are 100% validated (but not yet "done") start collapsed by default.
   const [userExpanded, setUserExpanded] = useState(false);
-  const [manualCollapsed, setManualCollapsed] = useState(false);
+  const [manualCollapsed, setManualCollapsed] = useState<boolean>(() => fullyValidated && !isDone);
   const [animateCollapse, setAnimateCollapse] = useState(false);
   const prevDoneRef = useRef(isDone);
+  const prevValidatedRef = useRef(fullyValidated);
   useEffect(() => {
     if (!prevDoneRef.current && isDone && !initiallyDoneRef.current) {
       setAnimateCollapse(true);
@@ -216,6 +218,20 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     prevDoneRef.current = isDone;
   }, [isDone]);
+  // Auto-collapse when the card becomes 100% validated this session.
+  useEffect(() => {
+    if (!prevValidatedRef.current && fullyValidated && !isDone) {
+      setManualCollapsed(true);
+    }
+    prevValidatedRef.current = fullyValidated;
+  }, [fullyValidated, isDone]);
+
+  // Honor global "expand all" / "collapse all" / "expand only pending" controls.
+  useEffect(() => {
+    if (forceCollapse === undefined || forceCollapse === null) return;
+    setManualCollapsed(forceCollapse);
+    if (isDone) setUserExpanded(!forceCollapse);
+  }, [forceCollapse, isDone]);
 
   const showMinimized = isDone && !userExpanded;
   const hasObs = !!(task.observacoes && task.observacoes.trim().length > 0);
