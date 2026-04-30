@@ -141,10 +141,10 @@ export default function Dashboard() {
           observacoes_updated_at: t.observacoes_updated_at ?? null,
           chapas: (chapas as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
             (c) => c.id_tarefa === t.id_tarefa,
-          ) as TaskWithChapas["chapas"],
+          ) as unknown as TaskWithChapas["chapas"],
           fup_log: (sortedFup as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
             (f) => f.id_tarefa === t.id_tarefa,
-          ) as TaskWithChapas["fup_log"],
+          ) as unknown as TaskWithChapas["fup_log"],
           urgent: !continuing && (d.getHours() < 6 || d.getTime() < Date.now()),
           continuingFromYesterday: continuing,
         };
