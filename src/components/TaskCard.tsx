@@ -274,7 +274,8 @@ Precisamos de 1 substituto para esta tarefa.`;
 
   return (
     <div
-      className={`bg-card rounded-xl border shadow-card overflow-hidden ${
+      data-task-card={task.id_tarefa}
+      className={`bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${
         isDone
           ? "border-success/60 border-l-4 border-l-success ring-1 ring-success/20"
           : fullyValidated
@@ -286,7 +287,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           : task.urgent
           ? "border-destructive/50 ring-1 ring-destructive/20"
           : "border-border"
-      } ${isDone && userExpanded ? "animate-fade-in" : ""}`}
+      } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
 
       <div
