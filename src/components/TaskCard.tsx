@@ -361,6 +361,25 @@ Precisamos de 1 substituto para esta tarefa.`;
             <StatusBadge status={task.status_tarefa} />
           )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
+          {usedFupCanais.length > 0 && (
+            <div
+              className="flex items-center gap-1"
+              title={`FUPs já enviados: ${usedFupCanais.map((c) => canalLabel[c] ?? c).join(", ")}`}
+            >
+              {usedFupCanais.map((c) => {
+                const Icon = c === "whatsapp_web" ? MessageCircle : c === "umbler_talk" ? MessageSquare : Phone;
+                return (
+                  <span
+                    key={c}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded bg-success/15 text-success border border-success/30"
+                    aria-label={`FUP enviado: ${canalLabel[c] ?? c}`}
+                  >
+                    <Icon className="h-3 w-3" />
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {isDone && userExpanded ? (
             <button
               onClick={() => setUserExpanded(false)}
