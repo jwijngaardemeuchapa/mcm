@@ -304,17 +304,31 @@ Precisamos de 1 substituto para esta tarefa.`;
             }`}
           >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(String(task.id_tarefa));
-                toast.success(`Código copiado: #${task.id_tarefa}`);
-              }}
-              className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5 hover:opacity-100 hover:underline cursor-pointer block w-full"
-              title="Clique para copiar o código da tarefa"
-            >
-              #{task.id_tarefa}
-            </button>
+            <div className="flex items-center justify-center gap-1 mt-0.5">
+              <a
+                href={`https://app.meu-chapa.net/admin/edit-task/${task.id_tarefa}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] uppercase tracking-wider opacity-90 hover:opacity-100 hover:underline inline-flex items-center gap-0.5"
+                title="Abrir tarefa no Meu Chapa"
+              >
+                #{task.id_tarefa}
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(String(task.id_tarefa));
+                  toast.success(`Código copiado: #${task.id_tarefa}`);
+                }}
+                className="opacity-70 hover:opacity-100 p-0.5 rounded hover:bg-white/10"
+                title="Copiar código da tarefa"
+                aria-label="Copiar código"
+              >
+                <Copy className="h-2.5 w-2.5" />
+              </button>
+            </div>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
