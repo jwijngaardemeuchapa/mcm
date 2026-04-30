@@ -200,6 +200,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       (c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente",
     );
   const isDone = confirmedAll && vStatus === "subido_meu_chapa";
+  const usedFupCanais = Array.from(new Set(task.fup_log.map((f) => f.canal)));
 
   // Animate collapse only when the card transitions to "done" during the session.
   const initiallyDoneRef = useRef(isDone);
