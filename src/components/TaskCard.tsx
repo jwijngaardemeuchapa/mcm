@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote, BadgeCheck } from "lucide-react";
+import { MessageCircle, MessageSquare, Phone, Check, X, Trash2, ChevronDown, ChevronUp, Download, Copy, Plus, Moon, StickyNote, BadgeCheck, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -59,7 +59,19 @@ const canalLabel: Record<string, string> = {
   ligacao_3c: "Ligação 3C",
 };
 
-export function TaskCard({ task, onRefresh }: { task: TaskWithChapas; onRefresh: () => void }) {
+export function TaskCard({
+  task,
+  onRefresh,
+  forceCollapse,
+  matchHighlight,
+}: {
+  task: TaskWithChapas;
+  onRefresh: () => void;
+  /** When set, overrides the user's local collapse state. true = collapsed, false = expanded. */
+  forceCollapse?: boolean | null;
+  /** When the card matched a global search, highlight it. */
+  matchHighlight?: boolean;
+}) {
   const [removalTarget, setRemovalTarget] = useState<(typeof task.chapas)[number] | null>(null);
   const [removalReason, setRemovalReason] = useState("");
   const [removalMsg, setRemovalMsg] = useState<string | null>(null);
@@ -188,13 +200,16 @@ Precisamos de 1 substituto para esta tarefa.`;
       (c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente",
     );
   const isDone = confirmedAll && vStatus === "subido_meu_chapa";
+  const usedFupCanais = Array.from(new Set(task.fup_log.map((f) => f.canal)));
 
   // Animate collapse only when the card transitions to "done" during the session.
   const initiallyDoneRef = useRef(isDone);
+  // Tasks that are 100% validated (but not yet "done") start collapsed by default.
   const [userExpanded, setUserExpanded] = useState(false);
-  const [manualCollapsed, setManualCollapsed] = useState(false);
+  const [manualCollapsed, setManualCollapsed] = useState<boolean>(() => fullyValidated && !isDone);
   const [animateCollapse, setAnimateCollapse] = useState(false);
   const prevDoneRef = useRef(isDone);
+  const prevValidatedRef = useRef(fullyValidated);
   useEffect(() => {
     if (!prevDoneRef.current && isDone && !initiallyDoneRef.current) {
       setAnimateCollapse(true);
@@ -204,6 +219,20 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     prevDoneRef.current = isDone;
   }, [isDone]);
+  // Auto-collapse when the card becomes 100% validated this session.
+  useEffect(() => {
+    if (!prevValidatedRef.current && fullyValidated && !isDone) {
+      setManualCollapsed(true);
+    }
+    prevValidatedRef.current = fullyValidated;
+  }, [fullyValidated, isDone]);
+
+  // Honor global "expand all" / "collapse all" / "expand only pending" controls.
+  useEffect(() => {
+    if (forceCollapse === undefined || forceCollapse === null) return;
+    setManualCollapsed(forceCollapse);
+    if (isDone) setUserExpanded(!forceCollapse);
+  }, [forceCollapse, isDone]);
 
   const showMinimized = isDone && !userExpanded;
   const hasObs = !!(task.observacoes && task.observacoes.trim().length > 0);
@@ -246,7 +275,8 @@ Precisamos de 1 substituto para esta tarefa.`;
 
   return (
     <div
-      className={`bg-card rounded-xl border shadow-card overflow-hidden ${
+      data-task-card={task.id_tarefa}
+      className={`bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${
         isDone
           ? "border-success/60 border-l-4 border-l-success ring-1 ring-success/20"
           : fullyValidated
@@ -258,7 +288,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           : task.urgent
           ? "border-destructive/50 ring-1 ring-destructive/20"
           : "border-border"
-      } ${isDone && userExpanded ? "animate-fade-in" : ""}`}
+      } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
 
       <div
@@ -275,17 +305,31 @@ Precisamos de 1 substituto para esta tarefa.`;
             }`}
           >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(String(task.id_tarefa));
-                toast.success(`Código copiado: #${task.id_tarefa}`);
-              }}
-              className="text-[10px] uppercase tracking-wider opacity-90 mt-0.5 hover:opacity-100 hover:underline cursor-pointer block w-full"
-              title="Clique para copiar o código da tarefa"
-            >
-              #{task.id_tarefa}
-            </button>
+            <div className="flex items-center justify-center gap-1 mt-0.5">
+              <a
+                href={`https://app.meu-chapa.net/admin/edit-task/${task.id_tarefa}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] uppercase tracking-wider opacity-90 hover:opacity-100 hover:underline inline-flex items-center gap-0.5"
+                title="Abrir tarefa no Meu Chapa"
+              >
+                #{task.id_tarefa}
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(String(task.id_tarefa));
+                  toast.success(`Código copiado: #${task.id_tarefa}`);
+                }}
+                className="opacity-70 hover:opacity-100 p-0.5 rounded hover:bg-white/10"
+                title="Copiar código da tarefa"
+                aria-label="Copiar código"
+              >
+                <Copy className="h-2.5 w-2.5" />
+              </button>
+            </div>
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -317,6 +361,25 @@ Precisamos de 1 substituto para esta tarefa.`;
             <StatusBadge status={task.status_tarefa} />
           )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
+          {usedFupCanais.length > 0 && (
+            <div
+              className="flex items-center gap-1"
+              title={`FUPs já enviados: ${usedFupCanais.map((c) => canalLabel[c] ?? c).join(", ")}`}
+            >
+              {usedFupCanais.map((c) => {
+                const Icon = c === "whatsapp_web" ? MessageCircle : c === "umbler_talk" ? MessageSquare : Phone;
+                return (
+                  <span
+                    key={c}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded bg-success/15 text-success border border-success/30"
+                    aria-label={`FUP enviado: ${canalLabel[c] ?? c}`}
+                  >
+                    <Icon className="h-3 w-3" />
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {isDone && userExpanded ? (
             <button
               onClick={() => setUserExpanded(false)}
@@ -379,9 +442,21 @@ Precisamos de 1 substituto para esta tarefa.`;
               } ${placeholder ? "opacity-60 italic" : ""}`}
             >
               <div className="flex-1 min-w-[180px]">
-                <div className="font-medium text-sm text-foreground">
-                  {c.nome_chapa ?? "Vaga em captação"}
-                </div>
+                {c.nome_chapa ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(c.nome_chapa!);
+                      toast.success(`Nome copiado: ${c.nome_chapa}`);
+                    }}
+                    className="font-medium text-sm text-foreground hover:text-primary hover:underline cursor-pointer text-left"
+                    title="Clique para copiar o nome"
+                  >
+                    {c.nome_chapa}
+                  </button>
+                ) : (
+                  <div className="font-medium text-sm text-foreground">Vaga em captação</div>
+                )}
                 {c.telefone_chapa ? (
                   <button
                     type="button"
