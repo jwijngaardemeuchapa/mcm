@@ -442,9 +442,21 @@ Precisamos de 1 substituto para esta tarefa.`;
               } ${placeholder ? "opacity-60 italic" : ""}`}
             >
               <div className="flex-1 min-w-[180px]">
-                <div className="font-medium text-sm text-foreground">
-                  {c.nome_chapa ?? "Vaga em captação"}
-                </div>
+                {c.nome_chapa ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(c.nome_chapa!);
+                      toast.success(`Nome copiado: ${c.nome_chapa}`);
+                    }}
+                    className="font-medium text-sm text-foreground hover:text-primary hover:underline cursor-pointer text-left"
+                    title="Clique para copiar o nome"
+                  >
+                    {c.nome_chapa}
+                  </button>
+                ) : (
+                  <div className="font-medium text-sm text-foreground">Vaga em captação</div>
+                )}
                 {c.telefone_chapa ? (
                   <button
                     type="button"
