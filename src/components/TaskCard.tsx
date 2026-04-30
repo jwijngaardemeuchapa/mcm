@@ -59,7 +59,19 @@ const canalLabel: Record<string, string> = {
   ligacao_3c: "Ligação 3C",
 };
 
-export function TaskCard({ task, onRefresh }: { task: TaskWithChapas; onRefresh: () => void }) {
+export function TaskCard({
+  task,
+  onRefresh,
+  forceCollapse,
+  matchHighlight,
+}: {
+  task: TaskWithChapas;
+  onRefresh: () => void;
+  /** When set, overrides the user's local collapse state. true = collapsed, false = expanded. */
+  forceCollapse?: boolean | null;
+  /** When the card matched a global search, highlight it. */
+  matchHighlight?: boolean;
+}) {
   const [removalTarget, setRemovalTarget] = useState<(typeof task.chapas)[number] | null>(null);
   const [removalReason, setRemovalReason] = useState("");
   const [removalMsg, setRemovalMsg] = useState<string | null>(null);
