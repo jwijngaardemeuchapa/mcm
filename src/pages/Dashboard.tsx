@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toSP, todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
@@ -12,13 +13,15 @@ import {
   RefreshCw,
   Search,
   ChevronsDownUp,
-  ChevronsUpDown,
   ListFilter,
   Bell,
   BellOff,
+  X,
+  Check,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNotifications } from "@/lib/useNotifications";
 import { toast } from "sonner";
 
@@ -26,13 +29,18 @@ type AllRowKey = number;
 
 export default function Dashboard() {
   useNotifications();
+  const navigate = useNavigate();
   const [tasksToday, setTasksToday] = useState<TaskWithChapas[]>([]);
   const [overnightContinuing, setOvernightContinuing] = useState<TaskWithChapas[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshDone, setRefreshDone] = useState(false);
   const [hourFilter, setHourFilter] = useState<string>(() => localStorage.getItem("dash_hour_filter") ?? "");
   const [search, setSearch] = useState("");
   const [forceCollapseMap, setForceCollapseMap] = useState<Record<AllRowKey, boolean | null>>({});
+  const [globalCollapsed, setGlobalCollapsed] = useState(false);
+  const [onlyPending, setOnlyPending] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const overnightNotifiedRef = useRef<Set<number>>(new Set());
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | "unsupported">(
     typeof Notification !== "undefined" ? Notification.permission : "unsupported",
@@ -60,7 +68,6 @@ export default function Dashboard() {
       const names = (carteira ?? []).map((c) => c.nome_fantasia);
       const todayISO = todayDateISO_SP();
 
-      // Auto-transition aguardando -> pendente for tasks whose start time has passed
       const nowMs = Date.now();
       const toTransition = activeTarefas.filter(
         (t) =>
@@ -177,7 +184,10 @@ export default function Dashboard() {
       setOvernightContinuing(overnightCards);
       setTasksToday(todayCards);
       setLoading(false);
-      if (manual) toast.success("Atualizado");
+      if (manual) {
+        setRefreshDone(true);
+        setTimeout(() => setRefreshDone(false), 2000);
+      }
     } finally {
       if (manual) setRefreshing(false);
     }
@@ -188,6 +198,20 @@ export default function Dashboard() {
     const t = setInterval(() => load(false), 30_000);
     return () => clearInterval(t);
   }, [load]);
+
+  // Keyboard shortcut: pressing R navigates to /importar (ignored when typing in inputs)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "r" && e.key !== "R") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      e.preventDefault();
+      navigate("/importar");
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navigate]);
 
   useEffect(() => {
     if (hourFilter) localStorage.setItem("dash_hour_filter", hourFilter);
@@ -211,6 +235,14 @@ export default function Dashboard() {
 
   const allCards = [...overnightContinuing, ...filteredToday];
 
+  const isFullyValidated = (t: TaskWithChapas) => {
+    const real = t.chapas.filter((c) => c.nome_chapa);
+    return (
+      real.length > 0 &&
+      real.every((c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente")
+    );
+  };
+
   // Search by chapa name, task id, or chapa phone
   const searchMatchIds = useMemo(() => {
     if (!search.trim()) return null;
@@ -232,49 +264,48 @@ export default function Dashboard() {
     );
   }, [search, allCards]);
 
-  const urgentCount = allCards.filter((t) => t.urgent).length;
+  // Stats — only the 3 essentials
   const totalChapas = allCards.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
   const confirmedChapas = allCards.reduce(
     (a, t) => a + t.chapas.filter((c) => c.status_contato === "confirmado").length,
     0,
   );
-  const removedChapas = allCards.reduce(
-    (a, t) => a + t.chapas.filter((c) => c.status_contato === "removido").length,
-    0,
-  );
   const fillPct = totalChapas > 0 ? Math.round((confirmedChapas / totalChapas) * 100) : 0;
+  const fillTone = fillPct >= 80 ? "success" : fillPct >= 50 ? "warning" : "destructive";
+  const validacaoPendente = allCards.filter(
+    (t) => (t.validacao_status ?? "aguardando") !== "subido_meu_chapa",
+  ).length;
 
-  const isFullyValidated = (t: TaskWithChapas) => {
-    const real = t.chapas.filter((c) => c.nome_chapa);
-    return (
-      real.length > 0 &&
-      real.every((c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente")
-    );
-  };
+  // Urgent tasks — for banner action
+  const urgentCount = allCards.filter((t) => t.urgent).length;
+  const urgentList = allCards.filter((t) => t.urgent);
 
-  const validacaoPendente = allCards.filter((t) => {
-    const started = new Date(t.data_tarefa).getTime() <= Date.now();
-    const s = t.validacao_status ?? "aguardando";
-    return started && s !== "subido_meu_chapa";
-  }).length;
-  const subidoHoje = allCards.filter((t) => {
-    if (!t.data_upload_meu_chapa) return false;
-    return fmtSP(t.data_upload_meu_chapa, "yyyy-MM-dd") === todayDateISO_SP();
-  }).length;
-
-  function applyToAll(value: boolean | null) {
+  function applyToAll(value: boolean) {
     const next: Record<number, boolean | null> = {};
     allCards.forEach((t) => {
       next[t.id_tarefa] = value;
     });
     setForceCollapseMap(next);
+    setGlobalCollapsed(value);
+    setOnlyPending(false);
   }
   function expandOnlyPending() {
     const next: Record<number, boolean | null> = {};
     allCards.forEach((t) => {
-      next[t.id_tarefa] = isFullyValidated(t); // collapsed if validated, expanded if not
+      next[t.id_tarefa] = isFullyValidated(t);
     });
     setForceCollapseMap(next);
+    setOnlyPending(true);
+  }
+
+  function flashTask(id: number) {
+    const el = document.querySelector(`[data-task-card="${id}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+    setTimeout(() => {
+      el.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+    }, 500);
   }
 
   async function requestNotifPerm() {
@@ -296,19 +327,43 @@ export default function Dashboard() {
     }
   }
 
+  // Color tokens for fill stat
+  const fillStatColor =
+    fillTone === "success" ? "text-success" : fillTone === "warning" ? "text-warning" : "text-destructive";
+  const fillBarColor =
+    fillTone === "success" ? "bg-success" : fillTone === "warning" ? "bg-warning" : "bg-destructive";
+
   return (
-    <div className="p-4 md:p-6 space-y-4 max-w-[1400px] mx-auto">
-      {urgentCount > 0 && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/40 text-destructive">
+    <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto">
+      {urgentCount > 0 && !bannerDismissed && (
+        <div
+          className="flex items-center gap-3 pl-3 pr-4 py-3 border-l-4 border-l-destructive text-destructive"
+          style={{ background: "rgba(239,68,68,0.08)" }}
+        >
           <AlertTriangle className="h-5 w-5 shrink-0" />
-          <span className="font-semibold text-sm">
-            ⚠️ {urgentCount} tarefa(s) urgente(s) — iniciaram antes das 06:00. Confirme presença imediatamente.
+          <span className="font-semibold text-sm flex-1">
+            {urgentCount} tarefa(s) urgente(s) — iniciaram antes das 06:00. Confirme presença imediatamente.
           </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 border-destructive/40 text-destructive hover:bg-destructive/10"
+            onClick={() => urgentList[0] && flashTask(urgentList[0].id_tarefa)}
+          >
+            {urgentCount > 1 ? "Ver todas →" : "Ver tarefa →"}
+          </Button>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            aria-label="Dispensar alerta"
+            className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-destructive/10"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
 
-      {/* Global search + actions bar */}
-      <div className="bg-card border border-border rounded-xl p-3 flex flex-wrap items-center gap-2 sticky top-0 z-20 shadow-card">
+      {/* Toolbar — left: view controls · right: system controls */}
+      <div className="bg-card border border-border rounded-xl p-3 flex flex-wrap items-center gap-3 sticky top-0 z-20 shadow-card">
         <div className="relative flex-1 min-w-[260px]">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -320,102 +375,141 @@ export default function Dashboard() {
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground px-2"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground px-2 min-h-[28px]"
               aria-label="Limpar busca"
             >
               ×
             </button>
           )}
           {search && searchMatchIds && (
-            <div className="absolute left-3 -bottom-5 text-[10px] text-muted-foreground">
+            <div className="absolute left-3 -bottom-5 text-[12px] text-muted-foreground">
               {searchMatchIds.size} resultado(s)
             </div>
           )}
         </div>
+
+        {/* Left zone — view controls (ghost) */}
         <div className="flex items-center gap-1">
           <Button
             size="sm"
-            variant="outline"
-            className="h-9 gap-1.5"
-            onClick={() => applyToAll(true)}
-            title="Colapsar todas"
-          >
-            <ChevronsDownUp className="h-4 w-4" />
-            <span className="hidden sm:inline">Colapsar</span>
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9 gap-1.5"
-            onClick={() => applyToAll(false)}
-            title="Expandir todas"
-          >
-            <ChevronsUpDown className="h-4 w-4" />
-            <span className="hidden sm:inline">Expandir</span>
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9 gap-1.5"
+            variant={onlyPending ? "default" : "ghost"}
+            className={`h-[30px] gap-1.5 text-xs ${
+              onlyPending ? "bg-info/15 text-info hover:bg-info/25 border border-info/40" : ""
+            }`}
             onClick={expandOnlyPending}
             title="Expandir apenas tarefas não 100% validadas"
           >
-            <ListFilter className="h-4 w-4" />
-            <span className="hidden md:inline">Só pendentes</span>
+            <ListFilter className="h-3.5 w-3.5" />
+            Só pendentes
           </Button>
-        </div>
-        {notifPerm !== "granted" && notifPerm !== "unsupported" && (
           <Button
             size="sm"
-            variant="outline"
-            className="h-9 gap-1.5 border-warning/50 text-warning-foreground bg-warning/10"
-            onClick={requestNotifPerm}
-            title="Ativar notificações do navegador / Windows"
+            variant="ghost"
+            className="h-[30px] gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => applyToAll(!globalCollapsed)}
+            title={globalCollapsed ? "Expandir todas as tarefas" : "Colapsar todas as tarefas"}
           >
-            <BellOff className="h-4 w-4" />
-            <span className="hidden sm:inline">Ativar notificações</span>
+            <ChevronsDownUp className="h-3.5 w-3.5" />
+            {globalCollapsed ? "Expandir tudo" : "Colapsar tudo"}
           </Button>
-        )}
-        {notifPerm === "granted" && (
-          <span
-            className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded bg-success/10 text-success border border-success/30"
-            title="Notificações do navegador ativadas"
-          >
-            <Bell className="h-3 w-3" /> Notif.
-          </span>
-        )}
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-9 gap-1.5"
-          onClick={() => load(true)}
-          disabled={refreshing}
-          title="Atualizar dados"
-        >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-          <span className="hidden sm:inline">Atualizar</span>
-        </Button>
+        </div>
+
+        {/* Right zone — system */}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={requestNotifPerm}
+                aria-label={
+                  notifPerm === "granted" ? "Notificações ativadas" : "Notificações desativadas"
+                }
+                className="relative inline-flex items-center justify-center h-9 w-9 rounded-md border border-border hover:bg-muted transition-colors"
+              >
+                {notifPerm === "granted" ? (
+                  <>
+                    <Bell className="h-4 w-4 text-foreground" />
+                    <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-success border border-card" />
+                  </>
+                ) : (
+                  <BellOff className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {notifPerm === "granted"
+                ? "Notificações ativas"
+                : notifPerm === "unsupported"
+                ? "Não suportado neste navegador"
+                : "Ativar notificações"}
+            </TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                className="h-9 gap-1.5 min-w-[120px] justify-center"
+                onClick={() => load(true)}
+                disabled={refreshing}
+              >
+                {refreshing ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Atualizando...</span>
+                  </>
+                ) : refreshDone ? (
+                  <>
+                    <Check className="h-4 w-4" />
+                    <span>Atualizado</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    <span>Atualizar</span>
+                  </>
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Importar planilha [R]</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        {[
-          { label: "Tarefas hoje", value: tasksToday.length, color: "text-primary" },
-          { label: "Overnight ativas", value: overnightContinuing.length, color: "text-overnight" },
-          { label: "Chapas solicitados", value: totalChapas, color: "text-foreground" },
-          { label: "Confirmados", value: confirmedChapas, color: "text-success" },
-          { label: "Removidos", value: removedChapas, color: "text-destructive" },
-          { label: "Validação pendente", value: validacaoPendente, color: "text-warning" },
-          { label: "Subidos Meu Chapa", value: subidoHoje, color: "text-overnight" },
-        ].map((s) => (
-          <div key={s.label} className="bg-card border border-border rounded-xl p-4 shadow-card">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{s.label}</div>
-            <div className={`text-2xl font-display font-bold mt-1 ${s.color}`}>{s.value}</div>
-          </div>
-        ))}
+      {/* Stats — exactly 3 in one row */}
+      <div className="grid grid-cols-3 gap-3">
         <div className="bg-card border border-border rounded-xl p-4 shadow-card">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Fill rate</div>
-          <div className="text-2xl font-display font-bold mt-1 text-primary">{fillPct}%</div>
+          <div className="text-[12px] uppercase tracking-wider text-muted-foreground font-semibold opacity-50">
+            Fill rate
+          </div>
+          <div className={`text-2xl font-display font-medium mt-1 ${fillStatColor}`}>{fillPct}%</div>
+          <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+            <div
+              className={`h-full ${fillBarColor} transition-[width] duration-[400ms] ease-out`}
+              style={{ width: `${fillPct}%` }}
+            />
+          </div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-card">
+          <div className="text-[12px] uppercase tracking-wider text-muted-foreground font-semibold opacity-50">
+            Confirmados
+          </div>
+          <div className="text-2xl font-display font-medium mt-1 text-foreground tabular-nums">
+            {confirmedChapas}/{totalChapas}
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">chapas</div>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4 shadow-card">
+          <div className="text-[12px] uppercase tracking-wider text-muted-foreground font-semibold opacity-50">
+            Validações pendentes
+          </div>
+          <div
+            className={`text-2xl font-display font-medium mt-1 tabular-nums ${
+              validacaoPendente > 0 ? "text-warning" : "text-muted-foreground"
+            }`}
+          >
+            {validacaoPendente}
+          </div>
+          <div className="text-xs text-muted-foreground mt-1">tarefas</div>
         </div>
       </div>
 
@@ -439,7 +533,7 @@ export default function Dashboard() {
       )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
-        <h2 className="font-display font-semibold text-lg text-foreground">📋 Tarefas do dia</h2>
+        <h2 className="font-display font-semibold text-lg text-foreground">Tarefas do dia</h2>
         <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
           <Clock className="h-4 w-4 text-muted-foreground" />
           <label className="text-xs text-muted-foreground">A partir de</label>
@@ -465,12 +559,14 @@ export default function Dashboard() {
       {loading ? (
         <div className="text-center py-12 text-muted-foreground">Carregando...</div>
       ) : tasksToday.length === 0 && overnightContinuing.length === 0 ? (
-        <div className="bg-card border border-dashed border-border rounded-xl p-12 text-center">
-          <Inbox className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-          <div className="font-semibold text-foreground">Nenhuma tarefa para hoje</div>
-          <div className="text-sm text-muted-foreground mt-1">
-            Importe uma planilha ou adicione empresas à sua carteira.
-          </div>
+        <div className="bg-card border border-dashed border-border rounded-xl p-8 flex items-center justify-center gap-4 flex-wrap">
+          <Inbox className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-foreground">
+            Nenhuma tarefa — planilha ainda não importada.
+          </span>
+          <Button size="sm" onClick={() => navigate("/importar")}>
+            Importar →
+          </Button>
         </div>
       ) : (
         (() => {
@@ -485,21 +581,26 @@ export default function Dashboard() {
           const done = visible.filter(isTaskDone);
           const allDone = visible.length > 0 && pending.length === 0;
 
+          if (search && searchMatchIds && searchMatchIds.size === 0) {
+            return (
+              <div className="bg-card border border-dashed border-border rounded-xl p-8 text-center text-sm text-muted-foreground">
+                Nenhum resultado para "{search}".
+              </div>
+            );
+          }
+
           return (
             <div className="space-y-3">
               {allDone && (
                 <div className="px-4 py-3 rounded-lg bg-success/10 border border-success/40 text-success font-semibold text-sm">
-                  ✅ Todas as tarefas do dia foram confirmadas e validadas.
-                  <span className="ml-2 font-normal text-muted-foreground">
-                    Ver tarefas concluídas ({done.length}) abaixo.
-                  </span>
+                  ✅ Todas as tarefas concluídas.
                 </div>
               )}
 
               {pending.length > 0 && (
                 <>
                   <div className="flex items-center gap-3 pt-1">
-                    <span className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">
+                    <span className="text-[12px] uppercase tracking-wider font-semibold text-muted-foreground opacity-50">
                       Pendentes
                     </span>
                     <div className="flex-1 h-px bg-border" />
@@ -519,9 +620,9 @@ export default function Dashboard() {
               {done.length > 0 && (
                 <>
                   <div className="flex items-center gap-3 pt-3">
-                    <span className="text-[11px] uppercase tracking-wider font-semibold text-success flex items-center gap-2">
+                    <span className="text-[12px] uppercase tracking-wider font-semibold text-success flex items-center gap-2 opacity-70">
                       Concluídas
-                      <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[10px]">
+                      <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[12px]">
                         {done.length}
                       </span>
                     </span>
