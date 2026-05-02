@@ -107,25 +107,17 @@ export function ObservationsPanel({
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent className="p-4 bg-muted/30 space-y-2 border-t border-border">
-        <div className="relative">
-          <Textarea
-            rows={rows}
-            value={value}
-            placeholder="Registre aqui ocorrências, problemas, observações gerais desta tarefa..."
-            onChange={(e) => {
-              setValue(e.target.value);
-              scheduleSave(e.target.value);
-            }}
-            className="min-h-[96px] resize-y bg-background"
-          />
-          <span
-            className={`absolute top-2 right-2 text-[10px] font-semibold text-success transition-opacity duration-500 ${
-              showSaved ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            Salvo ✓
-          </span>
-        </div>
+        <Textarea
+          rows={rows}
+          value={value}
+          placeholder="Registre aqui ocorrências, problemas, observações gerais desta tarefa..."
+          onChange={(e) => {
+            setValue(e.target.value);
+            scheduleSave(e.target.value);
+          }}
+          className="min-h-[96px] resize-y bg-background"
+        />
+        {showSaved && <span className="sr-only">Salvo</span>}
         <div className="flex justify-end">
           <Button size="sm" variant="outline" className="gap-1.5" onClick={handleCopy}>
             <Copy className="h-3.5 w-3.5" /> Copiar observações
