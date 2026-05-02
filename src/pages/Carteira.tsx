@@ -3,13 +3,15 @@ import Papa from "papaparse";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, Trash2, Search } from "lucide-react";
+import { Upload, Trash2, Search, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
+import { useNavigate } from "react-router-dom";
 
 type Row = { id: string; nome_fantasia: string; cnpj: string | null; created_at: string };
 
 export default function Carteira() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [preview, setPreview] = useState<Array<{ nome_fantasia: string; cnpj: string | null }>>([]);
   const [dupCount, setDupCount] = useState(0);
@@ -45,7 +47,7 @@ export default function Carteira() {
         }
         setPreview(uniq);
         setDupCount(dup);
-        toast.success(`${uniq.length} empresas únicas, ${dup} duplicatas removidas`);
+        toast.success(`✓ ${uniq.length} empresas · ${dup} duplicatas removidas`);
       },
     });
   }
@@ -89,7 +91,7 @@ export default function Carteira() {
         <div className="bg-card border border-border rounded-xl p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-sm">
-              <b>{preview.length}</b> empresas únicas encontradas · {dupCount} duplicatas removidas
+              <b>{preview.length}</b> empresas únicas · {dupCount} duplicatas removidas
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={append}>Adicionar à carteira</Button>
@@ -98,7 +100,7 @@ export default function Carteira() {
           </div>
           <div className="max-h-48 overflow-auto text-xs border border-border rounded">
             {preview.slice(0, 20).map((p, i) => (
-              <div key={i} className="px-3 py-1.5 border-b border-border last:border-0">{p.nome_fantasia}</div>
+              <div key={i} className="px-3 py-1.5 border-b border-border last:border-0 capitalize">{p.nome_fantasia.toLowerCase()}</div>
             ))}
             {preview.length > 20 && <div className="px-3 py-1.5 text-muted-foreground italic">+{preview.length - 20} mais...</div>}
           </div>
@@ -113,31 +115,40 @@ export default function Carteira() {
             <Input className="pl-8 h-9 w-64" placeholder="Buscar..." value={filter} onChange={(e) => setFilter(e.target.value)} />
           </div>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-muted-foreground">
-            <tr>
-              <th className="text-left px-4 py-2 font-semibold">Nome Fantasia</th>
-              <th className="text-left px-4 py-2 font-semibold">CNPJ</th>
-              <th className="text-left px-4 py-2 font-semibold">Adicionado</th>
-              <th className="w-16"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-4 py-2 font-medium">{r.nome_fantasia}</td>
-                <td className="px-4 py-2 text-muted-foreground">{r.cnpj ?? "—"}</td>
-                <td className="px-4 py-2 text-muted-foreground text-xs">{fmtDateTime(r.created_at)}</td>
-                <td className="px-4 py-2">
-                  <Button size="icon" variant="ghost" onClick={() => remove(r.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </td>
+        {rows.length === 0 ? (
+          <div className="p-8 flex items-center justify-center gap-4 flex-wrap">
+            <span className="text-sm text-foreground">Carteira vazia.</span>
+            <Button size="sm" onClick={() => document.querySelector<HTMLInputElement>('input[type="file"]')?.click()} className="gap-1.5">
+              <Plus className="h-3.5 w-3.5" /> Adicionar empresas →
+            </Button>
+          </div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="text-left px-4 py-2 font-semibold">Nome Fantasia</th>
+                <th className="text-left px-4 py-2 font-semibold">Adicionado</th>
+                <th className="w-16"></th>
               </tr>
-            ))}
-            {filtered.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground italic">Nenhuma empresa</td></tr>}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-4 py-2 font-medium capitalize">{r.nome_fantasia.toLowerCase()}</td>
+                  <td className="px-4 py-2 text-muted-foreground text-xs">{fmtDateTime(r.created_at)}</td>
+                  <td className="px-4 py-2">
+                    <Button size="icon" variant="ghost" onClick={() => remove(r.id)} aria-label={`Remover ${r.nome_fantasia}`}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {filtered.length === 0 && rows.length > 0 && (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground italic">Nenhum resultado para "{filter}".</td></tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

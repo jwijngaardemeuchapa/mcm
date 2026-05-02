@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Papa from "papaparse";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ async function chunkedInsert(table: "chapas" | "tarefas", rows: Record<string, u
 }
 
 export default function Importar() {
+  const navigate = useNavigate();
   const [preview, setPreview] = useState<Record<string, string>[]>([]);
   const [lastImport, setLastImport] = useState<string | null>(null);
   const [carteiraNames, setCarteiraNames] = useState<string[]>([]);
@@ -306,13 +308,18 @@ export default function Importar() {
       toast.error((tErr ?? cErr)!.message);
       return;
     }
+    // Count spot tasks (heuristic: status contains "spot")
+    const spotCount = Array.from(tarefasMap.values()).filter((t) =>
+      /spot/i.test(String((t as Record<string, unknown>).status_tarefa ?? "")),
+    ).length;
     toast.success(
-      `${tarefasMap.size} tarefas e ${chapasToInsert.length} chapas importados${
-        skippedNotInCarteira > 0 ? ` · ${skippedNotInCarteira} fora da carteira` : ""
-      } (progresso preservado)`,
+      `✓ ${tarefasMap.size} tarefas · ${chapasToInsert.length} chapas${
+        spotCount > 0 ? ` · ${spotCount} spot detectada${spotCount > 1 ? "s" : ""}` : ""
+      }`,
     );
     setPreview([]);
     loadLast();
+    navigate("/dashboard");
   }
 
   return (
@@ -344,23 +351,17 @@ export default function Importar() {
 
       <div className="space-y-2">
         <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-success/10 border border-success/30 text-success text-sm">
-          <span>✅</span>
-          <span>
-            <b>Progresso preservado:</b> chapas já confirmados, validados, contatados ou removidos não voltam a "estaca zero". Observações, validações da tarefa e upload no Meu Chapa também são mantidos. O match é feito por CPF (quando existe) ou pelo nome do chapa.
-          </span>
+          <span>✓</span>
+          <span>Progresso preservado — chapas confirmados, validados, contatados ou removidos mantêm seu estado entre importações.</span>
         </div>
         <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-info/10 border border-info/30 text-info text-sm">
-          <span>ℹ️</span>
-          <span>
-            <b>Tarefas "Em Andamento" / "Finalizado"</b> são importadas já validadas — chapas marcados como presentes e tarefa marcada como subida no Meu Chapa.
-          </span>
+          <span>ℹ</span>
+          <span>Tarefas "Em Andamento" ou "Finalizado" são importadas já validadas e subidas no Meu Chapa.</span>
         </div>
         {carteiraNames.length > 0 && (
           <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-primary/5 border border-primary/20 text-foreground text-sm">
             <span>🎯</span>
-            <span>
-              Filtro por carteira ativo — <b>{carteiraNames.length}</b> empresas. Linhas fora da sua carteira são descartadas no momento do import (mais leve para o sistema).
-            </span>
+            <span>Filtro por carteira ativo — {carteiraNames.length} empresas. Linhas fora são descartadas no import.</span>
           </div>
         )}
       </div>

@@ -3,8 +3,8 @@ import { Badge } from "@/components/ui/badge";
 type Props = { status: string };
 
 const map: Record<string, { label: string; cls: string }> = {
-  "Aguardando Início": { label: "Aguardando Início", cls: "bg-primary/10 text-primary border-primary/30" },
-  "Aguardando Aprovação": { label: "Aguardando Aprovação", cls: "bg-warning/15 text-warning-foreground border-warning/40" },
+  "Aguardando Início": { label: "Aguardando Início", cls: "bg-info/10 text-info border-info/30" },
+  "Aguardando Aprovação": { label: "Aguardando Aprovação", cls: "bg-warning/15 text-warning border-warning/40" },
   "Em Aberto": { label: "Em Aberto", cls: "bg-info/10 text-info border-info/30" },
   "Em Análise": { label: "Em Análise", cls: "bg-muted text-muted-foreground border-border" },
   "Em Andamento": { label: "Em Andamento", cls: "bg-success/10 text-success border-success/30" },
