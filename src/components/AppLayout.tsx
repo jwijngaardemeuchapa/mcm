@@ -3,9 +3,8 @@ import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { fmtDateLong, timeAgo } from "@/lib/datetime";
-import { Bell, Clock, Undo2 } from "lucide-react";
+import { Clock, Undo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUndo } from "@/lib/undo";
 import { ThemeToggle } from "./ThemeToggle";
@@ -68,10 +67,6 @@ export default function AppLayout() {
               <span className="hidden sm:inline text-xs font-semibold">Desfazer</span>
             </Button>
             <ThemeToggle />
-            <Badge variant="outline" className="gap-1.5 border-primary/30 bg-primary/5 text-primary">
-              <Bell className="h-3 w-3" />
-              <span className="text-xs font-semibold">Ativo</span>
-            </Badge>
           </header>
 
           <main className="flex-1 overflow-auto">
