@@ -240,7 +240,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   if (showMinimized) {
     return (
       <div
-        className={`bg-card rounded-xl border border-border border-l-4 border-l-success shadow-card overflow-hidden ${
+        className={`bg-card rounded-xl border border-border border-l-4 border-l-success shadow-card overflow-hidden transition-all duration-200 ${
           animateCollapse ? "animate-fade-in" : ""
         }`}
       >
@@ -263,7 +263,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           )}
           <button
             onClick={() => setUserExpanded(true)}
-            className="shrink-0 h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
+            className="shrink-0 h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors duration-200"
             aria-label="Expandir tarefa"
           >
             <ChevronDown className="h-4 w-4" />
@@ -515,18 +515,6 @@ Precisamos de 1 substituto para esta tarefa.`;
         })}
       </div>
 
-      {taskStarted && (
-        <ValidationPanel
-          id_tarefa={task.id_tarefa}
-          chapas={task.chapas}
-          validacao_status={vStatus}
-          data_validacao_recebida={task.data_validacao_recebida ?? null}
-          data_upload_meu_chapa={task.data_upload_meu_chapa ?? null}
-          obs_validacao={task.obs_validacao ?? null}
-          onRefresh={onRefresh}
-        />
-      )}
-
       <ObservationsPanel
         id_tarefa={task.id_tarefa}
         empresa={task.empresa}
@@ -537,7 +525,7 @@ Precisamos de 1 substituto para esta tarefa.`;
 
       <Collapsible open={fupOpen} onOpenChange={setFupOpen}>
         <CollapsibleTrigger asChild>
-          <button className="w-full px-4 py-2 bg-muted/50 hover:bg-muted flex items-center justify-between text-xs font-semibold text-muted-foreground border-t border-border">
+          <button className="w-full px-4 py-2 bg-muted/50 hover:bg-muted flex items-center justify-between text-xs font-semibold text-muted-foreground border-t border-border transition-colors duration-200">
             <span>📋 FUPs disparados ({task.fup_log.length})</span>
             <ChevronDown className={`h-4 w-4 transition-transform ${fupOpen ? "rotate-180" : ""}`} />
           </button>
@@ -584,6 +572,20 @@ Precisamos de 1 substituto para esta tarefa.`;
         </Button>
       </div>
       </>)}
+
+      {/* Validation panel — ALWAYS visible (even when collapsed) so the user can finish validation
+          without re-expanding the card. Renders for any task that has at least one real chapa. */}
+      {realChapas.length > 0 && (
+        <ValidationPanel
+          id_tarefa={task.id_tarefa}
+          chapas={task.chapas}
+          validacao_status={vStatus}
+          data_validacao_recebida={task.data_validacao_recebida ?? null}
+          data_upload_meu_chapa={task.data_upload_meu_chapa ?? null}
+          obs_validacao={task.obs_validacao ?? null}
+          onRefresh={onRefresh}
+        />
+      )}
 
       {/* Removal dialog */}
       <Dialog open={!!removalTarget} onOpenChange={(o) => !o && setRemovalTarget(null)}>

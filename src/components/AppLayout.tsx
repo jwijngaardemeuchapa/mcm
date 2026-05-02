@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUndo } from "@/lib/undo";
+import { ThemeToggle } from "./ThemeToggle";
 
 export default function AppLayout() {
   const [now, setNow] = useState(new Date());
@@ -60,12 +61,13 @@ export default function AppLayout() {
               variant="outline"
               onClick={undo}
               disabled={!last}
-              className="gap-1.5 h-8"
+              className="gap-1.5 h-8 transition-all duration-200"
               title={last ? `Desfazer: ${last.label}` : "Nada para desfazer"}
             >
               <Undo2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline text-xs font-semibold">Desfazer</span>
             </Button>
+            <ThemeToggle />
             <Badge variant="outline" className="gap-1.5 border-primary/30 bg-primary/5 text-primary">
               <Bell className="h-3 w-3" />
               <span className="text-xs font-semibold">Ativo</span>

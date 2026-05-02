@@ -91,6 +91,18 @@
     --accent-foreground: 24 100% 60%;
     --destructive: 0 70% 55%;
     --destructive-foreground: 0 0% 100%;
+    --success: 152 60% 48%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 95% 58%;
+    --warning-foreground: 30 60% 10%;
+    --info: 217 91% 65%;
+    --info-foreground: 0 0% 100%;
+    --overnight: 255 75% 70%;
+    --overnight-foreground: 222 20% 10%;
+    --overnight-soft: 255 30% 22%;
+    --primary-soft: 24 40% 18%;
+    --surface: 222 20% 13%;
+    --surface-muted: 222 20% 16%;
     --border: 222 15% 22%;
     --input: 222 15% 22%;
     --ring: 24 100% 55%;
