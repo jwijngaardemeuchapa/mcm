@@ -240,7 +240,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   if (showMinimized) {
     return (
       <div
-        className={`bg-card rounded-xl border border-border border-l-4 border-l-success shadow-card overflow-hidden ${
+        className={`bg-card rounded-xl border border-border border-l-4 border-l-success shadow-card overflow-hidden transition-all duration-200 ${
           animateCollapse ? "animate-fade-in" : ""
         }`}
       >
@@ -263,7 +263,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           )}
           <button
             onClick={() => setUserExpanded(true)}
-            className="shrink-0 h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground"
+            className="shrink-0 h-7 w-7 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors duration-200"
             aria-label="Expandir tarefa"
           >
             <ChevronDown className="h-4 w-4" />
