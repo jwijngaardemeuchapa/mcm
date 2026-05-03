@@ -86,16 +86,18 @@ async function askAI(query: string, allData: WorkerRow[]) {
     )
     .join("\n");
 
+  const apiKey = import.meta.env.VITE_OPENROUTER_KEY || "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";
+  const model = import.meta.env.VITE_AI_MODEL || "google/gemma-3-27b-it:free";
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${import.meta.env.VITE_OPENROUTER_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": window.location.origin,
       "X-Title": "FUP Manager",
     },
     body: JSON.stringify({
-      model: import.meta.env.VITE_AI_MODEL,
+      model,
       max_tokens: 400,
       messages: [
         {
