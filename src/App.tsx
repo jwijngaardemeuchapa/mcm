@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Carteira from "./pages/Carteira";
 import Importar from "./pages/Importar";
 import Historico from "./pages/Historico";
+import Consultor from "./pages/Consultor";
 import NotFound from "./pages/NotFound";
 import { UndoProvider } from "./lib/undo";
 
@@ -27,6 +28,7 @@ const App = () => (
               <Route path="/carteira" element={<Carteira />} />
               <Route path="/importar" element={<Importar />} />
               <Route path="/historico" element={<Historico />} />
+              <Route path="/consultor" element={<Consultor />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
