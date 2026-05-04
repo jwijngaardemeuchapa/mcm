@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Upload, History, Search } from "lucide-react";
+import { LayoutDashboard, Users, Upload, History, Search, FileSpreadsheet } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import {
   Sidebar,
@@ -19,6 +19,7 @@ const items = [
   { title: "Importar", url: "/importar", icon: Upload },
   { title: "Histórico", url: "/historico", icon: History },
   { title: "Consultor", url: "/consultor", icon: Search },
+  { title: "BID", url: "/bid", icon: FileSpreadsheet },
 ];
 
 export function AppSidebar() {
