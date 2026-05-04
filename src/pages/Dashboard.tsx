@@ -310,6 +310,57 @@ export default function Dashboard() {
     }, 500);
   }
 
+  function exportPreFup() {
+    const todayISO = todayDateISO_SP();
+    const tomorrow = new Date(`${todayISO}T12:00:00-03:00`);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+    const tomorrowTasks = tasksToday.filter(
+      (t) => fmtSP(t.data_tarefa, "yyyy-MM-dd") === tomorrowISO,
+    );
+    if (tomorrowTasks.length === 0) {
+      toast.error("Nenhuma tarefa para amanhã foi importada ainda.");
+      return;
+    }
+    // Group chapas by company
+    type Row = { empresa: string; horario: string; id_tarefa: number; nome: string; telefone: string; cpf: string };
+    const rows: Row[] = [];
+    tomorrowTasks
+      .slice()
+      .sort((a, b) => a.empresa.localeCompare(b.empresa) || a.data_tarefa.localeCompare(b.data_tarefa))
+      .forEach((t) => {
+        t.chapas
+          .filter((c) => c.nome_chapa && c.status_contato !== "removido")
+          .forEach((c) => {
+            rows.push({
+              empresa: t.empresa,
+              horario: fmtSP(t.data_tarefa, "dd/MM/yyyy HH:mm"),
+              id_tarefa: t.id_tarefa,
+              nome: c.nome_chapa ?? "",
+              telefone: c.telefone_chapa ?? "",
+              cpf: c.cpf ?? "",
+            });
+          });
+      });
+    if (rows.length === 0) {
+      toast.error("Nenhum chapa nas tarefas de amanhã.");
+      return;
+    }
+    const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
+    const header = "Empresa;Horario;ID Tarefa;Nome do Chapa;Telefone;CPF";
+    const csv =
+      header + "\n" + rows.map((r) => [r.empresa, r.horario, r.id_tarefa, r.nome, r.telefone, r.cpf].map(esc).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pre_fup_${tomorrowISO}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    const empresas = new Set(rows.map((r) => r.empresa)).size;
+    toast.success(`✓ Pré-FUP exportado — ${rows.length} chapas · ${empresas} empresa(s) · ${tomorrowTasks.length} tarefa(s)`);
+  }
+
   async function requestNotifPerm() {
     if (typeof Notification === "undefined") {
       toast.error("Seu navegador não suporta notificações");
