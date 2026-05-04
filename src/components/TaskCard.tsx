@@ -376,7 +376,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
       <div
-        className={`p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border sticky top-[64px] z-20 bg-card ${
+        className={`p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border bg-card ${
           isOvernight
             ? "bg-gradient-to-r from-overnight-soft to-card"
             : "bg-gradient-to-r from-primary-soft/60 to-card"

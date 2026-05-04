@@ -18,6 +18,7 @@ import {
   BellOff,
   X,
   Check,
+  Download,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -91,9 +92,10 @@ export default function Dashboard() {
 
       const todaysTasks = activeTarefas.filter((t) => {
         const tt = t as { data_tarefa: string; status_tarefa: string; empresa: string };
-        const dISO = fmtSP(tt.data_tarefa, "yyyy-MM-dd");
-        if (dISO !== todayISO) return false;
         if (tt.status_tarefa === "Finalizado") return false;
+        // Show all dates >= today (today + future dates present in import)
+        const dISO = fmtSP(tt.data_tarefa, "yyyy-MM-dd");
+        if (dISO < todayISO) return false;
         return inCarteira(tt.empresa);
       });
 
@@ -306,6 +308,57 @@ export default function Dashboard() {
     setTimeout(() => {
       el.classList.remove("ring-2", "ring-primary", "ring-offset-2");
     }, 500);
+  }
+
+  function exportPreFup() {
+    const todayISO = todayDateISO_SP();
+    const tomorrow = new Date(`${todayISO}T12:00:00-03:00`);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowISO = tomorrow.toISOString().slice(0, 10);
+    const tomorrowTasks = tasksToday.filter(
+      (t) => fmtSP(t.data_tarefa, "yyyy-MM-dd") === tomorrowISO,
+    );
+    if (tomorrowTasks.length === 0) {
+      toast.error("Nenhuma tarefa para amanhã foi importada ainda.");
+      return;
+    }
+    // Group chapas by company
+    type Row = { empresa: string; horario: string; id_tarefa: number; nome: string; telefone: string; cpf: string };
+    const rows: Row[] = [];
+    tomorrowTasks
+      .slice()
+      .sort((a, b) => a.empresa.localeCompare(b.empresa) || a.data_tarefa.localeCompare(b.data_tarefa))
+      .forEach((t) => {
+        t.chapas
+          .filter((c) => c.nome_chapa && c.status_contato !== "removido")
+          .forEach((c) => {
+            rows.push({
+              empresa: t.empresa,
+              horario: fmtSP(t.data_tarefa, "dd/MM/yyyy HH:mm"),
+              id_tarefa: t.id_tarefa,
+              nome: c.nome_chapa ?? "",
+              telefone: c.telefone_chapa ?? "",
+              cpf: c.cpf ?? "",
+            });
+          });
+      });
+    if (rows.length === 0) {
+      toast.error("Nenhum chapa nas tarefas de amanhã.");
+      return;
+    }
+    const esc = (s: string) => `"${String(s).replace(/"/g, '""')}"`;
+    const header = "Empresa;Horario;ID Tarefa;Nome do Chapa;Telefone;CPF";
+    const csv =
+      header + "\n" + rows.map((r) => [r.empresa, r.horario, r.id_tarefa, r.nome, r.telefone, r.cpf].map(esc).join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pre_fup_${tomorrowISO}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    const empresas = new Set(rows.map((r) => r.empresa)).size;
+    toast.success(`✓ Pré-FUP exportado — ${rows.length} chapas · ${empresas} empresa(s) · ${tomorrowTasks.length} tarefa(s)`);
   }
 
   async function requestNotifPerm() {
@@ -533,26 +586,37 @@ export default function Dashboard() {
       )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
-        <h2 className="font-display font-semibold text-lg text-foreground">Tarefas do dia</h2>
-        <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <label className="text-xs text-muted-foreground">A partir de</label>
-          <Input
-            type="time"
-            value={hourFilter}
-            onChange={(e) => setHourFilter(e.target.value)}
-            className="h-7 w-[110px] text-sm"
-          />
-          {hourFilter && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setHourFilter("")}>
-              Limpar
-            </Button>
-          )}
-          {hourFilter && (
-            <span className="text-xs text-muted-foreground">
-              ({filteredToday.length}/{tasksToday.length})
-            </span>
-          )}
+        <h2 className="font-display font-semibold text-lg text-foreground">Tarefas</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={exportPreFup}
+            title="Exportar CSV de pré-FUP do dia seguinte (agrupado por empresa)"
+          >
+            <Download className="h-3.5 w-3.5" /> Pré-FUP amanhã
+          </Button>
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <label className="text-xs text-muted-foreground">A partir de</label>
+            <Input
+              type="time"
+              value={hourFilter}
+              onChange={(e) => setHourFilter(e.target.value)}
+              className="h-7 w-[110px] text-sm"
+            />
+            {hourFilter && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setHourFilter("")}>
+                Limpar
+              </Button>
+            )}
+            {hourFilter && (
+              <span className="text-xs text-muted-foreground">
+                ({filteredToday.length}/{tasksToday.length})
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -577,9 +641,6 @@ export default function Dashboard() {
           const visible = filteredToday.filter(
             (t) => !searchMatchIds || searchMatchIds.has(t.id_tarefa),
           );
-          const pending = visible.filter((t) => !isTaskDone(t));
-          const done = visible.filter(isTaskDone);
-          const allDone = visible.length > 0 && pending.length === 0;
 
           if (search && searchMatchIds && searchMatchIds.size === 0) {
             return (
@@ -589,56 +650,90 @@ export default function Dashboard() {
             );
           }
 
-          return (
-            <div className="space-y-3">
-              {allDone && (
-                <div className="px-4 py-3 rounded-lg bg-success/10 border border-success/40 text-success font-semibold text-sm">
-                  ✅ Todas as tarefas concluídas.
-                </div>
-              )}
+          // Group by date (yyyy-MM-dd)
+          const todayISO = todayDateISO_SP();
+          const byDate = new Map<string, TaskWithChapas[]>();
+          visible.forEach((t) => {
+            const k = fmtSP(t.data_tarefa, "yyyy-MM-dd");
+            if (!byDate.has(k)) byDate.set(k, []);
+            byDate.get(k)!.push(t);
+          });
+          const dates = Array.from(byDate.keys()).sort();
 
-              {pending.length > 0 && (
-                <>
-                  <div className="flex items-center gap-3 pt-1">
-                    <span className="text-[12px] uppercase tracking-wider font-semibold text-muted-foreground opacity-50">
-                      Pendentes
+          const renderDateGroup = (dateISO: string, group: TaskWithChapas[]) => {
+            const pending = group.filter((t) => !isTaskDone(t));
+            const done = group.filter(isTaskDone);
+            const allDone = group.length > 0 && pending.length === 0;
+            const isToday = dateISO === todayISO;
+            const label = isToday
+              ? "Hoje"
+              : fmtSP(`${dateISO}T12:00:00-03:00`, "EEEE, dd/MM");
+            return (
+              <div key={dateISO} className="space-y-3">
+                {!isToday && (
+                  <div className="flex items-center gap-3 pt-2">
+                    <span className="text-sm font-display font-semibold text-foreground capitalize">
+                      {label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({group.length} tarefa{group.length > 1 ? "s" : ""})
                     </span>
                     <div className="flex-1 h-px bg-border" />
                   </div>
-                  {pending.map((t) => (
-                    <TaskCard
-                      key={t.id_tarefa}
-                      task={t}
-                      onRefresh={load}
-                      forceCollapse={forceCollapseMap[t.id_tarefa]}
-                      matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
-                    />
-                  ))}
-                </>
-              )}
-
-              {done.length > 0 && (
-                <>
-                  <div className="flex items-center gap-3 pt-3">
-                    <span className="text-[12px] uppercase tracking-wider font-semibold text-success flex items-center gap-2 opacity-70">
-                      Concluídas
-                      <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[12px]">
-                        {done.length}
+                )}
+                {allDone && (
+                  <div className="px-4 py-3 rounded-lg bg-success/10 border border-success/40 text-success font-semibold text-sm">
+                    ✅ Todas as tarefas concluídas.
+                  </div>
+                )}
+                {pending.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 pt-1">
+                      <span className="text-[12px] uppercase tracking-wider font-semibold text-muted-foreground opacity-50">
+                        Pendentes
                       </span>
-                    </span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                  {done.map((t) => (
-                    <TaskCard
-                      key={t.id_tarefa}
-                      task={t}
-                      onRefresh={load}
-                      forceCollapse={forceCollapseMap[t.id_tarefa]}
-                      matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
-                    />
-                  ))}
-                </>
-              )}
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    {pending.map((t) => (
+                      <TaskCard
+                        key={t.id_tarefa}
+                        task={t}
+                        onRefresh={load}
+                        forceCollapse={forceCollapseMap[t.id_tarefa]}
+                        matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
+                      />
+                    ))}
+                  </>
+                )}
+                {done.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 pt-3">
+                      <span className="text-[12px] uppercase tracking-wider font-semibold text-success flex items-center gap-2 opacity-70">
+                        Concluídas
+                        <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[12px]">
+                          {done.length}
+                        </span>
+                      </span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    {done.map((t) => (
+                      <TaskCard
+                        key={t.id_tarefa}
+                        task={t}
+                        onRefresh={load}
+                        forceCollapse={forceCollapseMap[t.id_tarefa]}
+                        matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
+                      />
+                    ))}
+                  </>
+                )}
+              </div>
+            );
+          };
+
+          return (
+            <div className="space-y-6">
+              {dates.map((d) => renderDateGroup(d, byDate.get(d)!))}
             </div>
           );
         })()

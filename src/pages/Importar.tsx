@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
-import { timeAgo } from "@/lib/datetime";
+import { timeAgo, todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 
 function parseDateBR(s: string): string | null {
@@ -207,7 +207,26 @@ export default function Importar() {
       return;
     }
 
-    // 1) Preserve task progress fields across reimports (chunked)
+    // Date sanity check — warn if any task is not for today
+    const todayISO = todayDateISO_SP();
+    const dateBuckets = new Map<string, number>();
+    tarefasMap.forEach((t) => {
+      const d = fmtSP(t.data_tarefa as string, "yyyy-MM-dd");
+      dateBuckets.set(d, (dateBuckets.get(d) ?? 0) + 1);
+    });
+    const otherDates = Array.from(dateBuckets.entries()).filter(([d]) => d !== todayISO);
+    if (otherDates.length > 0) {
+      const summary = Array.from(dateBuckets.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([d, n]) => `• ${fmtSP(`${d}T12:00:00-03:00`, "dd/MM/yyyy")}: ${n} tarefa(s)${d === todayISO ? " (hoje)" : ""}`)
+        .join("\n");
+      const ok = window.confirm(
+        `Atenção: o arquivo contém tarefas de datas diferentes de hoje.\n\n${summary}\n\nDeseja importar mesmo assim?`,
+      );
+      if (!ok) return;
+    }
+
+
     const existingTarefas = await chunkedSelect(ids, 200, async (chunk) => {
       const { data } = await supabase
         .from("tarefas")
