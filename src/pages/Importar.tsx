@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
-import { timeAgo } from "@/lib/datetime";
+import { timeAgo, todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 
 function parseDateBR(s: string): string | null {
