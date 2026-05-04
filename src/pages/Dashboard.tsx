@@ -91,9 +91,10 @@ export default function Dashboard() {
 
       const todaysTasks = activeTarefas.filter((t) => {
         const tt = t as { data_tarefa: string; status_tarefa: string; empresa: string };
-        const dISO = fmtSP(tt.data_tarefa, "yyyy-MM-dd");
-        if (dISO !== todayISO) return false;
         if (tt.status_tarefa === "Finalizado") return false;
+        // Show all dates >= today (today + future dates present in import)
+        const dISO = fmtSP(tt.data_tarefa, "yyyy-MM-dd");
+        if (dISO < todayISO) return false;
         return inCarteira(tt.empresa);
       });
 
