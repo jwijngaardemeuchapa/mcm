@@ -534,26 +534,37 @@ export default function Dashboard() {
       )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
-        <h2 className="font-display font-semibold text-lg text-foreground">Tarefas do dia</h2>
-        <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <label className="text-xs text-muted-foreground">A partir de</label>
-          <Input
-            type="time"
-            value={hourFilter}
-            onChange={(e) => setHourFilter(e.target.value)}
-            className="h-7 w-[110px] text-sm"
-          />
-          {hourFilter && (
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setHourFilter("")}>
-              Limpar
-            </Button>
-          )}
-          {hourFilter && (
-            <span className="text-xs text-muted-foreground">
-              ({filteredToday.length}/{tasksToday.length})
-            </span>
-          )}
+        <h2 className="font-display font-semibold text-lg text-foreground">Tarefas</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={exportPreFup}
+            title="Exportar CSV de pré-FUP do dia seguinte (agrupado por empresa)"
+          >
+            <Download className="h-3.5 w-3.5" /> Pré-FUP amanhã
+          </Button>
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <label className="text-xs text-muted-foreground">A partir de</label>
+            <Input
+              type="time"
+              value={hourFilter}
+              onChange={(e) => setHourFilter(e.target.value)}
+              className="h-7 w-[110px] text-sm"
+            />
+            {hourFilter && (
+              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setHourFilter("")}>
+                Limpar
+              </Button>
+            )}
+            {hourFilter && (
+              <span className="text-xs text-muted-foreground">
+                ({filteredToday.length}/{tasksToday.length})
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
