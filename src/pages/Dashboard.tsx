@@ -578,9 +578,6 @@ export default function Dashboard() {
           const visible = filteredToday.filter(
             (t) => !searchMatchIds || searchMatchIds.has(t.id_tarefa),
           );
-          const pending = visible.filter((t) => !isTaskDone(t));
-          const done = visible.filter(isTaskDone);
-          const allDone = visible.length > 0 && pending.length === 0;
 
           if (search && searchMatchIds && searchMatchIds.size === 0) {
             return (
@@ -590,56 +587,90 @@ export default function Dashboard() {
             );
           }
 
-          return (
-            <div className="space-y-3">
-              {allDone && (
-                <div className="px-4 py-3 rounded-lg bg-success/10 border border-success/40 text-success font-semibold text-sm">
-                  ✅ Todas as tarefas concluídas.
-                </div>
-              )}
+          // Group by date (yyyy-MM-dd)
+          const todayISO = todayDateISO_SP();
+          const byDate = new Map<string, TaskWithChapas[]>();
+          visible.forEach((t) => {
+            const k = fmtSP(t.data_tarefa, "yyyy-MM-dd");
+            if (!byDate.has(k)) byDate.set(k, []);
+            byDate.get(k)!.push(t);
+          });
+          const dates = Array.from(byDate.keys()).sort();
 
-              {pending.length > 0 && (
-                <>
-                  <div className="flex items-center gap-3 pt-1">
-                    <span className="text-[12px] uppercase tracking-wider font-semibold text-muted-foreground opacity-50">
-                      Pendentes
+          const renderDateGroup = (dateISO: string, group: TaskWithChapas[]) => {
+            const pending = group.filter((t) => !isTaskDone(t));
+            const done = group.filter(isTaskDone);
+            const allDone = group.length > 0 && pending.length === 0;
+            const isToday = dateISO === todayISO;
+            const label = isToday
+              ? "Hoje"
+              : fmtSP(`${dateISO}T12:00:00-03:00`, "EEEE, dd/MM");
+            return (
+              <div key={dateISO} className="space-y-3">
+                {!isToday && (
+                  <div className="flex items-center gap-3 pt-2">
+                    <span className="text-sm font-display font-semibold text-foreground capitalize">
+                      {label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({group.length} tarefa{group.length > 1 ? "s" : ""})
                     </span>
                     <div className="flex-1 h-px bg-border" />
                   </div>
-                  {pending.map((t) => (
-                    <TaskCard
-                      key={t.id_tarefa}
-                      task={t}
-                      onRefresh={load}
-                      forceCollapse={forceCollapseMap[t.id_tarefa]}
-                      matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
-                    />
-                  ))}
-                </>
-              )}
-
-              {done.length > 0 && (
-                <>
-                  <div className="flex items-center gap-3 pt-3">
-                    <span className="text-[12px] uppercase tracking-wider font-semibold text-success flex items-center gap-2 opacity-70">
-                      Concluídas
-                      <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[12px]">
-                        {done.length}
+                )}
+                {allDone && (
+                  <div className="px-4 py-3 rounded-lg bg-success/10 border border-success/40 text-success font-semibold text-sm">
+                    ✅ Todas as tarefas concluídas.
+                  </div>
+                )}
+                {pending.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 pt-1">
+                      <span className="text-[12px] uppercase tracking-wider font-semibold text-muted-foreground opacity-50">
+                        Pendentes
                       </span>
-                    </span>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                  {done.map((t) => (
-                    <TaskCard
-                      key={t.id_tarefa}
-                      task={t}
-                      onRefresh={load}
-                      forceCollapse={forceCollapseMap[t.id_tarefa]}
-                      matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
-                    />
-                  ))}
-                </>
-              )}
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    {pending.map((t) => (
+                      <TaskCard
+                        key={t.id_tarefa}
+                        task={t}
+                        onRefresh={load}
+                        forceCollapse={forceCollapseMap[t.id_tarefa]}
+                        matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
+                      />
+                    ))}
+                  </>
+                )}
+                {done.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 pt-3">
+                      <span className="text-[12px] uppercase tracking-wider font-semibold text-success flex items-center gap-2 opacity-70">
+                        Concluídas
+                        <span className="px-1.5 py-0.5 rounded bg-success/15 text-success text-[12px]">
+                          {done.length}
+                        </span>
+                      </span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    {done.map((t) => (
+                      <TaskCard
+                        key={t.id_tarefa}
+                        task={t}
+                        onRefresh={load}
+                        forceCollapse={forceCollapseMap[t.id_tarefa]}
+                        matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
+                      />
+                    ))}
+                  </>
+                )}
+              </div>
+            );
+          };
+
+          return (
+            <div className="space-y-6">
+              {dates.map((d) => renderDateGroup(d, byDate.get(d)!))}
             </div>
           );
         })()
