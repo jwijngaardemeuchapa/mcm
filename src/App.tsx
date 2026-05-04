@@ -9,6 +9,7 @@ import Carteira from "./pages/Carteira";
 import Importar from "./pages/Importar";
 import Historico from "./pages/Historico";
 import Consultor from "./pages/Consultor";
+import BID from "./pages/BID";
 import NotFound from "./pages/NotFound";
 import { UndoProvider } from "./lib/undo";
 
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/importar" element={<Importar />} />
               <Route path="/historico" element={<Historico />} />
               <Route path="/consultor" element={<Consultor />} />
+              <Route path="/bid" element={<BID />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
