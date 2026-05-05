@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Moon } from "lucide-react";
 import { fmtDateTime, fmtSP } from "@/lib/datetime";
 import { fetchAllRows } from "@/lib/fetchAll";
+import ValidacoesTardiasTab from "@/components/ValidacoesTardiasTab";
 
 const canalLabel: Record<string, string> = {
   whatsapp_web: "WhatsApp Web",
@@ -166,6 +167,7 @@ export default function Historico() {
           <TabsTrigger value="remocoes">Remoções ({removals.length})</TabsTrigger>
           <TabsTrigger value="fups">FUPs Disparados ({fups.length})</TabsTrigger>
           <TabsTrigger value="validacoes">Validações ({validacoes.length})</TabsTrigger>
+          <TabsTrigger value="tardias">Validações Tardias</TabsTrigger>
         </TabsList>
 
         <TabsContent value="remocoes">
@@ -388,6 +390,9 @@ export default function Historico() {
               </tbody>
             </table>
           </div>
+        </TabsContent>
+        <TabsContent value="tardias">
+          <ValidacoesTardiasTab />
         </TabsContent>
       </Tabs>
     </div>
