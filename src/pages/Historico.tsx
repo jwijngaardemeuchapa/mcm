@@ -167,6 +167,7 @@ export default function Historico() {
           <TabsTrigger value="remocoes">Remoções ({removals.length})</TabsTrigger>
           <TabsTrigger value="fups">FUPs Disparados ({fups.length})</TabsTrigger>
           <TabsTrigger value="validacoes">Validações ({validacoes.length})</TabsTrigger>
+          <TabsTrigger value="tardias">Validações Tardias</TabsTrigger>
         </TabsList>
 
         <TabsContent value="remocoes">
