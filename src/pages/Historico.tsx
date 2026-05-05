@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Moon } from "lucide-react";
 import { fmtDateTime, fmtSP } from "@/lib/datetime";
 import { fetchAllRows } from "@/lib/fetchAll";
+import ValidacoesTardiasTab from "@/components/ValidacoesTardiasTab";
 
 const canalLabel: Record<string, string> = {
   whatsapp_web: "WhatsApp Web",
