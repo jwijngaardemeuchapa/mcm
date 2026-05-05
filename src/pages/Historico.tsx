@@ -391,6 +391,9 @@ export default function Historico() {
             </table>
           </div>
         </TabsContent>
+        <TabsContent value="tardias">
+          <ValidacoesTardiasTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
