@@ -191,6 +191,51 @@ export type Database = {
         }
         Relationships: []
       }
+      validacoes_tardias: {
+        Row: {
+          created_at: string
+          data_tarefa_original: string | null
+          data_tarefa_retroativa: string | null
+          data_validacao_cliente: string
+          empresa: string | null
+          id: string
+          id_tarefa_original: number | null
+          id_tarefa_retroativa: number
+          motivo: string
+          observacao: string | null
+          registrado_por: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_tarefa_original?: string | null
+          data_tarefa_retroativa?: string | null
+          data_validacao_cliente: string
+          empresa?: string | null
+          id?: string
+          id_tarefa_original?: number | null
+          id_tarefa_retroativa: number
+          motivo: string
+          observacao?: string | null
+          registrado_por?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_tarefa_original?: string | null
+          data_tarefa_retroativa?: string | null
+          data_validacao_cliente?: string
+          empresa?: string | null
+          id?: string
+          id_tarefa_original?: number | null
+          id_tarefa_retroativa?: number
+          motivo?: string
+          observacao?: string | null
+          registrado_por?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
