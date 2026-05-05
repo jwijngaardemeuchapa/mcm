@@ -555,12 +555,47 @@ export default function Consultor() {
                 <TableBody>
                   {paged.map((r, i) => (
                     <TableRow key={i}>
-                      <TableCell className="font-mono text-xs">#{F.id(r)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {F.id(r) ? (
+                          <a
+                            href={`https://app.meu-chapa.net/admin/edit-task/${encodeURIComponent(F.id(r))}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                            title="Abrir tarefa no Meu Chapa"
+                          >
+                            #{F.id(r)}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs whitespace-nowrap">{fmtDate(F.data(r))}</TableCell>
                       <TableCell className="text-xs capitalize">{F.empresa(r).toLowerCase()}</TableCell>
                       <TableCell className="text-xs">{F.cidade(r)}</TableCell>
                       <TableCell className="text-xs capitalize">{F.nome(r).toLowerCase()}</TableCell>
-                      <TableCell className="text-xs tabular-nums">{F.telefone(r)}</TableCell>
+                      <TableCell className="text-xs tabular-nums">
+                        {F.telefone(r) ? (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const tel = F.telefone(r);
+                              try {
+                                await navigator.clipboard.writeText(tel);
+                                toast.success(`Telefone copiado: ${tel}`);
+                              } catch {
+                                toast.error("Não foi possível copiar");
+                              }
+                            }}
+                            className="text-primary hover:underline cursor-pointer"
+                            title="Copiar telefone"
+                          >
+                            {F.telefone(r)}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell className="text-xs text-center">{F.qtd(r)}</TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${statusTarefaCls(F.status(r))}`}>
