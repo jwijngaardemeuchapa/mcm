@@ -56,16 +56,26 @@ export default function BID() {
 
   function downloadCleaned() {
     if (!rows.length) return;
-    const aoa: (string | number)[][] = [
-      ["Nome", ""],
-      ...rows.map((r) => [r.Nome, r.B]),
+    const escape = (v: string) => {
+      const s = String(v ?? "");
+      return /[",;\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [
+      ["Nome", "Telefone"].join(";"),
+      ...rows.map((r) => [escape(r.Nome), escape(r.B)].join(";")),
     ];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{ wch: 32 }, { wch: 24 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "BID");
+    // BOM for Excel UTF-8 compatibility
+    const csv = "\ufeff" + lines.join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
     const base = (fileName ?? "bid").replace(/\.[^.]+$/, "");
-    XLSX.writeFile(wb, `${base}_limpa.xlsx`);
+    a.href = url;
+    a.download = `${base}_limpa.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
     toast.success("Download iniciado");
   }
 
@@ -114,7 +124,7 @@ export default function BID() {
                 <X className="h-4 w-4" /> Limpar
               </Button>
               <Button onClick={downloadCleaned}>
-                <Download className="h-4 w-4" /> Baixar planilha
+                <Download className="h-4 w-4" /> Baixar CSV
               </Button>
             </div>
           </div>
@@ -123,7 +133,7 @@ export default function BID() {
               <thead className="bg-muted/50 sticky top-0">
                 <tr>
                   <th className="text-left px-3 py-2 font-semibold">Nome (A)</th>
-                  <th className="text-left px-3 py-2 font-semibold">B</th>
+                  <th className="text-left px-3 py-2 font-semibold">Telefone (B)</th>
                 </tr>
               </thead>
               <tbody>
