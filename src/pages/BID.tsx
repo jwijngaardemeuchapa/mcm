@@ -124,8 +124,18 @@ export default function BID() {
                 <X className="h-4 w-4" /> Limpar
               </Button>
               <Button onClick={downloadCleaned}>
-                <Download className="h-4 w-4" /> Baixar planilha
+                <Download className="h-4 w-4" /> Baixar CSV
               </Button>
+            </div>
+          </div>
+          <div className="overflow-auto max-h-[500px]">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr>
+                  <th className="text-left px-3 py-2 font-semibold">Nome (A)</th>
+                  <th className="text-left px-3 py-2 font-semibold">Telefone (B)</th>
+                </tr>
+              </thead>
             </div>
           </div>
           <div className="overflow-auto max-h-[500px]">
