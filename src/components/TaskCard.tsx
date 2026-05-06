@@ -140,6 +140,7 @@ export function TaskCard({
   const [newFupCanal, setNewFupCanal] = useState("whatsapp_web");
   const [newFupObs, setNewFupObs] = useState("");
   const { push } = useUndo();
+  const [csvExportedAt, setCsvExportedAt] = useState<string | null>(() => getCsvExportedAt(task.id_tarefa));
 
   const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
 
