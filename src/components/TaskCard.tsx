@@ -254,9 +254,18 @@ Precisamos de 1 substituto para esta tarefa.`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tarefa_${task.id_tarefa}_chapas.csv`;
+    const slug = companyFilenameSlug(task.empresa);
+    const time = fmtSP(task.data_tarefa, "HHmm");
+    a.download = `${slug}_${time}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    try {
+      localStorage.setItem(csvExportKey(task.id_tarefa), new Date().toISOString());
+    } catch {
+      /* noop */
+    }
+    setCsvExportedAt(new Date().toISOString());
+    toast.success(`CSV exportado: ${a.download}`);
   }
 
   function copyList() {
