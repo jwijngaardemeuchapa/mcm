@@ -1,0 +1,1 @@
+ALTER TABLE public.validacoes_tardias ADD COLUMN IF NOT EXISTS chapas_alocados jsonb DEFAULT '[]'::jsonb;
