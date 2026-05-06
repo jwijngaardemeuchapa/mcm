@@ -95,7 +95,7 @@ export default function ValidacoesTardiasTab() {
       toast.error("Erro ao carregar validações tardias");
       return;
     }
-    setRows((data ?? []) as ValidacaoTardia[]);
+    setRows((data ?? []) as unknown as ValidacaoTardia[]);
   };
 
   useEffect(() => {
