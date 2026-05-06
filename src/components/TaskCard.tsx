@@ -641,8 +641,19 @@ Precisamos de 1 substituto para esta tarefa.`;
           </Collapsible>
 
           <div className="px-4 py-3 flex gap-2 border-t border-border bg-card">
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={exportCSV}>
-              <Download className="h-3.5 w-3.5" /> Exportar CSV
+            <Button
+              size="sm"
+              variant="outline"
+              className={`gap-1.5 ${
+                csvExportedAt
+                  ? "border-success/40 text-success hover:bg-success/10"
+                  : "border-warning/60 text-warning-foreground bg-warning/10 hover:bg-warning/20"
+              }`}
+              onClick={exportCSV}
+              title={csvExportedAt ? `Exportado em ${fmtDateTime(csvExportedAt)} — clique para exportar novamente` : "FUP pendente — clique para exportar o CSV"}
+            >
+              {csvExportedAt ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+              {csvExportedAt ? "CSV exportado · reexportar" : "Exportar CSV"}
             </Button>
             <Button size="sm" variant="outline" className="gap-1.5" onClick={copyList}>
               <Copy className="h-3.5 w-3.5" /> Copiar Lista
