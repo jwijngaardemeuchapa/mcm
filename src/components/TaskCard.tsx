@@ -88,6 +88,29 @@ const canalLabelLong: Record<string, string> = {
   ligacao_3c: "Ligação 3C",
 };
 
+function companyFilenameSlug(empresa: string): string {
+  const cleaned = (empresa || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .trim();
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const pick = words.slice(0, 2).join("");
+  return (pick || "tarefa").toLowerCase();
+}
+
+function csvExportKey(id: number) {
+  return `csv_exported_task_${id}`;
+}
+
+function getCsvExportedAt(id: number): string | null {
+  try {
+    return localStorage.getItem(csvExportKey(id));
+  } catch {
+    return null;
+  }
+}
+
 function formatPhone(s: string | null): string {
   if (!s) return "";
   const d = s.replace(/\D/g, "");
