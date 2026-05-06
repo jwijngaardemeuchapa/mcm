@@ -193,6 +193,7 @@ export type Database = {
       }
       validacoes_tardias: {
         Row: {
+          chapas_alocados: Json | null
           created_at: string
           data_tarefa_original: string | null
           data_tarefa_retroativa: string | null
@@ -207,6 +208,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          chapas_alocados?: Json | null
           created_at?: string
           data_tarefa_original?: string | null
           data_tarefa_retroativa?: string | null
@@ -221,6 +223,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          chapas_alocados?: Json | null
           created_at?: string
           data_tarefa_original?: string | null
           data_tarefa_retroativa?: string | null
