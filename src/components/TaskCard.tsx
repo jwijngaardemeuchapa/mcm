@@ -88,6 +88,29 @@ const canalLabelLong: Record<string, string> = {
   ligacao_3c: "Ligação 3C",
 };
 
+function companyFilenameSlug(empresa: string): string {
+  const cleaned = (empresa || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .trim();
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const pick = words.slice(0, 2).join("");
+  return (pick || "tarefa").toLowerCase();
+}
+
+function csvExportKey(id: number) {
+  return `csv_exported_task_${id}`;
+}
+
+function getCsvExportedAt(id: number): string | null {
+  try {
+    return localStorage.getItem(csvExportKey(id));
+  } catch {
+    return null;
+  }
+}
+
 function formatPhone(s: string | null): string {
   if (!s) return "";
   const d = s.replace(/\D/g, "");
@@ -117,6 +140,7 @@ export function TaskCard({
   const [newFupCanal, setNewFupCanal] = useState("whatsapp_web");
   const [newFupObs, setNewFupObs] = useState("");
   const { push } = useUndo();
+  const [csvExportedAt, setCsvExportedAt] = useState<string | null>(() => getCsvExportedAt(task.id_tarefa));
 
   const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
 
@@ -231,9 +255,18 @@ Precisamos de 1 substituto para esta tarefa.`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `tarefa_${task.id_tarefa}_chapas.csv`;
+    const slug = companyFilenameSlug(task.empresa);
+    const time = fmtSP(task.data_tarefa, "HHmm");
+    a.download = `${slug}_${time}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    try {
+      localStorage.setItem(csvExportKey(task.id_tarefa), new Date().toISOString());
+    } catch {
+      /* noop */
+    }
+    setCsvExportedAt(new Date().toISOString());
+    toast.success(`CSV exportado: ${a.download}`);
   }
 
   function copyList() {
@@ -433,6 +466,21 @@ Precisamos de 1 substituto para esta tarefa.`;
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {csvExportedAt ? (
+            <span
+              className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-success/15 text-success border border-success/30"
+              title={`CSV exportado em ${fmtDateTime(csvExportedAt)}`}
+            >
+              <Check className="h-3.5 w-3.5" /> CSV exportado
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-warning/20 text-warning-foreground border border-warning/50 animate-pulse"
+              title="FUP ainda não exportado para esta tarefa"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" /> FUP pendente
+            </span>
+          )}
           {fullyValidated && (
             <span
               className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-success text-success-foreground shadow-sm"
@@ -593,8 +641,19 @@ Precisamos de 1 substituto para esta tarefa.`;
           </Collapsible>
 
           <div className="px-4 py-3 flex gap-2 border-t border-border bg-card">
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={exportCSV}>
-              <Download className="h-3.5 w-3.5" /> Exportar CSV
+            <Button
+              size="sm"
+              variant="outline"
+              className={`gap-1.5 ${
+                csvExportedAt
+                  ? "border-success/40 text-success hover:bg-success/10"
+                  : "border-warning/60 text-warning-foreground bg-warning/10 hover:bg-warning/20"
+              }`}
+              onClick={exportCSV}
+              title={csvExportedAt ? `Exportado em ${fmtDateTime(csvExportedAt)} — clique para exportar novamente` : "FUP pendente — clique para exportar o CSV"}
+            >
+              {csvExportedAt ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
+              {csvExportedAt ? "CSV exportado · reexportar" : "Exportar CSV"}
             </Button>
             <Button size="sm" variant="outline" className="gap-1.5" onClick={copyList}>
               <Copy className="h-3.5 w-3.5" /> Copiar Lista
