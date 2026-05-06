@@ -466,6 +466,21 @@ Precisamos de 1 substituto para esta tarefa.`;
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          {csvExportedAt ? (
+            <span
+              className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-success/15 text-success border border-success/30"
+              title={`CSV exportado em ${fmtDateTime(csvExportedAt)}`}
+            >
+              <Check className="h-3.5 w-3.5" /> CSV exportado
+            </span>
+          ) : (
+            <span
+              className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-warning/20 text-warning-foreground border border-warning/50 animate-pulse"
+              title="FUP ainda não exportado para esta tarefa"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 text-warning" /> FUP pendente
+            </span>
+          )}
           {fullyValidated && (
             <span
               className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-success text-success-foreground shadow-sm"
