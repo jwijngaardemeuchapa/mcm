@@ -256,7 +256,7 @@ export default function Dashboard() {
     );
   };
 
-  // Search by chapa name, task id, or chapa phone
+  // Search by chapa name, task id, chapa phone, or company name
   const searchMatchIds = useMemo(() => {
     if (!search.trim()) return null;
     const q = search.trim().toLowerCase();
@@ -265,6 +265,7 @@ export default function Dashboard() {
       allCards
         .filter((t) => {
           if (String(t.id_tarefa).includes(q)) return true;
+          if ((t.empresa ?? "").toLowerCase().includes(q)) return true;
           if (t.chapas.some((c) => (c.nome_chapa ?? "").toLowerCase().includes(q))) return true;
           if (
             onlyDigits.length >= 3 &&
@@ -276,6 +277,24 @@ export default function Dashboard() {
         .map((t) => t.id_tarefa),
     );
   }, [search, allCards]);
+
+  // Companies present in current visible (hour-filtered) cards — for dropdown
+  const companyOptions = useMemo(() => {
+    const set = new Set<string>();
+    allCards.forEach((t) => {
+      if (t.empresa) set.add(t.empresa);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allCards]);
+
+  const isNotUploaded = (t: TaskWithChapas) =>
+    (t.validacao_status ?? "aguardando") !== "subido_meu_chapa";
+
+  const passesExtraFilters = (t: TaskWithChapas) => {
+    if (companyFilter !== "__all__" && t.empresa !== companyFilter) return false;
+    if (onlyNotUploaded && !isNotUploaded(t)) return false;
+    return true;
+  };
 
   // Stats — only the 3 essentials
   const totalChapas = allCards.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
