@@ -10,6 +10,7 @@ import Importar from "./pages/Importar";
 import Historico from "./pages/Historico";
 import Consultor from "./pages/Consultor";
 import BID from "./pages/BID";
+import ContadorTarefas from "./pages/ContadorTarefas";
 import NotFound from "./pages/NotFound";
 import { UndoProvider } from "./lib/undo";
 
