@@ -643,7 +643,7 @@ export default function Dashboard() {
             <Moon className="h-5 w-5" /> Em andamento — iniciadas ontem
           </h2>
           {overnightContinuing
-            .filter((t) => !searchMatchIds || searchMatchIds.has(t.id_tarefa))
+            .filter((t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)))
             .map((t) => (
               <TaskCard
                 key={`ov-${t.id_tarefa}`}
