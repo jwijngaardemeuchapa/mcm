@@ -495,6 +495,47 @@ export default function Dashboard() {
             <ChevronsDownUp className="h-3.5 w-3.5" />
             {globalCollapsed ? "Expandir tudo" : "Colapsar tudo"}
           </Button>
+          <Button
+            size="sm"
+            variant={onlyNotUploaded ? "default" : "ghost"}
+            className={`h-[30px] gap-1.5 text-xs ${
+              onlyNotUploaded
+                ? "bg-warning/15 text-warning hover:bg-warning/25 border border-warning/40"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setOnlyNotUploaded((v) => !v)}
+            title="Mostrar apenas tarefas ainda não subidas para o Meu Chapa"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Não subidas
+          </Button>
+          <div className="flex items-center gap-1.5">
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select value={companyFilter} onValueChange={setCompanyFilter}>
+              <SelectTrigger className="h-[30px] text-xs w-[180px]">
+                <SelectValue placeholder="Empresa" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="__all__">Todas as empresas</SelectItem>
+                {companyOptions.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {companyFilter !== "__all__" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-[30px] px-2 text-xs"
+                onClick={() => setCompanyFilter("__all__")}
+                aria-label="Limpar filtro de empresa"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Right zone — system */}
