@@ -49,7 +49,7 @@ export function ValidationPanel({
   const [open, setOpen] = useState(false);
   const { push } = useUndo();
 
-  const realChapas = chapas.filter((c) => c.nome_chapa);
+  const realChapas = chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
   const presentes = realChapas.filter((c) => c.validacao_presenca === "presente").length;
   const ausentes = realChapas.filter((c) => c.validacao_presenca === "ausente").length;
   const pendentes = realChapas.length - presentes - ausentes;
