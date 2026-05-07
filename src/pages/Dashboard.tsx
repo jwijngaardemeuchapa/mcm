@@ -19,10 +19,19 @@ import {
   X,
   Check,
   Download,
+  Building2,
+  Upload,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useNotifications } from "@/lib/useNotifications";
 import { toast } from "sonner";
 
@@ -41,6 +50,8 @@ export default function Dashboard() {
   const [forceCollapseMap, setForceCollapseMap] = useState<Record<AllRowKey, boolean | null>>({});
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [onlyPending, setOnlyPending] = useState(false);
+  const [companyFilter, setCompanyFilter] = useState<string>("__all__");
+  const [onlyNotUploaded, setOnlyNotUploaded] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const overnightNotifiedRef = useRef<Set<number>>(new Set());
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | "unsupported">(
@@ -245,7 +256,7 @@ export default function Dashboard() {
     );
   };
 
-  // Search by chapa name, task id, or chapa phone
+  // Search by chapa name, task id, chapa phone, or company name
   const searchMatchIds = useMemo(() => {
     if (!search.trim()) return null;
     const q = search.trim().toLowerCase();
@@ -254,6 +265,7 @@ export default function Dashboard() {
       allCards
         .filter((t) => {
           if (String(t.id_tarefa).includes(q)) return true;
+          if ((t.empresa ?? "").toLowerCase().includes(q)) return true;
           if (t.chapas.some((c) => (c.nome_chapa ?? "").toLowerCase().includes(q))) return true;
           if (
             onlyDigits.length >= 3 &&
@@ -265,6 +277,24 @@ export default function Dashboard() {
         .map((t) => t.id_tarefa),
     );
   }, [search, allCards]);
+
+  // Companies present in current visible (hour-filtered) cards — for dropdown
+  const companyOptions = useMemo(() => {
+    const set = new Set<string>();
+    allCards.forEach((t) => {
+      if (t.empresa) set.add(t.empresa);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allCards]);
+
+  const isNotUploaded = (t: TaskWithChapas) =>
+    (t.validacao_status ?? "aguardando") !== "subido_meu_chapa";
+
+  const passesExtraFilters = (t: TaskWithChapas) => {
+    if (companyFilter !== "__all__" && t.empresa !== companyFilter) return false;
+    if (onlyNotUploaded && !isNotUploaded(t)) return false;
+    return true;
+  };
 
   // Stats — only the 3 essentials
   const totalChapas = allCards.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
@@ -422,7 +452,7 @@ export default function Dashboard() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nome do chapa, nº de tarefa ou telefone…"
+            placeholder="Buscar por chapa, empresa, nº de tarefa ou telefone…"
             className="pl-9 h-9"
           />
           {search && (
@@ -465,6 +495,47 @@ export default function Dashboard() {
             <ChevronsDownUp className="h-3.5 w-3.5" />
             {globalCollapsed ? "Expandir tudo" : "Colapsar tudo"}
           </Button>
+          <Button
+            size="sm"
+            variant={onlyNotUploaded ? "default" : "ghost"}
+            className={`h-[30px] gap-1.5 text-xs ${
+              onlyNotUploaded
+                ? "bg-warning/15 text-warning hover:bg-warning/25 border border-warning/40"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setOnlyNotUploaded((v) => !v)}
+            title="Mostrar apenas tarefas ainda não subidas para o Meu Chapa"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Não subidas
+          </Button>
+          <div className="flex items-center gap-1.5">
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select value={companyFilter} onValueChange={setCompanyFilter}>
+              <SelectTrigger className="h-[30px] text-xs w-[180px]">
+                <SelectValue placeholder="Empresa" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem value="__all__">Todas as empresas</SelectItem>
+                {companyOptions.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {companyFilter !== "__all__" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-[30px] px-2 text-xs"
+                onClick={() => setCompanyFilter("__all__")}
+                aria-label="Limpar filtro de empresa"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Right zone — system */}
@@ -572,7 +643,7 @@ export default function Dashboard() {
             <Moon className="h-5 w-5" /> Em andamento — iniciadas ontem
           </h2>
           {overnightContinuing
-            .filter((t) => !searchMatchIds || searchMatchIds.has(t.id_tarefa))
+            .filter((t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)))
             .map((t) => (
               <TaskCard
                 key={`ov-${t.id_tarefa}`}
@@ -639,7 +710,7 @@ export default function Dashboard() {
             t.chapas.every((c) => c.status_contato === "confirmado") &&
             (t.validacao_status ?? "aguardando") === "subido_meu_chapa";
           const visible = filteredToday.filter(
-            (t) => !searchMatchIds || searchMatchIds.has(t.id_tarefa),
+            (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
           );
 
           if (search && searchMatchIds && searchMatchIds.size === 0) {
