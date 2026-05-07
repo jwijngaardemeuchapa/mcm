@@ -201,6 +201,19 @@ export function ValidationPanel({
           {/* Step 1 — per-chapa presence */}
           {realChapas.length > 0 && (
             <div className="space-y-1.5">
+              {realChapas.some((c) => c.validacao_presenca !== "presente") && (
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5 text-xs border-success/50 text-success hover:bg-success/10"
+                    onClick={setAllPresent}
+                    title="Marca todos os ajudantes restantes como presentes"
+                  >
+                    <Check className="h-3.5 w-3.5" /> Validar todos como presentes
+                  </Button>
+                </div>
+              )}
               {realChapas.map((c) => {
                 const v = c.validacao_presenca;
                 return (
