@@ -49,7 +49,7 @@ export function ValidationPanel({
   const [open, setOpen] = useState(false);
   const { push } = useUndo();
 
-  const realChapas = chapas.filter((c) => c.nome_chapa);
+  const realChapas = chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
   const presentes = realChapas.filter((c) => c.validacao_presenca === "presente").length;
   const ausentes = realChapas.filter((c) => c.validacao_presenca === "ausente").length;
   const pendentes = realChapas.length - presentes - ausentes;
@@ -77,6 +77,39 @@ export function ValidationPanel({
       },
       onReverted: onRefresh,
     });
+    onRefresh();
+  }
+
+  async function setAllPresent() {
+    const targets = realChapas.filter((c) => c.validacao_presenca !== "presente");
+    if (targets.length === 0) return;
+    const prev = targets.map((c) => ({
+      id: c.id,
+      validacao_presenca: c.validacao_presenca ?? null,
+      data_validacao: c.data_validacao ?? null,
+    }));
+    const ids = targets.map((c) => c.id);
+    const { error } = await supabase
+      .from("chapas")
+      .update({ validacao_presenca: "presente", data_validacao: new Date().toISOString() })
+      .in("id", ids);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    push({
+      label: `validar ${ids.length} ajudante(s) como presente`,
+      revert: async () => {
+        for (const p of prev) {
+          await supabase
+            .from("chapas")
+            .update({ validacao_presenca: p.validacao_presenca, data_validacao: p.data_validacao })
+            .eq("id", p.id);
+        }
+      },
+      onReverted: onRefresh,
+    });
+    toast.success(`${ids.length} ajudante(s) marcados como presente`);
     onRefresh();
   }
 
@@ -168,6 +201,19 @@ export function ValidationPanel({
           {/* Step 1 — per-chapa presence */}
           {realChapas.length > 0 && (
             <div className="space-y-1.5">
+              {realChapas.some((c) => c.validacao_presenca !== "presente") && (
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1.5 text-xs border-success/50 text-success hover:bg-success/10"
+                    onClick={setAllPresent}
+                    title="Marca todos os ajudantes restantes como presentes"
+                  >
+                    <Check className="h-3.5 w-3.5" /> Validar todos como presentes
+                  </Button>
+                </div>
+              )}
               {realChapas.map((c) => {
                 const v = c.validacao_presenca;
                 return (

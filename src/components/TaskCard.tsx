@@ -274,7 +274,15 @@ Precisamos de 1 substituto para esta tarefa.`;
       .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
       .map((c) => `${c.nome_chapa} - ${c.cpf ?? "(sem CPF cadastrado)"}`);
     navigator.clipboard.writeText("Nome - CPF\n" + lines.join("\n"));
-    toast.success("Copiado!");
+    toast.success("Lista copiada (nome + CPF)");
+  }
+
+  function copyNamesOnly() {
+    const lines = task.chapas
+      .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
+      .map((c) => c.nome_chapa as string);
+    navigator.clipboard.writeText(lines.join("\n"));
+    toast.success(`${lines.length} nome(s) copiado(s)`);
   }
 
   async function registerFup() {
@@ -308,7 +316,7 @@ Precisamos de 1 substituto para esta tarefa.`;
 
   const totalChapas = task.chapas.length;
   const confirmedAll = totalChapas > 0 && task.chapas.every((c) => c.status_contato === "confirmado");
-  const realChapas = task.chapas.filter((c) => c.nome_chapa);
+  const realChapas = task.chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
   const fullyValidated =
     realChapas.length > 0 &&
     realChapas.every(
@@ -657,6 +665,9 @@ Precisamos de 1 substituto para esta tarefa.`;
             </Button>
             <Button size="sm" variant="outline" className="gap-1.5" onClick={copyList}>
               <Copy className="h-3.5 w-3.5" /> Copiar Lista
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={copyNamesOnly} title="Copia apenas os nomes (sem CPF)">
+              <Copy className="h-3.5 w-3.5" /> Copiar Nomes
             </Button>
           </div>
         </>
