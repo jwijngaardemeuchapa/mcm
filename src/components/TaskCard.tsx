@@ -666,6 +666,9 @@ Precisamos de 1 substituto para esta tarefa.`;
             <Button size="sm" variant="outline" className="gap-1.5" onClick={copyList}>
               <Copy className="h-3.5 w-3.5" /> Copiar Lista
             </Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={copyNamesOnly} title="Copia apenas os nomes (sem CPF)">
+              <Copy className="h-3.5 w-3.5" /> Copiar Nomes
+            </Button>
           </div>
         </>
       )}
