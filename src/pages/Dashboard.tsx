@@ -710,7 +710,7 @@ export default function Dashboard() {
             t.chapas.every((c) => c.status_contato === "confirmado") &&
             (t.validacao_status ?? "aguardando") === "subido_meu_chapa";
           const visible = filteredToday.filter(
-            (t) => !searchMatchIds || searchMatchIds.has(t.id_tarefa),
+            (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
           );
 
           if (search && searchMatchIds && searchMatchIds.size === 0) {
