@@ -50,6 +50,8 @@ export default function Dashboard() {
   const [forceCollapseMap, setForceCollapseMap] = useState<Record<AllRowKey, boolean | null>>({});
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [onlyPending, setOnlyPending] = useState(false);
+  const [companyFilter, setCompanyFilter] = useState<string>("__all__");
+  const [onlyNotUploaded, setOnlyNotUploaded] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const overnightNotifiedRef = useRef<Set<number>>(new Set());
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | "unsupported">(
