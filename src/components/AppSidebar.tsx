@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, Users, Upload, History, Search, FileSpreadsheet } from "lucide-react";
+import { LayoutDashboard, Users, Upload, History, Search, FileSpreadsheet, BarChart3 } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import {
   Sidebar,
