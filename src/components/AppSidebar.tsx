@@ -20,6 +20,7 @@ const items = [
   { title: "Histórico", url: "/historico", icon: History },
   { title: "Consultor", url: "/consultor", icon: Search },
   { title: "BID", url: "/bid", icon: FileSpreadsheet },
+  { title: "Contador", url: "/contador", icon: BarChart3 },
 ];
 
 export function AppSidebar() {
