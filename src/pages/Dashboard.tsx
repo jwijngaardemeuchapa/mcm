@@ -452,7 +452,7 @@ export default function Dashboard() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nome do chapa, nº de tarefa ou telefone…"
+            placeholder="Buscar por chapa, empresa, nº de tarefa ou telefone…"
             className="pl-9 h-9"
           />
           {search && (
