@@ -274,7 +274,15 @@ Precisamos de 1 substituto para esta tarefa.`;
       .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
       .map((c) => `${c.nome_chapa} - ${c.cpf ?? "(sem CPF cadastrado)"}`);
     navigator.clipboard.writeText("Nome - CPF\n" + lines.join("\n"));
-    toast.success("Copiado!");
+    toast.success("Lista copiada (nome + CPF)");
+  }
+
+  function copyNamesOnly() {
+    const lines = task.chapas
+      .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
+      .map((c) => c.nome_chapa as string);
+    navigator.clipboard.writeText(lines.join("\n"));
+    toast.success(`${lines.length} nome(s) copiado(s)`);
   }
 
   async function registerFup() {
