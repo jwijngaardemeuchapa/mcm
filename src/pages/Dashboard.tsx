@@ -19,10 +19,19 @@ import {
   X,
   Check,
   Download,
+  Building2,
+  Upload,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useNotifications } from "@/lib/useNotifications";
 import { toast } from "sonner";
 
