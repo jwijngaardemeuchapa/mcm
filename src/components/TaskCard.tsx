@@ -316,7 +316,7 @@ Precisamos de 1 substituto para esta tarefa.`;
 
   const totalChapas = task.chapas.length;
   const confirmedAll = totalChapas > 0 && task.chapas.every((c) => c.status_contato === "confirmado");
-  const realChapas = task.chapas.filter((c) => c.nome_chapa);
+  const realChapas = task.chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
   const fullyValidated =
     realChapas.length > 0 &&
     realChapas.every(
