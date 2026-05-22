@@ -94,7 +94,7 @@ async function askAI(query: string, allData: WorkerRow[]) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": window.location.origin,
-      "X-Title": "FUP Manager",
+      "X-Title": "MCM",
     },
     body: JSON.stringify({
       model,
@@ -356,7 +356,7 @@ export default function Consultor() {
           <AccordionItem value="w" className="border-border">
             <AccordionTrigger className="text-sm font-semibold py-2">Ajudante</AccordionTrigger>
             <AccordionContent className="space-y-3 pb-2">
-              {(["worker-task", "worker-validation", "worker-date"] as const).map((k) => (
+              {(["worker-phone", "worker-task", "worker-validation", "worker-date"] as const).map((k) => (
                 <ModeBlock key={k} modeKey={k} values={values} setValues={setValues} onRun={runMode} />
               ))}
             </AccordionContent>
@@ -683,6 +683,7 @@ function ModeBlock({
             placeholder={inp.placeholder ?? inp.label}
             value={values[inp.id] ?? ""}
             onChange={(e) => setValues({ ...values, [inp.id]: e.target.value })}
+            onKeyDown={(e) => { if (e.key === "Enter") onRun(modeKey); }}
             className="h-8 text-xs"
           />
         );

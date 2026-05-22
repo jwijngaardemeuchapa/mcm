@@ -4,7 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { getDb } from "@/lib/db";
 import { fmtDateTime, fmtTime } from "@/lib/datetime";
 
 type Props = {
@@ -44,11 +44,13 @@ export function ObservationsPanel({
     timerRef.current = setTimeout(async () => {
       if (next === initialRef.current) return;
       const now = new Date().toISOString();
-      const { error } = await supabase
-        .from("tarefas")
-        .update({ observacoes: next || null, observacoes_updated_at: now } as never)
-        .eq("id_tarefa", id_tarefa);
-      if (error) {
+      try {
+        const db = await getDb();
+        await db.execute(
+          "UPDATE tarefas SET observacoes = ?, observacoes_updated_at = ? WHERE id_tarefa = ?",
+          [next || null, now, id_tarefa],
+        );
+      } catch {
         toast.error("Erro ao salvar observações");
         return;
       }

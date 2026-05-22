@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
+import { getDb, placeholders, errMsg } from "@/lib/db";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
 import { Check, X, Upload, ClipboardCheck, ChevronDown } from "lucide-react";
@@ -58,22 +58,39 @@ export function ValidationPanel({
   async function setPresenca(chapa: Chapa, value: "presente" | "ausente") {
     const prevPresenca = chapa.validacao_presenca ?? null;
     const prevData = chapa.data_validacao ?? null;
-    const { error } = await supabase
-      .from("chapas")
-      .update({ validacao_presenca: value, data_validacao: new Date().toISOString() })
-      .eq("id", chapa.id);
-    if (error) {
-      toast.error(error.message);
+    const prevStatus = chapa.status_contato;
+    const shouldConfirm = value === "presente" && chapa.status_contato !== "confirmado";
+    const now = new Date().toISOString();
+    try {
+      const db = await getDb();
+      await db.execute(
+        "UPDATE chapas SET validacao_presenca = ?, data_validacao = ? WHERE id = ?",
+        [value, now, chapa.id],
+      );
+      if (shouldConfirm) {
+        await db.execute(
+          "UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id = ?",
+          [now, chapa.id],
+        );
+      }
+    } catch (e) {
+      toast.error(errMsg(e));
       return;
     }
     push({
       label: `presença de ${chapa.nome_chapa ?? "chapa"} (${value})`,
       revert: async () => {
-        const { error: e } = await supabase
-          .from("chapas")
-          .update({ validacao_presenca: prevPresenca, data_validacao: prevData })
-          .eq("id", chapa.id);
-        if (e) throw new Error(e.message);
+        const db = await getDb();
+        await db.execute(
+          "UPDATE chapas SET validacao_presenca = ?, data_validacao = ? WHERE id = ?",
+          [prevPresenca, prevData, chapa.id],
+        );
+        if (shouldConfirm) {
+          await db.execute(
+            "UPDATE chapas SET status_contato = ? WHERE id = ?",
+            [prevStatus, chapa.id],
+          );
+        }
       },
       onReverted: onRefresh,
     });
@@ -87,24 +104,38 @@ export function ValidationPanel({
       id: c.id,
       validacao_presenca: c.validacao_presenca ?? null,
       data_validacao: c.data_validacao ?? null,
+      status_contato: c.status_contato,
     }));
     const ids = targets.map((c) => c.id);
-    const { error } = await supabase
-      .from("chapas")
-      .update({ validacao_presenca: "presente", data_validacao: new Date().toISOString() })
-      .in("id", ids);
-    if (error) {
-      toast.error(error.message);
+    const toConfirm = targets.filter((c) => c.status_contato !== "confirmado").map((c) => c.id);
+    const now = new Date().toISOString();
+    try {
+      const db = await getDb();
+      const ph = placeholders(ids.length);
+      await db.execute(
+        `UPDATE chapas SET validacao_presenca = 'presente', data_validacao = ? WHERE id IN (${ph})`,
+        [now, ...ids],
+      );
+      if (toConfirm.length > 0) {
+        const ph2 = placeholders(toConfirm.length);
+        await db.execute(
+          `UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id IN (${ph2})`,
+          [now, ...toConfirm],
+        );
+      }
+    } catch (e) {
+      toast.error(errMsg(e));
       return;
     }
     push({
       label: `validar ${ids.length} ajudante(s) como presente`,
       revert: async () => {
+        const db = await getDb();
         for (const p of prev) {
-          await supabase
-            .from("chapas")
-            .update({ validacao_presenca: p.validacao_presenca, data_validacao: p.data_validacao })
-            .eq("id", p.id);
+          await db.execute(
+            "UPDATE chapas SET validacao_presenca = ?, data_validacao = ?, status_contato = ? WHERE id = ?",
+            [p.validacao_presenca, p.data_validacao, p.status_contato, p.id],
+          );
         }
       },
       onReverted: onRefresh,
@@ -116,25 +147,24 @@ export function ValidationPanel({
   async function markReceived() {
     const prevStatus = validacao_status;
     const prevDate = data_validacao_recebida;
-    const { error } = await supabase
-      .from("tarefas")
-      .update({
-        validacao_status: "validacao_recebida",
-        data_validacao_recebida: new Date().toISOString(),
-      })
-      .eq("id_tarefa", id_tarefa);
-    if (error) {
-      toast.error(error.message);
+    try {
+      const db = await getDb();
+      await db.execute(
+        "UPDATE tarefas SET validacao_status = 'validacao_recebida', data_validacao_recebida = ? WHERE id_tarefa = ?",
+        [new Date().toISOString(), id_tarefa],
+      );
+    } catch (e) {
+      toast.error(errMsg(e));
       return;
     }
     push({
       label: "marcar validação recebida",
       revert: async () => {
-        const { error: e } = await supabase
-          .from("tarefas")
-          .update({ validacao_status: prevStatus, data_validacao_recebida: prevDate })
-          .eq("id_tarefa", id_tarefa);
-        if (e) throw new Error(e.message);
+        const db = await getDb();
+        await db.execute(
+          "UPDATE tarefas SET validacao_status = ?, data_validacao_recebida = ? WHERE id_tarefa = ?",
+          [prevStatus, prevDate, id_tarefa],
+        );
       },
       onReverted: onRefresh,
     });
@@ -146,30 +176,24 @@ export function ValidationPanel({
     const prevStatus = validacao_status;
     const prevUpload = data_upload_meu_chapa;
     const prevObs = obs_validacao;
-    const { error } = await supabase
-      .from("tarefas")
-      .update({
-        validacao_status: "subido_meu_chapa",
-        data_upload_meu_chapa: new Date().toISOString(),
-        obs_validacao: uploadObs || null,
-      })
-      .eq("id_tarefa", id_tarefa);
-    if (error) {
-      toast.error(error.message);
+    try {
+      const db = await getDb();
+      await db.execute(
+        "UPDATE tarefas SET validacao_status = 'subido_meu_chapa', data_upload_meu_chapa = ?, obs_validacao = ? WHERE id_tarefa = ?",
+        [new Date().toISOString(), uploadObs || null, id_tarefa],
+      );
+    } catch (e) {
+      toast.error(errMsg(e));
       return;
     }
     push({
       label: "subir no Meu Chapa",
       revert: async () => {
-        const { error: e } = await supabase
-          .from("tarefas")
-          .update({
-            validacao_status: prevStatus,
-            data_upload_meu_chapa: prevUpload,
-            obs_validacao: prevObs,
-          })
-          .eq("id_tarefa", id_tarefa);
-        if (e) throw new Error(e.message);
+        const db = await getDb();
+        await db.execute(
+          "UPDATE tarefas SET validacao_status = ?, data_upload_meu_chapa = ?, obs_validacao = ? WHERE id_tarefa = ?",
+          [prevStatus, prevUpload, prevObs, id_tarefa],
+        );
       },
       onReverted: onRefresh,
     });
@@ -198,7 +222,6 @@ export function ValidationPanel({
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="px-4 py-3 border-t border-border bg-accent/30 space-y-3">
-          {/* Step 1 — per-chapa presence */}
           {realChapas.length > 0 && (
             <div className="space-y-1.5">
               {realChapas.some((c) => c.validacao_presenca !== "presente") && (
@@ -208,7 +231,6 @@ export function ValidationPanel({
                     variant="outline"
                     className="h-7 gap-1.5 text-xs border-success/50 text-success hover:bg-success/10"
                     onClick={setAllPresent}
-                    title="Marca todos os ajudantes restantes como presentes"
                   >
                     <Check className="h-3.5 w-3.5" /> Validar todos como presentes
                   </Button>
@@ -257,7 +279,6 @@ export function ValidationPanel({
             </div>
           )}
 
-          {/* Step 2 — received */}
           {validacao_status === "pendente" && anyValidated && (
             <Button size="sm" onClick={markReceived} className="gap-1.5 bg-success hover:bg-success/90 text-success-foreground">
               <Check className="h-3.5 w-3.5" /> Marcar validação recebida do cliente
@@ -270,7 +291,6 @@ export function ValidationPanel({
               </div>
             )}
 
-          {/* Step 3 — uploaded */}
           {validacao_status === "validacao_recebida" && (
             <Button
               size="sm"

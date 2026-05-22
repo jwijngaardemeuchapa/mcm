@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import { Upload, Copy, Search, Trophy, Users } from "lucide-react";
+import { Upload, Copy, Search, Trophy, Users, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +47,7 @@ export default function ContadorTarefas() {
   const [filename, setFilename] = useState<string>("");
   const [nameKey, setNameKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFile(file: File) {
     setFilename(file.name);
@@ -158,26 +159,41 @@ export default function ContadorTarefas() {
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto">
-      <div>
-        <h1 className="font-display font-bold text-2xl">Contador de Tarefas</h1>
-        <p className="text-sm text-muted-foreground">
-          Anexe um CSV, JSON ou XLSX para contar quantas tarefas cada ajudante fez no período.
-        </p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-display font-semibold text-xl text-foreground">Contador de Tarefas</h1>
+          <p className="text-sm text-muted-foreground">
+            Ranking de ajudantes — quantas tarefas cada um fez no período.
+          </p>
+        </div>
+        {rows.length > 0 && (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => fileInputRef.current?.click()}>
+            <RefreshCw className="h-3.5 w-3.5" /> Trocar arquivo
+          </Button>
+        )}
       </div>
 
-      <label className="block border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary-soft transition-colors bg-card">
-        <input
-          type="file"
-          accept=".csv,.json,.xlsx,.xls,application/json,text/csv"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
-        <Upload className="h-10 w-10 mx-auto text-primary mb-2" />
-        <div className="font-semibold">Clique ou arraste CSV / JSON / XLSX</div>
-        <div className="text-xs text-muted-foreground mt-1">
-          {filename ? `Arquivo: ${filename}` : "A coluna do nome é detectada automaticamente"}
-        </div>
-      </label>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.json,.xlsx,.xls,application/json,text/csv"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+      />
+
+      {rows.length === 0 && (
+        <label className="block border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary-soft transition-colors bg-card">
+          <input
+            type="file"
+            accept=".csv,.json,.xlsx,.xls,application/json,text/csv"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
+          <Upload className="h-10 w-10 mx-auto text-primary mb-2" />
+          <div className="font-semibold">Clique ou arraste CSV / JSON / XLSX</div>
+          <div className="text-xs text-muted-foreground mt-1">A coluna do nome é detectada automaticamente</div>
+        </label>
+      )}
 
       {counts.length > 0 && (
         <>

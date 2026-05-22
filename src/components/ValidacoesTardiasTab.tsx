@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { supabase } from "@/integrations/supabase/client";
+import { getDb, uuid, errMsg } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +43,8 @@ type ValidacaoTardia = {
   created_at: string;
 };
 
+type RawRow = Omit<ValidacaoTardia, "chapas_alocados"> & { chapas_alocados: string | null };
+
 const MOTIVOS = [
   { value: "erro_processo", label: "Erro de processo" },
   { value: "erro_validacao_cliente", label: "Erro de validação do cliente" },
@@ -50,7 +52,6 @@ const MOTIVOS = [
 ];
 
 const motivoLabel = (v: string) => MOTIVOS.find((m) => m.value === v)?.label ?? v;
-
 const motivoVariant = (v: string): "default" | "secondary" | "destructive" | "outline" => {
   if (v === "erro_processo") return "destructive";
   if (v === "erro_validacao_cliente") return "secondary";
@@ -78,29 +79,30 @@ export default function ValidacoesTardiasTab() {
   const [chapas, setChapas] = useState<ChapaAlocado[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Filtros
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [motivoFilter, setMotivoFilter] = useState("todos");
-
-  // Recomendação semanal
   const [showWeeklyAlert, setShowWeeklyAlert] = useState(false);
 
   const load = async () => {
-    const { data, error } = await supabase
-      .from("validacoes_tardias")
-      .select("*")
-      .order("data_validacao_cliente", { ascending: false });
-    if (error) {
+    try {
+      const db = await getDb();
+      const data = await db.select<RawRow[]>(
+        "SELECT * FROM validacoes_tardias ORDER BY data_validacao_cliente DESC",
+      );
+      setRows(
+        data.map((r) => ({
+          ...r,
+          chapas_alocados: r.chapas_alocados ? JSON.parse(r.chapas_alocados) : null,
+        })),
+      );
+    } catch {
       toast.error("Erro ao carregar validações tardias");
-      return;
     }
-    setRows((data ?? []) as unknown as ValidacaoTardia[]);
   };
 
   useEffect(() => {
     load();
-    // checa se faz mais de 7 dias desde a última exportação
     const last = localStorage.getItem(LAST_EXPORT_KEY);
     if (!last) {
       setShowWeeklyAlert(true);
@@ -113,12 +115,8 @@ export default function ValidacoesTardiasTab() {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (motivoFilter !== "todos" && r.motivo !== motivoFilter) return false;
-      if (startDate) {
-        if (new Date(r.data_validacao_cliente) < new Date(startDate + "T00:00:00")) return false;
-      }
-      if (endDate) {
-        if (new Date(r.data_validacao_cliente) > new Date(endDate + "T23:59:59")) return false;
-      }
+      if (startDate && new Date(r.data_validacao_cliente) < new Date(startDate + "T00:00:00")) return false;
+      if (endDate && new Date(r.data_validacao_cliente) > new Date(endDate + "T23:59:59")) return false;
       return true;
     });
   }, [rows, motivoFilter, startDate, endDate]);
@@ -130,7 +128,6 @@ export default function ValidacoesTardiasTab() {
     setStartDate(start.toISOString().slice(0, 10));
     setEndDate(end.toISOString().slice(0, 10));
   };
-
   const setLastMonth = () => {
     const end = new Date();
     const start = new Date();
@@ -138,12 +135,7 @@ export default function ValidacoesTardiasTab() {
     setStartDate(start.toISOString().slice(0, 10));
     setEndDate(end.toISOString().slice(0, 10));
   };
-
-  const clearFilters = () => {
-    setStartDate("");
-    setEndDate("");
-    setMotivoFilter("todos");
-  };
+  const clearFilters = () => { setStartDate(""); setEndDate(""); setMotivoFilter("todos"); };
 
   const addChapa = () => setChapas([...chapas, { nome: "", telefone: "" }]);
   const removeChapa = (i: number) => setChapas(chapas.filter((_, idx) => idx !== i));
@@ -154,68 +146,55 @@ export default function ValidacoesTardiasTab() {
   };
 
   const handleSave = async () => {
-    if (!form.id_tarefa_retroativa.trim()) {
-      toast.error("Informe o ID da tarefa retroativa");
-      return;
-    }
-    if (!form.data_validacao_cliente) {
-      toast.error("Informe a data/hora da validação do cliente");
-      return;
-    }
-    if (!form.motivo) {
-      toast.error("Selecione o motivo");
-      return;
-    }
+    if (!form.id_tarefa_retroativa.trim()) { toast.error("Informe o ID da tarefa retroativa"); return; }
+    if (!form.data_validacao_cliente) { toast.error("Informe a data/hora da validação do cliente"); return; }
+    if (!form.motivo) { toast.error("Selecione o motivo"); return; }
     setSaving(true);
-    const cleanChapas = chapas
-      .map((c) => ({ nome: c.nome.trim(), telefone: c.telefone.trim() }))
-      .filter((c) => c.nome || c.telefone);
-    const payload = {
-      id_tarefa_retroativa: parseInt(form.id_tarefa_retroativa, 10),
-      data_tarefa_retroativa: form.data_tarefa_retroativa
-        ? new Date(form.data_tarefa_retroativa).toISOString()
-        : null,
-      id_tarefa_original: form.id_tarefa_original ? parseInt(form.id_tarefa_original, 10) : null,
-      data_tarefa_original: form.data_tarefa_original
-        ? new Date(form.data_tarefa_original).toISOString()
-        : null,
-      data_validacao_cliente: new Date(form.data_validacao_cliente).toISOString(),
-      motivo: form.motivo,
-      observacao: form.observacao.trim() || null,
-      empresa: form.empresa.trim() || null,
-      registrado_por: form.registrado_por.trim() || null,
-      chapas_alocados: cleanChapas,
-    };
-    const { error } = await supabase.from("validacoes_tardias").insert(payload);
-    setSaving(false);
-    if (error) {
-      toast.error("Erro ao salvar: " + error.message);
-      return;
+    const cleanChapas = chapas.map((c) => ({ nome: c.nome.trim(), telefone: c.telefone.trim() })).filter((c) => c.nome || c.telefone);
+    try {
+      const db = await getDb();
+      await db.execute(
+        "INSERT INTO validacoes_tardias (id, id_tarefa_retroativa, data_tarefa_retroativa, id_tarefa_original, data_tarefa_original, data_validacao_cliente, motivo, observacao, empresa, registrado_por, chapas_alocados) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          uuid(),
+          parseInt(form.id_tarefa_retroativa, 10),
+          form.data_tarefa_retroativa ? new Date(form.data_tarefa_retroativa).toISOString() : null,
+          form.id_tarefa_original ? parseInt(form.id_tarefa_original, 10) : null,
+          form.data_tarefa_original ? new Date(form.data_tarefa_original).toISOString() : null,
+          new Date(form.data_validacao_cliente).toISOString(),
+          form.motivo,
+          form.observacao.trim() || null,
+          form.empresa.trim() || null,
+          form.registrado_por.trim() || null,
+          JSON.stringify(cleanChapas),
+        ],
+      );
+      toast.success("Validação tardia registrada");
+      setOpen(false);
+      setForm(emptyForm);
+      setChapas([]);
+      load();
+    } catch (e) {
+      toast.error("Erro ao salvar: " + errMsg(e));
+    } finally {
+      setSaving(false);
     }
-    toast.success("Validação tardia registrada");
-    setOpen(false);
-    setForm(emptyForm);
-    setChapas([]);
-    load();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir este registro?")) return;
-    const { error } = await supabase.from("validacoes_tardias").delete().eq("id", id);
-    if (error) {
+    try {
+      const db = await getDb();
+      await db.execute("DELETE FROM validacoes_tardias WHERE id = ?", [id]);
+      toast.success("Registro excluído");
+      load();
+    } catch {
       toast.error("Erro ao excluir");
-      return;
     }
-    toast.success("Registro excluído");
-    load();
   };
 
   const exportXLSX = () => {
-    if (filtered.length === 0) {
-      toast.error("Nenhum registro para exportar");
-      return;
-    }
-    // Aba 1 — Validações tardias
+    if (filtered.length === 0) { toast.error("Nenhum registro para exportar"); return; }
     const main = filtered.map((r) => ({
       "ID tarefa retroativa": r.id_tarefa_retroativa,
       "Data tarefa retroativa": r.data_tarefa_retroativa ? fmtDateTime(r.data_tarefa_retroativa) : "",
@@ -228,7 +207,6 @@ export default function ValidacoesTardiasTab() {
       "Qtd chapas alocados": (r.chapas_alocados ?? []).length,
       Observação: r.observacao ?? "",
     }));
-    // Aba 2 — Chapas alocados (linha por chapa)
     const chapasRows: Array<Record<string, string | number>> = [];
     filtered.forEach((r) => {
       (r.chapas_alocados ?? []).forEach((c) => {
@@ -242,7 +220,6 @@ export default function ValidacoesTardiasTab() {
         });
       });
     });
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(main), "Validações Tardias");
     XLSX.utils.book_append_sheet(
@@ -251,10 +228,7 @@ export default function ValidacoesTardiasTab() {
       "Chapas Alocados",
     );
     const stamp = new Date().toISOString().slice(0, 10);
-    const range =
-      startDate || endDate
-        ? `_${startDate || "inicio"}_a_${endDate || "hoje"}`
-        : "";
+    const range = startDate || endDate ? `_${startDate || "inicio"}_a_${endDate || "hoje"}` : "";
     XLSX.writeFile(wb, `validacoes_tardias${range}_${stamp}.xlsx`);
     localStorage.setItem(LAST_EXPORT_KEY, String(Date.now()));
     setShowWeeklyAlert(false);
@@ -267,18 +241,10 @@ export default function ValidacoesTardiasTab() {
         <div className="bg-accent/40 border border-accent rounded-xl p-3 mb-4 flex items-center gap-3">
           <AlertCircle className="h-4 w-4 text-accent-foreground shrink-0" />
           <div className="text-sm flex-1">
-            <strong>Recomendação semanal:</strong> exporte os dados das validações tardias para
-            backup e análise. Última exportação: mais de 7 dias.
+            <strong>Recomendação semanal:</strong> exporte os dados das validações tardias para backup e análise.
           </div>
-          <Button size="sm" variant="outline" onClick={exportXLSX}>
-            Exportar agora
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setShowWeeklyAlert(false)}
-            aria-label="Dispensar"
-          >
+          <Button size="sm" variant="outline" onClick={exportXLSX}>Exportar agora</Button>
+          <Button size="icon" variant="ghost" onClick={() => setShowWeeklyAlert(false)} aria-label="Dispensar">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -287,204 +253,79 @@ export default function ValidacoesTardiasTab() {
       <div className="bg-card border border-border rounded-xl p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>
           <Label className="text-xs text-muted-foreground">De (validação cliente)</Label>
-          <Input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-[160px]"
-          />
+          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-[160px]" />
         </div>
         <div>
           <Label className="text-xs text-muted-foreground">Até</Label>
-          <Input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="w-[160px]"
-          />
+          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-[160px]" />
         </div>
         <div>
           <Label className="text-xs text-muted-foreground">Motivo</Label>
           <Select value={motivoFilter} onValueChange={setMotivoFilter}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
-              {MOTIVOS.map((m) => (
-                <SelectItem key={m.value} value={m.value}>
-                  {m.label}
-                </SelectItem>
-              ))}
+              {MOTIVOS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-        <Button size="sm" variant="outline" onClick={setLastWeek}>
-          Últimos 7 dias
-        </Button>
-        <Button size="sm" variant="outline" onClick={setLastMonth}>
-          Últimos 30 dias
-        </Button>
-        <Button size="sm" variant="ghost" onClick={clearFilters}>
-          Limpar
-        </Button>
+        <Button size="sm" variant="outline" onClick={setLastWeek}>Últimos 7 dias</Button>
+        <Button size="sm" variant="outline" onClick={setLastMonth}>Últimos 30 dias</Button>
+        <Button size="sm" variant="ghost" onClick={clearFilters}>Limpar</Button>
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant="outline" onClick={exportXLSX} className="gap-2">
             <Download className="h-4 w-4" /> Exportar XLSX
           </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button size="sm" className="gap-2">
-                <Plus className="h-4 w-4" /> Nova validação tardia
-              </Button>
+              <Button size="sm" className="gap-2"><Plus className="h-4 w-4" /> Nova validação tardia</Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Registrar validação tardia</DialogTitle>
-                <DialogDescription>
-                  Registre o retroativo solucionado com a tarefa retroativa, a tarefa original, a
-                  data da validação do cliente e os chapas alocados.
-                </DialogDescription>
+                <DialogDescription>Registre o retroativo solucionado.</DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>ID tarefa retroativa *</Label>
-                  <Input
-                    type="number"
-                    value={form.id_tarefa_retroativa}
-                    onChange={(e) => setForm({ ...form, id_tarefa_retroativa: e.target.value })}
-                    placeholder="ex: 427473"
-                  />
-                </div>
-                <div>
-                  <Label>Data tarefa retroativa</Label>
-                  <Input
-                    type="datetime-local"
-                    value={form.data_tarefa_retroativa}
-                    onChange={(e) => setForm({ ...form, data_tarefa_retroativa: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>ID tarefa original</Label>
-                  <Input
-                    type="number"
-                    value={form.id_tarefa_original}
-                    onChange={(e) => setForm({ ...form, id_tarefa_original: e.target.value })}
-                    placeholder="ex: 427001"
-                  />
-                </div>
-                <div>
-                  <Label>Data tarefa original</Label>
-                  <Input
-                    type="datetime-local"
-                    value={form.data_tarefa_original}
-                    onChange={(e) => setForm({ ...form, data_tarefa_original: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Validação do cliente (data e hora) *</Label>
-                  <Input
-                    type="datetime-local"
-                    value={form.data_validacao_cliente}
-                    onChange={(e) => setForm({ ...form, data_validacao_cliente: e.target.value })}
-                  />
-                </div>
+                <div><Label>ID tarefa retroativa *</Label><Input type="number" value={form.id_tarefa_retroativa} onChange={(e) => setForm({ ...form, id_tarefa_retroativa: e.target.value })} placeholder="ex: 427473" /></div>
+                <div><Label>Data tarefa retroativa</Label><Input type="datetime-local" value={form.data_tarefa_retroativa} onChange={(e) => setForm({ ...form, data_tarefa_retroativa: e.target.value })} /></div>
+                <div><Label>ID tarefa original</Label><Input type="number" value={form.id_tarefa_original} onChange={(e) => setForm({ ...form, id_tarefa_original: e.target.value })} placeholder="ex: 427001" /></div>
+                <div><Label>Data tarefa original</Label><Input type="datetime-local" value={form.data_tarefa_original} onChange={(e) => setForm({ ...form, data_tarefa_original: e.target.value })} /></div>
+                <div><Label>Validação do cliente (data e hora) *</Label><Input type="datetime-local" value={form.data_validacao_cliente} onChange={(e) => setForm({ ...form, data_validacao_cliente: e.target.value })} /></div>
                 <div>
                   <Label>Motivo *</Label>
-                  <Select
-                    value={form.motivo}
-                    onValueChange={(v) => setForm({ ...form, motivo: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MOTIVOS.map((m) => (
-                        <SelectItem key={m.value} value={m.value}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                  <Select value={form.motivo} onValueChange={(v) => setForm({ ...form, motivo: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{MOTIVOS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Empresa</Label>
-                  <Input
-                    value={form.empresa}
-                    onChange={(e) => setForm({ ...form, empresa: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Registrado por</Label>
-                  <Input
-                    value={form.registrado_por}
-                    onChange={(e) => setForm({ ...form, registrado_por: e.target.value })}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Label>Observação</Label>
-                  <Textarea
-                    rows={3}
-                    value={form.observacao}
-                    onChange={(e) => setForm({ ...form, observacao: e.target.value })}
-                    placeholder="Detalhes do retroativo, ação tomada, etc."
-                  />
-                </div>
+                <div><Label>Empresa</Label><Input value={form.empresa} onChange={(e) => setForm({ ...form, empresa: e.target.value })} /></div>
+                <div><Label>Registrado por</Label><Input value={form.registrado_por} onChange={(e) => setForm({ ...form, registrado_por: e.target.value })} /></div>
+                <div className="md:col-span-2"><Label>Observação</Label><Textarea rows={3} value={form.observacao} onChange={(e) => setForm({ ...form, observacao: e.target.value })} /></div>
                 <div className="md:col-span-2">
                   <div className="flex items-center justify-between mb-2">
                     <Label>Chapas alocados</Label>
-                    <Button type="button" size="sm" variant="outline" onClick={addChapa} className="gap-1">
-                      <Plus className="h-3 w-3" /> Adicionar chapa
-                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={addChapa} className="gap-1"><Plus className="h-3 w-3" /> Adicionar chapa</Button>
                   </div>
-                  {chapas.length === 0 && (
-                    <div className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed border-border rounded-md text-center">
-                      Nenhum chapa adicionado
-                    </div>
-                  )}
+                  {chapas.length === 0 && <div className="text-xs text-muted-foreground italic px-2 py-3 border border-dashed border-border rounded-md text-center">Nenhum chapa adicionado</div>}
                   <div className="space-y-2">
                     {chapas.map((c, i) => (
                       <div key={i} className="flex gap-2 items-center">
-                        <Input
-                          placeholder="Nome do chapa"
-                          value={c.nome}
-                          onChange={(e) => updateChapa(i, "nome", e.target.value)}
-                          className="flex-1"
-                        />
-                        <Input
-                          placeholder="Telefone"
-                          value={c.telefone}
-                          onChange={(e) => updateChapa(i, "telefone", e.target.value)}
-                          className="flex-1"
-                        />
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => removeChapa(i)}
-                          aria-label="Remover chapa"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <Input placeholder="Nome do chapa" value={c.nome} onChange={(e) => updateChapa(i, "nome", e.target.value)} className="flex-1" />
+                        <Input placeholder="Telefone" value={c.telefone} onChange={(e) => updateChapa(i, "telefone", e.target.value)} className="flex-1" />
+                        <Button type="button" size="icon" variant="ghost" onClick={() => removeChapa(i)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? "Salvando..." : "Salvar"}
-                </Button>
+                <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>Cancelar</Button>
+                <Button onClick={handleSave} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
-        <div className="basis-full text-sm text-muted-foreground">
-          {filtered.length} de {rows.length} registro(s)
-        </div>
+        <div className="basis-full text-sm text-muted-foreground">{filtered.length} de {rows.length} registro(s)</div>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-auto">
@@ -509,59 +350,24 @@ export default function ValidacoesTardiasTab() {
               const cs = r.chapas_alocados ?? [];
               return (
                 <tr key={r.id} className="border-t border-border">
-                  <td className="px-4 py-2 font-mono">#{r.id_tarefa_retroativa}</td>
-                  <td className="px-4 py-2 text-xs">
-                    {r.data_tarefa_retroativa ? fmtDateTime(r.data_tarefa_retroativa) : "—"}
-                  </td>
                   <td className="px-4 py-2 font-mono">
-                    {r.id_tarefa_original ? `#${r.id_tarefa_original}` : "—"}
+                    <a href={`https://app.meu-chapa.net/admin/edit-task/${r.id_tarefa_retroativa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa_retroativa}</a>
                   </td>
-                  <td className="px-4 py-2 text-xs">
-                    {r.data_tarefa_original ? fmtDateTime(r.data_tarefa_original) : "—"}
-                  </td>
+                  <td className="px-4 py-2 text-xs">{r.data_tarefa_retroativa ? fmtDateTime(r.data_tarefa_retroativa) : "—"}</td>
+                  <td className="px-4 py-2 font-mono">{r.id_tarefa_original ? <a href={`https://app.meu-chapa.net/admin/edit-task/${r.id_tarefa_original}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa_original}</a> : "—"}</td>
+                  <td className="px-4 py-2 text-xs">{r.data_tarefa_original ? fmtDateTime(r.data_tarefa_original) : "—"}</td>
                   <td className="px-4 py-2 text-xs">{fmtDateTime(r.data_validacao_cliente)}</td>
-                  <td className="px-4 py-2">
-                    <Badge variant={motivoVariant(r.motivo)}>{motivoLabel(r.motivo)}</Badge>
-                  </td>
+                  <td className="px-4 py-2"><Badge variant={motivoVariant(r.motivo)}>{motivoLabel(r.motivo)}</Badge></td>
                   <td className="px-4 py-2">{r.empresa ?? "—"}</td>
-                  <td className="px-4 py-2">
-                    {cs.length === 0 ? (
-                      <span className="text-muted-foreground">—</span>
-                    ) : (
-                      <span
-                        title={cs.map((c) => `${c.nome} ${c.telefone}`).join("\n")}
-                        className="cursor-help"
-                      >
-                        <Badge variant="outline">{cs.length}</Badge>
-                      </span>
-                    )}
-                  </td>
+                  <td className="px-4 py-2">{cs.length === 0 ? <span className="text-muted-foreground">—</span> : <span title={cs.map((c) => `${c.nome} ${c.telefone}`).join("\n")} className="cursor-help"><Badge variant="outline">{cs.length}</Badge></span>}</td>
                   <td className="px-4 py-2 text-muted-foreground">{r.registrado_por ?? "—"}</td>
-                  <td
-                    className="px-4 py-2 text-muted-foreground max-w-[240px] truncate"
-                    title={r.observacao ?? ""}
-                  >
-                    {r.observacao ?? "—"}
-                  </td>
-                  <td className="px-4 py-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleDelete(r.id)}
-                      aria-label="Excluir registro"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </td>
+                  <td className="px-4 py-2 text-muted-foreground max-w-[240px] truncate" title={r.observacao ?? ""}>{r.observacao ?? "—"}</td>
+                  <td className="px-4 py-2"><Button size="icon" variant="ghost" onClick={() => handleDelete(r.id)}><Trash2 className="h-4 w-4" /></Button></td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
-              <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground italic">
-                  Nenhuma validação tardia encontrada
-                </td>
-              </tr>
+              <tr><td colSpan={11} className="px-4 py-8 text-center text-muted-foreground italic">Nenhuma validação tardia encontrada</td></tr>
             )}
           </tbody>
         </table>

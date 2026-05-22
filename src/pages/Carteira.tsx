@@ -1,91 +1,202 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
-import { supabase } from "@/integrations/supabase/client";
+import { getDb, uuid, errMsg } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, Trash2, Search, Plus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Upload, Trash2, Search, Plus, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
-import { useNavigate } from "react-router-dom";
 
-type Row = { id: string; nome_fantasia: string; cnpj: string | null; created_at: string };
+type Row = { id: string; nome_fantasia: string; cnpj: string | null; grupo: string | null; created_at: string };
+
+const GRUPOS = ["G1", "G2", "G3", "G4", "G5"];
 
 export default function Carteira() {
-  const navigate = useNavigate();
   const [rows, setRows] = useState<Row[]>([]);
   const [preview, setPreview] = useState<Array<{ nome_fantasia: string; cnpj: string | null }>>([]);
   const [dupCount, setDupCount] = useState(0);
   const [filter, setFilter] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [showOnlyHidden, setShowOnlyHidden] = useState(false);
+  const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
-    const { data } = await supabase.from("carteira").select("*").order("nome_fantasia");
-    setRows(data ?? []);
+    try {
+      const db = await getDb();
+      const data = await db.select<Row[]>("SELECT id, nome_fantasia, cnpj, grupo, created_at FROM carteira ORDER BY nome_fantasia");
+      setRows(data);
+    } catch (e) {
+      toast.error("Erro ao carregar carteira");
+    }
   }
-  useEffect(() => { load(); }, []);
+
+  async function updateGrupo(id: string, grupo: string | null) {
+    try {
+      const db = await getDb();
+      await db.execute("UPDATE carteira SET grupo = ? WHERE id = ?", [grupo, id]);
+      setRows((prev) => prev.map((r) => r.id === id ? { ...r, grupo } : r));
+    } catch (e) {
+      toast.error("Erro ao atualizar grupo: " + errMsg(e));
+    }
+  }
+  async function loadHidden() {
+    try {
+      const db = await getDb();
+      const rows = await db.select<{ nome_fantasia: string }[]>(
+        "SELECT nome_fantasia FROM empresa_config WHERE oculta_dashboard = 1",
+      );
+      setHiddenCompanies(rows.map((r) => r.nome_fantasia));
+    } catch { /* noop */ }
+  }
+
+  useEffect(() => { load(); loadHidden(); }, []);
 
   function onFile(file: File) {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (r) => {
-        const data = r.data as Record<string, string>[];
-        const colKeys = Object.keys(data[0] ?? {});
-        const nameKey = colKeys.find((k) => /nome\s*fantasia|empresa|raz.o\s*social|company|nome/i.test(k));
-        const cnpjKey = colKeys.find((k) => /cnpj/i.test(k));
-        if (!nameKey) { toast.error("Coluna de nome não encontrada"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const r = Papa.parse<Record<string, string>>(reader.result as string, {
+        header: true,
+        skipEmptyLines: true,
+      });
+      const data = r.data;
+      const colKeys = Object.keys(data[0] ?? {});
+      const nameKey = colKeys.find((k) => /nome\s*fantasia|empresa|raz.o\s*social|company|nome/i.test(k));
+      const cnpjKey = colKeys.find((k) => /cnpj/i.test(k));
+      if (!nameKey) { toast.error("Coluna de nome não encontrada"); return; }
 
-        const seen = new Set<string>();
-        const uniq: Array<{ nome_fantasia: string; cnpj: string | null }> = [];
-        let dup = 0;
-        for (const row of data) {
-          const name = (row[nameKey] ?? "").trim().replace(/\s+/g, " ");
-          if (!name) continue;
-          const key = name.toLowerCase();
-          if (seen.has(key)) { dup++; continue; }
-          seen.add(key);
-          uniq.push({ nome_fantasia: name, cnpj: cnpjKey ? (row[cnpjKey] ?? null) || null : null });
-        }
-        setPreview(uniq);
-        setDupCount(dup);
-        toast.success(`✓ ${uniq.length} empresas · ${dup} duplicatas removidas`);
-      },
-    });
+      const seen = new Set<string>();
+      const uniq: Array<{ nome_fantasia: string; cnpj: string | null }> = [];
+      let dup = 0;
+      for (const row of data) {
+        const name = (row[nameKey] ?? "").trim().replace(/\s+/g, " ");
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) { dup++; continue; }
+        seen.add(key);
+        uniq.push({ nome_fantasia: name, cnpj: cnpjKey ? (row[cnpjKey] ?? null) || null : null });
+      }
+      setPreview(uniq);
+      setDupCount(dup);
+      toast.success(`✓ ${uniq.length} empresas · ${dup} duplicatas removidas`);
+    };
+    reader.onerror = () => toast.error("Erro ao ler o arquivo");
+    reader.readAsText(file);
   }
 
   async function replaceAll() {
-    await supabase.from("carteira").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-    if (preview.length) await supabase.from("carteira").insert(preview);
-    setPreview([]); setDupCount(0);
-    toast.success("Carteira substituída");
-    load();
-  }
-  async function append() {
     if (!preview.length) return;
-    await supabase.from("carteira").upsert(preview, { onConflict: "nome_fantasia", ignoreDuplicates: true });
-    setPreview([]); setDupCount(0);
-    toast.success("Empresas adicionadas");
-    load();
-  }
-  async function remove(id: string) {
-    await supabase.from("carteira").delete().eq("id", id);
-    load();
+    try {
+      const db = await getDb();
+      const now = new Date().toISOString();
+
+      // Upsert first — data is never lost if anything fails later
+      for (const p of preview) {
+        await db.execute(
+          `INSERT INTO carteira (id, nome_fantasia, cnpj, created_at) VALUES (?, ?, ?, ?)
+           ON CONFLICT(nome_fantasia) DO UPDATE SET cnpj = excluded.cnpj`,
+          [uuid(), p.nome_fantasia, p.cnpj ?? null, now],
+        );
+      }
+      // Remove records not in the new set
+      const names = preview.map((p) => p.nome_fantasia);
+      const ph = names.map(() => "?").join(",");
+      await db.execute(`DELETE FROM carteira WHERE nome_fantasia NOT IN (${ph})`, names);
+
+      setPreview([]); setDupCount(0);
+      toast.success("Carteira substituída");
+      load();
+    } catch (e) {
+      toast.error("Erro ao salvar: " + errMsg(e));
+      load();
+    }
   }
 
-  const filtered = rows.filter((r) => r.nome_fantasia.toLowerCase().includes(filter.toLowerCase()));
+  async function append() {
+    if (!preview.length) return;
+    try {
+      const db = await getDb();
+      const now = new Date().toISOString();
+      for (const p of preview) {
+        await db.execute(
+          "INSERT OR IGNORE INTO carteira (id, nome_fantasia, cnpj, created_at) VALUES (?, ?, ?, ?)",
+          [uuid(), p.nome_fantasia, p.cnpj ?? null, now],
+        );
+      }
+      setPreview([]); setDupCount(0);
+      toast.success("Empresas adicionadas");
+      load();
+    } catch (e) {
+      toast.error("Erro ao salvar: " + errMsg(e));
+    }
+  }
+
+  async function remove(id: string) {
+    try {
+      const db = await getDb();
+      await db.execute("DELETE FROM carteira WHERE id = ?", [id]);
+      load();
+    } catch (e) {
+      toast.error("Erro ao remover");
+    }
+  }
+
+  async function toggleHidden(nome: string) {
+    const isHidden = hiddenCompanies.includes(nome);
+    try {
+      const db = await getDb();
+      if (isHidden) {
+        await db.execute(
+          "UPDATE empresa_config SET oculta_dashboard = 0 WHERE nome_fantasia = ?",
+          [nome],
+        );
+        setHiddenCompanies((prev) => prev.filter((n) => n !== nome));
+      } else {
+        await db.execute(
+          "INSERT INTO empresa_config (nome_fantasia, oculta_dashboard) VALUES (?, 1) ON CONFLICT(nome_fantasia) DO UPDATE SET oculta_dashboard = 1",
+          [nome],
+        );
+        setHiddenCompanies((prev) => [...prev, nome]);
+      }
+    } catch (e) {
+      toast.error("Erro ao atualizar: " + errMsg(e));
+    }
+  }
+
+  const filtered = rows.filter((r) => {
+    if (showOnlyHidden && !hiddenCompanies.includes(r.nome_fantasia)) return false;
+    return r.nome_fantasia.toLowerCase().includes(filter.toLowerCase());
+  });
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1200px] mx-auto">
       <div>
         <h2 className="font-display font-bold text-2xl text-foreground">Minha Carteira de Empresas</h2>
-        <p className="text-sm text-muted-foreground">Faça upload de um CSV com suas empresas-clientes</p>
+        <p className="text-sm text-muted-foreground">
+          Faça upload de um CSV com suas empresas-clientes
+          {hiddenCompanies.length > 0 && (
+            <span className="ml-2 text-warning font-medium">
+              · {hiddenCompanies.length} oculta{hiddenCompanies.length !== 1 ? "s" : ""} do dashboard
+            </span>
+          )}
+        </p>
       </div>
 
-      <label className="block border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary-soft transition-colors bg-card">
-        <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); e.dataTransfer.files[0] && onFile(e.dataTransfer.files[0]); }}
+        onClick={() => fileRef.current?.click()}
+        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors bg-card ${dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary hover:bg-primary-soft"}`}
+      >
         <Upload className="h-10 w-10 mx-auto text-primary mb-2" />
         <div className="font-semibold">Clique ou arraste um CSV</div>
         <div className="text-xs text-muted-foreground mt-1">Coluna esperada: "Nome fantasia" (ou Empresa/Razão Social)</div>
-      </label>
+      </div>
+      <input ref={fileRef} type="file" accept=".csv" className="hidden"
+        onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
 
       {preview.length > 0 && (
         <div className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -108,17 +219,37 @@ export default function Carteira() {
       )}
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="p-4 flex items-center justify-between border-b border-border">
-          <div className="font-semibold">Carteira atual <span className="text-muted-foreground">({rows.length})</span></div>
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
-            <Input className="pl-8 h-9 w-64" placeholder="Buscar..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <div className="p-4 flex items-center justify-between gap-3 border-b border-border flex-wrap">
+          <div className="font-semibold flex items-center gap-2">
+            Carteira atual <span className="text-muted-foreground">({rows.length})</span>
+            {hiddenCompanies.length > 0 && (
+              <span className="text-xs text-warning font-medium">
+                · {hiddenCompanies.length} oculta{hiddenCompanies.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {hiddenCompanies.length > 0 && (
+              <Button
+                size="sm"
+                variant={showOnlyHidden ? "default" : "outline"}
+                className={`gap-1.5 text-xs h-9 ${showOnlyHidden ? "bg-warning/15 text-warning hover:bg-warning/25 border border-warning/40" : ""}`}
+                onClick={() => setShowOnlyHidden((v) => !v)}
+              >
+                <EyeOff className="h-3.5 w-3.5" />
+                {showOnlyHidden ? "Mostrar todas" : `Ver ${hiddenCompanies.length} oculta${hiddenCompanies.length !== 1 ? "s" : ""}`}
+              </Button>
+            )}
+            <div className="relative">
+              <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input className="pl-8 h-9 w-64" placeholder="Buscar..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+            </div>
           </div>
         </div>
         {rows.length === 0 ? (
           <div className="p-8 flex items-center justify-center gap-4 flex-wrap">
             <span className="text-sm text-foreground">Carteira vazia.</span>
-            <Button size="sm" onClick={() => document.querySelector<HTMLInputElement>('input[type="file"]')?.click()} className="gap-1.5">
+            <Button size="sm" onClick={() => fileRef.current?.click()} className="gap-1.5">
               <Plus className="h-3.5 w-3.5" /> Adicionar empresas →
             </Button>
           </div>
@@ -127,24 +258,66 @@ export default function Carteira() {
             <thead className="bg-muted/50 text-muted-foreground">
               <tr>
                 <th className="text-left px-4 py-2 font-semibold">Nome Fantasia</th>
+                <th className="text-left px-4 py-2 font-semibold w-28">Grupo</th>
                 <th className="text-left px-4 py-2 font-semibold">Adicionado</th>
-                <th className="w-16"></th>
+                <th className="text-center px-4 py-2 font-semibold w-24">Dashboard</th>
+                <th className="w-12"></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="border-t border-border hover:bg-muted/30">
-                  <td className="px-4 py-2 font-medium capitalize">{r.nome_fantasia.toLowerCase()}</td>
-                  <td className="px-4 py-2 text-muted-foreground text-xs">{fmtDateTime(r.created_at)}</td>
-                  <td className="px-4 py-2">
-                    <Button size="icon" variant="ghost" onClick={() => remove(r.id)} aria-label={`Remover ${r.nome_fantasia}`}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((r) => {
+                const isHidden = hiddenCompanies.includes(r.nome_fantasia);
+                return (
+                  <tr key={r.id} className={`border-t border-border hover:bg-muted/30 transition-opacity ${isHidden ? "opacity-50" : ""}`}>
+                    <td className="px-4 py-2 font-medium capitalize">{r.nome_fantasia.toLowerCase()}</td>
+                    <td className="px-4 py-1.5">
+                      <Select
+                        value={r.grupo ?? "__none__"}
+                        onValueChange={(v) => updateGrupo(r.id, v === "__none__" ? null : v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-24">
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">—</SelectItem>
+                          {GRUPOS.map((g) => (
+                            <SelectItem key={g} value={g}>{g}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-2 text-muted-foreground text-xs">{fmtDateTime(r.created_at)}</td>
+                    <td className="px-4 py-2 text-center">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => toggleHidden(r.nome_fantasia)}
+                            className={`h-7 w-7 inline-flex items-center justify-center rounded transition-colors ${
+                              isHidden
+                                ? "text-warning hover:text-warning/80 hover:bg-warning/10"
+                                : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted"
+                            }`}
+                            aria-label={isHidden ? "Oculta do dashboard" : "Visível no dashboard"}
+                          >
+                            {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isHidden ? "Oculta do dashboard — clique para mostrar" : "Visível no dashboard — clique para ocultar"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </td>
+                    <td className="px-4 py-2">
+                      <Button size="icon" variant="ghost" onClick={() => remove(r.id)} aria-label={`Remover ${r.nome_fantasia}`}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
               {filtered.length === 0 && rows.length > 0 && (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground italic">Nenhum resultado para "{filter}".</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground italic">Nenhum resultado para "{filter}".</td></tr>
               )}
             </tbody>
           </table>

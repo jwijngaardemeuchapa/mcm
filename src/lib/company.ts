@@ -1,11 +1,13 @@
+import { normalize } from "./normalize";
+
 export function normalizeCompany(s: string | null | undefined): string {
   if (!s) return "";
-  return s
-    .toLowerCase()
+  return normalize(s)
     .trim()
     .replace(/\s+/g, " ")
     .replace(/\b(ltda|s\.?a\.?|me|epp|eireli)\b\.?/gi, "")
     .replace(/[.,]/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 

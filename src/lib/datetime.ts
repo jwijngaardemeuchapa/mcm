@@ -1,8 +1,46 @@
 import { format, differenceInMinutes, differenceInHours } from "date-fns";
-import { toZonedTime, formatInTimeZone } from "date-fns-tz";
+import { toZonedTime, fromZonedTime, formatInTimeZone } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
 
 export const TZ = "America/Sao_Paulo";
+
+// States that are NOT in America/Sao_Paulo (UTC-3)
+const STATE_TZ: Record<string, string> = {
+  AC: "America/Rio_Branco",   // UTC-5
+  AM: "America/Manaus",       // UTC-4
+  MT: "America/Cuiaba",       // UTC-4
+  MS: "America/Campo_Grande", // UTC-4
+  RO: "America/Porto_Velho",  // UTC-4
+  RR: "America/Boa_Vista",    // UTC-4
+};
+
+// "CUIABÁ/MT" or "RIO DOS BOIS/TO" → IANA timezone
+export function tzFromCidade(cidade_uf: string | null | undefined): string {
+  if (!cidade_uf) return TZ;
+  const slash = cidade_uf.lastIndexOf("/");
+  if (slash === -1) return TZ;
+  const state = cidade_uf.slice(slash + 1).trim().toUpperCase().slice(0, 2);
+  return STATE_TZ[state] ?? TZ;
+}
+
+// Returns a short timezone label for cities outside SP (UTC-3), e.g. "−1h" for UTC-4.
+// Returns null when the city is in the same timezone as SP.
+export function taskTzLabel(cidade_uf: string | null | undefined): string | null {
+  const tz = tzFromCidade(cidade_uf);
+  if (tz === TZ) return null;
+  if (tz === "America/Rio_Branco") return "−2h";
+  return "−1h";
+}
+
+// data_tarefa is always stored with -03:00 but the HH:mm represents local task time.
+// This function strips the offset and re-parses as the task city's local time,
+// returning the correct UTC moment for time-based calculations.
+export function parseTaskDate(isoDate: string, cidade_uf: string | null | undefined): Date {
+  const tz = tzFromCidade(cidade_uf);
+  if (tz === TZ) return new Date(isoDate);
+  const localPart = isoDate.replace(/([+-]\d{2}:\d{2}|Z)$/, "");
+  return fromZonedTime(localPart, tz);
+}
 
 export function nowSP(): Date {
   return toZonedTime(new Date(), TZ);

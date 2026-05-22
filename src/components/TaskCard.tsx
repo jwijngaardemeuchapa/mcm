@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   MessageCircle,
   MessageSquare,
@@ -9,13 +10,25 @@ import {
   ChevronUp,
   Download,
   Copy,
+  ClipboardList,
   Plus,
   Moon,
+  Clock,
   StickyNote,
   BadgeCheck,
   ExternalLink,
   MoreHorizontal,
   AlertTriangle,
+  BookUser,
+  Send,
+  Loader2,
+  X,
+  UserMinus,
+  XCircle,
+  Megaphone,
+  RefreshCw,
+  BookMarked,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,15 +51,41 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { getDb, uuid, placeholders, errMsg } from "@/lib/db";
 import { StatusBadge } from "./StatusBadge";
 import { FillRateBar } from "./FillRateBar";
 import { OvernightBadge } from "./OvernightBadge";
 import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
 import { ObservationsPanel } from "./ObservationsPanel";
-import { fmtTime, fmtDateTime, fmtSP } from "@/lib/datetime";
+import { fmtTime, fmtDateTime, fmtSP, parseTaskDate, taskTzLabel } from "@/lib/datetime";
+import { isPrefup } from "@/lib/prefup";
 import { useUndo } from "@/lib/undo";
+import { readSettings } from "@/lib/settings";
+import { normalize } from "@/lib/normalize";
+import { normalizeCompany } from "@/lib/company";
+import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
+import { useMassFupState, useTaskCancelState, useChapaJobState } from "@/lib/useDispatchJob";
+
+async function clipboardWrite(text: string, successMsg: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(successMsg);
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      toast.success(successMsg);
+    } catch {
+      toast.error("Não foi possível copiar. Verifique as permissões do navegador.");
+    }
+  }
+}
 
 export type TaskWithChapas = {
   id_tarefa: number;
@@ -62,6 +101,7 @@ export type TaskWithChapas = {
   obs_validacao?: string | null;
   observacoes?: string | null;
   observacoes_updated_at?: string | null;
+  importado_em?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;
@@ -72,7 +112,7 @@ export type TaskWithChapas = {
     validacao_presenca?: string | null;
     data_validacao?: string | null;
   }>;
-  fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null }>;
+  fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null; chapa_id?: string | null }>;
   urgent: boolean;
   continuingFromYesterday?: boolean;
 };
@@ -111,6 +151,25 @@ function getCsvExportedAt(id: number): string | null {
   }
 }
 
+type ClienteInfo = {
+  id: string;
+  nome: string;
+  status_cliente: string;
+  particularidades: string | null;
+  exigencias: string | null;
+  pedidos: string | null;
+  observacoes: string | null;
+  contato_nome: string | null;
+  segmento: string | null;
+};
+
+function fmtElapsed(min: number): string {
+  if (min < 60) return `${min}min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
 function formatPhone(s: string | null): string {
   if (!s) return "";
   const d = s.replace(/\D/g, "");
@@ -124,12 +183,15 @@ export function TaskCard({
   onRefresh,
   forceCollapse,
   matchHighlight,
+  newChapaKeys,
 }: {
   task: TaskWithChapas;
   onRefresh: () => void;
   forceCollapse?: boolean | null;
   matchHighlight?: boolean;
+  newChapaKeys?: Set<string>;
 }) {
+  const navigate = useNavigate();
   const [removalTarget, setRemovalTarget] = useState<(typeof task.chapas)[number] | null>(null);
   const [removalReason, setRemovalReason] = useState("");
   const [removalMsg, setRemovalMsg] = useState<string | null>(null);
@@ -141,6 +203,22 @@ export function TaskCard({
   const [newFupObs, setNewFupObs] = useState("");
   const { push } = useUndo();
   const [csvExportedAt, setCsvExportedAt] = useState<string | null>(() => getCsvExportedAt(task.id_tarefa));
+  const [taskCancelSent, setTaskCancelSent] = useState(() => {
+    try { return !!localStorage.getItem(`umbler_task_cancel_${task.id_tarefa}`); } catch { return false; }
+  });
+  const [fupAllSent, setFupAllSent] = useState(() => {
+    try { return !!localStorage.getItem(`umbler_fup_all_${task.id_tarefa}`); } catch { return false; }
+  });
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  const massFupState = useMassFupState(task.id_tarefa);
+  const taskCancelState = useTaskCancelState(task.id_tarefa);
+  const fupAllPending = massFupState?.status === "countdown";
+  const fupAllCountdown = massFupState?.status === "countdown" ? massFupState.remaining : 0;
+  const fupAllSending = massFupState?.status === "sending";
+  const fupAllProgress = massFupState?.status === "sending" ? massFupState.progress : null;
+  const taskCancelPending = taskCancelState?.status === "countdown";
+  const taskCancelCountdown = taskCancelState?.status === "countdown" ? taskCancelState.remaining : 0;
+  const [clienteInfo, setClienteInfo] = useState<ClienteInfo | null>(null);
 
   const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
 
@@ -156,16 +234,20 @@ export function TaskCard({
     Object.keys(patch).forEach((k) => {
       prev[k] = (chapa as Record<string, unknown>)[k] ?? null;
     });
-    const { error } = await supabase.from("chapas").update(patch as never).eq("id", chapa.id);
-    if (error) {
-      toast.error(error.message);
+    try {
+      const db = await getDb();
+      const setClauses = Object.keys(patch).map((k) => `${k} = ?`).join(", ");
+      await db.execute(`UPDATE chapas SET ${setClauses} WHERE id = ?`, [...Object.values(patch), chapa.id]);
+    } catch (e) {
+      toast.error(errMsg(e));
       return;
     }
     push({
       label,
       revert: async () => {
-        const { error: e } = await supabase.from("chapas").update(prev as never).eq("id", chapa.id);
-        if (e) throw new Error(e.message);
+        const db = await getDb();
+        const setClauses = Object.keys(prev).map((k) => `${k} = ?`).join(", ");
+        await db.execute(`UPDATE chapas SET ${setClauses} WHERE id = ?`, [...Object.values(prev), chapa.id]);
       },
       onReverted: onRefresh,
     });
@@ -224,19 +306,23 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     const ids = targets.map((c) => c.id);
     const prev = targets.map((c) => ({ id: c.id, status_contato: c.status_contato }));
-    const { error } = await supabase
-      .from("chapas")
-      .update({ status_contato: "confirmado", data_contato: new Date().toISOString() } as never)
-      .in("id", ids);
-    if (error) {
-      toast.error(error.message);
+    try {
+      const db = await getDb();
+      const ph = placeholders(ids.length);
+      await db.execute(
+        `UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id IN (${ph})`,
+        [new Date().toISOString(), ...ids],
+      );
+    } catch (e) {
+      toast.error(errMsg(e));
       return;
     }
     push({
       label: `confirmar ${ids.length} chapas — #${task.id_tarefa}`,
       revert: async () => {
+        const db = await getDb();
         for (const p of prev) {
-          await supabase.from("chapas").update({ status_contato: p.status_contato } as never).eq("id", p.id);
+          await db.execute("UPDATE chapas SET status_contato = ? WHERE id = ?", [p.status_contato, p.id]);
         }
       },
       onReverted: onRefresh,
@@ -269,38 +355,69 @@ Precisamos de 1 substituto para esta tarefa.`;
     toast.success(`CSV exportado: ${a.download}`);
   }
 
-  function copyList() {
-    const lines = task.chapas
-      .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
-      .map((c) => `${c.nome_chapa} - ${c.cpf ?? "(sem CPF cadastrado)"}`);
-    navigator.clipboard.writeText("Nome - CPF\n" + lines.join("\n"));
-    toast.success("Lista copiada (nome + CPF)");
+  async function copyList() {
+    const active = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    // Build a map from normalized phone → CPF for missing entries via chapa_registry
+    const missing = active.filter((c) => !c.cpf && c.telefone_chapa);
+    let phoneToCpf: Record<string, string> = {};
+    if (missing.length > 0) {
+      try {
+        const db = await getDb();
+        const phones = missing.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
+        const rows = await db.select<{ cpf: string; telefone: string }[]>(
+          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
+           FROM chapa_registry
+           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
+             AND cpf IS NOT NULL`,
+          phones,
+        );
+        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
+      } catch { /* silencioso */ }
+    }
+    const lines = active.map((c) => {
+      const cpf = c.cpf
+        ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
+        ?? "(sem CPF)";
+      return `${c.nome_chapa} - ${cpf}`;
+    });
+    clipboardWrite("Nome - CPF\n" + lines.join("\n"), "Lista copiada (nome + CPF)");
   }
 
   function copyNamesOnly() {
     const lines = task.chapas
       .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
       .map((c) => c.nome_chapa as string);
-    navigator.clipboard.writeText(lines.join("\n"));
-    toast.success(`${lines.length} nome(s) copiado(s)`);
+    clipboardWrite(lines.join("\n"), `${lines.length} nome(s) copiado(s)`);
+  }
+
+  function copyConfirmedNames() {
+    const lines = task.chapas
+      .filter((c) => c.status_contato === "confirmado" && c.nome_chapa)
+      .map((c) => c.nome_chapa as string);
+    if (lines.length === 0) {
+      toast.error("Nenhum chapa confirmado nesta tarefa");
+      return;
+    }
+    clipboardWrite(lines.join("\n"), `${lines.length} confirmado(s) copiado(s)`);
   }
 
   async function registerFup() {
-    const { data, error } = await supabase
-      .from("fup_log")
-      .insert({ id_tarefa: task.id_tarefa, canal: newFupCanal, observacao: newFupObs || null })
-      .select()
-      .single();
-    if (error) {
-      toast.error(error.message);
+    const fupId = uuid();
+    try {
+      const db = await getDb();
+      await db.execute(
+        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao) VALUES (?, ?, ?, ?, ?)",
+        [fupId, task.id_tarefa, newFupCanal, new Date().toISOString(), newFupObs || null],
+      );
+    } catch (e) {
+      toast.error(errMsg(e));
       return;
     }
-    const fupId = (data as { id: string }).id;
     push({
       label: `FUP ${canalLabelLong[newFupCanal] ?? newFupCanal}`,
       revert: async () => {
-        const { error: e } = await supabase.from("fup_log").delete().eq("id", fupId);
-        if (e) throw new Error(e.message);
+        const db = await getDb();
+        await db.execute("DELETE FROM fup_log WHERE id = ?", [fupId]);
       },
       onReverted: onRefresh,
     });
@@ -309,14 +426,67 @@ Precisamos de 1 substituto para esta tarefa.`;
     onRefresh();
   }
 
-  const taskStarted = new Date(task.data_tarefa).getTime() <= Date.now();
+  const fupAllCount = task.fup_log.filter((f) => f.canal === "umbler_talk" && !f.chapa_id).length;
+  const fupDispatched = task.fup_log.length > 0 || !!csvExportedAt;
+
+  const lastFupLog = task.fup_log.length > 0
+    ? task.fup_log.reduce((a, b) => a.data_disparo > b.data_disparo ? a : b)
+    : null;
+  const lastFupAt = lastFupLog?.data_disparo ?? csvExportedAt ?? null;
+  const minutesSinceFup = lastFupAt ? Math.floor((nowTs - new Date(lastFupAt).getTime()) / 60_000) : null;
+
+  const { umblerSettings, operadorNome, fupElapsedAlertMinutes } = readSettings();
+  const umblerReady = !!(
+    umblerSettings.bearerToken &&
+    umblerSettings.fromPhone &&
+    umblerSettings.organizationId &&
+    umblerSettings.templateId
+  );
+  const cancelTemplateReady = umblerReady && !!umblerSettings.cancelTemplateId;
+  const taskCancelTemplateReady = umblerReady && !!umblerSettings.taskCancelTemplateId;
+
+  function startFupAll() {
+    const chapasWithPhone = task.chapas.filter(
+      (c) => c.telefone_chapa && c.nome_chapa && c.status_contato !== "removido" && c.status_contato !== "confirmado",
+    ) as ChapaSnap[];
+    if (chapasWithPhone.length === 0) {
+      const allConfirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
+      if (allConfirmed > 0) {
+        toast.info(`Todos os ${allConfirmed} chapa(s) já estão confirmados — nada a enviar`);
+      } else {
+        toast.error("Nenhum chapa pendente com telefone cadastrado nesta tarefa");
+      }
+      return;
+    }
+    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa };
+    dispatchQueue.startMassFup(task.id_tarefa, chapasWithPhone, taskSnap);
+  }
+
+  function startTaskCancelCountdown() {
+    const chapasWithPhone = task.chapas.filter(
+      (c) => c.telefone_chapa && c.nome_chapa && c.status_contato !== "removido",
+    ) as ChapaSnap[];
+    if (chapasWithPhone.length === 0) {
+      toast.error("Nenhum chapa com telefone cadastrado nesta tarefa");
+      return;
+    }
+    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa };
+    dispatchQueue.startTaskCancel(task.id_tarefa, chapasWithPhone, taskSnap);
+  }
+
+  function stopTaskCancelCountdown() {
+    dispatchQueue.abortTaskCancel(task.id_tarefa);
+  }
+
+  const taskStarted = parseTaskDate(task.data_tarefa, task.cidade_uf).getTime() <= Date.now();
   const vStatus = (task.validacao_status ?? "aguardando") as ValidationStep;
   const isOvernight = !!task.is_overnight;
   const continuing = !!task.continuingFromYesterday;
-
   const totalChapas = task.chapas.length;
   const confirmedAll = totalChapas > 0 && task.chapas.every((c) => c.status_contato === "confirmado");
   const realChapas = task.chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
+  const allRealConfirmed = realChapas.length > 0 && realChapas.every((c) => c.status_contato === "confirmado");
+  const vacantCount = Math.max(0, (task.quantidade_chapas || task.chapas.length) - realChapas.length);
   const fullyValidated =
     realChapas.length > 0 &&
     realChapas.every(
@@ -324,12 +494,31 @@ Precisamos de 1 substituto para esta tarefa.`;
     );
   const isDone = confirmedAll && vStatus === "subido_meu_chapa";
 
+  const hasClienteNotes = !!clienteInfo && (
+    clienteInfo.status_cliente !== "ativo" ||
+    !!clienteInfo.particularidades ||
+    !!clienteInfo.exigencias ||
+    !!clienteInfo.pedidos ||
+    !!clienteInfo.observacoes
+  );
+  const clienteIconColor = clienteInfo?.status_cliente === "suspenso"
+    ? "text-destructive"
+    : (clienteInfo?.particularidades || clienteInfo?.exigencias)
+    ? "text-warning"
+    : "text-primary/70";
+
   // "Confirmar todos" eligibility: all real chapas pendente AND task starts within 2 hours
   const allPending =
     realChapas.length > 0 &&
     realChapas.every((c) => c.status_contato === "pendente");
-  const minutesUntilStart = (new Date(task.data_tarefa).getTime() - Date.now()) / 60_000;
+  const minutesUntilStart = (parseTaskDate(task.data_tarefa, task.cidade_uf).getTime() - Date.now()) / 60_000;
   const eligibleConfirmAll = allPending && minutesUntilStart <= 120;
+
+  const requested = task.quantidade_chapas || task.chapas.length;
+  const fillPct = requested > 0 ? Math.round((confirmed / requested) * 100) : 0;
+  const { fillRateWarningThreshold } = readSettings();
+  const showApproachAlert =
+    !isDone && minutesUntilStart > 0 && minutesUntilStart <= 60 && fillPct < fillRateWarningThreshold;
 
   const initiallyDoneRef = useRef(isDone);
   const [userExpanded, setUserExpanded] = useState(false);
@@ -359,6 +548,50 @@ Precisamos de 1 substituto para esta tarefa.`;
     if (isDone) setUserExpanded(!forceCollapse);
   }, [forceCollapse, isDone]);
 
+  // Countdown timers (massFup, taskCancel, chapaJob) live in dispatchQueue (module-level)
+  // so they are intentionally not cleaned up here — they survive navigation.
+
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Sync "sent" flags when queue completes (massFupState / taskCancelState → null)
+  const prevMassFupStatus = useRef(massFupState?.status);
+  const prevTaskCancelStatus = useRef(taskCancelState?.status);
+  useEffect(() => {
+    const prev = prevMassFupStatus.current;
+    prevMassFupStatus.current = massFupState?.status;
+    if (prev === "sending" && !massFupState) {
+      try { if (localStorage.getItem(`umbler_fup_all_${task.id_tarefa}`)) setFupAllSent(true); } catch { /* noop */ }
+    }
+  }, [massFupState, task.id_tarefa]);
+  useEffect(() => {
+    const prev = prevTaskCancelStatus.current;
+    prevTaskCancelStatus.current = taskCancelState?.status;
+    if (prev === "countdown" && !taskCancelState) {
+      try { if (localStorage.getItem(`umbler_task_cancel_${task.id_tarefa}`)) setTaskCancelSent(true); } catch { /* noop */ }
+    }
+  }, [taskCancelState, task.id_tarefa]);
+
+  useEffect(() => {
+    getDb()
+      .then((db) =>
+        db.select<ClienteInfo[]>(
+          "SELECT id, nome, status_cliente, particularidades, exigencias, pedidos, observacoes, contato_nome, segmento FROM cliente_book",
+        ),
+      )
+      .then((rows) => {
+        const e = normalizeCompany(task.empresa);
+        const match = rows.find((r) => {
+          const n = normalizeCompany(r.nome);
+          return e && n && (e === n || e.includes(n) || n.includes(e));
+        });
+        setClienteInfo(match ?? null);
+      })
+      .catch(() => {});
+  }, [task.empresa]);
+
   const showMinimized = isDone && !userExpanded;
   const hasObs = !!(task.observacoes && task.observacoes.trim().length > 0);
 
@@ -379,7 +612,7 @@ Precisamos de 1 substituto para esta tarefa.`;
             </span>
           </div>
           <span className="text-xs font-semibold text-success shrink-0">
-            {totalChapas}/{totalChapas} ✅
+            {confirmed}/{requested} ✅
           </span>
           <span className="text-[12px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-success/15 text-success shrink-0 inline-flex items-center gap-1">
             <BadgeCheck className="h-3 w-3" /> 100% Validada
@@ -411,6 +644,8 @@ Precisamos de 1 substituto para esta tarefa.`;
           ? "border-overnight/60 ring-2 ring-overnight/30"
           : isOvernight
           ? "border-overnight/40 ring-1 ring-overnight/20"
+          : showApproachAlert
+          ? "border-warning/60 ring-2 ring-warning/30"
           : task.urgent
           ? "border-destructive/50 ring-1 ring-destructive/20"
           : "border-border"
@@ -430,6 +665,11 @@ Precisamos de 1 substituto para esta tarefa.`;
             }`}
           >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
+            {taskTzLabel(task.cidade_uf) && (
+              <div className="text-[9px] font-bold opacity-75 tracking-wide leading-none mt-0.5">
+                {taskTzLabel(task.cidade_uf)}
+              </div>
+            )}
             <div className="flex items-center justify-center gap-1 mt-0.5">
               <a
                 href={`https://app.meu-chapa.net/admin/edit-task/${task.id_tarefa}`}
@@ -445,8 +685,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigator.clipboard.writeText(String(task.id_tarefa));
-                  toast.success(`Código copiado: #${task.id_tarefa}`);
+                  clipboardWrite(String(task.id_tarefa), `Código copiado: #${task.id_tarefa}`);
                 }}
                 className="opacity-70 hover:opacity-100 p-0.5 rounded hover:bg-white/10"
                 title="Copiar código da tarefa"
@@ -462,6 +701,67 @@ Precisamos de 1 substituto para esta tarefa.`;
                 {task.empresa.toLowerCase()}
               </span>
               {isOvernight && <OvernightBadge />}
+              {hasClienteNotes && clienteInfo && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/clientes?q=${encodeURIComponent(task.empresa)}`)}
+                      className={`shrink-0 h-5 w-5 inline-flex items-center justify-center rounded hover:bg-white/10 transition-colors ${clienteIconColor}`}
+                      aria-label="Informações do cliente — Caderno de Clientes"
+                    >
+                      <BookMarked className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="start" className="p-0 max-w-[280px]">
+                    <div className="p-3 space-y-2 text-left">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-foreground">{clienteInfo.nome}</span>
+                        {clienteInfo.status_cliente !== "ativo" && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                            clienteInfo.status_cliente === "suspenso"
+                              ? "bg-destructive/15 text-destructive border-destructive/30"
+                              : "bg-muted/60 text-muted-foreground border-border"
+                          }`}>
+                            {clienteInfo.status_cliente === "suspenso" ? "Suspenso" : "Inativo"}
+                          </span>
+                        )}
+                      </div>
+                      {clienteInfo.particularidades && (
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-bold text-warning flex items-center gap-1">
+                            <AlertCircle className="h-2.5 w-2.5" /> Particularidades
+                          </p>
+                          <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.particularidades}</p>
+                        </div>
+                      )}
+                      {clienteInfo.exigencias && (
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-bold text-primary flex items-center gap-1">
+                            <ClipboardList className="h-2.5 w-2.5" /> Exigências
+                          </p>
+                          <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.exigencias}</p>
+                        </div>
+                      )}
+                      {clienteInfo.pedidos && (
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-semibold text-muted-foreground">Pedidos / histórico</p>
+                          <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.pedidos}</p>
+                        </div>
+                      )}
+                      {clienteInfo.observacoes && (
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-semibold text-muted-foreground">Observações</p>
+                          <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.observacoes}</p>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground pt-1 border-t border-border">
+                        Clique para abrir o Caderno de Clientes
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
             <div className="text-xs text-muted-foreground truncate">
               {task.cidade_uf ?? "—"}
@@ -474,20 +774,40 @@ Precisamos de 1 substituto para esta tarefa.`;
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {csvExportedAt ? (
-            <span
-              className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-success/15 text-success border border-success/30"
-              title={`CSV exportado em ${fmtDateTime(csvExportedAt)}`}
-            >
-              <Check className="h-3.5 w-3.5" /> CSV exportado
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-warning/20 text-warning-foreground border border-warning/50 animate-pulse"
-              title="FUP ainda não exportado para esta tarefa"
-            >
-              <AlertTriangle className="h-3.5 w-3.5 text-warning" /> FUP pendente
-            </span>
+          {!allRealConfirmed && !fullyValidated && (
+            fupDispatched && minutesSinceFup !== null && minutesSinceFup >= fupElapsedAlertMinutes * 2 ? (
+              <span
+                className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-destructive/15 text-destructive border border-destructive/40 animate-pulse"
+                title={`FUP disparado há ${fmtElapsed(minutesSinceFup)} — sem resposta? Verifique com urgência`}
+              >
+                <Clock className="h-3.5 w-3.5" /> FUP há {fmtElapsed(minutesSinceFup)}
+              </span>
+            ) : fupDispatched && minutesSinceFup !== null && minutesSinceFup >= fupElapsedAlertMinutes ? (
+              <span
+                className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-warning/15 text-warning border border-warning/40 animate-pulse"
+                title={`FUP disparado há ${fmtElapsed(minutesSinceFup)} — verifique se os chapas responderam`}
+              >
+                <Clock className="h-3.5 w-3.5" /> FUP há {fmtElapsed(minutesSinceFup)}
+              </span>
+            ) : fupDispatched ? (
+              <span
+                className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary border border-primary/30"
+                title={[
+                  `FUP disparado — ${task.fup_log.length} registro(s)`,
+                  csvExportedAt ? `CSV exportado em ${fmtDateTime(csvExportedAt)}` : null,
+                  lastFupAt ? `Último disparo: ${fmtDateTime(lastFupAt)}` : null,
+                ].filter(Boolean).join(" · ")}
+              >
+                <Check className="h-3.5 w-3.5" /> FUP disparado{task.fup_log.length > 0 ? ` (${task.fup_log.length}x)` : ""}
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-warning/15 text-warning border border-warning/40 animate-pulse"
+                title="Nenhum FUP registrado para esta tarefa"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" /> FUP pendente
+              </span>
+            )
           )}
           {fullyValidated && (
             <span
@@ -503,6 +823,26 @@ Precisamos de 1 substituto para esta tarefa.`;
             <StatusBadge status={task.status_tarefa} />
           )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
+          {vacantCount > 0 && (
+            <>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-md border border-dashed border-warning/60 text-warning bg-warning/5 shrink-0">
+                {vacantCount} vaga{vacantCount !== 1 ? "s" : ""} em aberto
+              </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => { e.stopPropagation(); navigate(`/bid?taskId=${task.id_tarefa}`); }}
+                    className="h-7 gap-1 text-xs border-primary/40 text-primary hover:bg-primary/10 px-2 shrink-0"
+                  >
+                    <Send className="h-3 w-3" /> BID
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Abrir no BID Dashboard — {vacantCount} vaga{vacantCount !== 1 ? "s" : ""} para bidar</TooltipContent>
+              </Tooltip>
+            </>
+          )}
           {eligibleConfirmAll && (
             <Button
               size="sm"
@@ -534,6 +874,16 @@ Precisamos de 1 substituto para esta tarefa.`;
           ) : null}
         </div>
       </div>
+
+      {showApproachAlert && (
+        <div className="px-4 py-2.5 flex items-center gap-2 bg-warning/10 border-b border-warning/40 animate-pulse">
+          <Clock className="h-4 w-4 text-warning shrink-0" />
+          <span className="text-xs font-semibold text-warning">
+            ⏰ Faltam {Math.ceil(minutesUntilStart)} min para iniciar — fill rate:{" "}
+            <strong>{fillPct}%</strong> (mínimo esperado: {fillRateWarningThreshold}%)
+          </span>
+        </div>
+      )}
 
       {continuing && !manualCollapsed && (
         <div className="px-4 py-2 text-xs font-semibold text-warning bg-warning/15 border-b border-warning/30">
@@ -567,6 +917,10 @@ Precisamos de 1 substituto para esta tarefa.`;
               <ChapaRowView
                 key={c.id}
                 chapa={c}
+                taskId={task.id_tarefa}
+                taskSnap={{ id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa }}
+                newChapaKeys={newChapaKeys}
+                fupLog={task.fup_log}
                 onContact={markContact}
                 onConfirm={() =>
                   updateChapaWithUndo(
@@ -594,6 +948,8 @@ Precisamos de 1 substituto para esta tarefa.`;
                     `reabrir ${c.nome_chapa ?? "chapa"}`,
                   )
                 }
+                umblerReady={umblerReady}
+                cancelTemplateReady={cancelTemplateReady}
               />
             ))}
           </div>
@@ -617,13 +973,21 @@ Precisamos de 1 substituto para esta tarefa.`;
               {task.fup_log.length === 0 && (
                 <div className="text-xs text-muted-foreground italic">Nenhum FUP registrado ainda</div>
               )}
-              {task.fup_log.map((f) => (
-                <div key={f.id} className="text-xs flex items-center gap-3 py-1">
-                  <span className="font-semibold text-foreground">{canalLabelLong[f.canal] ?? f.canal}</span>
-                  <span className="text-muted-foreground">{fmtDateTime(f.data_disparo)}</span>
-                  {f.observacao && <span className="text-muted-foreground italic">— {f.observacao}</span>}
-                </div>
-              ))}
+              {task.fup_log.map((f) => {
+                const prefup = isPrefup(f.data_disparo, task.data_tarefa);
+                return (
+                  <div key={f.id} className="text-xs flex items-center gap-3 py-1">
+                    <span className="font-semibold text-foreground">{canalLabelLong[f.canal] ?? f.canal}</span>
+                    {prefup && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-info/15 text-info border border-info/30">
+                        PréFUP
+                      </span>
+                    )}
+                    <span className="text-muted-foreground">{fmtDateTime(f.data_disparo)}</span>
+                    {f.observacao && <span className="text-muted-foreground italic">— {f.observacao}</span>}
+                  </div>
+                );
+              })}
               <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-border">
                 <Select value={newFupCanal} onValueChange={setNewFupCanal}>
                   <SelectTrigger className="h-9 w-[160px]">
@@ -648,14 +1012,14 @@ Precisamos de 1 substituto para esta tarefa.`;
             </CollapsibleContent>
           </Collapsible>
 
-          <div className="px-4 py-3 flex gap-2 border-t border-border bg-card">
+          <div className="px-4 py-3 flex gap-2 flex-wrap border-t border-border bg-card">
             <Button
               size="sm"
               variant="outline"
               className={`gap-1.5 ${
                 csvExportedAt
                   ? "border-success/40 text-success hover:bg-success/10"
-                  : "border-warning/60 text-warning-foreground bg-warning/10 hover:bg-warning/20"
+                  : "border-warning/60 text-warning bg-warning/10 hover:bg-warning/20"
               }`}
               onClick={exportCSV}
               title={csvExportedAt ? `Exportado em ${fmtDateTime(csvExportedAt)} — clique para exportar novamente` : "FUP pendente — clique para exportar o CSV"}
@@ -666,9 +1030,117 @@ Precisamos de 1 substituto para esta tarefa.`;
             <Button size="sm" variant="outline" className="gap-1.5" onClick={copyList}>
               <Copy className="h-3.5 w-3.5" /> Copiar Lista
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={copyNamesOnly} title="Copia apenas os nomes (sem CPF)">
-              <Copy className="h-3.5 w-3.5" /> Copiar Nomes
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="gap-1.5">
+                  <Copy className="h-3.5 w-3.5" /> Copiar Nomes
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={copyNamesOnly}>
+                  Todos os nomes
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyConfirmedNames}>
+                  <Check className="h-3.5 w-3.5 mr-1.5 text-success" />
+                  Só confirmados ({task.chapas.filter((c) => c.status_contato === "confirmado").length})
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {(umblerReady || taskCancelTemplateReady) && (
+              <div className="ml-auto flex gap-2">
+                {umblerReady && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`gap-1.5 ${
+                          fupAllSending && fupAllProgress?.phase === "retry-wait"
+                            ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                            : fupAllSending
+                            ? "border-info/40 bg-info/10 text-info hover:bg-info/20"
+                            : fupAllPending
+                            ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                            : (fupAllSent || fupAllCount > 0)
+                            ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
+                            : "border-primary/40 text-primary hover:bg-primary/10"
+                        }`}
+                        onClick={
+                          fupAllSending
+                            ? () => dispatchQueue.abortMassFup(task.id_tarefa)
+                            : fupAllPending
+                            ? () => dispatchQueue.abortMassFup(task.id_tarefa)
+                            : startFupAll
+                        }
+                      >
+                        {fupAllSending && fupAllProgress ? (
+                          fupAllProgress.phase === "retry-wait" ? (
+                            <><RefreshCw className="h-3.5 w-3.5 animate-spin" /><span>Reenvio em {fupAllProgress.countdown}s ({fupAllProgress.retryTotal} falha{fupAllProgress.retryTotal > 1 ? "s" : ""})</span></>
+                          ) : fupAllProgress.phase === "retrying" ? (
+                            <><X className="h-3.5 w-3.5" /><span>Reenviando ({fupAllProgress.retrySent}/{fupAllProgress.retryTotal})</span></>
+                          ) : (
+                            <><X className="h-3.5 w-3.5" /><span>Cancelar ({fupAllProgress.sent}/{fupAllProgress.total})</span></>
+                          )
+                        ) : fupAllPending ? (
+                          <><X className="h-3.5 w-3.5" /><span>{Math.floor(fupAllCountdown / 60)}:{String(fupAllCountdown % 60).padStart(2, "0")}</span></>
+                        ) : (fupAllSent || fupAllCount > 0) ? (
+                          <><Check className="h-3.5 w-3.5" /><span>FUP Todos{fupAllCount > 0 ? ` (${fupAllCount}x)` : ""}</span></>
+                        ) : (
+                          <><Megaphone className="h-3.5 w-3.5" /><span>FUP Todos</span></>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {fupAllSending && fupAllProgress?.phase === "retry-wait"
+                        ? `${fupAllProgress.retryTotal} falha(s) — reenvio automático em ${fupAllProgress.countdown}s · clique para cancelar`
+                        : fupAllSending && fupAllProgress?.phase === "retrying"
+                        ? `Reenviando falhas (${fupAllProgress.retrySent}/${fupAllProgress.retryTotal}) — clique para interromper`
+                        : fupAllSending
+                        ? "Clique para interromper o envio"
+                        : fupAllPending
+                        ? "Clique para cancelar o disparo"
+                        : (fupAllSent || fupAllCount > 0)
+                        ? `Disparado ${fupAllCount}x — clique para reenviar a todos`
+                        : "Enviar FUP para todos os chapas pendentes — 3 min de delay, 10 s entre cada disparo"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {taskCancelTemplateReady && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`gap-1.5 ${
+                          taskCancelPending
+                            ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                            : taskCancelSent
+                            ? "border-muted-foreground/20 text-muted-foreground/50 cursor-default"
+                            : "border-destructive/40 text-destructive hover:bg-destructive/10"
+                        }`}
+                        onClick={taskCancelPending ? stopTaskCancelCountdown : taskCancelSent ? undefined : startTaskCancelCountdown}
+                      >
+                        {taskCancelPending ? (
+                          <><X className="h-3.5 w-3.5" /><span>{taskCancelCountdown}s</span></>
+                        ) : taskCancelSent ? (
+                          <><Check className="h-3.5 w-3.5" /><span>Cancelamento enviado</span></>
+                        ) : (
+                          <><XCircle className="h-3.5 w-3.5" /><span>Cancelar Tarefa</span></>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {taskCancelPending
+                        ? "Clique para cancelar o disparo"
+                        : taskCancelSent
+                        ? "Notificação de cancelamento já enviada a todos os chapas"
+                        : "Notificar todos os chapas sobre o cancelamento desta tarefa — aguarda 1 min antes de disparar"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -766,8 +1238,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           <DialogFooter>
             <Button
               onClick={() => {
-                if (removalMsg) navigator.clipboard.writeText(removalMsg);
-                toast.success("Mensagem copiada");
+                if (removalMsg) clipboardWrite(removalMsg, "Mensagem copiada");
               }}
               className="gap-1.5"
             >
@@ -786,24 +1257,54 @@ Precisamos de 1 substituto para esta tarefa.`;
 
 type RowProps = {
   chapa: TaskWithChapas["chapas"][number];
+  taskId: number;
+  taskSnap: TaskSnap;
+  newChapaKeys?: Set<string>;
+  fupLog: TaskWithChapas["fup_log"];
   onContact: (c: TaskWithChapas["chapas"][number], canal: string) => void;
   onConfirm: () => void;
   onNoResponse: () => void;
   onRemove: () => void;
   onEditPhone: () => void;
   onUndoOutcome: () => void;
+  umblerReady?: boolean;
+  cancelTemplateReady?: boolean;
 };
 
 function ChapaRowView({
   chapa,
+  taskId,
+  taskSnap,
+  newChapaKeys,
+  fupLog,
   onContact,
   onConfirm,
   onNoResponse,
   onRemove,
   onEditPhone,
   onUndoOutcome,
+  umblerReady,
+  cancelTemplateReady,
 }: RowProps) {
+  const navigate = useNavigate();
+  const chapaJobState = useChapaJobState(chapa.id);
+  const pendingAction = chapaJobState?.action ?? null;
+  const countdown = chapaJobState?.remaining ?? 0;
+
+  // cancelSent is stored in localStorage so it persists across re-renders / refreshes
+  const cancelSent = (() => {
+    try { return !!localStorage.getItem(`umbler_cancel_${chapa.id}`); } catch { return false; }
+  })();
+
+  // How many times this chapa was dispatched individually via Umbler
+  const umblerCount = fupLog.filter((f) => f.canal === "umbler_talk" && f.chapa_id === chapa.id).length;
+  // How many times "sem resposta" was sent to this chapa
+  const cancelCount = fupLog.filter((f) => f.canal === "umbler_cancelamento" && f.chapa_id === chapa.id).length;
+
   const placeholder = !chapa.nome_chapa;
+  const isNew =
+    !!chapa.nome_chapa &&
+    !!newChapaKeys?.has(`${taskId}::${normalize(chapa.nome_chapa)}`);
   const status = chapa.status_contato;
   const isConfirmed = status === "confirmado";
   const isNoResponse = status === "nao_respondeu";
@@ -818,38 +1319,68 @@ function ChapaRowView({
     ? "bg-destructive/5"
     : "";
 
-  const channels: Array<{ key: string; Icon: typeof MessageCircle; label: string }> = [
-    { key: "whatsapp_web", Icon: MessageCircle, label: "WhatsApp" },
-    { key: "umbler_talk", Icon: MessageSquare, label: "Umbler" },
-    { key: "ligacao_3c", Icon: Phone, label: "3C" },
-  ];
-
   return (
     <div className={`px-4 py-3 flex items-center gap-3 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}>
       {/* Zone 1 — identity */}
       <div className="flex-1 min-w-0">
         {chapa.nome_chapa ? (
-          <button
-            type="button"
-            onClick={() => {
-              navigator.clipboard.writeText(chapa.nome_chapa!);
-              toast.success(`Nome copiado: ${chapa.nome_chapa}`);
-            }}
-            className="text-[13px] font-medium text-foreground hover:text-primary hover:underline cursor-pointer text-left truncate block max-w-full capitalize"
-            title="Clique para copiar o nome"
-          >
-            {chapa.nome_chapa.toLowerCase()}
-          </button>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => clipboardWrite(chapa.nome_chapa!, `Nome copiado: ${chapa.nome_chapa}`)}
+              className="text-[13px] font-medium text-foreground hover:text-primary hover:underline cursor-pointer text-left truncate capitalize min-w-0 flex-1"
+              title="Clique para copiar o nome"
+            >
+              {chapa.nome_chapa.toLowerCase()}
+            </button>
+            {isNew && (
+              <span
+                className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-success/20 text-success border border-success/40 animate-pulse whitespace-nowrap"
+                title="Adicionado na última atualização"
+              >
+                NOVO
+              </span>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const phone = (chapa.telefone_chapa ?? "").replace(/\D/g, "");
+                    clipboardWrite(
+                      `#${taskId} | ${chapa.nome_chapa} | ${phone || "sem telefone"}`,
+                      "Dados copiados",
+                    );
+                  }}
+                  className="shrink-0 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-colors"
+                  aria-label="Copiar dados completos"
+                >
+                  <ClipboardList className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Copiar ID + nome + telefone</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/chapas?q=${encodeURIComponent(chapa.nome_chapa!)}`)}
+                  className="shrink-0 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/30 hover:text-primary hover:bg-muted transition-colors"
+                  aria-label="Ver no Caderno de Chapas"
+                >
+                  <BookUser className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Ver no Caderno de Chapas</TooltipContent>
+            </Tooltip>
+          </div>
         ) : (
           <div className="text-[13px] font-medium text-foreground">Vaga em captação</div>
         )}
         {chapa.telefone_chapa ? (
           <button
             type="button"
-            onClick={() => {
-              navigator.clipboard.writeText(chapa.telefone_chapa!);
-              toast.success(`Telefone copiado`);
-            }}
+            onClick={() => clipboardWrite((chapa.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado")}
             className="text-[12px] text-muted-foreground hover:text-primary hover:underline cursor-pointer tabular-nums"
             title="Clique para copiar"
           >
@@ -869,7 +1400,7 @@ function ChapaRowView({
               <span className="font-normal opacity-80">· {canalLabel[chapa.canal_contato] ?? chapa.canal_contato}</span>
             )}
           </span>
-          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} />
+          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} onContact3C={() => onContact(chapa, "ligacao_3c")} />
         </>
       ) : isNoResponse ? (
         <>
@@ -884,42 +1415,129 @@ function ChapaRowView({
               Sinalizar remoção →
             </button>
           </div>
-          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} />
+          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} onContact3C={() => onContact(chapa, "ligacao_3c")} />
         </>
       ) : isRemoved ? (
         <>
           <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-md bg-destructive/15 text-destructive border border-destructive/40 line-through min-h-[28px]">
             <Trash2 className="h-3.5 w-3.5" /> Removido
           </span>
-          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} />
+          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} onContact3C={() => onContact(chapa, "ligacao_3c")} />
         </>
       ) : !placeholder ? (
         <>
           {/* Zone 2 — channels */}
           <div className="flex items-center gap-1">
-            {channels.map(({ key, Icon, label }) => {
-              const used = chapa.canal_contato === key;
+            {/* WhatsApp */}
+            {(() => {
+              const used = chapa.canal_contato === "whatsapp_web";
+              const phone = chapa.telefone_chapa?.replace(/\D/g, "");
+              const waHref = phone ? `https://wa.me/55${phone}` : undefined;
               return (
-                <Tooltip key={key}>
+                <Tooltip>
                   <TooltipTrigger asChild>
-                    <button
-                      onClick={() => onContact(chapa, key)}
-                      className={`inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border text-[11px] font-medium transition-colors min-h-[28px] ${
-                        used
-                          ? "border-info/40 bg-info/10 text-info"
-                          : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-                      }`}
-                      aria-label={`Registrar contato via ${label}`}
+                    <a
+                      href={waHref}
+                      target={waHref ? "_blank" : undefined}
+                      rel={waHref ? "noopener noreferrer" : undefined}
+                      onClick={() => onContact(chapa, "whatsapp_web")}
+                      className={`inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border text-[11px] font-medium transition-colors min-h-[28px] cursor-pointer ${used ? "border-info/40 bg-info/10 text-info" : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+                      aria-label={waHref ? "Abrir WhatsApp e registrar contato" : "Registrar contato via WhatsApp"}
                     >
                       {used && <Check className="h-3 w-3" />}
-                      <Icon className="h-3 w-3" />
-                      <span>{label}</span>
-                    </button>
+                      <MessageCircle className="h-3 w-3" />
+                      <span>WhatsApp</span>
+                    </a>
                   </TooltipTrigger>
-                  <TooltipContent>Registrar contato via {label}</TooltipContent>
+                  <TooltipContent>
+                    {waHref
+                      ? "Abrir WhatsApp no número do chapa · registra contato automaticamente"
+                      : "Registrar contato via WhatsApp (chapa sem telefone cadastrado)"}
+                  </TooltipContent>
                 </Tooltip>
               );
-            })}
+            })()}
+
+            {/* Enviar Umbler — with 1-min countdown, resendable */}
+            {(umblerReady || chapa.canal_contato === "umbler_talk") && (() => {
+              const everSent = chapa.canal_contato === "umbler_talk" || umblerCount > 0;
+              const isPending = pendingAction === "fup";
+              const countLabel = umblerCount > 0 ? ` (${umblerCount}x)` : "";
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={isPending ? () => dispatchQueue.abortChapaJob(chapa.id) : () => dispatchQueue.startChapaJob(chapa.id, "fup", chapa as ChapaSnap, taskSnap)}
+                      disabled={pendingAction === "cancel"}
+                      className={`inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border text-[11px] font-semibold transition-colors min-h-[28px] ${
+                        isPending
+                          ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                          : everSent
+                          ? "border-success/40 bg-success/10 text-success hover:bg-success/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                          : "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      }`}
+                      aria-label={isPending ? "Cancelar envio" : everSent ? "Reenviar via Umbler" : "Enviar template via Umbler"}
+                    >
+                      {isPending ? (
+                        <><X className="h-3 w-3" /><span>{countdown}s</span></>
+                      ) : everSent ? (
+                        <><Check className="h-3 w-3" /><span>Enviado{countLabel}</span></>
+                      ) : (
+                        <><Send className="h-3 w-3" /><span>Enviar Umbler</span></>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isPending
+                      ? "Clique para cancelar o envio"
+                      : everSent
+                      ? `Disparado ${umblerCount > 0 ? `${umblerCount}x` : "anteriormente"} — clique para reenviar`
+                      : "Enviar template de confirmação — aguarda 1 min antes de disparar"}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })()}
+
+            {/* Sem Resposta — cancelamento por falta de resposta */}
+            {(cancelTemplateReady || cancelSent || cancelCount > 0) && chapa.telefone_chapa && (() => {
+              const isPending = pendingAction === "cancel";
+              const everSent = cancelCount > 0 || cancelSent;
+              const countLabel = cancelCount > 0 ? ` (${cancelCount}x)` : "";
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={isPending ? () => dispatchQueue.abortChapaJob(chapa.id) : () => dispatchQueue.startChapaJob(chapa.id, "cancel", chapa as ChapaSnap, taskSnap)}
+                      disabled={pendingAction === "fup"}
+                      className={`inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border text-[11px] font-semibold transition-colors min-h-[28px] ${
+                        isPending
+                          ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                          : everSent
+                          ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                          : "border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive/70 hover:bg-destructive/5 disabled:opacity-40 disabled:cursor-not-allowed"
+                      }`}
+                      aria-label={isPending ? "Cancelar envio" : everSent ? "Reenviar sem resposta" : "Enviar template de sem resposta"}
+                    >
+                      {isPending ? (
+                        <><X className="h-3 w-3" /><span>{countdown}s</span></>
+                      ) : everSent ? (
+                        <><Check className="h-3 w-3" /><span>Sem resp.{countLabel}</span></>
+                      ) : (
+                        <><UserMinus className="h-3 w-3" /><span>Sem resp.</span></>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isPending
+                      ? "Clique para cancelar"
+                      : everSent
+                      ? `Sem resposta disparado ${cancelCount > 0 ? `${cancelCount}x` : "anteriormente"} — clique para reenviar`
+                      : "Enviar template de cancelamento por falta de resposta — aguarda 1 min"}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })()}
+
           </div>
           {/* Zone 3 — outcome */}
           <div className="flex items-center gap-1.5">
@@ -930,15 +1548,13 @@ function ChapaRowView({
             >
               <Check className="h-3.5 w-3.5" /> Confirmado
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 gap-1 text-[12px] text-muted-foreground hover:text-foreground min-h-[28px]"
-              onClick={onNoResponse}
-            >
-              Não respondeu
-            </Button>
-            <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} />
+            <RowMenu
+              chapa={chapa}
+              onContact3C={() => onContact(chapa, "ligacao_3c")}
+              onNoResponse={onNoResponse}
+              onRemove={onRemove}
+              onEditPhone={onEditPhone}
+            />
           </div>
         </>
       ) : null}
@@ -948,15 +1564,20 @@ function ChapaRowView({
 
 function RowMenu({
   chapa,
+  onContact3C,
+  onNoResponse,
   onRemove,
   onEditPhone,
   onUndoOutcome,
 }: {
   chapa: TaskWithChapas["chapas"][number];
+  onContact3C?: () => void;
+  onNoResponse?: () => void;
   onRemove: () => void;
   onEditPhone: () => void;
   onUndoOutcome?: () => void;
 }) {
+  const navigate = useNavigate();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -967,11 +1588,33 @@ function RowMenu({
           <MoreHorizontal className="h-4 w-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="w-52">
         {onUndoOutcome && (
-          <DropdownMenuItem onClick={onUndoOutcome}>Reabrir / desfazer</DropdownMenuItem>
+          <DropdownMenuItem onClick={onUndoOutcome}>
+            Reabrir / desfazer
+          </DropdownMenuItem>
         )}
-        <DropdownMenuItem onClick={onEditPhone}>Editar telefone</DropdownMenuItem>
+        {onNoResponse && (
+          <DropdownMenuItem onClick={onNoResponse}>
+            <UserMinus className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+            Não respondeu
+          </DropdownMenuItem>
+        )}
+        {onContact3C && (
+          <DropdownMenuItem onClick={onContact3C}>
+            <Phone className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+            Registrar ligação 3C
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onClick={onEditPhone}>
+          Editar telefone
+        </DropdownMenuItem>
+        {chapa.nome_chapa && (
+          <DropdownMenuItem onClick={() => navigate("/chapas")}>
+            <BookUser className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+            Ver no Caderno de Chapas
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onClick={onRemove}
           className="text-destructive focus:text-destructive focus:bg-destructive/10"

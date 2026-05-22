@@ -19,6 +19,16 @@ export interface ModeConfig {
 }
 
 export const MODES: Record<string, ModeConfig> = {
+  'worker-phone': {
+    label: 'Buscar por telefone',
+    inputs: [{ id: 'wphone', label: 'Telefone (parcial ok):', type: 'text', placeholder: 'Ex: 11999887766' }],
+    run: (v, data) => {
+      const digits = v.wphone.replace(/\D/g, '');
+      if (!digits) return { data: [], label: '', zeroMsg: 'Digite um número de telefone.' };
+      const rows = data.filter(r => F.telefone(r).replace(/\D/g, '').includes(digits));
+      return { data: rows, label: `Telefone: ${v.wphone}`, zeroMsg: `Nenhum registro para o telefone "${v.wphone}".` };
+    }
+  },
   'worker-task': {
     label: 'Histórico do ajudante',
     inputs: [{ id: 'wname', label: 'Nome do ajudante (parcial ok):', type: 'text', placeholder: 'Ex: João Silva' }],
