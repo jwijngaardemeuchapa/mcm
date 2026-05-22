@@ -62,6 +62,7 @@ export default function Importar() {
   // Cadastro geral de chapas
   const [regFile, setRegFile] = useState<File | null>(null);
   const [regRows, setRegRows] = useState<unknown[][] | null>(null);
+  const [regCols, setRegCols] = useState<Record<string, number> | null>(null);
   const [regParsing, setRegParsing] = useState(false);
   const [regPreview, setRegPreview] = useState<{ count: number; blocked: number; semCep: number } | null>(null);
   const [regImporting, setRegImporting] = useState(false);
@@ -124,27 +125,74 @@ export default function Importar() {
     if (!file.name.toLowerCase().match(/\.(xlsx|xls)$/)) { toast.error("Envie um arquivo .xlsx"); return; }
     setRegFile(file);
     setRegRows(null);
+    setRegCols(null);
     setRegPreview(null);
     setRegParsing(true);
     const reader = new FileReader();
-    reader.onload = async (e) => {
-      // yield so "Lendo arquivo…" renderiza antes do XLSX.read bloquear a thread
-      await new Promise((r) => setTimeout(r, 30));
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const wb = XLSX.read(data, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" });
-        const rows = (matrix.slice(1) as unknown[][]).filter((r) => r[2]?.toString().replace(/\D/g, ""));
-        const blocked = rows.filter((r) => r[8]?.toString().toLowerCase().includes("bloqueado em tudo")).length;
-        const semCep = rows.filter((r) => !r[18]?.toString().replace(/\D/g, "")).length;
-        setRegRows(rows);
-        setRegPreview({ count: rows.length, blocked, semCep });
-      } catch (err) {
-        toast.error("Erro ao ler arquivo: " + errMsg(err));
-      } finally {
-        setRegParsing(false);
-      }
+    reader.onload = (e) => {
+      const raw = e.target?.result as ArrayBuffer;
+      setTimeout(() => {
+        try {
+          const data = new Uint8Array(raw);
+          const wb = XLSX.read(data, { type: "array", cellDates: false, cellNF: false, cellText: false });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" });
+
+          // Detect columns from header row
+          const headerRow = (matrix[0] ?? []) as string[];
+          const hdrs = headerRow.map((h) => String(h ?? "").toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "").trim());
+          const fc = (...names: string[]) => {
+            for (const n of names) {
+              const i = hdrs.findIndex((h) => h === n || h.includes(n));
+              if (i >= 0) return i;
+            }
+            return -1;
+          };
+          const cols: Record<string, number> = {
+            nome:             fc("nome", "name"),
+            cpf:              fc("cpf", "documento"),
+            telefone:         fc("telefone", "celular", "fone", "phone"),
+            cidade:           fc("cidade", "city", "municipio"),
+            bairro:           fc("bairro", "district", "bairro/distrito"),
+            estado:           fc("estado", "uf", "state"),
+            rua:              fc("rua", "logradouro", "endereco", "street"),
+            cep:              fc("cep", "postal", "zip"),
+            numero:           fc("numero", "num", "n°"),
+            tarefas:          fc("qtd. tarefas", "qtd tarefas", "tarefas", "total tarefas", "qt. tarefas"),
+            data_primeira:    fc("primeira tarefa", "data primeira", "data_primeira", "entrada"),
+            data_ultima:      fc("ultima tarefa", "data ultima", "data_ultima", "ultimo trabalho", "ultimo"),
+            situacao:         fc("situacao", "situação", "status app", "status"),
+            bloqueio:         fc("bloqueio", "blocked", "block", "status bloqueio"),
+            motivo_bloqueio:  fc("motivo bloqueio", "motivo_bloqueio", "motivo do bloqueio", "motivo"),
+            aso:              fc("aso"),
+          };
+
+          // Filter: require non-empty nome (not cpf — many chapas lack CPF)
+          const iNome = cols.nome >= 0 ? cols.nome : 0;
+          const iCpf = cols.cpf >= 0 ? cols.cpf : -1;
+          const iBloq = cols.bloqueio >= 0 ? cols.bloqueio : -1;
+          const iCep = cols.cep >= 0 ? cols.cep : -1;
+
+          const rows = (matrix.slice(1) as unknown[][]).filter((r) => r[iNome]?.toString().trim());
+          const blocked = iBloq >= 0
+            ? rows.filter((r) => r[iBloq]?.toString().toLowerCase().includes("bloqueado em tudo")).length
+            : 0;
+          const semCep = iCep >= 0
+            ? rows.filter((r) => !r[iCep]?.toString().replace(/\D/g, "")).length
+            : rows.length;
+          const semCpf = iCpf >= 0
+            ? rows.filter((r) => !r[iCpf]?.toString().replace(/\D/g, "")).length
+            : rows.length;
+
+          setRegCols(cols);
+          setRegRows(rows);
+          setRegPreview({ count: rows.length, blocked, semCep: semCep + semCpf });
+        } catch (err) {
+          toast.error("Erro ao ler arquivo: " + errMsg(err));
+        } finally {
+          setRegParsing(false);
+        }
+      }, 80);
     };
     reader.readAsArrayBuffer(file);
   }
@@ -154,8 +202,10 @@ export default function Importar() {
     setRegImporting(true);
     const db = await getDb();
     try {
-      await db.execute(`CREATE TABLE IF NOT EXISTS chapa_registry (
-        cpf TEXT PRIMARY KEY, nome TEXT NOT NULL, telefone TEXT,
+      // Drop and recreate to allow schema changes across imports
+      await db.execute("DROP TABLE IF EXISTS chapa_registry");
+      await db.execute(`CREATE TABLE chapa_registry (
+        cpf TEXT, nome TEXT NOT NULL, telefone TEXT,
         cidade TEXT, bairro TEXT, estado TEXT, rua TEXT, cep TEXT, numero TEXT,
         tarefas INTEGER NOT NULL DEFAULT 0, data_primeira_tarefa TEXT, data_ultima_tarefa TEXT,
         situacao TEXT, bloqueio TEXT, motivo_bloqueio TEXT, aso TEXT,
@@ -165,51 +215,61 @@ export default function Importar() {
         cep TEXT PRIMARY KEY, lat REAL, lng REAL, geocodificado_em TEXT NOT NULL
       )`);
       try { await db.execute("CREATE INDEX IF NOT EXISTS idx_registry_cidade ON chapa_registry(cidade)"); } catch { /* exists */ }
+      try { await db.execute("CREATE INDEX IF NOT EXISTS idx_registry_cpf ON chapa_registry(cpf) WHERE cpf IS NOT NULL"); } catch { /* exists */ }
+
+      // Column mapping — use detected cols if available, fall back to positional defaults
+      const c = regCols ?? {};
+      const g = (key: string, fallback: number) => (c[key] !== undefined && c[key] >= 0 ? c[key] : fallback);
+      const iNome      = g("nome", 0);
+      const iCpf       = g("cpf", 2);
+      const iTel       = g("telefone", 3);
+      const iCidade    = g("cidade", 14);
+      const iBairro    = g("bairro", 15);
+      const iEstado    = g("estado", 16);
+      const iRua       = g("rua", 17);
+      const iCep       = g("cep", 18);
+      const iNumero    = g("numero", 19);
+      const iTarefas   = g("tarefas", 11);
+      const iPrimeira  = g("data_primeira", 5);
+      const iUltima    = g("data_ultima", 6);
+      const iSituacao  = g("situacao", 12);
+      const iBloqueio  = g("bloqueio", 8);
+      const iMotivo    = g("motivo_bloqueio", 9);
+      const iAso       = g("aso", 13);
 
       const now = new Date().toISOString();
       const total = regRows.length;
       setRegProgress({ done: 0, total });
 
-      await db.execute("DELETE FROM chapa_registry");
-      await db.execute("BEGIN");
-
-      // 300 linhas × 17 params = 5100 params por query — bem abaixo do limite do SQLite (32766)
-      const CHUNK = 300;
-      try {
-        for (let i = 0; i < regRows.length; i += CHUNK) {
-          const chunk = regRows.slice(i, i + CHUNK);
-          const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
-          const vals = chunk.flatMap((r) => [
-            r[2]?.toString().replace(/\D/g, "") || null,
-            r[0]?.toString().trim() || "",
-            r[3]?.toString().replace(/\D/g, "") || null,
-            r[14]?.toString().trim() || null,
-            r[15]?.toString().trim() || null,
-            r[16]?.toString().trim() || null,
-            r[17]?.toString().trim() || null,
-            r[18]?.toString().replace(/\D/g, "") || null,
-            r[19]?.toString().trim() || null,
-            parseInt(String(r[11] ?? "0")) || 0,
-            excelSerialToISO(r[5]),
-            excelSerialToISO(r[6]),
-            r[12]?.toString().trim() || null,
-            r[8]?.toString().trim() || null,
-            r[9]?.toString().trim() || null,
-            r[13]?.toString().trim() || null,
-            now,
-          ]);
-          await db.execute(
-            `INSERT OR REPLACE INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em) VALUES ${ph}`,
-            vals,
-          );
-          setRegProgress({ done: Math.min(i + CHUNK, total), total });
-          // yield a cada 10 chunks (~3k linhas) para a barra de progresso atualizar
-          if ((i / CHUNK) % 10 === 9) await new Promise((r) => setTimeout(r, 0));
-        }
-        await db.execute("COMMIT");
-      } catch (e) {
-        await db.execute("ROLLBACK");
-        throw e;
+      const CHUNK = 100;
+      for (let i = 0; i < regRows.length; i += CHUNK) {
+        const chunk = regRows.slice(i, i + CHUNK);
+        const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
+        const vals = chunk.flatMap((r) => [
+          r[iCpf]?.toString().replace(/\D/g, "") || null,
+          r[iNome]?.toString().trim() || "",
+          r[iTel]?.toString().replace(/\D/g, "") || null,
+          r[iCidade]?.toString().trim() || null,
+          r[iBairro]?.toString().trim() || null,
+          r[iEstado]?.toString().trim() || null,
+          r[iRua]?.toString().trim() || null,
+          r[iCep]?.toString().replace(/\D/g, "") || null,
+          r[iNumero]?.toString().trim() || null,
+          parseInt(String(r[iTarefas] ?? "0")) || 0,
+          excelSerialToISO(r[iPrimeira]),
+          excelSerialToISO(r[iUltima]),
+          r[iSituacao]?.toString().trim() || null,
+          r[iBloqueio]?.toString().trim() || null,
+          r[iMotivo]?.toString().trim() || null,
+          r[iAso]?.toString().trim() || null,
+          now,
+        ]);
+        await db.execute(
+          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em) VALUES ${ph}`,
+          vals,
+        );
+        setRegProgress({ done: Math.min(i + CHUNK, total), total });
+        await new Promise((r) => setTimeout(r, 0));
       }
 
       localStorage.setItem("chapa_registry_imported_at", now);
@@ -217,6 +277,7 @@ export default function Importar() {
       setRegFile(null);
       setRegPreview(null);
       setRegRows(null);
+      setRegCols(null);
     } catch (e) {
       toast.error("Erro ao importar cadastro: " + errMsg(e));
     } finally {

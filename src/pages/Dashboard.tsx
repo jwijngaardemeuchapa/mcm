@@ -130,8 +130,9 @@ export default function Dashboard() {
         setHiddenCompanies(hiddenRows.map((r) => r.nome_fantasia));
       } catch { /* tabela pode não existir antes da migração 7 */ }
 
-      const activeTarefas = (tarefas as Array<Record<string, unknown> & { ativo?: boolean | number }>).filter(
-        (t) => t.ativo !== false && t.ativo !== 0,
+      const activeTarefas = (tarefas as Array<Record<string, unknown> & { ativo?: boolean | number; status_tarefa?: string }>).filter(
+        (t) => t.ativo !== false && t.ativo !== 0
+          && !t.status_tarefa?.toLowerCase().startsWith("cancel"),
       );
       const sortedFup = [...fup].sort(
         (a, b) =>

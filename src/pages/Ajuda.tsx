@@ -289,7 +289,7 @@ const SECTIONS: Section[] = [
       {
         icon: Upload,
         name: "Importar",
-        subtitle: "Ingestão diária de dados · CSV e JSON",
+        subtitle: "Ingestão diária de dados · CSV, JSON e XLSX",
         color: "text-success bg-success/10 border-success/20",
         savings: "~14min/dia",
         features: [
@@ -300,6 +300,8 @@ const SECTIONS: Section[] = [
           "Auto-validação: tarefas com status 'Em Andamento' ou 'Finalizado' já entram como subidas no Meu Chapa",
           "Overnight automático: tarefas com horário ≥ 20h (fuso de SP) são marcadas como overnight",
           "Todas as tarefas são salvas no banco — o filtro por carteira acontece na exibição do Dashboard, não no import; nenhuma tarefa é descartada permanentemente",
+          "Cadastro Geral de Chapas (XLSX): detecção automática de colunas pelo cabeçalho do arquivo — funciona mesmo que as colunas estejam em ordem diferente; aceita arquivos com 100k+ linhas sem travar; chapas sem CPF são incluídos normalmente",
+          "Barra de progresso em tempo real durante importação do cadastro geral — a interface não congela mesmo com arquivos grandes",
         ],
       },
       {
@@ -324,48 +326,52 @@ const SECTIONS: Section[] = [
         isNew: true,
         features: [
           // ── Estrutura de abas
-          "Três abas no topo: Tarefas (captação ativa), Bloqueados (análise antes do disparo) e Cadastro (registro completo)",
+          "Três abas no topo: Tarefas (captação ativa), Bloqueados (análise e disparo de bloqueados) e Cadastro (registro completo) — as abas ficam sempre visíveis; quando o cadastro não foi importado, exibe aviso com botão para ir direto à tela de importação",
 
-          // ── Aba Tarefas
+          // ── Aba Tarefas — cards
           "Aba Tarefas — layout multi-tarefa: um card expansível por tarefa com vagas em aberto, similar ao Dashboard de FUP — gerencie vários BIDs simultaneamente",
+          "ID da tarefa no cabeçalho de cada card: link clicável que abre a tarefa diretamente no Meu Chapa (app.meu-chapa.net)",
           "Botão BID direto nos cards do FUP Dashboard: aparece nos cards com vagas em aberto e abre o BID Dashboard já expandido na tarefa correta",
-          "Tarefas ignoradas automaticamente: Em Andamento, Concluído, Finalizado ou com início há mais de 2h — o BID só exibe o que ainda pode ser captado",
+          "Tarefas ignoradas automaticamente: Em Andamento, Concluído, Finalizado, Cancelado ou com início há mais de 2h — o BID só exibe o que ainda pode ser captado",
 
           // ── Configuração do disparo
           "CEP do local obrigatório: campo de CEP no painel de configuração — o disparo fica bloqueado até ser preenchido; é auto-preenchido quando o endereço vem do Caderno de Clientes",
           "Seletor de endereço pesquisável: clientes com múltiplos endereços usam um combobox com busca por texto — cada opção mostra o CEP salvo abaixo do rótulo",
           "Botão 'Salvar no cadastro': aparece quando o CEP digitado é diferente do CEP salvo no endereço selecionado — atualiza o Caderno de Clientes com 1 clique para agilizar disparos futuros",
           "Para clientes sem endereço cadastrado, aparece dica para registrar no Caderno de Clientes (menu Gestão → Caderno de Clientes)",
-          "Link Maps opcional: informe a URL do Google Maps para ativar ranking por distância exata (GPS via Nominatim); sem link Maps, o CEP raiz é usado como filtro de proximidade",
+          "Link Maps opcional: informe a URL do Google Maps para ativar ranking por distância exata; sem link Maps, o CEP raiz é usado como filtro de proximidade",
           "Calculadora de Negociação: informe a receita da tarefa e a diária ofertada para calcular lucro, margem e máximo sustentável por chapa (30% de margem)",
 
-          // ── Candidatos e ranking
-          "Filtro de proximidade híbrido: quando há link Maps com coordenadas, exibe candidatos em até 30 km; quando só há CEP, filtra por CEP raiz (5 primeiros dígitos = mesma micro-região); quando não há nenhum dos dois, exibe todos da cidade/UF",
-          "Ranking automático de candidatos: score combinado por histórico de tarefas (0–100 pts), distância ou CEP raiz (+20 pts se mesmo CEP raiz), recência da última tarefa (até +40 pts), situação ativa (+20 pts) e ASO válido (+10 pts)",
+          // ── Candidatos, ranking e filtros
+          "Filtro de raio configurável: quando há link Maps com coordenadas GPS, escolha o raio de busca — 10 / 20 / 30 / 50 / 100 km ou sem limite — padrão 30 km; o seletor aparece no cabeçalho da lista de candidatos",
+          "Filtro de proximidade híbrido: quando há link Maps com coordenadas, exibe candidatos dentro do raio selecionado; quando só há CEP, filtra por CEP raiz (5 primeiros dígitos = mesma micro-região); quando não há nenhum dos dois, exibe todos da cidade/UF",
+          "Ranking automático de candidatos: score combinado por histórico de tarefas, proximidade (proporcional ao raio selecionado), recência da última tarefa (até +40 pts), situação ativa (+20 pts), CEP raiz (+20 pts sem GPS) e ASO válido (+10 pts)",
           "Geocoding em background: CEPs sem coordenadas são consultados na API Nominatim (1 req/seg) e cacheados no banco local — o score atualiza automaticamente quando as coordenadas chegam",
-          "Chapas ocupados no mesmo dia ficam ocultos da lista principal (mesmo sem confirmação) — clique em 'Ver ocupados' para consultá-los",
-          "Seleção múltipla + 'Disparar (N)': dispara BID em lote com 7 s de intervalo entre cada mensagem — botão cancelável durante o processo",
-          "Disparo individual por chapa via ícone de envio — controle granular quando necessário",
-          "Polling de respostas a cada 5 s: Interesse SIM/NÃO, aceita/não aceita App, Precisa Ajuda — cada resposta atualiza o badge do candidato em tempo real",
+          "Chapas ocupados no mesmo dia ficam ocultos da lista principal — clique em 'Ver ocupados' para consultá-los",
+          "Seleção múltipla + 'Disparar (N)': dispara BID em lote com 7 s de intervalo entre cada mensagem — cancelável durante o processo",
+          "Disparo individual por chapa via ícone de envio",
+          "Polling de respostas a cada 5 s: Interesse SIM/NÃO, aceita/não aceita App, Precisa Ajuda — cada resposta atualiza o badge em tempo real",
+
+          // ── Tab Disponíveis / Bloqueados por tarefa
+          "Cada card de tarefa tem duas sub-abas de candidatos: 'Disponíveis' (não bloqueados, filtro normal de distância) e 'Bloqueados' (chapas com bloqueio registrado na mesma cidade)",
+          "Aba Bloqueados por tarefa: carrega sob demanda ao primeiro clique — aplica o mesmo filtro de raio e ranking de distância dos disponíveis",
+          "Disparo para bloqueados: selecione um ou mais chapas bloqueados e use 'Disparar (N)' normalmente — aviso laranja lembra que o chapa está bloqueado",
+          "Uso com critério: o disparo para bloqueados sobrescreve o impedimento registrado — utilize apenas quando houver autorização explícita",
 
           // ── Importar extras
-          "Importar lista complementar: além do cadastro geral (126k chapas), importe uma lista avulsa de reforço — suporte a CSV (colunas nome + telefone) e ao arquivo XLSX legado do Busca Chapa",
-          "Formato CSV aceito: duas colunas, primeira é nome, segunda é telefone — sem cabeçalho obrigatório, o sistema detecta automaticamente",
-          "Formato XLSX (Busca Chapa legado): mesmo arquivo gerado pelo sistema antigo — o sistema extrai nome, telefone, localização e histórico de tarefas automaticamente",
+          "Importar lista complementar: além do cadastro geral, importe uma lista avulsa de reforço — suporte a CSV (colunas nome + telefone) e ao arquivo XLSX legado do Busca Chapa",
           "A importação de extras é aditiva ao cadastro geral — os dois conjuntos aparecem na lista de candidatos com ranking unificado",
 
-          // ── Aba Bloqueados
-          "Aba Bloqueados — chapas do cadastro geral com bloqueio registrado, agrupados por motivo de bloqueio",
-          "Grupos expansíveis: clique no motivo para ver a lista detalhada com nome, telefone, cidade e estado de cada chapa",
-          "Filtros: busca por nome e filtro por estado (UF) — útil antes de um disparo regional para verificar quem está impedido",
+          // ── Aba Bloqueados (global)
+          "Aba Bloqueados global — todos os chapas do cadastro com bloqueio registrado, agrupados por motivo — estatísticas de total bloqueado, não bloqueado e taxa de bloqueio",
+          "Grupos expansíveis: busca por nome e filtro por estado (UF) dentro de cada grupo",
+          "Enviar BID ad-hoc para bloqueado: ícone de envio em cada linha abre um formulário com data/hora, local, atividades e diária — envia via Umbler sem vínculo com uma tarefa específica",
           "Copiar qualquer dado da lista clicando sobre ele",
 
           // ── Aba Cadastro
-          "Aba Cadastro — visualização completa do cadastro de chapas (chapa_registry), com pesquisa e filtros avançados",
-          "Filtros disponíveis: busca por nome/CPF, estado (UF), status de bloqueio (com/sem bloqueio), presença de ASO",
-          "Paginação de 50 registros por página — navegação rápida por setas",
-          "Exportar CSV: baixa os resultados filtrados atuais com BOM UTF-8 — pronto para abrir no Excel",
-          "Colunas exibidas: nome, CPF, telefone, cidade/UF, número de tarefas, data da última tarefa, situação, bloqueio e ASO",
+          "Aba Cadastro — visualização completa do cadastro de chapas, com pesquisa e filtros avançados",
+          "Filtros: nome/CPF, estado (UF), status de bloqueio (com/sem bloqueio), presença de ASO — paginação de 50 registros",
+          "Exportar CSV: baixa os resultados filtrados com BOM UTF-8 — pronto para abrir no Excel",
         ],
       },
       {
@@ -749,7 +755,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.6</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.57</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -763,7 +769,7 @@ export default function Ajuda() {
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-2.5">
             <Sparkles className="h-4 w-4 text-success shrink-0" />
             <span className="text-xs text-success font-medium">
-              v0.9.6 — BID Dashboard expandido: três abas (Tarefas, Bloqueados, Cadastro), CEP obrigatório no disparo com filtro de proximidade por CEP raiz, seletor de endereço com pesquisa e botão "Salvar no cadastro", importação de lista complementar em CSV e XLSX legado do Busca Chapa, ranking híbrido por distância GPS ou prefixo de CEP. Correção do filtro de ocultar empresa no FUP Dashboard — cards do dia, overnight e fill rate agora respeitam o ícone de olho da aba Carteira.
+              v0.9.57 — Importação do cadastro geral corrigida: detecção automática de colunas pelo cabeçalho do arquivo, aceita 100k+ chapas independente da presença de CPF. BID Dashboard: aba Bloqueados por tarefa (cada card tem tab Disponíveis/Bloqueados para disparar chapas bloqueados selecionados), filtro de raio configurável (10–100 km ou sem limite), ID da tarefa com link direto no cabeçalho de cada card. Tarefas canceladas ignoradas automaticamente nos dashboards FUP e BID.
             </span>
           </div>
         )}

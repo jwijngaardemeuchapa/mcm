@@ -202,10 +202,11 @@ function parseLatLngFromUrl(url: string): { lat: number; lng: number } | null {
   return null;
 }
 
-function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null): number {
+function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null, maxDist?: number): number {
   let score = 0;
   score += Math.min(c.tarefas, 100) * 1.0;
-  if (distKm !== null) score += Math.max(0, 30 - distKm) * 2;
+  const scale = maxDist ?? 30;
+  if (distKm !== null) score += Math.max(0, scale - distKm) * (60 / scale);
   if (c.data_ultima_tarefa) {
     const days = (Date.now() - new Date(c.data_ultima_tarefa).getTime()) / 86400000;
     if (days < 30) score += 40; else if (days < 90) score += 20; else if (days < 180) score += 5;
@@ -302,12 +303,19 @@ function BidTaskCard({
   const [dispatchingIds, setDispatchingIds] = useState<Set<string>>(new Set());
   const [showOccupied, setShowOccupied] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [maxDistKm, setMaxDistKm] = useState(30);
+  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados">("disponiveis");
+  const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
+  const [blockedLoading, setBlockedLoading] = useState(false);
+  const [blockedLoaded, setBlockedLoaded] = useState(false);
   const [negOpen, setNegOpen] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [editingDisparoId, setEditingDisparoId] = useState<string | null>(null);
   const [rawCandidates, setRawCandidates] = useState<BidChapa[]>([]);
   const [occupiedCpfSet, setOccupiedCpfSet] = useState<Set<string>>(new Set());
   const [occupiedNameSet, setOccupiedNameSet] = useState<Set<string>>(new Set());
+  const [blockedTipoFilter, setBlockedTipoFilter] = useState("__all__");
+  const [blockedTipos, setBlockedTipos] = useState<string[]>([]);
 
   const taskDisparos = useMemo(
     () => disparos.filter((d) => d.id_tarefa === task.id_tarefa),
@@ -394,13 +402,13 @@ function BidTaskCard({
         if (!cityUf) { setRawCandidates([]); return; }
 
         const chapas = await db.select<BidChapa[]>(`
-          SELECT r.cpf as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
-                 REPLACE(r.cep,'-','') as cep, r.numero, r.tarefas,
+          SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
+                 REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
                  r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
                  r.motivo_bloqueio, r.aso, r.importado_em, cc.lat, cc.lng
           FROM chapa_registry r
-          LEFT JOIN cep_cache cc ON REPLACE(r.cep,'-','') = cc.cep
-          WHERE (r.bloqueio IS NULL OR UPPER(r.bloqueio) NOT LIKE '%BLOQUEADO EM TUDO%')
+          LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
+          WHERE (r.bloqueio IS NULL OR UPPER(r.bloqueio) LIKE '%DESBLOQUEADO%')
           AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
 
           UNION ALL
@@ -411,12 +419,11 @@ function BidTaskCard({
                  NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
                  b.importado_em, b.lat, b.lng
           FROM bid_chapas b
-          WHERE (b.cidade IS NULL OR b.cidade = '' OR UPPER(b.cidade) = UPPER(?))
-          AND (b.estado IS NULL OR b.estado = '' OR UPPER(b.estado) = UPPER(?))
+          WHERE b.id_tarefa = ?
 
           ORDER BY tarefas DESC
           LIMIT 600
-        `, [cityUf.cidade, cityUf.estado, cityUf.cidade, cityUf.estado]);
+        `, [cityUf.cidade, cityUf.estado, task.id_tarefa]);
 
         setRawCandidates(chapas);
 
@@ -434,6 +441,51 @@ function BidTaskCard({
     })();
   }, [expanded, task.id_tarefa, task.cidade_uf, task.data_tarefa]); // eslint-disable-line
 
+  // Load blocked chapas lazily when the "Bloqueados" tab is first opened
+  useEffect(() => {
+    if (candidateView !== "bloqueados" || blockedLoaded || !expanded) return;
+    const cityUf = parseCidadeUf(task.cidade_uf);
+    if (!cityUf) { setBlockedLoaded(true); return; }
+    setBlockedLoading(true);
+    (async () => {
+      try {
+        const db = await getDb();
+        const [chapas, tiposRes] = await Promise.all([
+          db.select<BidChapa[]>(`
+            SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
+                   REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
+                   r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
+                   r.motivo_bloqueio, r.aso, r.importado_em, cc.lat, cc.lng
+            FROM chapa_registry r
+            LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
+            WHERE r.bloqueio IS NOT NULL AND UPPER(r.bloqueio) NOT LIKE '%DESBLOQUEADO%'
+            AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
+            ORDER BY tarefas DESC LIMIT 400
+          `, [cityUf.cidade, cityUf.estado]),
+          db.select<{ bloqueio: string }[]>(`
+            SELECT DISTINCT bloqueio FROM chapa_registry
+            WHERE bloqueio IS NOT NULL AND UPPER(bloqueio) NOT LIKE '%DESBLOQUEADO%'
+            AND UPPER(cidade) = UPPER(?) AND UPPER(estado) = UPPER(?)
+            ORDER BY bloqueio
+          `, [cityUf.cidade, cityUf.estado]),
+        ]);
+        setRawBlocked(chapas);
+        setBlockedTipos(tiposRes.map((t) => t.bloqueio));
+        setBlockedTipoFilter("__all__");
+        const uncached = chapas.filter((c) => c.cep && c.lat === null);
+        for (const c of uncached) {
+          const cep = c.cep!;
+          cepGeocoder.enqueue(cep, (_cep, coords) => {
+            if (!coords) return;
+            setRawBlocked((prev) => prev.map((p) => p.cep === cep ? { ...p, lat: coords.lat, lng: coords.lng } : p));
+          });
+        }
+        setBlockedLoaded(true);
+      } catch { /* silencioso */ }
+      finally { setBlockedLoading(false); }
+    })();
+  }, [candidateView, blockedLoaded, expanded, task.cidade_uf]); // eslint-disable-line
+
   // Derive ranked candidates whenever raw data, coords, occupied sets, or disparos change
   const candidates = useMemo<RankedCandidate[]>(() => {
     const cepPrefix = dispatchParams.localCep
@@ -450,12 +502,32 @@ function BidTaskCard({
       return {
         ...c,
         distance_km: distKm,
-        score: isOccupied ? -9999 : computeScore(c, distKm, cepPrefix),
+        score: isOccupied ? -9999 : computeScore(c, distKm, cepPrefix, maxDistKm),
         is_occupied: isOccupied,
         disparo,
       };
     }).sort((a, b) => b.score - a.score);
-  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos]);
+  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm]);
+
+  const blockedCandidates = useMemo<RankedCandidate[]>(() => {
+    const cepPrefix = dispatchParams.localCep
+      ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
+      : null;
+    const pool = blockedTipoFilter === "__all__" ? rawBlocked : rawBlocked.filter((c) => c.bloqueio === blockedTipoFilter);
+    return pool.map((c) => {
+      let distKm: number | null = null;
+      if (dispatchParams.localLat !== null && dispatchParams.localLng !== null && c.lat !== null && c.lng !== null)
+        distKm = haversine(dispatchParams.localLat, dispatchParams.localLng, c.lat, c.lng);
+      const disparo = taskDisparos.find((d) => normalize(d.chapa_nome) === normalize(c.nome));
+      return {
+        ...c,
+        distance_km: distKm,
+        score: computeScore(c, distKm, cepPrefix, maxDistKm),
+        is_occupied: false,
+        disparo,
+      };
+    }).sort((a, b) => b.score - a.score);
+  }, [rawBlocked, blockedTipoFilter, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm]);
 
   function handleAddressSelect(val: string) {
     setAddrPickerOpen(false);
@@ -566,7 +638,8 @@ function BidTaskCard({
   }
 
   function handleDispatchSelected() {
-    const toDispatch = candidates.filter((c) => selectedIds.has(c._key) && !c.is_occupied && c.telefone);
+    const pool = candidateView === "bloqueados" ? blockedCandidates : candidates;
+    const toDispatch = pool.filter((c) => selectedIds.has(c._key) && c.telefone);
     if (toDispatch.length === 0) return;
     const started = bidDispatchQueue.startBatch({
       taskId: task.id_tarefa,
@@ -598,25 +671,35 @@ function BidTaskCard({
     : null;
   const hasCepFilter = !!cepPrefixFilter && cepPrefixFilter.length >= 5;
   const available = candidates.filter((c) => !c.is_occupied);
-  const within30 = hasCoords
-    ? available.filter((c) => c.distance_km === null || c.distance_km <= 30)
+  const withinDist = hasCoords
+    ? available.filter((c) => c.distance_km === null || c.distance_km <= maxDistKm)
     : hasCepFilter
       ? available.filter((c) => !c.cep || c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : available;
-  const beyond30 = hasCoords
-    ? available.filter((c) => c.distance_km !== null && c.distance_km > 30)
+  const beyondDist = hasCoords
+    ? available.filter((c) => c.distance_km !== null && c.distance_km > maxDistKm)
     : hasCepFilter
       ? available.filter((c) => !!c.cep && !c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : [];
   const useProximityFilter = hasCoords || hasCepFilter;
   const visibleCandidates = showAll
-    ? (useProximityFilter ? [...within30, ...beyond30] : available)
-    : (useProximityFilter ? within30.slice(0, 40) : available.slice(0, 40));
+    ? (useProximityFilter ? [...withinDist, ...beyondDist] : available)
+    : (useProximityFilter ? withinDist.slice(0, 40) : available.slice(0, 40));
+
+  // Blocked visible — must be after hasCoords/hasCepFilter/cepPrefixFilter are defined
+  const blockedWithinDist = hasCoords
+    ? blockedCandidates.filter((c) => c.distance_km === null || c.distance_km <= maxDistKm)
+    : hasCepFilter
+      ? blockedCandidates.filter((c) => !c.cep || c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
+      : blockedCandidates;
+  const blockedVisible = showAll ? blockedWithinDist : blockedWithinDist.slice(0, 40);
 
   function toggleSelectAll() {
-    const all = available.filter((c) => c.telefone);
-    const allSel = all.length > 0 && all.every((c) => selectedIds.has(c._key));
-    setSelectedIds(allSel ? new Set() : new Set(all.map((c) => c._key)));
+    const pool = candidateView === "bloqueados"
+      ? blockedVisible.filter((c) => c.telefone)
+      : available.filter((c) => c.telefone);
+    const allSel = pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
+    setSelectedIds(allSel ? new Set() : new Set(pool.map((c) => c._key)));
   }
 
   return (
@@ -660,7 +743,7 @@ function BidTaskCard({
             ? <ChevronUp className="h-4 w-4 text-muted-foreground/60 shrink-0" />
             : <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" />}
         </div>
-        {/* Row 2: time · city · alocados/total · vagas badge */}
+        {/* Row 2: time · city · alocados/total · vagas badge · task ID link */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span>{fmtTime(task.data_tarefa)}</span>
           {task.cidade_uf && <span>· {task.cidade_uf}</span>}
@@ -668,6 +751,15 @@ function BidTaskCard({
           <Badge variant="outline" className="text-warning border-warning/40 bg-warning/5 text-[10px] px-1.5 py-0 h-4">
             {vagas} vaga{vagas !== 1 ? "s" : ""}
           </Badge>
+          <a
+            href={`https://app.meu-chapa.net/admin/edit-task/${task.id_tarefa}`}
+            target="_blank" rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="ml-auto font-mono text-[10px] text-muted-foreground/50 hover:text-primary flex items-center gap-0.5"
+            title="Abrir tarefa no Meu Chapa"
+          >
+            #{task.id_tarefa}<ExternalLink className="h-2.5 w-2.5" />
+          </a>
         </div>
       </button>
 
@@ -901,31 +993,95 @@ function BidTaskCard({
           {/* ── Candidatos ── */}
           <div>
             <div className="px-4 py-2.5 border-b border-border flex items-center gap-2.5 flex-wrap">
+              {/* Tab: Disponíveis / Bloqueados */}
+              <div className="flex rounded-md border border-border overflow-hidden text-[11px] shrink-0">
+                <button type="button"
+                  onClick={() => { setCandidateView("disponiveis"); setShowAll(false); }}
+                  className={`px-2.5 py-1 transition-colors ${candidateView === "disponiveis" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+                  Disponíveis
+                </button>
+                <button type="button"
+                  onClick={() => { setCandidateView("bloqueados"); setShowAll(false); }}
+                  className={`px-2.5 py-1 transition-colors ${candidateView === "bloqueados" ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+                  Bloqueados{blockedLoaded && rawBlocked.length > 0 ? ` (${rawBlocked.length})` : ""}
+                </button>
+              </div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1 flex items-center flex-wrap gap-1.5">
-                Candidatos
-                {available.length > 0 && (
-                  <span className="font-normal normal-case">
-                    — {available.length} disponíveis
-                    {hasCoords ? ` · ${within30.length} em até 30 km` : hasCepFilter ? ` · ${within30.length} no CEP raiz` : ""}
-                  </span>
-                )}
-                {(useProximityFilter ? within30 : available).length > 40 && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setShowAll((v) => !v); }}
-                    className="font-normal normal-case text-primary hover:underline"
-                  >
-                    {showAll ? "mostrar menos" : `ver todos (${(useProximityFilter ? within30 : available).length})`}
-                  </button>
+                {candidateView === "disponiveis" ? (
+                  <>
+                    {available.length > 0 && (
+                      <span className="font-normal normal-case">
+                        {available.length} disponíveis
+                        {hasCoords ? ` · ${withinDist.length} em até ${maxDistKm} km` : hasCepFilter ? ` · ${withinDist.length} no CEP raiz` : ""}
+                        {hasCoords && beyondDist.length > 0 && !showAll && (
+                          <span className="text-muted-foreground/50"> · {beyondDist.length} além</span>
+                        )}
+                      </span>
+                    )}
+                    {(useProximityFilter ? withinDist : available).length > 40 && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowAll((v) => !v); }}
+                        className="font-normal normal-case text-primary hover:underline">
+                        {showAll ? "mostrar menos" : `ver todos (${(useProximityFilter ? withinDist : available).length})`}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {blockedLoaded && (
+                      <span className="font-normal normal-case text-destructive/70">
+                        {blockedCandidates.length} bloqueados
+                        {rawBlocked.length !== blockedCandidates.length ? ` de ${rawBlocked.length}` : " na cidade"}
+                        {hasCoords ? ` · ${blockedWithinDist.length} em até ${maxDistKm} km` : ""}
+                      </span>
+                    )}
+                    {blockedWithinDist.length > 40 && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowAll((v) => !v); }}
+                        className="font-normal normal-case text-primary hover:underline">
+                        {showAll ? "mostrar menos" : `ver todos (${blockedWithinDist.length})`}
+                      </button>
+                    )}
+                  </>
                 )}
               </span>
-              <button
-                type="button"
-                onClick={() => setShowOccupied((v) => !v)}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {showOccupied ? "Ocultar" : "Ver"} ocupados ({candidates.filter((c) => c.is_occupied).length})
-              </button>
+              {hasCoords && (
+                <Select value={String(maxDistKm)} onValueChange={(v) => { setMaxDistKm(Number(v)); setShowAll(false); }}>
+                  <SelectTrigger className="h-6 w-[80px] text-[10px] border-border/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 km</SelectItem>
+                    <SelectItem value="20">20 km</SelectItem>
+                    <SelectItem value="30">30 km</SelectItem>
+                    <SelectItem value="50">50 km</SelectItem>
+                    <SelectItem value="100">100 km</SelectItem>
+                    <SelectItem value="999">Sem limite</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+              {candidateView === "bloqueados" && blockedTipos.length > 1 && (
+                <Select value={blockedTipoFilter} onValueChange={(v) => { setBlockedTipoFilter(v); setShowAll(false); }}>
+                  <SelectTrigger className="h-6 w-[160px] text-[10px] border-border/50">
+                    <SelectValue placeholder="Tipo de bloqueio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos os bloqueios</SelectItem>
+                    {blockedTipos.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {candidateView === "disponiveis" && (
+                <button
+                  type="button"
+                  onClick={() => setShowOccupied((v) => !v)}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showOccupied ? "Ocultar" : "Ver"} ocupados ({candidates.filter((c) => c.is_occupied).length})
+                </button>
+              )}
               {selectedIds.size > 0 && !isBatchDispatching && (
                 <span className="text-xs text-muted-foreground">{selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}</span>
               )}
@@ -971,7 +1127,12 @@ function BidTaskCard({
                 <span>
                   <input
                     type="checkbox" className="h-3.5 w-3.5 rounded"
-                    checked={available.filter((c) => c.telefone).length > 0 && available.filter((c) => c.telefone).every((c) => selectedIds.has(c._key))}
+                    checked={(() => {
+                      const pool = candidateView === "bloqueados"
+                        ? blockedVisible.filter((c) => c.telefone)
+                        : available.filter((c) => c.telefone);
+                      return pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
+                    })()}
                     onChange={toggleSelectAll}
                   />
                 </span>
@@ -985,20 +1146,41 @@ function BidTaskCard({
               </div>
 
               <div className="divide-y divide-border/50">
-                {candidatesLoading && rawCandidates.length === 0 && (
+                {/* Loading states */}
+                {candidateView === "disponiveis" && candidatesLoading && rawCandidates.length === 0 && (
                   <div className="px-4 py-3 space-y-2">
                     {[...Array(5)].map((_, i) => (
                       <div key={i} className="h-10 rounded-lg bg-muted/40 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
                     ))}
                   </div>
                 )}
-                {!candidatesLoading && rawCandidates.length === 0 && (
+                {candidateView === "bloqueados" && blockedLoading && (
+                  <div className="px-4 py-3 space-y-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="h-10 rounded-lg bg-destructive/10 animate-pulse" style={{ opacity: 1 - i * 0.2 }} />
+                    ))}
+                  </div>
+                )}
+                {/* Empty states */}
+                {candidateView === "disponiveis" && !candidatesLoading && rawCandidates.length === 0 && (
                   <div className="px-4 py-8 text-center text-xs text-muted-foreground space-y-2">
                     <p>Sem chapas cadastrados para <b>{task.cidade_uf || "esta cidade"}</b>.</p>
                     <p className="text-muted-foreground/60">Verifique se o cadastro geral foi importado em <b>Importar &rsaquo; Cadastro Geral de Chapas</b>.</p>
                   </div>
                 )}
-                {visibleCandidates.map((c, idx) => {
+                {candidateView === "bloqueados" && blockedLoaded && rawBlocked.length === 0 && (
+                  <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                    Nenhum chapa bloqueado cadastrado para {task.cidade_uf || "esta cidade"}.
+                  </div>
+                )}
+                {/* Warning banner for blocked tab */}
+                {candidateView === "bloqueados" && blockedLoaded && rawBlocked.length > 0 && (
+                  <div className="px-4 py-2 bg-destructive/5 border-b border-destructive/20 flex items-center gap-2 text-xs text-destructive/80">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Estes chapas estão bloqueados. O disparo será feito mesmo assim — use com critério.
+                  </div>
+                )}
+                {(candidateView === "disponiveis" ? visibleCandidates : blockedVisible).map((c, idx) => {
                   const sc = STATUS_CFG[c.disparo?.status ?? ""] ?? null;
                   const isDispatching = dispatchingIds.has(c._key);
                   const sit = sitLabel(c.situacao);
@@ -1246,8 +1428,9 @@ export default function BIDDashboard() {
         id TEXT PRIMARY KEY, nome TEXT NOT NULL, telefone TEXT,
         cidade TEXT, estado TEXT, lat REAL, lng REAL,
         tarefas_finalizadas INTEGER DEFAULT 0, usuario_app INTEGER DEFAULT 0,
-        importado_em TEXT NOT NULL
+        importado_em TEXT NOT NULL, id_tarefa INTEGER
       )`);
+      try { await db.execute("ALTER TABLE bid_chapas ADD COLUMN id_tarefa INTEGER"); } catch { /* exists */ }
       try { await db.execute("ALTER TABLE cliente_book ADD COLUMN enderecos TEXT"); } catch { /* exists */ }
 
       const [cntRows, extrasRows, tasks, disp, carteira] = await Promise.all([
@@ -1260,6 +1443,7 @@ export default function BIDDashboard() {
           FROM tarefas t
           WHERE t.ativo = 1
           AND t.status_tarefa NOT IN ('Em Andamento', 'Concluído', 'Finalizado')
+          AND LOWER(t.status_tarefa) NOT LIKE 'cancel%'
           AND t.validacao_status != 'subido_meu_chapa'
           AND strftime('%s', t.data_tarefa) >= strftime('%s', datetime('now', '-2 hours'))
           AND DATE(t.data_tarefa) <= date('now', '+7 days')
@@ -1372,28 +1556,26 @@ export default function BIDDashboard() {
         </div>
       </div>
 
-      {/* Tab navigation */}
-      {registryCount > 0 && (
-        <div className="flex items-center gap-1 p-0.5 bg-muted rounded-lg w-fit">
-          {(["tarefas", "bloqueados", "cadastro"] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
-                activeTab === tab
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab === "tarefas" && <Send className="h-3 w-3" />}
-              {tab === "bloqueados" && <Ban className="h-3 w-3" />}
-              {tab === "cadastro" && <Database className="h-3 w-3" />}
-              {tab === "tarefas" ? "Tarefas" : tab === "bloqueados" ? "Bloqueados" : "Cadastro"}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Tab navigation — sempre visível */}
+      <div className="flex items-center gap-1 p-0.5 bg-muted rounded-lg w-fit">
+        {(["tarefas", "bloqueados", "cadastro"] as const).map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              activeTab === tab
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab === "tarefas" && <Send className="h-3 w-3" />}
+            {tab === "bloqueados" && <Ban className="h-3 w-3" />}
+            {tab === "cadastro" && <Database className="h-3 w-3" />}
+            {tab === "tarefas" ? "Tarefas" : tab === "bloqueados" ? "Bloqueados" : "Cadastro"}
+          </button>
+        ))}
+      </div>
 
       {/* Day selector + search + filters */}
       {registryCount > 0 && activeTab === "tarefas" && (
@@ -1565,13 +1747,22 @@ export default function BIDDashboard() {
         </>
       )}
 
-      {registryCount > 0 && activeTab === "bloqueados" && <BloqueadosTab />}
-      {registryCount > 0 && activeTab === "cadastro" && <CadastroTab />}
+      {activeTab === "bloqueados" && (
+        registryCount > 0
+          ? <BloqueadosTab />
+          : <SemCadastroAviso />
+      )}
+      {activeTab === "cadastro" && (
+        registryCount > 0
+          ? <CadastroTab />
+          : <SemCadastroAviso />
+      )}
 
       <ImportExtrasDialog
         open={extrasOpen}
         onClose={() => setExtrasOpen(false)}
         onDone={loadAll}
+        openTasks={openTasks}
       />
     </div>
   );
@@ -1671,18 +1862,20 @@ type ExtrasRow = {
   tarefas: number;
 };
 
-function ImportExtrasDialog({ open, onClose, onDone }: {
+function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
   open: boolean;
   onClose: () => void;
   onDone: () => void;
+  openTasks: OpenTask[];
 }) {
   const [extRows, setExtRows] = useState<ExtrasRow[]>([]);
   const [preview, setPreview] = useState<{ count: number; format: "csv" | "xlsx" } | null>(null);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function reset() { setExtRows([]); setPreview(null); setProgress(0); }
+  function reset() { setExtRows([]); setPreview(null); setProgress(0); setSelectedTaskId(null); }
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -1758,29 +1951,29 @@ function ImportExtrasDialog({ open, onClose, onDone }: {
   }
 
   async function doImport() {
-    if (extRows.length === 0) return;
+    if (extRows.length === 0 || selectedTaskId === null) return;
     setImporting(true);
     setProgress(0);
     try {
       const db = await getDb();
-      await db.execute("DELETE FROM bid_chapas");
+      await db.execute("DELETE FROM bid_chapas WHERE id_tarefa = ?", [selectedTaskId]);
       const now = new Date().toISOString();
       const CHUNK = 100;
       for (let i = 0; i < extRows.length; i += CHUNK) {
         const chunk = extRows.slice(i, i + CHUNK);
-        const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?)").join(",");
+        const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?)").join(",");
         const vals: unknown[] = [];
         for (const r of chunk) {
-          vals.push(uuid(), r.nome, r.telefone, r.cidade, r.estado, r.lat ?? null, r.lng ?? null, r.tarefas, now);
+          vals.push(uuid(), r.nome, r.telefone, r.cidade, r.estado, r.lat ?? null, r.lng ?? null, r.tarefas, now, selectedTaskId);
         }
         await db.execute(
-          `INSERT INTO bid_chapas (id,nome,telefone,cidade,estado,lat,lng,tarefas_finalizadas,importado_em) VALUES ${ph}`,
+          `INSERT INTO bid_chapas (id,nome,telefone,cidade,estado,lat,lng,tarefas_finalizadas,importado_em,id_tarefa) VALUES ${ph}`,
           vals,
         );
         setProgress(Math.round(((i + chunk.length) / extRows.length) * 100));
         await new Promise<void>((r) => setTimeout(r, 0));
       }
-      toast.success(`${extRows.length.toLocaleString("pt-BR")} chapas extras importados.`);
+      toast.success(`${extRows.length.toLocaleString("pt-BR")} chapas extras vinculados à tarefa #${selectedTaskId}.`);
       onDone();
       onClose();
       reset();
@@ -1791,6 +1984,8 @@ function ImportExtrasDialog({ open, onClose, onDone }: {
     }
   }
 
+  const selectedTask = openTasks.find((t) => t.id_tarefa === selectedTaskId);
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && !importing) { onClose(); reset(); } }}>
       <DialogContent className="sm:max-w-md">
@@ -1800,8 +1995,32 @@ function ImportExtrasDialog({ open, onClose, onDone }: {
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-1">
+          {/* Task selector */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Tarefa de destino *</label>
+            <Select
+              value={selectedTaskId !== null ? String(selectedTaskId) : "__none__"}
+              onValueChange={(v) => setSelectedTaskId(v === "__none__" ? null : parseInt(v))}
+            >
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecionar tarefa…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Selecionar tarefa…</SelectItem>
+                {openTasks.map((t) => (
+                  <SelectItem key={t.id_tarefa} value={String(t.id_tarefa)}>
+                    {t.empresa.substring(0, 30)} · {fmtSP(t.data_tarefa, "dd/MM HH:mm")} · #{t.id_tarefa}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedTaskId === null && (
+              <p className="text-[10px] text-warning flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3" /> Selecione uma tarefa antes de importar
+              </p>
+            )}
+          </div>
+
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Lista complementar ao cadastro geral. Aceita dois formatos:
+            Lista complementar vinculada à tarefa selecionada. Aceita dois formatos:
             <br />
             <span className="font-medium text-foreground">CSV</span> — colunas{" "}
             <code className="text-[10px] bg-muted px-1 rounded">nome</code> e{" "}
@@ -1842,7 +2061,7 @@ function ImportExtrasDialog({ open, onClose, onDone }: {
             </div>
           )}
 
-          {preview && !importing && (
+          {preview && !importing && selectedTask && (
             <div className="rounded-lg bg-muted/30 border border-border px-3 py-2.5 text-xs space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Total de chapas</span>
@@ -1852,8 +2071,14 @@ function ImportExtrasDialog({ open, onClose, onDone }: {
                 <span>Formato detectado</span>
                 <span>{preview.format === "csv" ? "CSV" : "XLSX Busca Chapa"}</span>
               </div>
+              <div className="flex items-center justify-between text-muted-foreground/60">
+                <span>Tarefa destino</span>
+                <span className="font-medium text-foreground truncate max-w-[180px]">
+                  {selectedTask.empresa.substring(0, 25)} #{selectedTask.id_tarefa}
+                </span>
+              </div>
               <p className="text-[10px] text-warning/80 border-t border-border/40 pt-1.5">
-                Esta importação substituirá todos os chapas extras atualmente cadastrados.
+                Substituirá os extras já importados para esta tarefa.
               </p>
             </div>
           )}
@@ -1864,7 +2089,7 @@ function ImportExtrasDialog({ open, onClose, onDone }: {
           </Button>
           <Button
             size="sm"
-            disabled={extRows.length === 0 || importing}
+            disabled={extRows.length === 0 || importing || selectedTaskId === null}
             onClick={doImport}
             className="gap-1.5"
           >
@@ -1878,94 +2103,230 @@ function ImportExtrasDialog({ open, onClose, onDone }: {
   );
 }
 
+/* ── SemCadastroAviso ───────────────────────────────────────────── */
+
+function SemCadastroAviso() {
+  const navigate = useNavigate();
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <div className="rounded-full bg-muted/30 p-4">
+        <Database className="h-8 w-8 text-muted-foreground/40" />
+      </div>
+      <div>
+        <p className="font-semibold text-sm">Cadastro não importado</p>
+        <p className="text-xs text-muted-foreground mt-1 max-w-[280px]">
+          Acesse <strong>Importar → Cadastro Geral de Chapas</strong> para carregar a base de dados.
+        </p>
+      </div>
+      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/importar")}>
+        <Upload className="h-3.5 w-3.5" /> Ir para Importar
+      </Button>
+    </div>
+  );
+}
+
 /* ── BloqueadosTab ──────────────────────────────────────────────── */
 
+type AdHocBidTarget = { nome: string; telefone: string };
+
+type BlockedRow = RegistryRow & {
+  cep: string | null;
+  lat: number | null;
+  lng: number | null;
+  distance_km: number | null;
+};
+
 function BloqueadosTab() {
-  const [groups, setGroups] = useState<{ motivo: string; total: number }[]>([]);
+  const PAGE_SIZE = 50;
+  const [allRows, setAllRows] = useState<Omit<BlockedRow, "distance_km">[]>([]);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [totalBloq, setTotalBloq] = useState(0);
   const [totalReg, setTotalReg] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<string | null>(null);
-  const [detail, setDetail] = useState<RegistryRow[]>([]);
-  const [detailTotal, setDetailTotal] = useState(0);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailSearch, setDetailSearch] = useState("");
-  const [detailEstado, setDetailEstado] = useState("__all__");
+
+  const [search, setSearch] = useState("");
+  const [estado, setEstado] = useState("__all__");
+  const [tipoFilter, setTipoFilter] = useState("__all__");
   const [estados, setEstados] = useState<string[]>([]);
+  const [tipos, setTipos] = useState<string[]>([]);
 
-  useEffect(() => { loadGroups(); }, []); // eslint-disable-line
+  const [localMapsUrl, setLocalMapsUrl] = useState("");
+  const [localLat, setLocalLat] = useState<number | null>(null);
+  const [localLng, setLocalLng] = useState<number | null>(null);
+  const [localCep, setLocalCep] = useState("");
+  const [maxDistKm, setMaxDistKm] = useState(30);
 
-  async function loadGroups() {
-    setLoading(true);
+  const [bidTarget, setBidTarget] = useState<AdHocBidTarget | null>(null);
+  const [bidParams, setBidParams] = useState<AdHocBidParams>({
+    dataTarefa: `${todayDateISO_SP()}T08:00`, local: "", atividades: "", diaria: "", taskId: null,
+  });
+  const [bidSending, setBidSending] = useState(false);
+  const [openTasks, setOpenTasks] = useState<OpenTask[]>([]);
+
+  useEffect(() => {
+    initMeta();
+    queryRows("", "__all__", "__all__");
+  }, []); // eslint-disable-line
+
+  async function initMeta() {
     try {
       const db = await getDb();
-      const [g, totals, estList] = await Promise.all([
-        db.select<{ motivo: string; total: number }[]>(`
-          SELECT COALESCE(motivo_bloqueio, '(não informado)') as motivo, COUNT(*) as total
-          FROM chapa_registry
-          WHERE bloqueio IS NOT NULL AND UPPER(bloqueio) LIKE '%BLOQUEADO EM TUDO%'
-          GROUP BY motivo_bloqueio ORDER BY total DESC
-        `),
+      const [totals, estList, tipoList, taskList] = await Promise.all([
         db.select<{ bloq: number; total: number }[]>(`
           SELECT
-            SUM(CASE WHEN bloqueio IS NOT NULL AND UPPER(bloqueio) LIKE '%BLOQUEADO EM TUDO%' THEN 1 ELSE 0 END) as bloq,
+            SUM(CASE WHEN bloqueio IS NOT NULL AND UPPER(bloqueio) NOT LIKE '%DESBLOQUEADO%' THEN 1 ELSE 0 END) as bloq,
             COUNT(*) as total
           FROM chapa_registry
         `),
         db.select<{ estado: string }[]>(
           "SELECT DISTINCT estado FROM chapa_registry WHERE estado IS NOT NULL AND estado != '' ORDER BY estado"
         ),
+        db.select<{ bloqueio: string }[]>(`
+          SELECT DISTINCT bloqueio FROM chapa_registry
+          WHERE bloqueio IS NOT NULL AND UPPER(bloqueio) NOT LIKE '%DESBLOQUEADO%'
+          ORDER BY bloqueio
+        `),
+        db.select<OpenTask[]>(`
+          SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas,
+            (SELECT COUNT(*) FROM chapas c WHERE c.id_tarefa = t.id_tarefa
+             AND c.nome_chapa IS NOT NULL AND c.status_contato != 'removido') as alocados
+          FROM tarefas t
+          WHERE t.ativo = 1 AND t.status_tarefa NOT IN ('Em Andamento', 'Concluído', 'Finalizado')
+          AND LOWER(t.status_tarefa) NOT LIKE 'cancel%' AND t.validacao_status != 'subido_meu_chapa'
+          AND strftime('%s', t.data_tarefa) >= strftime('%s', datetime('now', '-2 hours'))
+          AND DATE(t.data_tarefa) <= date('now', '+7 days')
+          ORDER BY t.data_tarefa ASC
+        `).catch(() => [] as OpenTask[]),
       ]);
-      setGroups(g);
       setTotalBloq(totals[0]?.bloq ?? 0);
       setTotalReg(totals[0]?.total ?? 0);
       setEstados(estList.map((e) => e.estado));
+      setTipos(tipoList.map((t) => t.bloqueio));
+      setOpenTasks(taskList);
+    } catch (e) { toast.error(errMsg(e)); }
+  }
+
+  async function queryRows(s: string, est: string, tipo: string) {
+    setLoading(true);
+    try {
+      const db = await getDb();
+      const conds = ["r.bloqueio IS NOT NULL", "UPPER(r.bloqueio) NOT LIKE '%DESBLOQUEADO%'"];
+      const params: unknown[] = [];
+
+      if (s.trim()) {
+        const q = `%${s.toLowerCase().trim()}%`;
+        conds.push("(LOWER(r.nome) LIKE ? OR REPLACE(REPLACE(r.cpf,'.',''),'-','') LIKE ? OR REPLACE(r.telefone,' ','') LIKE ?)");
+        params.push(q, q, q);
+      }
+      if (est !== "__all__") { conds.push("UPPER(r.estado) = UPPER(?)"); params.push(est); }
+      if (tipo !== "__all__") { conds.push("r.bloqueio = ?"); params.push(tipo); }
+
+      const rows = await db.select<Omit<BlockedRow, "distance_km">[]>(`
+        SELECT r.cpf, r.nome, r.telefone, r.cidade, r.estado, r.tarefas, r.data_ultima_tarefa,
+               r.situacao, r.bloqueio, r.motivo_bloqueio, r.aso,
+               REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, cc.lat, cc.lng
+        FROM chapa_registry r
+        LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
+        WHERE ${conds.join(" AND ")}
+        ORDER BY r.tarefas DESC LIMIT 500
+      `, params);
+      setAllRows(rows);
+      setPage(0);
     } catch (e) { toast.error(errMsg(e)); }
     finally { setLoading(false); }
   }
 
-  async function toggleExpanded(motivo: string) {
-    if (expanded === motivo) { setExpanded(null); setDetail([]); setDetailSearch(""); return; }
-    setExpanded(motivo);
-    setDetailSearch("");
-    setDetailEstado("__all__");
-    await loadDetail(motivo, "", "__all__");
+  function handleMapsUrlChange(url: string) {
+    setLocalMapsUrl(url);
+    const coords = parseLatLngFromUrl(url);
+    setLocalLat(coords?.lat ?? null);
+    setLocalLng(coords?.lng ?? null);
   }
 
-  async function loadDetail(motivo: string, search: string, estado: string) {
-    setDetailLoading(true);
-    try {
-      const db = await getDb();
-      const conds = [
-        "bloqueio IS NOT NULL",
-        "UPPER(bloqueio) LIKE '%BLOQUEADO EM TUDO%'",
-        motivo === "(não informado)" ? "motivo_bloqueio IS NULL" : "motivo_bloqueio = ?",
-      ];
-      const params: unknown[] = motivo !== "(não informado)" ? [motivo] : [];
+  const hasCoords = localLat !== null && localLng !== null;
+  const cepPrefix = localCep.replace(/\D/g, "").slice(0, 5);
+  const hasCepFilter = cepPrefix.length >= 5;
 
-      if (search.trim()) {
-        const q = `%${search.toLowerCase().trim()}%`;
-        conds.push("(LOWER(nome) LIKE ? OR REPLACE(REPLACE(cpf,'.',''),'-','') LIKE ? OR REPLACE(telefone,' ','') LIKE ?)");
-        params.push(q, q, q);
-      }
-      if (estado !== "__all__") { conds.push("UPPER(estado) = UPPER(?)"); params.push(estado); }
+  const filteredRows = useMemo<BlockedRow[]>(() => {
+    return allRows.map((r) => {
+      let distance_km: number | null = null;
+      if (hasCoords && r.lat !== null && r.lng !== null)
+        distance_km = haversine(localLat!, localLng!, r.lat, r.lng);
+      return { ...r, distance_km };
+    }).filter((r) => {
+      if (hasCoords) return r.distance_km === null || r.distance_km <= maxDistKm;
+      if (hasCepFilter) return !r.cep || r.cep.startsWith(cepPrefix);
+      return true;
+    });
+  }, [allRows, localLat, localLng, localCep, maxDistKm, hasCoords, hasCepFilter, cepPrefix]);
 
-      const where = `WHERE ${conds.join(" AND ")}`;
-      const [countRes, rows] = await Promise.all([
-        db.select<{ cnt: number }[]>(`SELECT COUNT(*) as cnt FROM chapa_registry ${where}`, [...params]),
-        db.select<RegistryRow[]>(`
-          SELECT cpf, nome, telefone, cidade, estado, tarefas, data_ultima_tarefa, situacao, bloqueio, motivo_bloqueio, aso
-          FROM chapa_registry ${where}
-          ORDER BY tarefas DESC LIMIT 300
-        `, params),
-      ]);
-      setDetailTotal(countRes[0]?.cnt ?? 0);
-      setDetail(rows);
-    } catch (e) { toast.error(errMsg(e)); }
-    finally { setDetailLoading(false); }
-  }
-
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE);
+  const pageRows = filteredRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   const bloqPct = totalReg > 0 ? ((totalBloq / totalReg) * 100).toFixed(1) : "—";
+
+  function openBidDialog(r: RegistryRow) {
+    if (!r.telefone) { toast.error("Chapa sem telefone cadastrado."); return; }
+    setBidTarget({ nome: r.nome, telefone: r.telefone });
+    setBidParams({ dataTarefa: `${todayDateISO_SP()}T08:00`, local: "", atividades: "", diaria: "", taskId: null });
+  }
+
+  function handleTaskSelect(val: string) {
+    const taskId = val === "__none__" ? null : parseInt(val);
+    setBidParams((p) => {
+      const next = { ...p, taskId };
+      if (taskId !== null) {
+        try {
+          const saved = localStorage.getItem(`bid_params_${taskId}`);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            return { ...next, local: parsed.local || next.local, atividades: parsed.atividades || next.atividades, diaria: parsed.diaria || next.diaria };
+          }
+        } catch { /* noop */ }
+      }
+      return next;
+    });
+  }
+
+  async function sendAdHocBid() {
+    if (!bidTarget) return;
+    const { local, atividades, diaria, dataTarefa, taskId } = bidParams;
+    if (!local || !atividades || !diaria) { toast.error("Preencha Local, Atividades e Diária."); return; }
+    setBidSending(true);
+    try {
+      const settings = readSettings();
+      const us = settings.umblerSettings;
+      if (!us.bearerToken) { toast.error("Configure a integração Umbler em Configurações."); return; }
+      const selectedTask = openTasks.find((t) => t.id_tarefa === taskId);
+      const isoDate = selectedTask ? selectedTask.data_tarefa : `${dataTarefa}:00-03:00`;
+      await sendUmblerFup({
+        chapaNome: bidTarget.nome,
+        chapaTelefone: bidTarget.telefone,
+        dataTarefa: isoDate,
+        empresa: selectedTask?.empresa ?? "",
+        settings: us,
+        templateIdOverride: us.bidTemplateId || "aH6pLxMKil-bY_UP",
+        overrideParams: [fmtTaskDateParam(isoDate), local, atividades, `R$ ${diaria}`],
+      });
+      if (selectedTask) {
+        const dispId = uuid();
+        const now = new Date().toISOString();
+        const paramsJson = JSON.stringify({ data: fmtTaskDateParam(isoDate), local, atividades, diaria });
+        const db = await getDb();
+        await db.execute(
+          "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status) VALUES (?,?,?,?,?,?,?,?,?)",
+          [dispId, bidTarget.nome, bidTarget.telefone, taskId, selectedTask.empresa, selectedTask.data_tarefa, paramsJson, now, "aguardando"],
+        );
+        bidDispatchQueue.notifyDispatched({
+          id: dispId, id_tarefa: taskId, chapa_nome: bidTarget.nome, chapa_telefone: bidTarget.telefone,
+          empresa: selectedTask.empresa, data_tarefa: selectedTask.data_tarefa, params_json: paramsJson,
+          data_disparo: now, status: "aguardando",
+        });
+      }
+      toast.success(`BID enviado para ${bidTarget.nome}`);
+      setBidTarget(null);
+    } catch (e) { toast.error(errMsg(e)); }
+    finally { setBidSending(false); }
+  }
 
   return (
     <div className="space-y-4">
@@ -1977,7 +2338,7 @@ function BloqueadosTab() {
         </div>
         <div className="rounded-xl border border-border bg-card px-4 py-3 text-center">
           <div className="text-2xl font-bold text-success tabular-nums">{(totalReg - totalBloq).toLocaleString("pt-BR")}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">Não bloqueados</div>
+          <div className="text-xs text-muted-foreground mt-0.5">Desbloqueados</div>
         </div>
         <div className="rounded-xl border border-border bg-card px-4 py-3 text-center">
           <div className="text-2xl font-bold tabular-nums">{bloqPct}%</div>
@@ -1985,130 +2346,329 @@ function BloqueadosTab() {
         </div>
       </div>
 
-      {/* Groups */}
+      {/* Filters */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && queryRows(search, estado, tipoFilter)}
+              placeholder="Nome, CPF, telefone…"
+              className="pl-8 h-9 text-sm"
+            />
+            {search && (
+              <button type="button"
+                onClick={() => { setSearch(""); queryRows("", estado, tipoFilter); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          {estados.length > 0 && (
+            <Select value={estado} onValueChange={(v) => { setEstado(v); queryRows(search, v, tipoFilter); }}>
+              <SelectTrigger className="h-9 w-[130px] text-xs"><SelectValue placeholder="Estado" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos os estados</SelectItem>
+                {estados.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {tipos.length > 0 && (
+            <Select value={tipoFilter} onValueChange={(v) => { setTipoFilter(v); queryRows(search, estado, v); }}>
+              <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue placeholder="Tipo de bloqueio" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos os bloqueios</SelectItem>
+                {tipos.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <Button size="sm" className="h-9 gap-1.5" onClick={() => queryRows(search, estado, tipoFilter)} disabled={loading}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            Buscar
+          </Button>
+        </div>
+
+        {/* Distance filter */}
+        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-border/30">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1 shrink-0">
+            <MapPin className="h-3 w-3" /> Distância
+          </span>
+          <Input
+            placeholder="Link Maps (ativa filtro por distância)"
+            value={localMapsUrl}
+            onChange={(e) => handleMapsUrlChange(e.target.value)}
+            className="h-8 text-xs flex-1 min-w-[220px]"
+          />
+          {!hasCoords && (
+            <Input
+              placeholder="CEP (prefixo)"
+              value={localCep}
+              onChange={(e) => setLocalCep(formatCep(e.target.value))}
+              className="h-8 text-xs w-32 font-mono"
+              maxLength={9}
+            />
+          )}
+          {hasCoords && (
+            <>
+              <Select value={String(maxDistKm)} onValueChange={(v) => setMaxDistKm(Number(v))}>
+                <SelectTrigger className="h-8 w-[80px] text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10 km</SelectItem>
+                  <SelectItem value="20">20 km</SelectItem>
+                  <SelectItem value="30">30 km</SelectItem>
+                  <SelectItem value="50">50 km</SelectItem>
+                  <SelectItem value="100">100 km</SelectItem>
+                  <SelectItem value="999">Sem limite</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-[10px] text-success flex items-center gap-1">
+                <Check className="h-3 w-3" /> {filteredRows.length} em até {maxDistKm} km
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* List */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 py-2.5 border-b border-border bg-muted/10 flex items-center gap-2">
+        <div className="px-4 py-2.5 border-b border-border bg-muted/10 flex items-center gap-3">
           <Ban className="h-3.5 w-3.5 text-destructive/60" />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1">
-            Motivos de bloqueio · {groups.length} tipo{groups.length !== 1 ? "s" : ""}
+            {loading
+              ? "Carregando…"
+              : `${filteredRows.length.toLocaleString("pt-BR")} bloqueado${filteredRows.length !== 1 ? "s" : ""}${allRows.length > filteredRows.length ? ` de ${allRows.length}` : ""}`}
           </span>
         </div>
-        {loading ? (
-          <div className="px-4 py-4 space-y-2">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-10 rounded-lg bg-muted/30 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
-            ))}
-          </div>
-        ) : groups.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-            Nenhum chapa bloqueado no cadastro.
-          </div>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {groups.map((g) => (
-              <div key={g.motivo}>
-                <button
-                  type="button"
-                  onClick={() => toggleExpanded(g.motivo)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/20 ${expanded === g.motivo ? "bg-destructive/5" : ""}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className="font-medium text-sm">{g.motivo}</span>
-                  </div>
-                  <div className="flex items-center gap-2.5 shrink-0">
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-destructive tabular-nums">{g.total.toLocaleString("pt-BR")}</div>
-                      <div className="text-[10px] text-muted-foreground/60">
-                        {totalBloq > 0 ? `${((g.total / totalBloq) * 100).toFixed(0)}%` : ""}
-                      </div>
-                    </div>
-                    {expanded === g.motivo
-                      ? <ChevronUp className="h-4 w-4 text-muted-foreground/40" />
-                      : <ChevronDown className="h-4 w-4 text-muted-foreground/40" />}
-                  </div>
-                </button>
 
-                {expanded === g.motivo && (
-                  <div className="border-t border-border/40 bg-muted/5">
-                    {/* Search + filter bar */}
-                    <div className="px-4 py-2.5 border-b border-border/30 flex items-center gap-2 flex-wrap">
-                      <div className="relative flex-1 min-w-[160px]">
-                        <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          value={detailSearch}
-                          onChange={(e) => setDetailSearch(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && loadDetail(g.motivo, detailSearch, detailEstado)}
-                          placeholder="Nome, CPF, telefone…"
-                          className="pl-8 h-8 text-xs"
-                        />
-                      </div>
-                      {estados.length > 0 && (
-                        <Select value={detailEstado} onValueChange={(v) => { setDetailEstado(v); loadDetail(g.motivo, detailSearch, v); }}>
-                          <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue placeholder="Estado" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__all__">Todos</SelectItem>
-                            {estados.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      <Button size="sm" variant="outline" className="h-8 text-xs gap-1"
-                        onClick={() => loadDetail(g.motivo, detailSearch, detailEstado)}>
-                        <Search className="h-3 w-3" /> Buscar
-                      </Button>
-                      {detailTotal > 0 && (
-                        <span className="text-[11px] text-muted-foreground">
-                          {detail.length < detailTotal
-                            ? `${detail.length} de ${detailTotal.toLocaleString("pt-BR")}`
-                            : `${detailTotal.toLocaleString("pt-BR")} resultado${detailTotal !== 1 ? "s" : ""}`}
-                        </span>
-                      )}
-                    </div>
+        <div
+          className="hidden md:grid px-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/60 border-b border-border/50"
+          style={{ gridTemplateColumns: "24px 1fr 110px 110px 40px 160px 1fr 32px" }}
+        >
+          <span>#</span>
+          <span>Nome / CPF</span>
+          <span>Telefone</span>
+          <span>Cidade/UF</span>
+          <Tooltip>
+            <TooltipTrigger asChild><span className="cursor-help underline decoration-dotted">Tar.</span></TooltipTrigger>
+            <TooltipContent>Total de tarefas realizadas</TooltipContent>
+          </Tooltip>
+          <span>Tipo de bloqueio</span>
+          <span>Motivo</span>
+          <span />
+        </div>
 
-                    {/* Detail rows */}
-                    {detailLoading ? (
-                      <div className="px-4 py-3 space-y-1.5">
-                        {[...Array(4)].map((_, i) => (
-                          <div key={i} className="h-9 rounded bg-muted/30 animate-pulse" />
-                        ))}
-                      </div>
-                    ) : detail.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-sm text-muted-foreground">Nenhum resultado.</div>
-                    ) : (
-                      <div className="divide-y divide-border/30 max-h-[400px] overflow-y-auto">
-                        {detail.map((r) => (
-                          <div key={r.cpf ?? r.nome} className="flex items-center gap-3 px-4 py-2 hover:bg-muted/10 transition-colors">
-                            <div className="flex-1 min-w-0">
-                              <button type="button" onClick={() => clipCopy(r.nome, "Nome copiado")}
-                                className="font-medium text-sm hover:text-primary hover:underline truncate block text-left max-w-[220px]">
-                                {r.nome}
-                              </button>
-                              {r.telefone && (
-                                <button type="button" onClick={() => clipCopy(r.telefone!.replace(/\D/g, ""), "Telefone copiado")}
-                                  className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5">
-                                  <Phone className="h-2.5 w-2.5" /> {r.telefone}
-                                </button>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground/60 hidden sm:block min-w-[90px] shrink-0">
-                              {[r.cidade, r.estado].filter(Boolean).join("/")}
-                            </div>
-                            <div className="text-xs tabular-nums text-center w-10 text-muted-foreground shrink-0">
-                              {r.tarefas}
-                            </div>
-                            {r.aso && (
-                              <span className="text-[9px] font-bold text-success px-1 py-0.5 rounded bg-success/10 border border-success/20 shrink-0">ASO</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+        <div className="divide-y divide-border/50">
+          {loading && allRows.length === 0 ? (
+            <div className="px-4 py-4 space-y-2">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="h-9 rounded bg-muted/30 animate-pulse" style={{ opacity: 1 - i * 0.1 }} />
+              ))}
+            </div>
+          ) : pageRows.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+              Nenhum chapa bloqueado encontrado com os filtros aplicados.
+            </div>
+          ) : pageRows.map((r, idx) => {
+            const isBloqTudo = !!(r.bloqueio && r.bloqueio.toUpperCase().includes("BLOQUEADO EM TUDO"));
+            return (
+              <div
+                key={r.cpf ?? r.nome}
+                className="grid items-center px-4 py-2 gap-2 hover:bg-muted/20 transition-colors"
+                style={{ gridTemplateColumns: "24px 1fr 110px 110px 40px 160px 1fr 32px" }}
+              >
+                <div className="text-xs text-muted-foreground/50 tabular-nums font-mono">
+                  {page * PAGE_SIZE + idx + 1}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <button type="button" onClick={() => clipCopy(r.nome, "Nome copiado")}
+                      className="font-medium text-sm hover:text-primary hover:underline truncate block text-left max-w-[200px]">
+                      {r.nome}
+                    </button>
+                    {r.aso && (
+                      <span className="text-[9px] font-bold text-success px-1 py-0.5 rounded bg-success/10 border border-success/20 shrink-0">ASO</span>
                     )}
                   </div>
-                )}
+                  {r.cpf && (
+                    <button type="button" onClick={() => clipCopy(r.cpf.replace(/\D/g, ""), "CPF copiado")}
+                      className="text-[10px] text-muted-foreground/40 hover:text-primary font-mono">
+                      {r.cpf}
+                    </button>
+                  )}
+                  {r.distance_km !== null && (
+                    <div className={`text-[10px] mt-0.5 ${r.distance_km > maxDistKm ? "text-destructive/60" : "text-muted-foreground/60"}`}>
+                      {r.distance_km.toFixed(1)} km
+                    </div>
+                  )}
+                </div>
+                <div>
+                  {r.telefone && (
+                    <button type="button" onClick={() => clipCopy(r.telefone!.replace(/\D/g, ""), "Telefone copiado")}
+                      className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1">
+                      <Phone className="h-2.5 w-2.5" />{r.telefone}
+                    </button>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground/60 truncate">
+                  {[r.cidade, r.estado].filter(Boolean).join("/")}
+                </div>
+                <div className="text-xs tabular-nums text-center">{r.tarefas}</div>
+                <div>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border inline-block truncate max-w-[150px] ${
+                    isBloqTudo
+                      ? "text-destructive border-destructive/30 bg-destructive/5"
+                      : "text-warning border-warning/30 bg-warning/5"
+                  }`}>
+                    {r.bloqueio}
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground/60 truncate">{r.motivo_bloqueio ?? ""}</div>
+                <div className="flex justify-end">
+                  {r.telefone && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" onClick={() => openBidDialog(r)}
+                          className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground/50 hover:text-info hover:bg-info/10 transition-colors">
+                          <Send className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Enviar BID</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
               </div>
-            ))}
+            );
+          })}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="px-4 py-2.5 border-t border-border flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              Pág. {page + 1}/{totalPages} · {filteredRows.length.toLocaleString("pt-BR")} total
+            </span>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" className="h-7 text-xs px-2" disabled={page === 0}
+                onClick={() => setPage(0)}>«</Button>
+              <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+              <span className="text-xs tabular-nums px-1">{page + 1}</span>
+              <Button size="sm" variant="outline" className="h-7 w-7 p-0" disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs px-2" disabled={page >= totalPages - 1}
+                onClick={() => setPage(totalPages - 1)}>»</Button>
+            </div>
           </div>
         )}
       </div>
+
+      {/* BID dispatch dialog */}
+      <Dialog open={!!bidTarget} onOpenChange={(o) => { if (!o) setBidTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Send className="h-4 w-4 text-info" />
+              Enviar BID — {bidTarget?.nome}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Tarefa vinculada</label>
+              <Select
+                value={bidParams.taskId !== null ? String(bidParams.taskId) : "__none__"}
+                onValueChange={handleTaskSelect}
+              >
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecionar tarefa…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem tarefa vinculada</SelectItem>
+                  {openTasks.map((t) => (
+                    <SelectItem key={t.id_tarefa} value={String(t.id_tarefa)}>
+                      {t.empresa.substring(0, 28)} · {fmtSP(t.data_tarefa, "dd/MM HH:mm")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {bidParams.taskId === null && (
+                <p className="text-[10px] text-muted-foreground/60">
+                  Sem tarefa: o disparo não será registrado no histórico.
+                </p>
+              )}
+            </div>
+
+            {bidParams.taskId === null && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data e horário</label>
+                <Input
+                  type="datetime-local"
+                  value={bidParams.dataTarefa}
+                  onChange={(e) => setBidParams((p) => ({ ...p, dataTarefa: e.target.value }))}
+                  className="h-8 text-sm"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Local *</label>
+              <Input
+                placeholder="Endereço do local de trabalho…"
+                value={bidParams.local}
+                onChange={(e) => setBidParams((p) => ({ ...p, local: e.target.value }))}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Atividades *</label>
+              <Select
+                value={ATIVIDADES_PRESETS.includes(bidParams.atividades) ? bidParams.atividades : "__custom__"}
+                onValueChange={(v) => setBidParams((p) => ({ ...p, atividades: v === "__custom__" ? "" : v }))}
+              >
+                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecionar…" /></SelectTrigger>
+                <SelectContent>
+                  {ATIVIDADES_PRESETS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  <SelectItem value="__custom__">Digitar…</SelectItem>
+                </SelectContent>
+              </Select>
+              {!ATIVIDADES_PRESETS.includes(bidParams.atividades) && (
+                <Input
+                  placeholder="Descreva as atividades…"
+                  value={bidParams.atividades}
+                  onChange={(e) => setBidParams((p) => ({ ...p, atividades: e.target.value }))}
+                  className="h-8 text-sm mt-1"
+                />
+              )}
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Diária (R$) *</label>
+              <div className="relative">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-medium pointer-events-none">R$</span>
+                <Input
+                  type="number" min="0" placeholder="150"
+                  value={bidParams.diaria}
+                  onChange={(e) => setBidParams((p) => ({ ...p, diaria: e.target.value }))}
+                  className="h-8 text-sm pl-8"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground/70 rounded-lg bg-warning/5 border border-warning/20 px-3 py-2">
+              Este chapa está bloqueado no cadastro. O BID será enviado mesmo assim.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setBidTarget(null)}>Cancelar</Button>
+            <Button size="sm" className="gap-1.5"
+              disabled={bidSending || !bidParams.local || !bidParams.atividades || !bidParams.diaria}
+              onClick={sendAdHocBid}>
+              {bidSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+              Enviar BID
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
