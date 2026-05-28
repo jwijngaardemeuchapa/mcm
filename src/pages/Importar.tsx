@@ -335,13 +335,14 @@ export default function Importar() {
       }
     }
 
-    // Dedupe chapas
+    // Dedupe chapas — normalização deve espelhar exatamente chapaKey()/norm():
+    // CPF sem formatação, nome com espaços internos colapsados
     const seen = new Set<string>();
     const dedupedChapas: Record<string, unknown>[] = [];
     for (const c of chapas) {
-      const cpf = (c.cpf as string | null) ?? "";
-      const nome = (c.nome_chapa as string | null) ?? "";
-      const key = `${c.id_tarefa}|${cpf || nome.toLowerCase().trim()}`;
+      const cpfNorm = ((c.cpf as string | null) ?? "").replace(/\D/g, "");
+      const nomeNorm = ((c.nome_chapa as string | null) ?? "").toLowerCase().trim().replace(/\s+/g, " ");
+      const key = `${c.id_tarefa}|${cpfNorm || nomeNorm}`;
       if (seen.has(key)) continue;
       seen.add(key);
       dedupedChapas.push(c);
@@ -466,6 +467,14 @@ export default function Importar() {
       };
     });
 
+    // Proteção final: nunca inserir dois chapas com o mesmo id
+    const seenIds = new Set<string>();
+    const chapasFinais = chapasToInsert.filter((c) => {
+      if (seenIds.has(c.id as string)) return false;
+      seenIds.add(c.id as string);
+      return true;
+    });
+
     try {
       // Delete chapas for re-imported tasks (chunked)
       for (let i = 0; i < ids.length; i += 900) {
@@ -489,7 +498,7 @@ export default function Importar() {
       }
 
       // Insert chapas
-      for (const c of chapasToInsert) {
+      for (const c of chapasFinais) {
         await db.execute(
           "INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
@@ -504,7 +513,7 @@ export default function Importar() {
       return;
     }
 
-    toast.success(`✓ ${tarefasMap.size} tarefas · ${chapasToInsert.length} chapas`);
+    toast.success(`✓ ${tarefasMap.size} tarefas · ${chapasFinais.length} chapas`);
     setPreview([]);
     loadLast();
     navigate("/dashboard");

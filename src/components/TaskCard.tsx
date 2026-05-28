@@ -184,16 +184,28 @@ export function TaskCard({
   forceCollapse,
   matchHighlight,
   newChapaKeys,
+  autoRemoveChapaName,
 }: {
   task: TaskWithChapas;
   onRefresh: () => void;
   forceCollapse?: boolean | null;
   matchHighlight?: boolean;
   newChapaKeys?: Set<string>;
+  autoRemoveChapaName?: string;
 }) {
   const navigate = useNavigate();
   const [removalTarget, setRemovalTarget] = useState<(typeof task.chapas)[number] | null>(null);
   const [removalReason, setRemovalReason] = useState("");
+
+  useEffect(() => {
+    if (!autoRemoveChapaName) return;
+    const norm = (s: string | null | undefined) =>
+      (s ?? "").toLowerCase().trim().replace(/\s+/g, " ");
+    const match = task.chapas.find(
+      (c) => c.nome_chapa && norm(c.nome_chapa) === norm(autoRemoveChapaName),
+    );
+    if (match) setRemovalTarget(match);
+  }, [autoRemoveChapaName]); // eslint-disable-line
   const [removalMsg, setRemovalMsg] = useState<string | null>(null);
   const [editPhoneTarget, setEditPhoneTarget] = useState<(typeof task.chapas)[number] | null>(null);
   const [editPhoneValue, setEditPhoneValue] = useState("");
@@ -353,6 +365,39 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     setCsvExportedAt(new Date().toISOString());
     toast.success(`CSV exportado: ${a.download}`);
+  }
+
+  async function copyCpfConfirmados() {
+    const confirmados = task.chapas.filter(
+      (c) => c.status_contato === "confirmado" && c.nome_chapa,
+    );
+    if (confirmados.length === 0) {
+      toast.info("Nenhum chapa confirmado");
+      return;
+    }
+    const comTelefone = confirmados.filter((c) => c.telefone_chapa);
+    let phoneToCpf: Record<string, string> = {};
+    if (comTelefone.length > 0) {
+      try {
+        const db = await getDb();
+        const phones = comTelefone.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
+        const rows = await db.select<{ cpf: string; telefone: string }[]>(
+          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
+           FROM chapa_registry
+           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
+             AND cpf IS NOT NULL`,
+          phones,
+        );
+        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
+      } catch { /* silencioso */ }
+    }
+    const lines = confirmados.map((c) => {
+      const cpf = c.cpf
+        ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
+        ?? "(não encontrado)";
+      return `${c.nome_chapa} — ${cpf}`;
+    });
+    clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) de confirmados copiados`);
   }
 
   async function copyList() {
@@ -1044,6 +1089,10 @@ Precisamos de 1 substituto para esta tarefa.`;
                 <DropdownMenuItem onClick={copyConfirmedNames}>
                   <Check className="h-3.5 w-3.5 mr-1.5 text-success" />
                   Só confirmados ({task.chapas.filter((c) => c.status_contato === "confirmado").length})
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyCpfConfirmados}>
+                  <Check className="h-3.5 w-3.5 mr-1.5 text-info" />
+                  CPF dos confirmados ({task.chapas.filter((c) => c.status_contato === "confirmado").length})
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

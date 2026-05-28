@@ -37,6 +37,7 @@ export function useNotificationWatcher(
   onRefresh: () => void,
   onFlashTask?: (taskId: number) => void,
   onActivity?: (entry: WatcherActivity) => void,
+  onRemoveRequest?: (taskId: number, chapaName: string) => void,
 ) {
   const lastSeenRef = useRef<number>(Math.floor(Date.now() / 1000) - 120);
   const processedRef = useRef<Set<string>>(new Set());
@@ -44,11 +45,13 @@ export function useNotificationWatcher(
   const onRefreshRef = useRef(onRefresh);
   const onFlashTaskRef = useRef(onFlashTask);
   const onActivityRef = useRef(onActivity);
+  const onRemoveRequestRef = useRef(onRemoveRequest);
 
   useEffect(() => { tasksRef.current = allTasks; }, [allTasks]);
   useEffect(() => { onRefreshRef.current = onRefresh; }, [onRefresh]);
   useEffect(() => { onFlashTaskRef.current = onFlashTask; }, [onFlashTask]);
   useEffect(() => { onActivityRef.current = onActivity; }, [onActivity]);
+  useEffect(() => { onRemoveRequestRef.current = onRemoveRequest; }, [onRemoveRequest]);
 
   useEffect(() => {
     const poll = async () => {
@@ -127,32 +130,13 @@ export function useNotificationWatcher(
           });
           toast.warning(`${found.nome_chapa} recusou`, {
             description:
-              'Respondeu "NÃO, quero cancelar!" via WhatsApp. Deseja remover do serviço?',
+              'Respondeu "NÃO, quero cancelar!" via WhatsApp. Clique em Remover para abrir a tarefa.',
             duration: 30_000,
             action: {
               label: "Remover",
-              onClick: async () => {
-                try {
-                  const db = await getDb();
-                  await db.execute(
-                    "UPDATE chapas SET status_contato = 'removido', data_remocao = ?, motivo_remocao = 'recusou_whatsapp' WHERE id = ?",
-                    [new Date().toISOString(), foundSnapshot.id],
-                  );
-                } catch {
-                  // DB update failed — refresh anyway so user sees current state
-                }
-                onActivityRef.current?.({
-                  id: `${key}:removido`,
-                  chapa_nome: foundSnapshot.nome_chapa ?? match.chapa_nome,
-                  action: "removido",
-                  task_id: parentTask?.id_tarefa ?? null,
-                  empresa: parentTask?.empresa ?? null,
-                  data_tarefa: parentTask?.data_tarefa ?? null,
-                  timestamp: Date.now(),
-                });
-                onRefreshRef.current();
-                if (parentTask) {
-                  setTimeout(() => onFlashTaskRef.current?.(parentTask.id_tarefa), 150);
+              onClick: () => {
+                if (parentTask && onRemoveRequestRef.current) {
+                  onRemoveRequestRef.current(parentTask.id_tarefa, foundSnapshot.nome_chapa ?? match.chapa_nome);
                 }
               },
             },

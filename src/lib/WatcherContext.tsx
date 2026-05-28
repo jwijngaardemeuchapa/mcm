@@ -116,7 +116,11 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
     setNotifLog((prev) => [entry, ...prev].slice(0, 50));
   }, []);
 
-  useNotificationWatcher(tasks, handleRefresh, handleFlashTask, handleActivity);
+  const handleRemoveRequest = useCallback((taskId: number, chapaName: string) => {
+    window.dispatchEvent(new CustomEvent("fup:remove-chapa", { detail: { taskId, chapaName } }));
+  }, []);
+
+  useNotificationWatcher(tasks, handleRefresh, handleFlashTask, handleActivity, handleRemoveRequest);
 
   const clearLog = useCallback(() => setNotifLog([]), []);
 

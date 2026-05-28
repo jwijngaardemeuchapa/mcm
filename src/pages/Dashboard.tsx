@@ -81,6 +81,17 @@ export default function Dashboard() {
       return v ? Number(v) : null;
     } catch { return null; }
   });
+  const [autoOpenTaskId, setAutoOpenTaskId] = useState<number | null>(() => {
+    try {
+      const v = new URLSearchParams(window.location.search).get("taskId");
+      return v ? Number(v) : null;
+    } catch { return null; }
+  });
+  const [autoRemoveChapaName, setAutoRemoveChapaName] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("removeChapa");
+    } catch { return null; }
+  });
   const [forceCollapseMap, setForceCollapseMap] = useState<Record<AllRowKey, boolean | null>>({});
   const [globalCollapsed, setGlobalCollapsed] = useState(false);
   const [onlyPending, setOnlyPending] = useState(false);
@@ -89,11 +100,13 @@ export default function Dashboard() {
   );
   const [onlyNotUploaded, setOnlyNotUploaded] = useState(false);
   const [onlyNoUmblerFup, setOnlyNoUmblerFup] = useState(false);
-  const [viewMode, setViewMode] = useState<"detailed" | "panorama">(
-    () =>
-      (localStorage.getItem("dash_view_mode") as "detailed" | "panorama" | null) ??
-      readSettings().defaultDashboardView,
-  );
+  const [viewMode, setViewMode] = useState<"detailed" | "panorama">(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("taskId")) return "panorama";
+    } catch { /* noop */ }
+    return (localStorage.getItem("dash_view_mode") as "detailed" | "panorama" | null) ??
+      readSettings().defaultDashboardView;
+  });
   const [selectedDate, setSelectedDate] = useState(() => todayDateISO_SP());
   const [allDatesCards, setAllDatesCards] = useState<TaskWithChapas[]>([]);
   const [showCompanyBreakdown, setShowCompanyBreakdown] = useState(false);
@@ -405,11 +418,19 @@ export default function Dashboard() {
   useEffect(() => {
     const onRefresh = () => load();
     const onFlash = (e: Event) => flashTaskRef.current((e as CustomEvent<number>).detail);
+    const onRemoveChapa = (e: Event) => {
+      const { taskId, chapaName } = (e as CustomEvent<{ taskId: number; chapaName: string }>).detail;
+      setViewMode("panorama");
+      setAutoOpenTaskId(taskId);
+      setAutoRemoveChapaName(chapaName);
+    };
     window.addEventListener("fup:refresh", onRefresh);
     window.addEventListener("fup:flash-task", onFlash);
+    window.addEventListener("fup:remove-chapa", onRemoveChapa);
     return () => {
       window.removeEventListener("fup:refresh", onRefresh);
       window.removeEventListener("fup:flash-task", onFlash);
+      window.removeEventListener("fup:remove-chapa", onRemoveChapa);
     };
   }, [load]);
 
@@ -1260,6 +1281,8 @@ export default function Dashboard() {
           )}
           onRefresh={load}
           threshold={readSettings().fillRateWarningThreshold}
+          autoOpenTaskId={autoOpenTaskId ?? undefined}
+          autoRemoveChapaName={autoRemoveChapaName ?? undefined}
         />
       ) : (
         (() => {

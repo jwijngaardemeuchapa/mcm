@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Clock,
   AlertTriangle,
@@ -49,10 +49,16 @@ type Props = {
   overnightTasks?: TaskWithChapas[];
   onRefresh: () => void;
   threshold: number;
+  autoOpenTaskId?: number;
+  autoRemoveChapaName?: string;
 };
 
-export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold }: Props) {
+export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold, autoOpenTaskId, autoRemoveChapaName }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (autoOpenTaskId != null) setSelectedId(autoOpenTaskId);
+  }, [autoOpenTaskId]);
 
   const allForLookup = [...overnightTasks, ...tasks];
   const selectedTask =
@@ -149,7 +155,13 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold 
             </SheetTitle>
           </SheetHeader>
           <div className="p-4">
-            {selectedTask && <TaskCard task={selectedTask} onRefresh={onRefresh} />}
+            {selectedTask && (
+              <TaskCard
+                task={selectedTask}
+                onRefresh={onRefresh}
+                autoRemoveChapaName={selectedId === autoOpenTaskId ? autoRemoveChapaName : undefined}
+              />
+            )}
           </div>
         </SheetContent>
       </Sheet>
