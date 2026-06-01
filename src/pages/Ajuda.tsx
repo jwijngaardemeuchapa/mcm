@@ -205,6 +205,7 @@ const SECTIONS: Section[] = [
           "Validar presença: marque Presente ou Ausente por chapa após início da tarefa — marcar Presente confirma automaticamente o status de contato do chapa, sem etapa extra",
           "Exportar CSV pronto para upload no Meu Chapa — botão fica verde após o primeiro export",
           "Copiar lista completa (Nome + CPF) ou só nomes (todos ou só confirmados) — para portaria e outros usos",
+          "CPF dos confirmados: opção no menu 'Copiar Nomes' que filtra chapas com status Confirmado, busca o CPF pelo telefone na base do cadastro geral e copia a lista 'Nome — CPF' para a área de transferência — útil para preencher CPFs faltantes antes da validação do cliente",
           "Registrar FUP manual: informe o canal e uma observação livre para registrar no histórico",
           "Histórico de FUPs: todos os disparos com data, canal e observação — colapsável no rodapé do card",
           "Remover chapa: informa motivo e gera mensagem formatada de substituição pronta para copiar",
@@ -580,7 +581,8 @@ const SECTIONS: Section[] = [
           "Verificação de conectividade: teste enviando uma mensagem real para um número de teste antes de ativar em produção",
           "Credenciais armazenadas localmente no dispositivo — não são enviadas a nenhum servidor além da API da Umbler",
           "Listener de respostas WhatsApp: monitora as notificações do Windows em segundo plano (a cada 5 segundos)",
-          "Como funciona o listener: quando um chapa responde 'SIM, tô nessa!' na mensagem do WhatsApp, o sistema confirma automaticamente; 'NÃO, quero cancelar!' abre um aviso com botão 'Remover'",
+          "Como funciona o listener: quando um chapa responde 'SIM, tô nessa!' na mensagem do WhatsApp, o sistema confirma automaticamente; 'NÃO, quero cancelar!' exibe aviso com botão 'Remover'",
+          "Ao clicar em 'Remover' na notificação de recusa, o comportamento varia por visão do Dashboard — na visão Cards: destaca (pisca) o card da tarefa e marca o nome do chapa com borda vermelha por 2,5 segundos; na visão Panorama: abre o painel lateral da tarefa com o diálogo de remoção já aberto para o chapa correto",
           "As confirmações e recusas detectadas aparecem no painel 'Confirmações Automáticas' no Dashboard",
           "Requisito do listener: notificações do Chrome precisam estar ativadas no Windows — o sistema fica dormente automaticamente se não conseguir acessar o banco de notificações",
         ],
@@ -755,7 +757,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.57</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.60</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -769,7 +771,7 @@ export default function Ajuda() {
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-2.5">
             <Sparkles className="h-4 w-4 text-success shrink-0" />
             <span className="text-xs text-success font-medium">
-              v0.9.57 — Importação do cadastro geral corrigida: detecção automática de colunas pelo cabeçalho do arquivo, aceita 100k+ chapas independente da presença de CPF. BID Dashboard: aba Bloqueados por tarefa (cada card tem tab Disponíveis/Bloqueados para disparar chapas bloqueados selecionados), filtro de raio configurável (10–100 km ou sem limite), ID da tarefa com link direto no cabeçalho de cada card. Tarefas canceladas ignoradas automaticamente nos dashboards FUP e BID.
+              v0.9.60 — Importação: correção de erro UNIQUE constraint ao importar chapas com duplo espaço no nome (ex: "JOÃO  BRANCO"); deduplicação agora colapsa espaços internos de forma consistente. Listener WhatsApp: ao clicar em 'Remover' na notificação de recusa, o comportamento agora depende da visão ativa — na visão Cards, destaca o card da tarefa e marca o nome do chapa com borda vermelha; na visão Panorama, abre o painel da tarefa já com o diálogo de remoção pré-aberto para o chapa em questão. Card de Tarefa: novo botão 'CPF dos confirmados' no menu 'Copiar Nomes' — filtra chapas confirmados, busca o CPF pelo telefone na base do cadastro geral e copia a lista Nome — CPF pronta para preenchimento.
             </span>
           </div>
         )}
@@ -1006,7 +1008,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.6 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v0.9.60 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1041,7 +1043,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.6 · © 2026 Wijngaarde Design
+        MCM v0.9.60 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

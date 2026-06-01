@@ -414,15 +414,31 @@ export default function Dashboard() {
 
   // DOM events fired by the global WatcherProvider
   const flashTaskRef = useRef<(id: number) => void>(flashTask);
+  const viewModeRef = useRef(viewMode);
   useEffect(() => { flashTaskRef.current = flashTask; });
+  useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
   useEffect(() => {
     const onRefresh = () => load();
     const onFlash = (e: Event) => flashTaskRef.current((e as CustomEvent<number>).detail);
     const onRemoveChapa = (e: Event) => {
       const { taskId, chapaName } = (e as CustomEvent<{ taskId: number; chapaName: string }>).detail;
-      setViewMode("panorama");
-      setAutoOpenTaskId(taskId);
-      setAutoRemoveChapaName(chapaName);
+      if (viewModeRef.current === "panorama") {
+        setAutoOpenTaskId(taskId);
+        setAutoRemoveChapaName(chapaName);
+      } else {
+        // Visão cards: flash na tarefa + highlight no chapa específico
+        flashTaskRef.current(taskId);
+        setTimeout(() => {
+          const normName = chapaName.toLowerCase().trim().replace(/\s+/g, " ");
+          const card = document.querySelector(`[data-task-card="${taskId}"]`);
+          const chapaEl = card?.querySelector(`[data-chapa-name="${normName}"]`) as HTMLElement | null;
+          if (chapaEl) {
+            chapaEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            chapaEl.classList.add("ring-2", "ring-destructive", "ring-inset", "rounded");
+            setTimeout(() => chapaEl.classList.remove("ring-2", "ring-destructive", "ring-inset", "rounded"), 2500);
+          }
+        }, 300);
+      }
     };
     window.addEventListener("fup:refresh", onRefresh);
     window.addEventListener("fup:flash-task", onFlash);

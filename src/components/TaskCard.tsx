@@ -1369,7 +1369,10 @@ function ChapaRowView({
     : "";
 
   return (
-    <div className={`px-4 py-3 flex items-center gap-3 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}>
+    <div
+      data-chapa-name={chapa.nome_chapa ? chapa.nome_chapa.toLowerCase().trim().replace(/\s+/g, " ") : undefined}
+      className={`px-4 py-3 flex items-center gap-3 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}
+    >
       {/* Zone 1 — identity */}
       <div className="flex-1 min-w-0">
         {chapa.nome_chapa ? (
