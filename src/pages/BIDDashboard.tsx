@@ -11,6 +11,8 @@ import { normalize } from "@/lib/normalize";
 import { companyMatches } from "@/lib/company";
 import { cepGeocoder } from "@/lib/geocode";
 import { toast } from "sonner";
+import { getLeoCache, parseRespostasBidCsv, getLeoConfig, syncLeo, normalizePhone } from "@/pages/AnaliseBase/modules/M_leo";
+import type { LeoMetrics } from "@/pages/AnaliseBase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -202,7 +204,7 @@ function parseLatLngFromUrl(url: string): { lat: number; lng: number } | null {
   return null;
 }
 
-function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null, maxDist?: number): number {
+function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null, maxDist?: number, leoCache?: Map<string, LeoMetrics>): number {
   let score = 0;
   score += Math.min(c.tarefas, 100) * 1.0;
   const scale = maxDist ?? 30;
@@ -216,6 +218,14 @@ function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | n
   else if (sit.includes("ainda") || sit.includes("não ativo") || sit.includes("nao ativo")) score += 5;
   if (c.aso) score += 10;
   if (cepPrefix && distKm === null && c.cep && c.cep.replace(/\D/g, "").startsWith(cepPrefix)) score += 20;
+  if (leoCache && c.telefone) {
+    const leo = leoCache.get(normalizePhone(c.telefone));
+    if (leo) {
+      if (leo.passa_75pct) score += 50;
+      if (leo.repete) score += 20;
+      if (leo.pct_sim < 0.2 && leo.total_ofertas >= 3) score -= 40;
+    }
+  }
   return score;
 }
 
@@ -280,11 +290,13 @@ function BidTaskCard({
   disparos,
   onDisparoStatusUpdate,
   initialExpanded,
+  leoCache,
 }: {
   task: OpenTask;
   disparos: BidDisparo[];
   onDisparoStatusUpdate: (id: string, status: string, step: 1 | 2) => Promise<void>;
   initialExpanded: boolean;
+  leoCache?: Map<string, LeoMetrics>;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [dispatchParams, setDispatchParams] = useState<DispatchParams>(() => {
@@ -316,6 +328,7 @@ function BidTaskCard({
   const [occupiedNameSet, setOccupiedNameSet] = useState<Set<string>>(new Set());
   const [blockedTipoFilter, setBlockedTipoFilter] = useState("__all__");
   const [blockedTipos, setBlockedTipos] = useState<string[]>([]);
+  const [filterPositiveOnly, setFilterPositiveOnly] = useState(false);
 
   const taskDisparos = useMemo(
     () => disparos.filter((d) => d.id_tarefa === task.id_tarefa),
@@ -502,12 +515,12 @@ function BidTaskCard({
       return {
         ...c,
         distance_km: distKm,
-        score: isOccupied ? -9999 : computeScore(c, distKm, cepPrefix, maxDistKm),
+        score: isOccupied ? -9999 : computeScore(c, distKm, cepPrefix, maxDistKm, leoCache),
         is_occupied: isOccupied,
         disparo,
       };
     }).sort((a, b) => b.score - a.score);
-  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm]);
+  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache]);
 
   const blockedCandidates = useMemo<RankedCandidate[]>(() => {
     const cepPrefix = dispatchParams.localCep
@@ -522,12 +535,12 @@ function BidTaskCard({
       return {
         ...c,
         distance_km: distKm,
-        score: computeScore(c, distKm, cepPrefix, maxDistKm),
+        score: computeScore(c, distKm, cepPrefix, maxDistKm, leoCache),
         is_occupied: false,
         disparo,
       };
     }).sort((a, b) => b.score - a.score);
-  }, [rawBlocked, blockedTipoFilter, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm]);
+  }, [rawBlocked, blockedTipoFilter, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache]);
 
   function handleAddressSelect(val: string) {
     setAddrPickerOpen(false);
@@ -670,7 +683,14 @@ function BidTaskCard({
     ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
     : null;
   const hasCepFilter = !!cepPrefixFilter && cepPrefixFilter.length >= 5;
-  const available = candidates.filter((c) => !c.is_occupied);
+  const available = candidates.filter((c) => {
+    if (c.is_occupied) return false;
+    if (filterPositiveOnly && leoCache && leoCache.size > 0 && c.telefone) {
+      const leo = leoCache.get(normalizePhone(c.telefone));
+      if (leo && leo.pct_sim < 0.3 && leo.total_ofertas >= 3) return false;
+    }
+    return true;
+  });
   const withinDist = hasCoords
     ? available.filter((c) => c.distance_km === null || c.distance_km <= maxDistKm)
     : hasCepFilter
@@ -990,6 +1010,45 @@ function BidTaskCard({
             </div>
           </div>
 
+          {/* ── Análise BID ── */}
+          {leoCache && leoCache.size > 0 && (() => {
+            const avail = candidates.filter((c) => !c.is_occupied);
+            let alta = 0, media = 0, baixa = 0, semDados = 0;
+            for (const c of avail) {
+              const leo = c.telefone ? leoCache.get(normalizePhone(c.telefone)) : undefined;
+              if (!leo) { semDados++; continue; }
+              if (leo.passa_75pct) alta++;
+              else if (leo.pct_sim >= 0.4) media++;
+              else if (leo.pct_sim < 0.3 && leo.total_ofertas >= 3) baixa++;
+              else semDados++;
+            }
+            const comHistorico = avail.filter((c) => {
+              const leo = c.telefone ? leoCache.get(normalizePhone(c.telefone)) : undefined;
+              return leo && leo.total_ofertas > 0;
+            });
+            const avgPct = comHistorico.length > 0
+              ? comHistorico.reduce((s, c) => s + (leoCache.get(normalizePhone(c.telefone!))?.pct_sim ?? 0), 0) / comHistorico.length
+              : null;
+            const disparosEst = avgPct && avgPct > 0 && vagas > 0 ? Math.ceil(vagas / avgPct) : null;
+            if (alta + media + baixa === 0) return null;
+            return (
+              <div className="px-4 py-2.5 border-b border-border bg-muted/20 space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Análise BID</p>
+                <div className="flex items-center gap-3 flex-wrap text-xs">
+                  {alta > 0 && <span className="flex items-center gap-1"><span className="font-bold text-success">{alta}</span><span className="text-muted-foreground">aprovados (&gt;75%)</span></span>}
+                  {media > 0 && <span className="flex items-center gap-1"><span className="font-bold text-warning">{media}</span><span className="text-muted-foreground">médios (40–75%)</span></span>}
+                  {baixa > 0 && <span className="flex items-center gap-1"><span className="font-bold text-destructive">{baixa}</span><span className="text-muted-foreground">baixo (&lt;30%)</span></span>}
+                  {semDados > 0 && <span className="flex items-center gap-1"><span className="font-bold text-muted-foreground/60">{semDados}</span><span className="text-muted-foreground/50">sem dados</span></span>}
+                  {disparosEst && vagas > 0 && (
+                    <span className="ml-auto text-[10px] text-muted-foreground/60 italic">
+                      Para {vagas} vaga{vagas !== 1 ? "s" : ""}: ~{disparosEst} disparos estimados
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* ── Candidatos ── */}
           <div>
             <div className="px-4 py-2.5 border-b border-border flex items-center gap-2.5 flex-wrap">
@@ -1080,6 +1139,19 @@ function BidTaskCard({
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {showOccupied ? "Ocultar" : "Ver"} ocupados ({candidates.filter((c) => c.is_occupied).length})
+                </button>
+              )}
+              {candidateView === "disponiveis" && leoCache && leoCache.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setFilterPositiveOnly((v) => !v)}
+                  className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                    filterPositiveOnly
+                      ? "bg-success/10 border-success/30 text-success font-semibold"
+                      : "border-border text-muted-foreground hover:border-success/20"
+                  }`}
+                >
+                  Apenas BID positivo
                 </button>
               )}
               {selectedIds.size > 0 && !isBatchDispatching && (
@@ -1210,6 +1282,26 @@ function BidTaskCard({
                               <TooltipContent>ASO válido: {c.aso}</TooltipContent>
                             </Tooltip>
                           )}
+                          {leoCache && leoCache.size > 0 && c.telefone && (() => {
+                            const leo = leoCache.get(normalizePhone(c.telefone));
+                            if (!leo) return null;
+                            const cls = leo.passa_75pct
+                              ? "text-success border-success/30 bg-success/10"
+                              : leo.pct_sim >= 0.4
+                                ? "text-warning border-warning/30 bg-warning/10"
+                                : (leo.pct_sim < 0.3 && leo.total_ofertas >= 3)
+                                  ? "text-destructive border-destructive/30 bg-destructive/10"
+                                  : "text-muted-foreground border-border bg-muted/30";
+                            const label = leo.passa_75pct ? "✓ Apr." : leo.pct_sim >= 0.4 ? "~ Med." : (leo.pct_sim < 0.3 && leo.total_ofertas >= 3) ? "✗ Baixo" : `${Math.round(leo.pct_sim * 100)}%`;
+                            return (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className={`text-[9px] font-bold px-1 py-0.5 rounded border cursor-help shrink-0 ${cls}`}>{label}</span>
+                                </TooltipTrigger>
+                                <TooltipContent>{Math.round(leo.pct_sim * 100)}% · {leo.total_sim}/{leo.total_ofertas} ofertas</TooltipContent>
+                              </Tooltip>
+                            );
+                          })()}
                         </div>
                         {c.telefone && (
                           <button type="button" onClick={() => clipCopy(c.telefone!.replace(/\D/g, ""), "Telefone copiado")}
@@ -1410,11 +1502,25 @@ export default function BIDDashboard() {
   const [searchParams] = useSearchParams();
   const autoExpandId = searchParams.get("taskId") ? parseInt(searchParams.get("taskId")!) : null;
   const registryImportedAt = localStorage.getItem("chapa_registry_imported_at");
+  const [leoCache, setLeoCache] = useState<Map<string, LeoMetrics>>(new Map());
+  const [leoLastSync, setLeoLastSync] = useState<string | null>(null);
+  const [leoSyncing, setLeoSyncing] = useState(false);
+  const bidCsvRef = useRef<HTMLInputElement>(null);
 
   const [activeBatches, setActiveBatches] = useState<Map<number, NonNullable<BidBatchState>>>(() => bidDispatchQueue.getActiveBatches());
   useEffect(() => bidDispatchQueue.subscribeAnyBatch(() => setActiveBatches(bidDispatchQueue.getActiveBatches())), []);
 
+  const refreshLeoCache = useCallback(async () => {
+    try {
+      const cache = await getLeoCache();
+      setLeoCache(cache);
+      const cfg = await getLeoConfig();
+      setLeoLastSync(cfg.lastSync);
+    } catch { /* silencioso */ }
+  }, []);
+
   const loadAll = useCallback(async () => {
+    refreshLeoCache();
     try {
       const db = await getDb();
       await db.execute(`CREATE TABLE IF NOT EXISTS bid_disparos (
@@ -1486,12 +1592,55 @@ export default function BIDDashboard() {
     });
   }, []);
 
+  async function handleBidCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const count = await parseRespostasBidCsv(String(ev.target?.result ?? ""));
+        await refreshLeoCache();
+        toast.success(`${count.toLocaleString("pt-BR")} números BID importados`);
+      } catch (err) {
+        toast.error(`Erro ao importar CSV: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+    reader.readAsText(f, "utf-8");
+  }
+
+  async function handleSyncPlanilha() {
+    try {
+      const cfg = await getLeoConfig();
+      if (!cfg.spreadsheetId || !cfg.serviceAccountJson) {
+        toast.warning("Configure a planilha Leo em Configurações antes de sincronizar.");
+        return;
+      }
+      setLeoSyncing(true);
+      const count = await syncLeo(cfg.spreadsheetId, cfg.serviceAccountJson);
+      await refreshLeoCache();
+      toast.success(`${count.toLocaleString("pt-BR")} registros sincronizados da planilha`);
+    } catch (err) {
+      toast.error(`Erro ao sincronizar: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLeoSyncing(false);
+    }
+  }
+
   async function updateDisparoStatus(id: string, status: string, step: 1 | 2) {
     try {
       const db = await getDb();
       const now = new Date().toISOString();
       if (step === 1) await db.execute("UPDATE bid_disparos SET status=?, data_resposta1=? WHERE id=?", [status, now, id]);
       else await db.execute("UPDATE bid_disparos SET status=?, data_resposta2=? WHERE id=?", [status, now, id]);
+      const d = disparos.find((x) => x.id === id);
+      if (d) {
+        await db.execute(
+          `INSERT INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,data_tarefa,disparo_id,fonte,received_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [uuid(), "bid", d.chapa_nome, d.chapa_telefone, status, d.id_tarefa, d.empresa, d.data_tarefa, d.id, "manual", now],
+        );
+      }
       setDisparos((prev) => prev.map((d) =>
         d.id === id ? { ...d, status, [step === 1 ? "data_resposta1" : "data_resposta2"]: now } : d,
       ));
@@ -1533,6 +1682,7 @@ export default function BIDDashboard() {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4 pb-16">
+      <input ref={bidCsvRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleBidCsvImport} />
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
@@ -1542,10 +1692,23 @@ export default function BIDDashboard() {
               ? `${registryCount.toLocaleString("pt-BR")} chapas no cadastro${registryImportedAt ? ` · atualizado ${fmtDateTime(registryImportedAt)}` : ""}`
               : "Importe o cadastro geral de chapas para começar"}
           </p>
+          {leoCache.size > 0 && (
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+              BID: {leoCache.size.toLocaleString("pt-BR")} números
+              {leoLastSync ? ` · atualizado ${fmtDateTime(leoLastSync)}` : ""}
+            </p>
+          )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={loadAll} className="gap-1.5 h-8">
             <RefreshCw className="h-3.5 w-3.5" /> Atualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => bidCsvRef.current?.click()} className="gap-1.5 h-8">
+            <Upload className="h-3.5 w-3.5" /> Importar CSV BID
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleSyncPlanilha} disabled={leoSyncing} className="gap-1.5 h-8">
+            {leoSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Planilha BID
           </Button>
           <Button size="sm" variant="outline" onClick={() => setExtrasOpen(true)} className="gap-1.5 h-8">
             <UserPlus className="h-3.5 w-3.5" /> Extras{extrasCount > 0 ? ` (${extrasCount.toLocaleString("pt-BR")})` : ""}
@@ -1737,6 +1900,7 @@ export default function BIDDashboard() {
                       disparos={disparos}
                       onDisparoStatusUpdate={updateDisparoStatus}
                       initialExpanded={t.id_tarefa === autoExpandId}
+                      leoCache={leoCache.size > 0 ? leoCache : undefined}
                     />
                   ))}
                 </div>

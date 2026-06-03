@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { getDb } from "./db";
 import { todayDateISO_SP } from "./datetime";
 import { useNotificationWatcher, type WatcherActivity } from "./useNotificationWatcher";
+import { useWebhookListener, type WebhookResponseEvent } from "./useWebhookListener";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /* ─── context ── */
@@ -121,6 +122,30 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useNotificationWatcher(tasks, handleRefresh, handleFlashTask, handleActivity, handleRemoveRequest);
+
+  const handleWebhookEvent = useCallback((ev: WebhookResponseEvent) => {
+    const actionMap: Record<string, WatcherActivity["action"]> = {
+      confirmado: "confirmado",
+      interesse_sim: "confirmado",
+      aceita_app: "confirmado",
+      cancelado: "recusou",
+      interesse_nao: "recusou",
+      nao_aceita_app: "recusou",
+    };
+    const entry: WatcherActivity = {
+      id: `wh-${Date.now()}`,
+      chapa_nome: ev.chapa_nome,
+      action: actionMap[ev.resposta] ?? "confirmado",
+      task_id: ev.id_tarefa ?? null,
+      empresa: ev.empresa ?? null,
+      data_tarefa: null,
+      timestamp: Date.now(),
+    };
+    setNotifLog((prev) => [entry, ...prev].slice(0, 50));
+    window.dispatchEvent(new CustomEvent("fup:refresh"));
+  }, []);
+
+  useWebhookListener(handleWebhookEvent);
 
   const clearLog = useCallback(() => setNotifLog([]), []);
 

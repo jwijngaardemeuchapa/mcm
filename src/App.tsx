@@ -16,7 +16,7 @@ import ContadorTarefas from "./pages/ContadorTarefas";
 import Configuracoes from "./pages/Configuracoes";
 import Integracoes from "./pages/Integracoes";
 import Ajuda from "./pages/Ajuda";
-import AnaliseFillrate from "./pages/AnaliseFillrate";
+import AnaliseBase from "./pages/AnaliseBase";
 import FillrateDetalhe from "./pages/FillrateDetalhe";
 import Tendencias from "./pages/Tendencias";
 import ChapaBook from "./pages/ChapaBook";
@@ -24,6 +24,7 @@ import ClienteBook from "./pages/ClienteBook";
 import Agenda from "./pages/Agenda";
 import Lembretes from "./pages/Lembretes";
 import DisparosUmbler from "./pages/DisparosUmbler";
+import RespostaLog from "./pages/RespostaLog";
 import NotFound from "./pages/NotFound";
 import { UndoProvider } from "./lib/undo";
 import { WatcherProvider } from "./lib/WatcherContext";
@@ -75,7 +76,7 @@ const App = () => {
               <Route path="/configuracoes" element={<Configuracoes />} />
               <Route path="/integracoes" element={<Integracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
-              <Route path="/analise" element={<AnaliseFillrate />} />
+              <Route path="/analise" element={<AnaliseBase />} />
               <Route path="/fillrate" element={<FillrateDetalhe />} />
               <Route path="/tendencias" element={<Tendencias />} />
               <Route path="/chapas" element={<ChapaBook />} />
@@ -83,6 +84,7 @@ const App = () => {
               <Route path="/agenda" element={<Agenda />} />
               <Route path="/lembretes" element={<Lembretes />} />
               <Route path="/disparos" element={<DisparosUmbler />} />
+              <Route path="/respostas" element={<RespostaLog />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

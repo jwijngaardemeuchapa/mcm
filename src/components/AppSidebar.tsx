@@ -23,6 +23,7 @@ import {
   ArrowLeftRight,
   Send,
   Bell,
+  MessagesSquare,
 } from "lucide-react";
 import { TrocaDeTurno } from "@/components/TrocaDeTurno";
 import logo from "@/assets/logo-meuchapa.png";
@@ -52,6 +53,7 @@ import { readQuickLinks, writeQuickLinks, type QuickLink } from "@/lib/quickLink
 const navOperacional = [
   { title: "BID Dashboard", url: "/bid", icon: Target, shortcut: "b" },
   { title: "FUP Dashboard", url: "/dashboard", icon: LayoutDashboard, shortcut: "f" },
+  { title: "Respostas", url: "/respostas", icon: MessagesSquare, shortcut: "e" },
   { title: "Carteira", url: "/carteira", icon: Users, shortcut: "c" },
   { title: "Importar", url: "/importar", icon: Upload, shortcut: "i" },
   { title: "Histórico", url: "/historico", icon: History, shortcut: "h" },
@@ -61,7 +63,7 @@ const navOperacional = [
 
 const navAnalise = [
   { title: "Contador", url: "/contador", icon: BarChart3, shortcut: "n" },
-  { title: "Clientes", url: "/analise", icon: LineChart, shortcut: "a" },
+  { title: "Análise de Base", url: "/analise", icon: Users, shortcut: "a" },
   { title: "Fill Rate 2.0", url: "/fillrate", icon: Activity, shortcut: "r" },
   { title: "Tendências", url: "/tendencias", icon: TrendingUp, shortcut: "t" },
 ];

@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  Webhook,
+  Copy,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +49,8 @@ interface NotificationMatch {
 export default function Integracoes() {
   const [unlocked, setUnlocked] = useState(false);
   const [umblerSettings, setUmblerSettings] = useState(() => readSettings().umblerSettings);
+  const [webhookHost, setWebhookHost] = useState("127.0.0.1");
+  const [webhookPort, setWebhookPort] = useState(() => readSettings().umblerSettings.webhookPort ?? 9988);
   const [showToken, setShowToken] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testMode, setTestMode] = useState<"fup" | "cancel" | "taskCancel">("fup");
@@ -87,6 +91,13 @@ export default function Integracoes() {
     setUmblerSettings(next);
     writeSettings({ umblerSettings: next });
   }
+
+  function saveWebhookPort(port: number) {
+    setWebhookPort(port);
+    updateUmblerSetting({ webhookPort: port });
+  }
+
+  const webhookUrl = `http://${webhookHost}:${webhookPort}/webhook/umbler`;
 
   async function sendTest() {
     setTestSending(true);
@@ -447,6 +458,74 @@ export default function Integracoes() {
               <p><strong className="text-foreground">Confirmação:</strong> parâm. 1 = data/hora da tarefa (ex.: "Hoje às 08:00"); parâm. 2 = razão social da empresa.</p>
               <p><strong className="text-foreground">Ausência de resposta:</strong> sem parâmetros — template deve ser configurado sem variáveis na plataforma.</p>
               <p><strong className="text-foreground">Cancelamento geral:</strong> parâm. 1 = código da tarefa; parâm. 2 = data/hora. Disparado para todos os chapas com telefone cadastrado.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Webhook de Respostas ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Webhook className="h-5 w-5 text-muted-foreground" />
+            Captura de Respostas via Webhook
+          </CardTitle>
+          <CardDescription>
+            Configure o Umbler Talk para enviar as respostas dos chapas em tempo real para o MCM — sem depender do WhatsApp Desktop.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              URL do Webhook (para configurar no Umbler Talk)
+            </label>
+            <div className="flex gap-2">
+              <Input
+                value={webhookHost}
+                onChange={(e) => setWebhookHost(e.target.value)}
+                placeholder="127.0.0.1 ou seu IP local"
+                className="font-mono text-xs flex-1"
+              />
+              <Input
+                type="number"
+                value={webhookPort}
+                onChange={(e) => saveWebhookPort(Number(e.target.value))}
+                className="font-mono text-xs w-28"
+                min={1024}
+                max={65535}
+              />
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <code className="flex-1 text-xs font-mono bg-muted/50 border border-border rounded px-3 py-2 text-foreground truncate">
+                {webhookUrl}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0 gap-1.5"
+                onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("URL copiada!"); }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Copiar
+              </Button>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
+            <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+            <div className="text-xs text-muted-foreground space-y-1.5">
+              <p>
+                <strong className="text-foreground">Como configurar:</strong> No painel do Umbler Talk, acesse <strong className="text-foreground">Configurações → Integrações → Webhook</strong> e cole a URL acima.
+              </p>
+              <p>
+                <strong className="text-foreground">IP:</strong> Use o IP local desta máquina (ex.: <code className="font-mono">192.168.1.x</code>) para que o Umbler Talk (nuvem) alcance o MCM. Se estiver usando ngrok ou similar, use o domínio público.
+              </p>
+              <p>
+                <strong className="text-foreground">Porta padrão:</strong> 9988. O servidor webhook inicia automaticamente com o MCM — não requer configuração adicional.
+              </p>
+              <p>
+                <strong className="text-foreground">Respostas detectadas:</strong> SIM / NÃO / 1 / 2 / 3 / Preciso de ajuda / Aceito app. Histórico completo em <strong className="text-foreground">Operacional → Respostas</strong>.
+              </p>
             </div>
           </div>
         </CardContent>

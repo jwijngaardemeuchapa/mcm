@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "MCM",
-  "version": "0.9.60",
+  "version": "0.9.67",
   "identifier": "com.fupmanager.app",
   "build": {
     "frontendDist": "../dist",
@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https:; img-src 'self' data: blob:"
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' http://127.0.0.1:11434 https://*.supabase.co wss://*.supabase.co https:; img-src 'self' data: blob:"
     }
   },
   "bundle": {
