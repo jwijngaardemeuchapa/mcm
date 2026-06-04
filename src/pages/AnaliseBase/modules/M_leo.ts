@@ -116,10 +116,9 @@ export async function syncLeo(spreadsheetId: string, serviceAccountJson: string)
 
   if (iNumero === -1) throw new Error("Coluna de número/telefone não encontrada. Verifique os cabeçalhos da planilha.")
 
-  const db = await getDb()
-  await db.execute("DELETE FROM leo_cache")
-
-  let count = 0
+  // Collect all rows in memory before writing to DB
+  type Entry = [string, number, number, number, number, number]
+  const entries: Entry[] = []
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i]
     const numero = normalizePhone(row[iNumero] ?? "")
@@ -133,16 +132,26 @@ export async function syncLeo(spreadsheetId: string, serviceAccountJson: string)
       : totalOfertas > 0 ? totalSim / totalOfertas : 0
     const passa = pctSim >= 0.75 ? 1 : 0
     const repete = iRepete !== -1 && (row[iRepete] ?? "").toLowerCase().startsWith("s") ? 1 : 0
-
-    await db.execute(
-      `INSERT OR REPLACE INTO leo_cache (numero, total_ofertas, total_sim, pct_sim, passa_75pct, repete, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [numero, totalOfertas, totalSim, pctSim, passa, repete, new Date().toISOString()],
-    )
-    count++
+    entries.push([numero, totalOfertas, totalSim, pctSim, passa, repete])
   }
 
-  return count
+  const db = await getDb()
+  await db.execute("DELETE FROM leo_cache")
+
+  const now = new Date().toISOString()
+  const COLS = "(numero, total_ofertas, total_sim, pct_sim, passa_75pct, repete, atualizado_em)"
+  const BATCH = 100
+  for (let i = 0; i < entries.length; i += BATCH) {
+    const chunk = entries.slice(i, i + BATCH)
+    const rowPlaceholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ")
+    const values = chunk.flatMap((e) => [...e, now])
+    await db.execute(
+      `INSERT OR REPLACE INTO leo_cache ${COLS} VALUES ${rowPlaceholders}`,
+      values,
+    )
+  }
+
+  return entries.length
 }
 
 // ── Direct CSV import ("Respostas BID.csv" format) ───────────────────────
@@ -225,6 +234,8 @@ export function parseRespostasBidCsvToMap(csv: string): Map<string, LeoMetrics> 
 }
 
 // parseRespostasBidCsv — persists to leo_cache SQLite, returns count
+// Uses batch multi-row INSERT (chunks of 100) to avoid N IPC roundtrips
+// without manual BEGIN/COMMIT (tauri-plugin-sql wraps each execute implicitly)
 export async function parseRespostasBidCsv(csv: string): Promise<number> {
   const result = Papa.parse<Record<string, string>>(csv, {
     header: true,
@@ -235,28 +246,34 @@ export async function parseRespostasBidCsv(csv: string): Promise<number> {
   const cols = detectBidCols(headers)
   if (cols.iNumero === -1) throw new Error("Coluna de número/telefone não encontrada no CSV de Respostas BID")
 
-  const db = await getDb()
-  await db.execute("BEGIN")
-  try {
-    await db.execute("DELETE FROM leo_cache")
-    let count = 0
-    const now = new Date().toISOString()
-    for (const row of result.data) {
-      const m = parseBidRow(row, cols, headers)
-      if (!m) continue
-      await db.execute(
-        `INSERT OR REPLACE INTO leo_cache (numero, total_ofertas, total_sim, pct_sim, passa_75pct, repete, atualizado_em)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [m.numero, m.total_ofertas, m.total_sim, m.pct_sim, m.passa_75pct ? 1 : 0, m.repete ? 1 : 0, now],
-      )
-      count++
-    }
-    await db.execute("COMMIT")
-    return count
-  } catch (e) {
-    await db.execute("ROLLBACK")
-    throw e
+  // Parse all rows in memory first — no DB access during parsing
+  const metrics: LeoMetrics[] = []
+  for (const row of result.data) {
+    const m = parseBidRow(row, cols, headers)
+    if (m) metrics.push(m)
   }
+
+  const db = await getDb()
+  await db.execute("DELETE FROM leo_cache")
+
+  const now = new Date().toISOString()
+  const COLS = "(numero, total_ofertas, total_sim, pct_sim, passa_75pct, repete, atualizado_em)"
+  const BATCH = 100 // 100 rows × 7 cols = 700 params, well under SQLite's 999 limit
+
+  for (let i = 0; i < metrics.length; i += BATCH) {
+    const chunk = metrics.slice(i, i + BATCH)
+    const rowPlaceholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ")
+    const values = chunk.flatMap((m) => [
+      m.numero, m.total_ofertas, m.total_sim, m.pct_sim,
+      m.passa_75pct ? 1 : 0, m.repete ? 1 : 0, now,
+    ])
+    await db.execute(
+      `INSERT OR REPLACE INTO leo_cache ${COLS} VALUES ${rowPlaceholders}`,
+      values,
+    )
+  }
+
+  return metrics.length
 }
 
 // ── Cache read ────────────────────────────────────────────────────────────
