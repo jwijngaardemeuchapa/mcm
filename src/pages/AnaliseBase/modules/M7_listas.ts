@@ -102,6 +102,28 @@ export function gerarListas(
       ),
     )
 
+  // 8. BID com alta taxa de aceite (≥75%) — confirmar e priorizar
+  const bidAltoAceite = chapas
+    .filter((c) => c.leo && c.leo.total_ofertas >= 2 && c.leo.passa_75pct)
+    .sort((a, b) => (b.leo!.pct_sim - a.leo!.pct_sim) || b.score - a.score)
+    .map((c) =>
+      toItem(
+        c,
+        `${Math.round(c.leo!.pct_sim * 100)}% de aceite · ${c.leo!.total_sim}/${c.leo!.total_ofertas} SIM · score ${c.score}`,
+      ),
+    )
+
+  // 9. BID sem resposta — recebem convite mas não respondem (pct_sim < 25% com 3+ ofertas)
+  const bidSemResposta = chapas
+    .filter((c) => c.leo && c.leo.total_ofertas >= 3 && c.leo.pct_sim < 0.25)
+    .sort((a, b) => b.leo!.total_ofertas - a.leo!.total_ofertas)
+    .map((c) =>
+      toItem(
+        c,
+        `${Math.round(c.leo!.pct_sim * 100)}% de aceite · ${c.leo!.total_sim}/${c.leo!.total_ofertas} SIM · inativo há ${c.recencia_dias}d`,
+      ),
+    )
+
   return [
     {
       tipo: "pilares_conversa",
@@ -144,6 +166,18 @@ export function gerarListas(
       titulo: "Candidatos à Bonificação",
       descricao: "Perto da meta semanal — um incentivo pode fazer a diferença.",
       chapas: bonificacao,
+    },
+    {
+      tipo: "bid_alto_aceite",
+      titulo: "BID — Alta Aceitação",
+      descricao: "Respondem SIM em ≥75% dos convites — máxima probabilidade de aceite.",
+      chapas: bidAltoAceite,
+    },
+    {
+      tipo: "bid_sem_resposta",
+      titulo: "BID — Sem Resposta",
+      descricao: "Recebem convites via BID mas raramente respondem — revisar ou remover da lista.",
+      chapas: bidSemResposta,
     },
   ]
 }

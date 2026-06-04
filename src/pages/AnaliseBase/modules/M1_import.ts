@@ -137,6 +137,24 @@ export function parseFupCsv(csv: string): {
   return { tarefas, erros, colunas }
 }
 
+// Parses chapasDisponiveis.xlsx row format (already sheet_to_json'd)
+// Columns: Latitude, Longitude, Cidade, Estado, ID do Usuário, Telefone, Milhas,
+//          Código do Usuário, CEP, Distância, Último Nome, Apelido, Primeiro Nome,
+//          Referência, Complemento, Endereço Completo, Usuário do App Móvel,
+//          Tarefas Finalizadas, Verificação Antecedentes 1, Verificação Antecedentes 2,
+//          Status de Contato
+export function parsePoolXlsx(rows: Record<string, unknown>[]): PoolChapa[] {
+  return rows.map((row) => {
+    const primeiroNome = String(row["Primeiro Nome"] ?? row["primeiro nome"] ?? "").trim()
+    const ultimoNome = String(row["Último Nome"] ?? row["Ultimo Nome"] ?? row["último nome"] ?? "").trim()
+    const apelido = String(row["Apelido"] ?? "").trim()
+    const nome_completo = [primeiroNome, ultimoNome].filter(Boolean).join(" ") || apelido
+    const telefone = String(row["Telefone"] ?? row["telefone"] ?? "").replace(/\D/g, "")
+    const cpf = String(row["CPF"] ?? row["cpf"] ?? "").replace(/\D/g, "")
+    return { nome_completo, cpf, telefone } as PoolChapa
+  }).filter((p) => p.nome_completo.length > 1 && p.telefone.length >= 8)
+}
+
 export function parsePoolCsv(csv: string): PoolChapa[] {
   const result = Papa.parse<Record<string, string>>(csv, {
     header: true,

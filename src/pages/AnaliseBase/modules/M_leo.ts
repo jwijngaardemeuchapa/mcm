@@ -236,21 +236,27 @@ export async function parseRespostasBidCsv(csv: string): Promise<number> {
   if (cols.iNumero === -1) throw new Error("Coluna de número/telefone não encontrada no CSV de Respostas BID")
 
   const db = await getDb()
-  await db.execute("DELETE FROM leo_cache")
-
-  let count = 0
-  const now = new Date().toISOString()
-  for (const row of result.data) {
-    const m = parseBidRow(row, cols, headers)
-    if (!m) continue
-    await db.execute(
-      `INSERT OR REPLACE INTO leo_cache (numero, total_ofertas, total_sim, pct_sim, passa_75pct, repete, atualizado_em)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [m.numero, m.total_ofertas, m.total_sim, m.pct_sim, m.passa_75pct ? 1 : 0, m.repete ? 1 : 0, now],
-    )
-    count++
+  await db.execute("BEGIN")
+  try {
+    await db.execute("DELETE FROM leo_cache")
+    let count = 0
+    const now = new Date().toISOString()
+    for (const row of result.data) {
+      const m = parseBidRow(row, cols, headers)
+      if (!m) continue
+      await db.execute(
+        `INSERT OR REPLACE INTO leo_cache (numero, total_ofertas, total_sim, pct_sim, passa_75pct, repete, atualizado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [m.numero, m.total_ofertas, m.total_sim, m.pct_sim, m.passa_75pct ? 1 : 0, m.repete ? 1 : 0, now],
+      )
+      count++
+    }
+    await db.execute("COMMIT")
+    return count
+  } catch (e) {
+    await db.execute("ROLLBACK")
+    throw e
   }
-  return count
 }
 
 // ── Cache read ────────────────────────────────────────────────────────────

@@ -206,7 +206,8 @@ function parseLatLngFromUrl(url: string): { lat: number; lng: number } | null {
 
 function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null, maxDist?: number, leoCache?: Map<string, LeoMetrics>): number {
   let score = 0;
-  score += Math.min(c.tarefas, 100) * 1.0;
+  // New chapas (0 tasks) get a base score so proximity + BID rate can still rank them competitively
+  score += c.tarefas === 0 ? 10 : Math.min(c.tarefas, 100) * 1.0;
   const scale = maxDist ?? 30;
   if (distKm !== null) score += Math.max(0, scale - distKm) * (60 / scale);
   if (c.data_ultima_tarefa) {

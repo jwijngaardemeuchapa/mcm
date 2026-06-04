@@ -3,7 +3,9 @@ import { Upload, CheckCircle, AlertTriangle, X, FileText, ChevronRight } from "l
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { uuid } from "@/lib/db"
-import { parseFupCsv, parsePoolCsv, parseFillRateCsv, enrichWithFillRate, calcularFillRateOperacional, buildPreview, enrichWithPool } from "../modules/M1_import"
+import * as XLSX from "xlsx"
+import { parseFupCsv, parsePoolCsv, parsePoolXlsx, parseFillRateCsv, enrichWithFillRate, calcularFillRateOperacional, buildPreview, enrichWithPool } from "../modules/M1_import"
+import type { PoolChapa } from "../types"
 import { detectarTurnos } from "../modules/M2_turnos"
 import { calcularMetricas } from "../modules/M3_metricas"
 import { classificar } from "../modules/M4_classificacao"
@@ -11,7 +13,7 @@ import { calcularConcentracao } from "../modules/M5_concentracao"
 import { calcularCohort } from "../modules/M6_cohort"
 import { gerarListas } from "../modules/M7_listas"
 import { saveResultado, listSnapshots } from "../db/queries"
-import type { ImportPreview, Snapshot, ConfigAnalise, AnaliseResultado } from "../types"
+import type { ImportPreview, Snapshot, ConfigAnalise, AnaliseResultado, BidExterno } from "../types"
 import { DEFAULT_CONFIG } from "../types"
 import { parseRespostasBidCsv, parseRespostasBidCsvToMap, normalizePhone } from "../modules/M_leo"
 
@@ -138,6 +140,7 @@ function DropZone({
 export function Importacao({ config, snapshots, onAnaliseCompleta, onLoadSnapshot, onSnapshotsChange }: Props) {
   const [fupFile, setFupFile] = useState<FileState | null>(null)
   const [poolFile, setPoolFile] = useState<FileState | null>(null)
+  const [poolParsed, setPoolParsed] = useState<PoolChapa[] | null>(null) // set when xlsx is uploaded
   const [fillRateFile, setFillRateFile] = useState<FileState | null>(null)
   const [respostasBidFile, setRespostasBidFile] = useState<FileState | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
@@ -151,15 +154,46 @@ export function Importacao({ config, snapshots, onAnaliseCompleta, onLoadSnapsho
     setPreview(prev)
   }, [])
 
+  // Custom handler for Pool that supports both CSV text and XLSX binary
+  const poolInputRef = useRef<HTMLInputElement>(null)
+  const handlePoolFileRaw = useCallback((f: File) => {
+    const isXlsx = /\.(xlsx|xls)$/i.test(f.name)
+    if (isXlsx) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer)
+          const wb = XLSX.read(data, { type: "array" })
+          const ws = wb.Sheets[wb.SheetNames[0]]
+          const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws)
+          const parsed = parsePoolXlsx(rows)
+          setPoolFile({ name: f.name, content: "", size: f.size })
+          setPoolParsed(parsed)
+        } catch {
+          toast.error("Erro ao ler arquivo xlsx do Pool.")
+        }
+      }
+      reader.readAsArrayBuffer(f)
+    } else {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setPoolFile({ name: f.name, content: String(e.target?.result ?? ""), size: f.size })
+        setPoolParsed(null)
+      }
+      reader.readAsText(f, "utf-8")
+    }
+  }, [])
+
   const handleAnalisar = useCallback(async () => {
     if (!fupFile) return
     setProcessing(true)
     setStepAtual(0)
+    await new Promise((r) => setTimeout(r, 50))
 
     try {
       // M1
       const { tarefas: tarefasRaw, erros } = parseFupCsv(fupFile.content)
-      const pool = poolFile ? parsePoolCsv(poolFile.content) : []
+      const pool = poolParsed ?? (poolFile ? parsePoolCsv(poolFile.content) : [])
       if (tarefasRaw.length === 0) {
         toast.error("Nenhuma tarefa válida encontrada no CSV.")
         return
@@ -174,19 +208,59 @@ export function Importacao({ config, snapshots, onAnaliseCompleta, onLoadSnapsho
       let bidCount = 0
       let bidMatchCount = 0
       let leoMap: ReturnType<typeof parseRespostasBidCsvToMap> | undefined
+      let bidExternas: BidExterno[] = []
       if (respostasBidFile) {
         try {
           bidCount = await parseRespostasBidCsv(respostasBidFile.content)
           leoMap = parseRespostasBidCsvToMap(respostasBidFile.content)
-          // Count how many imported chapas have a BID match
-          const telefonesNorm = new Set(tarefasRaw.map((t) => normalizePhone(t.telefone_chapa)).filter(Boolean))
-          for (const tel of telefonesNorm) {
-            if (leoMap.has(tel)) bidMatchCount++
+          for (const t of tarefasRaw) {
+            const tel = normalizePhone(t.telefone_chapa)
+            if (tel && leoMap.has(tel)) bidMatchCount++
           }
+
         } catch (e) {
           toast.warning(`Respostas BID: ${e instanceof Error ? e.message : String(e)}`)
         }
       }
+
+      // Pool × BID × FUP — chapas aprovadas que não aparecem no FUP do período
+      if (pool.length > 0) {
+        const telefonesNormFup = new Set(tarefasRaw.map((t) => normalizePhone(t.telefone_chapa)).filter(Boolean))
+        for (const poolChapa of pool) {
+          const telNorm = normalizePhone(poolChapa.telefone)
+          if (!telNorm || telNorm.length < 8) continue
+          if (telefonesNormFup.has(telNorm)) continue // já capturado na análise principal com leo
+
+          const leo = leoMap?.get(telNorm)
+          let grupo: BidExterno["grupo"]
+
+          if (!leo || leo.total_ofertas < 2) {
+            grupo = "nunca_contatado"
+          } else if (leo.pct_sim >= 0.75) {
+            grupo = "alto_aceite"
+          } else if (leo.total_ofertas >= 3 && leo.pct_sim < 0.25) {
+            grupo = "sem_resposta"
+          } else {
+            continue // taxa intermediária — sem ação clara
+          }
+
+          bidExternas.push({
+            nome: poolChapa.nome_completo,
+            cpf: poolChapa.cpf || null,
+            telefone: telNorm,
+            grupo,
+            total_ofertas: leo?.total_ofertas ?? 0,
+            total_sim: leo?.total_sim ?? 0,
+            pct_sim: leo?.pct_sim ?? 0,
+            passa_75pct: leo?.passa_75pct ?? false,
+          })
+        }
+        bidExternas.sort((a, b) => {
+          const order: Record<BidExterno["grupo"], number> = { alto_aceite: 0, sem_resposta: 1, nunca_contatado: 2 }
+          return order[a.grupo] - order[b.grupo] || b.total_ofertas - a.total_ofertas
+        })
+      }
+
       const cpfMap = enrichWithPool(tarefas, pool)
       const cliente = [...new Set(tarefas.map((t) => t.empresa))].join(", ") || "Desconhecido"
 
@@ -199,7 +273,7 @@ export function Importacao({ config, snapshots, onAnaliseCompleta, onLoadSnapsho
       setStepAtual(2)
       await new Promise((r) => setTimeout(r, 50))
       const hoje = new Date()
-      const metricas = calcularMetricas(tarefas, turnos, cpfMap, hoje, config.janela_dias)
+      const metricas = calcularMetricas(tarefas, turnos, cpfMap, hoje, config.janela_dias, leoMap)
 
       // M4
       setStepAtual(3)
@@ -236,6 +310,7 @@ export function Importacao({ config, snapshots, onAnaliseCompleta, onLoadSnapsho
         listas,
         config,
         fill_rate_operacional: fillRateMap ? calcularFillRateOperacional(fillRateMap) : null,
+        bid_externos: bidExternas.length > 0 ? bidExternas : undefined,
       }
 
       await saveResultado(resultado)
@@ -278,15 +353,51 @@ export function Importacao({ config, snapshots, onAnaliseCompleta, onLoadSnapsho
           onFile={handleFupFile}
           onClear={() => { setFupFile(null); setPreview(null) }}
         />
-        <DropZone
-          label="Pool de Aprovados"
-          sublabel="CSV com separador ; — colunas: Nome, Sobrenome, CPF, Telefone"
-          accept=".csv,.txt"
-          file={poolFile}
-          onFile={setPoolFile}
-          onClear={() => setPoolFile(null)}
-          optional
-        />
+        {/* Pool — custom zone supports both CSV and XLSX (chapasDisponiveis.xlsx) */}
+        <div
+          className={`relative rounded-xl border-2 border-dashed transition-colors cursor-pointer ${
+            poolFile ? "border-success bg-success/5" : "border-border hover:border-primary/50"
+          }`}
+          onClick={() => !poolFile && poolInputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handlePoolFileRaw(f) }}
+        >
+          <input
+            ref={poolInputRef}
+            type="file"
+            accept=".csv,.txt,.xlsx,.xls"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePoolFileRaw(f) }}
+          />
+          <div className="p-5 flex items-center gap-4">
+            <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${poolFile ? "bg-success/15" : "bg-muted"}`}>
+              {poolFile ? <CheckCircle className="h-5 w-5 text-success" /> : <Upload className="h-5 w-5 text-muted-foreground" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-sm text-foreground">Pool de Aprovados</p>
+                <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded">opcional</span>
+              </div>
+              {poolFile ? (
+                <p className="text-xs text-success truncate">
+                  {poolFile.name} · {(poolFile.size / 1024).toFixed(0)} KB
+                  {poolParsed && <span className="ml-1 text-success/70">· {poolParsed.length} chapas (xlsx)</span>}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">CSV (sep. ;) com Nome, CPF, Telefone — ou chapasDisponiveis.xlsx</p>
+              )}
+            </div>
+            {poolFile && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setPoolFile(null); setPoolParsed(null) }}
+                className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
         <DropZone
           label="Fill Rate CSV (fonte confiável)"
           sublabel="Mesmo CSV da tela Fill Rate 2.0 — colunas: ID Tarefa, Chapas Solicitados, Chapas Atendidos"

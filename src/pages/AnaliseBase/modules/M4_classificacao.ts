@@ -9,7 +9,16 @@ function score(m: ChapaMetrics, meta_semanal: number): number {
   const fillWeight = m.fill_rate_individual
   const freqWeight = Math.min(1, m.frequencia_semanal / meta_semanal)
   const recWeight = Math.max(0, 1 - m.recencia_dias / 90)
-  return Math.round(fillWeight * freqWeight * recWeight * 100)
+  const base = fillWeight * freqWeight * recWeight * 100
+
+  // BID acceptance bonus: up to +15 for aprovados, -5 for chronic non-responders
+  let leoBonus = 0
+  if (m.leo) {
+    if (m.leo.passa_75pct) leoBonus = Math.round(m.leo.pct_sim * 15)
+    else if (m.leo.total_ofertas >= 3 && m.leo.pct_sim < 0.25) leoBonus = -5
+  }
+
+  return Math.max(0, Math.min(100, Math.round(base + leoBonus)))
 }
 
 function classify(m: ChapaMetrics, l: ConfigLimiares, hoje: Date): Categoria {

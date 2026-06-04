@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlertTriangle, TrendingUp, Users, Activity, ChevronDown, ChevronUp, Calendar, X, Sparkles, Copy, Check } from "lucide-react"
+import { AlertTriangle, TrendingUp, Users, Activity, ChevronDown, ChevronUp, Calendar, X, Sparkles, Copy, Check, Zap } from "lucide-react"
 import { KpiCard } from "../components/KpiCard"
 import { SparklineFillRate } from "../components/SparklineFillRate"
 import { HeatmapTurnos } from "../components/HeatmapTurnos"
@@ -27,6 +27,11 @@ const LISTA_BUTTONS: { tipo: ListaTipo; label: string; emoji: string; hint: stri
   { tipo: "candidatos_bonificacao", label: "Bonificação", emoji: "🎯", hint: "Estão na borda da meta semanal — empurrão de incentivo resolve" },
 ]
 
+const BID_LISTA_BUTTONS: { tipo: ListaTipo; label: string; emoji: string; hint: string }[] = [
+  { tipo: "bid_alto_aceite", label: "Alto Aceite", emoji: "✅", hint: "Respondem SIM em ≥75% dos convites — alta probabilidade de aceite no próximo BID" },
+  { tipo: "bid_sem_resposta", label: "Sem Resposta", emoji: "🔕", hint: "Recebem convites mas raramente respondem — revisar ou remover da lista BID" },
+]
+
 const CATEGORIAS_ORDER: Categoria[] = ["pilar", "frequente", "casual", "novo", "em_risco", "dormente", "fantasma"]
 
 const CATEGORIA_DESC: Record<Categoria, string> = {
@@ -44,6 +49,7 @@ const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
 export function DashboardCliente({ resultado, onVerLista, onVerFicha, snapshots = [] }: Props) {
   const [expandConc, setExpandConc] = useState(false)
   const [showEscala, setShowEscala] = useState(false)
+  const [expandBidExt, setExpandBidExt] = useState(false)
 
   // Âncoras 03 + 04 — IA
   const [ia03Open, setIa03Open] = useState(false)
@@ -132,6 +138,13 @@ export function DashboardCliente({ resultado, onVerLista, onVerFicha, snapshots 
 
   const pilares = chapas.filter((c) => c.categoria === "pilar").length
   const emRisco = chapas.filter((c) => c.categoria === "em_risco").length
+
+  // BID stats
+  const chapasComLeo = chapas.filter((c) => c.leo)
+  const bidAltoAceiteCount = listas.find((l) => l.tipo === "bid_alto_aceite")?.chapas.length ?? 0
+  const bidSemRespostaCount = listas.find((l) => l.tipo === "bid_sem_resposta")?.chapas.length ?? 0
+  const bidExternosCount = resultado.bid_externos?.length ?? 0
+  const hasBidData = chapasComLeo.length > 0 || bidExternosCount > 0
 
   // Severity
   const fillSeverity =
@@ -497,6 +510,215 @@ export function DashboardCliente({ resultado, onVerLista, onVerFicha, snapshots 
           })}
         </div>
       </div>
+
+      {/* BID — Inteligência de Aceitação */}
+      {hasBidData && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Zap className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Inteligência BID</p>
+            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+              {chapasComLeo.length} chapas com histórico
+            </span>
+          </div>
+
+          {/* BID KPIs strip */}
+          {chapasComLeo.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                {
+                  label: "Com histórico BID",
+                  value: chapasComLeo.length,
+                  sub: `de ${chapas.length} chapas na análise`,
+                  cls: "text-foreground",
+                },
+                {
+                  label: "Taxa média de aceite",
+                  value: `${Math.round(chapasComLeo.reduce((s, c) => s + c.leo!.pct_sim, 0) / chapasComLeo.length * 100)}%`,
+                  sub: "média ponderada dos que têm dados BID",
+                  cls: chapasComLeo.reduce((s, c) => s + c.leo!.pct_sim, 0) / chapasComLeo.length >= 0.6 ? "text-success" : "text-warning",
+                },
+                {
+                  label: "Alto aceite (≥75%)",
+                  value: bidAltoAceiteCount,
+                  sub: "máxima probabilidade de confirmar",
+                  cls: "text-success",
+                },
+                {
+                  label: "Sem resposta",
+                  value: bidSemRespostaCount + bidExternosCount,
+                  sub: `${bidSemRespostaCount} com FUP · ${bidExternosCount} só no cadastro`,
+                  cls: bidSemRespostaCount + bidExternosCount > 0 ? "text-destructive" : "text-foreground",
+                },
+              ].map(({ label, value, sub, cls }) => (
+                <div key={label} className="rounded-xl border border-border bg-card p-3">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{label}</p>
+                  <p className={`text-xl font-display font-bold tabular-nums mt-0.5 ${cls}`}>{value}</p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">{sub}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* BID lista buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            {BID_LISTA_BUTTONS.map(({ tipo, label, emoji, hint }) => {
+              const lista = listas.find((l) => l.tipo === tipo)
+              const count = lista?.chapas.length ?? 0
+              return (
+                <button
+                  key={tipo}
+                  type="button"
+                  onClick={() => onVerLista(tipo)}
+                  disabled={count === 0}
+                  title={hint}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 hover:bg-muted/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
+                >
+                  <span className="text-xl shrink-0">{emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground">{label}</p>
+                    <p className="text-[10px] text-muted-foreground line-clamp-1">{hint}</p>
+                  </div>
+                  <span className="text-lg font-display font-bold tabular-nums text-foreground shrink-0">{count}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Pool × BID × FUP — aprovados fora do período, em 3 grupos */}
+          {resultado.bid_externos && resultado.bid_externos.length > 0 && (() => {
+            const grupos = {
+              alto_aceite: resultado.bid_externos!.filter(b => b.grupo === "alto_aceite"),
+              sem_resposta: resultado.bid_externos!.filter(b => b.grupo === "sem_resposta"),
+              nunca_contatado: resultado.bid_externos!.filter(b => b.grupo === "nunca_contatado"),
+            }
+            const copiar = (items: typeof resultado.bid_externos) =>
+              navigator.clipboard.writeText(items!.map(b => b.telefone).join("\n"))
+                .then(() => toast.success("Telefones copiados"))
+
+            const SubSecao = ({
+              emoji, titulo, hint, items, accentCls, headerCls, showBid,
+            }: {
+              emoji: string; titulo: string; hint: string
+              items: typeof resultado.bid_externos
+              accentCls: string; headerCls: string; showBid: boolean
+            }) => {
+              if (!items || items.length === 0) return null
+              return (
+                <div className={`rounded-xl border overflow-hidden ${accentCls}`}>
+                  <div className={`flex items-center justify-between px-4 py-2.5 ${headerCls}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span>{emoji}</span>
+                      <p className="text-xs font-semibold text-foreground truncate">{titulo}</p>
+                      <span className="text-[10px] bg-background/60 px-1.5 py-0.5 rounded font-mono shrink-0">{items.length}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <p className="text-[10px] text-muted-foreground hidden sm:block">{hint}</p>
+                      <button
+                        type="button"
+                        onClick={() => copiar(items)}
+                        className="text-[10px] font-medium px-2 py-0.5 rounded border border-border bg-background/60 hover:bg-background transition-colors"
+                      >
+                        Copiar tel.
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/40 border-b border-border">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground">Nome</th>
+                          <th className="text-left px-3 py-2 text-[10px] font-semibold text-muted-foreground font-mono">Telefone</th>
+                          {showBid && <>
+                            <th className="text-right px-3 py-2 text-[10px] font-semibold text-muted-foreground">Ofertas</th>
+                            <th className="text-right px-3 py-2 text-[10px] font-semibold text-muted-foreground">SIM</th>
+                            <th className="text-right px-3 py-2 text-[10px] font-semibold text-muted-foreground">Aceite</th>
+                          </>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {items.slice(0, 40).map((b, i) => (
+                          <tr key={i} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-3 py-2 font-medium text-foreground">{b.nome}</td>
+                            <td className="px-3 py-2 font-mono text-muted-foreground">{b.telefone}</td>
+                            {showBid && <>
+                              <td className="px-3 py-2 text-right font-mono">{b.total_ofertas}</td>
+                              <td className="px-3 py-2 text-right font-mono">{b.total_sim}</td>
+                              <td className={`px-3 py-2 text-right font-mono font-semibold ${
+                                b.pct_sim >= 0.75 ? "text-success" : "text-destructive"
+                              }`}>
+                                {Math.round(b.pct_sim * 100)}%
+                              </td>
+                            </>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {items.length > 40 && (
+                    <p className="text-[10px] text-muted-foreground text-center py-1.5 border-t border-border/50">
+                      +{items.length - 40} não exibidos
+                    </p>
+                  )}
+                </div>
+              )
+            }
+
+            return (
+              <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setExpandBidExt(!expandBidExt)}
+                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">📦</span>
+                    <p className="text-sm font-semibold text-foreground">Pool × BID × FUP — Aprovados fora do período</p>
+                    <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-mono">
+                      {resultado.bid_externos!.length}
+                    </span>
+                  </div>
+                  {expandBidExt ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {expandBidExt && (
+                  <div className="border-t border-border p-3 space-y-3">
+                    <p className="text-[10px] text-muted-foreground">
+                      Chapas do Pool de Aprovados que <strong>não fizeram tarefas no período analisado</strong>, cruzados com o histórico BID.
+                    </p>
+                    <SubSecao
+                      emoji="✅"
+                      titulo="Prontos para Alocar"
+                      hint="Aceitam BID mas não estão trabalhando — ligar"
+                      items={grupos.alto_aceite}
+                      accentCls="border-success/30"
+                      headerCls="bg-success/5"
+                      showBid={true}
+                    />
+                    <SubSecao
+                      emoji="🔕"
+                      titulo="Ignorando BID"
+                      hint="Recebem convites mas não respondem — remover da lista"
+                      items={grupos.sem_resposta}
+                      accentCls="border-destructive/30"
+                      headerCls="bg-destructive/5"
+                      showBid={true}
+                    />
+                    <SubSecao
+                      emoji="📭"
+                      titulo="Nunca Contatados via BID"
+                      hint="Aprovados que nunca receberam convite — adicionar à lista"
+                      items={grupos.nunca_contatado}
+                      accentCls="border-warning/30"
+                      headerCls="bg-warning/5"
+                      showBid={false}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+      )}
     </div>
   )
 }

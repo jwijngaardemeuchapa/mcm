@@ -78,6 +78,18 @@ export type ChapaMetrics = {
   era_frequente_60d: boolean
 
   concentracao_pct: number
+  leo?: LeoMetrics
+}
+
+export type BidExterno = {
+  nome: string
+  cpf: string | null
+  telefone: string
+  grupo: "alto_aceite" | "sem_resposta" | "nunca_contatado"
+  total_ofertas: number
+  total_sim: number
+  pct_sim: number
+  passa_75pct: boolean
 }
 
 export type ConfigLimiares = {
@@ -176,6 +188,8 @@ export type ListaTipo =
   | "fantasmas_limpeza"
   | "novos_padrinho"
   | "candidatos_bonificacao"
+  | "bid_alto_aceite"
+  | "bid_sem_resposta"
 
 export type ListaItem = ChapaClassificado & {
   criterio: string
@@ -213,7 +227,8 @@ export type AnaliseResultado = {
   cohort: CohortData
   listas: ListaAcionavel[]
   config: ConfigAnalise
-  fill_rate_operacional?: number | null  // from fill rate CSV: total atendidos / total solicitados
+  fill_rate_operacional?: number | null
+  bid_externos?: BidExterno[]
 }
 
 export type ImportPreview = {

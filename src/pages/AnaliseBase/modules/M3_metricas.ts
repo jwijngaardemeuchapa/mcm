@@ -1,5 +1,6 @@
-import type { TarefaRaw, ChapaMetrics, Turno, TendenciaTipo, TurnoPerfilTipo } from "../types"
+import type { TarefaRaw, ChapaMetrics, Turno, TendenciaTipo, TurnoPerfilTipo, LeoMetrics } from "../types"
 import { getTurnoId, getTurnoNome } from "./M2_turnos"
+import { normalizePhone } from "./M_leo"
 
 const STATUS_FINALIZADO_SET = new Set([
   "finalizado",
@@ -68,6 +69,7 @@ export function calcularMetricas(
   cpfMap: Map<string, string>,
   hoje: Date,
   janelaDias: number,
+  leoMap?: Map<string, LeoMetrics>,
 ): ChapaMetrics[] {
   // Group by normalized name
   const byNome = new Map<string, TarefaRaw[]>()
@@ -170,6 +172,7 @@ export function calcularMetricas(
     const nome = ts[0].nome_chapa
     const telefone = ts[0].telefone_chapa || null
     const cpf = cpfMap.get(nome_norm) ?? null
+    const leo = leoMap && telefone ? leoMap.get(normalizePhone(telefone)) : undefined
 
     metrics.push({
       nome,
@@ -194,6 +197,7 @@ export function calcularMetricas(
       era_pilar_60d,
       era_frequente_60d,
       concentracao_pct: 0, // set by M5
+      leo,
     })
   }
 
