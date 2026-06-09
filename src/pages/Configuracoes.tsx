@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
 import {
   Settings,
   Info,
@@ -135,42 +136,40 @@ export default function Configuracoes() {
     setSettings(writeSettings({ portariaRules: settings.portariaRules.filter((r) => r.id !== id) }));
   }
 
-  async function handleLeoCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
+  async function handleLeoCsvImport() {
+    if (!isTauri) return;
+    const path = await dialogOpen({ filters: [{ name: "CSV", extensions: ["csv"] }] });
+    if (!path) return;
     setLeoCsvLoading(true);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const count = await parseRespostasBidCsv(String(ev.target?.result ?? ""));
-        const refreshed = await getLeoConfig();
-        setLeoTotal(refreshed.totalRegistros);
-        setLeoLastSync(refreshed.lastSync);
-        toast.success(`${count.toLocaleString("pt-BR")} números BID importados`);
-      } catch (err) {
-        toast.error(`Erro ao importar CSV: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        setLeoCsvLoading(false);
-      }
-    };
-    reader.readAsText(f, "utf-8");
+    try {
+      const url = convertFileSrc(Array.isArray(path) ? path[0] : path);
+      const text = await fetch(url).then((r) => r.text());
+      const count = await parseRespostasBidCsv(text);
+      const refreshed = await getLeoConfig();
+      setLeoTotal(refreshed.totalRegistros);
+      setLeoLastSync(refreshed.lastSync);
+      toast.success(`${count.toLocaleString("pt-BR")} números BID importados`);
+    } catch (err) {
+      toast.error(`Erro ao importar CSV: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLeoCsvLoading(false);
+    }
   }
 
-  async function handleLeoCredFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    const text = await f.text();
+  async function handleLeoCredFile() {
+    if (!isTauri) return;
+    const path = await dialogOpen({ filters: [{ name: "JSON", extensions: ["json"] }] });
+    if (!path) return;
     try {
+      const url = convertFileSrc(Array.isArray(path) ? path[0] : path);
+      const text = await fetch(url).then((r) => r.text());
       JSON.parse(text);
+      await saveLeoConfig("service_account_json", text);
+      setLeoHasCred(true);
+      toast.success("Credencial salva com sucesso.");
     } catch {
       toast.error("Arquivo inválido — esperado JSON de Service Account Google.");
-      return;
     }
-    await saveLeoConfig("service_account_json", text);
-    setLeoHasCred(true);
-    toast.success("Credencial salva com sucesso.");
   }
 
   async function handleLeoSaveSheetId() {
@@ -253,34 +252,27 @@ export default function Configuracoes() {
     }
   }
 
-  function handleImportSnapshot(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handleImportSnapshot() {
     if (!isTauri) { toast.error("Disponível apenas na versão desktop."); return; }
-    if (!window.confirm("Isso vai SUBSTITUIR todos os dados desta máquina. Um backup automático do banco atual será criado. Confirmar?")) {
-      e.target.value = "";
-      return;
-    }
+    const path = await dialogOpen({ filters: [{ name: "MCM Backup", extensions: ["mcmbak"] }] });
+    if (!path) return;
+    if (!window.confirm("Isso vai SUBSTITUIR todos os dados desta máquina. Um backup automático do banco atual será criado. Confirmar?")) return;
     setSnapshotImporting(true);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      try {
-        const raw = ev.target?.result as string;
-        const snapshot = JSON.parse(raw);
-        if (!snapshot.db || !snapshot.local_storage) throw new Error("Arquivo inválido ou corrompido.");
-        await invoke("import_db_base64", { data: snapshot.db });
-        for (const [k, v] of Object.entries(snapshot.local_storage as Record<string, string>)) {
-          localStorage.setItem(k, v);
-        }
-        toast.success("Snapshot importado.", { description: "Feche e reabra o MCM para aplicar completamente." });
-      } catch (err) {
-        toast.error(`Erro ao importar: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        setSnapshotImporting(false);
-        e.target.value = "";
+    try {
+      const url = convertFileSrc(Array.isArray(path) ? path[0] : path);
+      const raw = await fetch(url).then((r) => r.text());
+      const snapshot = JSON.parse(raw);
+      if (!snapshot.db || !snapshot.local_storage) throw new Error("Arquivo inválido ou corrompido.");
+      await invoke("import_db_base64", { data: snapshot.db });
+      for (const [k, v] of Object.entries(snapshot.local_storage as Record<string, string>)) {
+        localStorage.setItem(k, v);
       }
-    };
-    reader.readAsText(file);
+      toast.success("Snapshot importado.", { description: "Feche e reabra o MCM para aplicar completamente." });
+    } catch (err) {
+      toast.error(`Erro ao importar: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSnapshotImporting(false);
+    }
   }
 
   const threshold = settings.fillRateWarningThreshold;
@@ -911,17 +903,15 @@ export default function Configuracoes() {
                   {snapshotExporting ? "Exportando…" : "Exportar snapshot"}
                 </Button>
 
-                <label className={`inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-md border border-input bg-background text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${snapshotImporting || !isTauri ? "opacity-50 pointer-events-none" : ""}`}>
+                <Button
+                  onClick={handleImportSnapshot}
+                  disabled={snapshotImporting || !isTauri}
+                  variant="outline"
+                  className="gap-2"
+                >
                   <Upload className={`h-4 w-4 ${snapshotImporting ? "animate-pulse" : ""}`} />
                   {snapshotImporting ? "Importando…" : "Importar snapshot"}
-                  <input
-                    type="file"
-                    accept=".mcmbak"
-                    className="hidden"
-                    onChange={handleImportSnapshot}
-                    disabled={snapshotImporting || !isTauri}
-                  />
-                </label>
+                </Button>
               </div>
             </div>
 
@@ -967,22 +957,10 @@ export default function Configuracoes() {
               <p className="text-xs text-muted-foreground">
                 Exporte o relatório "Respostas BID" do MeuChapa e importe aqui. Os dados ficam salvos localmente e ficam disponíveis no BID Dashboard imediatamente.
               </p>
-              <label htmlFor="leo-csv-cfg" className="cursor-pointer">
-                <Button variant="outline" size="sm" className="gap-2 pointer-events-none" asChild>
-                  <span>
-                    <Upload className={`h-3.5 w-3.5 ${leoCsvLoading ? "animate-pulse" : ""}`} />
-                    {leoCsvLoading ? "Importando…" : "Selecionar CSV"}
-                  </span>
-                </Button>
-                <input
-                  id="leo-csv-cfg"
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  disabled={leoCsvLoading}
-                  onChange={handleLeoCsvImport}
-                />
-              </label>
+              <Button variant="outline" size="sm" className="gap-2" disabled={leoCsvLoading} onClick={handleLeoCsvImport}>
+                <Upload className={`h-3.5 w-3.5 ${leoCsvLoading ? "animate-pulse" : ""}`} />
+                {leoCsvLoading ? "Importando…" : "Selecionar CSV"}
+              </Button>
             </div>
 
             <Separator />
@@ -1005,21 +983,10 @@ export default function Configuracoes() {
                 </Button>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
-                <label htmlFor="leo-cred-cfg" className="cursor-pointer">
-                  <Button variant="outline" size="sm" className="gap-2 pointer-events-none" asChild>
-                    <span>
-                      <FileKey className="h-3.5 w-3.5" />
-                      {leoHasCred ? "Substituir credencial" : "Carregar JSON de credencial"}
-                    </span>
-                  </Button>
-                  <input
-                    id="leo-cred-cfg"
-                    type="file"
-                    accept=".json"
-                    className="hidden"
-                    onChange={handleLeoCredFile}
-                  />
-                </label>
+                <Button variant="outline" size="sm" className="gap-2" onClick={handleLeoCredFile}>
+                  <FileKey className="h-3.5 w-3.5" />
+                  {leoHasCred ? "Substituir credencial" : "Carregar JSON de credencial"}
+                </Button>
                 {leoHasCred && (
                   <Button
                     variant="outline"

@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Upload, Users, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { timeAgo, todayDateISO_SP, fmtSP } from "@/lib/datetime";
+import { open as dialogOpen } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@tauri-apps/api/core";
+
+const isTauri = "__TAURI_INTERNALS__" in window;
 
 function parseDateBR(s: string): string | null {
   if (!s) return null;
@@ -195,6 +199,50 @@ export default function Importar() {
       }, 80);
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  async function openNativeFilePicker() {
+    if (!isTauri) { fileRef.current?.click(); return; }
+    try {
+      const path = await dialogOpen({ filters: [{ name: "CSV / JSON", extensions: ["csv", "json"] }] });
+      if (!path) return;
+      const filePath = Array.isArray(path) ? path[0] : path;
+      const url = convertFileSrc(filePath);
+      const text = await fetch(url).then((r) => r.text());
+      const isJson = filePath.toLowerCase().endsWith(".json");
+      if (isJson) {
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) { toast.error("JSON precisa ser uma lista de objetos"); return; }
+        const rows = parsed.map((r: Record<string, unknown>) => {
+          const out: Record<string, string> = {};
+          Object.keys(r).forEach((k) => { out[k] = r[k] == null ? "" : String(r[k]); });
+          return out;
+        });
+        setPreview(rows);
+        toast.success(`${rows.length} linhas carregadas (JSON)`);
+      } else {
+        const result = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+        setPreview(result.data);
+        toast.success(`${result.data.length} linhas carregadas`);
+      }
+    } catch (e) {
+      toast.error("Erro ao abrir arquivo: " + errMsg(e));
+    }
+  }
+
+  async function openNativeRegFilePicker() {
+    if (!isTauri) { regFileRef.current?.click(); return; }
+    try {
+      const path = await dialogOpen({ filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }] });
+      if (!path) return;
+      const filePath = Array.isArray(path) ? path[0] : path;
+      const url = convertFileSrc(filePath);
+      const buffer = await fetch(url).then((r) => r.arrayBuffer());
+      const fakeFile = new File([buffer], filePath.split(/[\\/]/).pop() ?? "file.xlsx");
+      onRegFile(fakeFile);
+    } catch (e) {
+      toast.error("Erro ao abrir arquivo: " + errMsg(e));
+    }
   }
 
   async function doRegistryImport() {
@@ -537,7 +585,7 @@ export default function Importar() {
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); e.dataTransfer.files[0] && onFile(e.dataTransfer.files[0]); }}
-        onClick={() => fileRef.current?.click()}
+        onClick={() => openNativeFilePicker()}
         className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors bg-card ${dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary hover:bg-primary-soft"}`}
       >
         <Upload className={`h-10 w-10 mx-auto mb-2 text-primary`} />
@@ -625,7 +673,7 @@ export default function Importar() {
           onDragOver={(e) => { e.preventDefault(); setRegDragOver(true); }}
           onDragLeave={() => setRegDragOver(false)}
           onDrop={(e) => { e.preventDefault(); setRegDragOver(false); e.dataTransfer.files[0] && onRegFile(e.dataTransfer.files[0]); }}
-          onClick={() => regFileRef.current?.click()}
+          onClick={() => openNativeRegFilePicker()}
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors bg-card ${
             regDragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary hover:bg-primary-soft"
           }`}
