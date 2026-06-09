@@ -1337,7 +1337,6 @@ CREATE INDEX IF NOT EXISTS idx_resposta_log_tarefa ON resposta_log(id_tarefa);
         .build(),
     )
     .plugin(tauri_plugin_opener::init())
-    .plugin(tauri_plugin_dialog::init())
     .setup(|app| {
       // Add enderecos column to cliente_book if missing (recovery from failed migration 8).
       // Uses a separate rusqlite connection so it works regardless of the plugin pool state.
