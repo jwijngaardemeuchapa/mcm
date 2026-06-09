@@ -5,6 +5,7 @@ import { toSP, todayDateISO_SP, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
 import { TaskPanorama } from "@/components/TaskPanorama";
+import { TaskTimeline } from "@/components/TaskTimeline";
 import { ApproachingAlert } from "@/components/ApproachingAlert";
 import { AlertBanner, type AlertItem } from "@/components/AlertBanner";
 import { PriorityPanel, type LembreteAlertItem } from "@/components/PriorityPanel";
@@ -44,6 +45,12 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
@@ -100,11 +107,11 @@ export default function Dashboard() {
   );
   const [onlyNotUploaded, setOnlyNotUploaded] = useState(false);
   const [onlyNoUmblerFup, setOnlyNoUmblerFup] = useState(false);
-  const [viewMode, setViewMode] = useState<"detailed" | "panorama">(() => {
+  const [viewMode, setViewMode] = useState<"detailed" | "panorama" | "timeline">(() => {
     try {
       if (new URLSearchParams(window.location.search).get("taskId")) return "panorama";
     } catch { /* noop */ }
-    return (localStorage.getItem("dash_view_mode") as "detailed" | "panorama" | null) ??
+    return (localStorage.getItem("dash_view_mode") as "detailed" | "panorama" | "timeline" | null) ??
       readSettings().defaultDashboardView;
   });
   const [selectedDate, setSelectedDate] = useState(() => todayDateISO_SP());
@@ -121,6 +128,7 @@ export default function Dashboard() {
   );
   const [agendaAlerts, setAgendaAlerts] = useState<AlertItem[]>([]);
   const [trocaTurnoOpen, setTrocaTurnoOpen] = useState(false);
+  const [timelineOverlayTaskId, setTimelineOverlayTaskId] = useState<number | null>(null);
   const [lembreteAlerts, setLembreteAlerts] = useState<LembreteAlertItem[]>([]);
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
   const { notifLog, clearLog } = useWatcherLog();
@@ -503,6 +511,10 @@ export default function Dashboard() {
           e.preventDefault();
           setViewMode("panorama");
           break;
+        case "3":
+          e.preventDefault();
+          setViewMode("timeline");
+          break;
       }
     }
     window.addEventListener("keydown", onKey);
@@ -850,6 +862,23 @@ export default function Dashboard() {
                 </button>
               </TooltipTrigger>
               <TooltipContent>Panorama — visão compacta de todas as tarefas</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setViewMode("timeline")}
+                  className={`h-[30px] px-2.5 flex items-center gap-1.5 text-xs font-medium transition-colors border-l border-border ${
+                    viewMode === "timeline"
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                  aria-label="Visualização timeline"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Timeline</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Timeline — visão no tempo (Gantt)</TooltipContent>
             </Tooltip>
           </div>
 
@@ -1287,6 +1316,15 @@ export default function Dashboard() {
         <div className="bg-card border border-dashed border-border rounded-xl p-8 text-center text-sm text-muted-foreground">
           Nenhum resultado para "{search}".
         </div>
+      ) : viewMode === "timeline" ? (
+        <div className="px-4 pb-4">
+          <TaskTimeline 
+            tasks={tasksForDisplay.filter(
+              (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
+            )}
+            onTaskClick={(id) => setTimelineOverlayTaskId(id)}
+          />
+        </div>
       ) : viewMode === "panorama" ? (
         <TaskPanorama
           tasks={tasksForDisplay.filter(
@@ -1411,6 +1449,45 @@ export default function Dashboard() {
         />
       )}
       <TrocaDeTurno open={trocaTurnoOpen} onClose={() => setTrocaTurnoOpen(false)} />
+
+      {/* ── Overlay da Timeline: abre tarefa sem sair da visualização ── */}
+      {timelineOverlayTaskId !== null && (() => {
+        const overlayTask =
+          tasksForDisplay.find((t) => t.id_tarefa === timelineOverlayTaskId) ??
+          allDatesCards.find((t) => t.id_tarefa === timelineOverlayTaskId);
+        return (
+          <Dialog
+            open
+            onOpenChange={(open) => { if (!open) setTimelineOverlayTaskId(null); }}
+          >
+            <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
+              <DialogHeader className="px-5 pt-4 pb-3 border-b border-border shrink-0">
+                <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                  {overlayTask?.empresa ?? "Tarefa"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="overflow-y-auto flex-1 px-4 py-4">
+                {overlayTask ? (
+                  <TaskCard
+                    task={overlayTask}
+                    onRefresh={() => {
+                      load();
+                    }}
+                    forceCollapse={null}
+                    matchHighlight={false}
+                    newChapaKeys={newChapaKeys}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-10">
+                    Tarefa não encontrada.
+                  </p>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </>
   );
 }

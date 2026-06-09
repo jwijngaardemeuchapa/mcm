@@ -73,10 +73,13 @@ import {
   BookMarked,
   Hash,
 } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { BidMatchmaker } from "@/components/BidMatchmaker";
+import { BidRadar } from "@/components/BidRadar";
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
-type BidChapa = {
+export type BidChapa = {
   _key: string;        // cpf for registry entries; bid_chapas.id for extras
   cpf: string | null;  // null for extras
   nome: string;
@@ -99,7 +102,7 @@ type BidChapa = {
   lng: number | null;
 };
 
-type BidDisparo = {
+export type BidDisparo = {
   id: string;
   chapa_nome: string;
   chapa_telefone: string;
@@ -113,7 +116,7 @@ type BidDisparo = {
   data_resposta2: string | null;
 };
 
-type OpenTask = {
+export type OpenTask = {
   id_tarefa: number;
   empresa: string;
   data_tarefa: string;
@@ -122,7 +125,7 @@ type OpenTask = {
   alocados: number;
 };
 
-type ClienteAddress = {
+export type ClienteAddress = {
   id: string;
   label: string;
   endereco: string;
@@ -132,7 +135,7 @@ type ClienteAddress = {
   cep: string | null;
 };
 
-type DispatchParams = {
+export type DispatchParams = {
   local: string;
   mapsLink: string;
   sendMapsAsLocal: boolean;
@@ -157,7 +160,7 @@ type RegistryRow = {
   aso: string | null;
 };
 
-type RankedCandidate = BidChapa & {
+export type RankedCandidate = BidChapa & {
   distance_km: number | null;
   score: number;
   is_occupied: boolean;
@@ -330,6 +333,7 @@ function BidTaskCard({
   const [blockedTipoFilter, setBlockedTipoFilter] = useState("__all__");
   const [blockedTipos, setBlockedTipos] = useState<string[]>([]);
   const [filterPositiveOnly, setFilterPositiveOnly] = useState(false);
+  const [leoTierFilter, setLeoTierFilter] = useState<"alta" | "media" | "baixa" | null>(null);
 
   const taskDisparos = useMemo(
     () => disparos.filter((d) => d.id_tarefa === task.id_tarefa),
@@ -523,6 +527,17 @@ function BidTaskCard({
     }).sort((a, b) => b.score - a.score);
   }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache]);
 
+  const leoTierFilteredCandidates = useMemo(() => {
+    if (!leoTierFilter || !leoCache || leoCache.size === 0) return candidates;
+    return candidates.filter((c) => {
+      const leo = c.telefone ? leoCache.get(normalizePhone(c.telefone)) : undefined;
+      if (leoTierFilter === "alta") return !!leo && leo.passa_75pct;
+      if (leoTierFilter === "media") return !!leo && !leo.passa_75pct && leo.pct_sim >= 0.4;
+      if (leoTierFilter === "baixa") return !!leo && leo.pct_sim < 0.3 && leo.total_ofertas >= 3;
+      return true;
+    });
+  }, [candidates, leoTierFilter, leoCache]);
+
   const blockedCandidates = useMemo<RankedCandidate[]>(() => {
     const cepPrefix = dispatchParams.localCep
       ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
@@ -684,7 +699,7 @@ function BidTaskCard({
     ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
     : null;
   const hasCepFilter = !!cepPrefixFilter && cepPrefixFilter.length >= 5;
-  const available = candidates.filter((c) => {
+  const available = leoTierFilteredCandidates.filter((c) => {
     if (c.is_occupied) return false;
     if (filterPositiveOnly && leoCache && leoCache.size > 0 && c.telefone) {
       const leo = leoCache.get(normalizePhone(c.telefone));
@@ -1034,12 +1049,67 @@ function BidTaskCard({
             if (alta + media + baixa === 0) return null;
             return (
               <div className="px-4 py-2.5 border-b border-border bg-muted/20 space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Análise BID</p>
-                <div className="flex items-center gap-3 flex-wrap text-xs">
-                  {alta > 0 && <span className="flex items-center gap-1"><span className="font-bold text-success">{alta}</span><span className="text-muted-foreground">aprovados (&gt;75%)</span></span>}
-                  {media > 0 && <span className="flex items-center gap-1"><span className="font-bold text-warning">{media}</span><span className="text-muted-foreground">médios (40–75%)</span></span>}
-                  {baixa > 0 && <span className="flex items-center gap-1"><span className="font-bold text-destructive">{baixa}</span><span className="text-muted-foreground">baixo (&lt;30%)</span></span>}
-                  {semDados > 0 && <span className="flex items-center gap-1"><span className="font-bold text-muted-foreground/60">{semDados}</span><span className="text-muted-foreground/50">sem dados</span></span>}
+                <div className="flex items-center gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Análise BID</p>
+                  {leoTierFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setLeoTierFilter(null)}
+                      className="text-[10px] px-1.5 py-0.5 rounded border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      ✕ limpar filtro
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  {alta > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setLeoTierFilter((f) => f === "alta" ? null : "alta")}
+                      className={`flex items-center gap-1 px-2 py-1 rounded border transition-colors ${
+                        leoTierFilter === "alta"
+                          ? "bg-success/15 border-success/40 ring-1 ring-success/30"
+                          : "border-transparent hover:bg-success/10 hover:border-success/20"
+                      }`}
+                    >
+                      <span className="font-bold text-success">{alta}</span>
+                      <span className="text-muted-foreground">aprovados (&gt;75%)</span>
+                    </button>
+                  )}
+                  {media > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setLeoTierFilter((f) => f === "media" ? null : "media")}
+                      className={`flex items-center gap-1 px-2 py-1 rounded border transition-colors ${
+                        leoTierFilter === "media"
+                          ? "bg-warning/15 border-warning/40 ring-1 ring-warning/30"
+                          : "border-transparent hover:bg-warning/10 hover:border-warning/20"
+                      }`}
+                    >
+                      <span className="font-bold text-warning">{media}</span>
+                      <span className="text-muted-foreground">médios (40–75%)</span>
+                    </button>
+                  )}
+                  {baixa > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setLeoTierFilter((f) => f === "baixa" ? null : "baixa")}
+                      className={`flex items-center gap-1 px-2 py-1 rounded border transition-colors ${
+                        leoTierFilter === "baixa"
+                          ? "bg-destructive/15 border-destructive/40 ring-1 ring-destructive/30"
+                          : "border-transparent hover:bg-destructive/10 hover:border-destructive/20"
+                      }`}
+                    >
+                      <span className="font-bold text-destructive">{baixa}</span>
+                      <span className="text-muted-foreground">baixo (&lt;30%)</span>
+                    </button>
+                  )}
+                  {semDados > 0 && (
+                    <span className="flex items-center gap-1 px-2 py-1">
+                      <span className="font-bold text-muted-foreground/60">{semDados}</span>
+                      <span className="text-muted-foreground/50">sem dados</span>
+                    </span>
+                  )}
                   {disparosEst && vagas > 0 && (
                     <span className="ml-auto text-[10px] text-muted-foreground/60 italic">
                       Para {vagas} vaga{vagas !== 1 ? "s" : ""}: ~{disparosEst} disparos estimados
@@ -1051,6 +1121,17 @@ function BidTaskCard({
           })()}
 
           {/* ── Candidatos ── */}
+          <Tabs defaultValue="lista" className="w-full">
+            <div className="px-4 py-2 flex items-center gap-2 border-b border-border bg-muted/10">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-4">Visualização</span>
+              <TabsList className="h-8">
+                <TabsTrigger value="lista" className="text-xs">Lista Clássica</TabsTrigger>
+                <TabsTrigger value="matchmaker" className="text-xs">Matchmaker</TabsTrigger>
+                <TabsTrigger value="radar" className="text-xs">Radar / Heatmap</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="lista" className="m-0 border-none p-0 outline-none">
           <div>
             <div className="px-4 py-2.5 border-b border-border flex items-center gap-2.5 flex-wrap">
               {/* Tab: Disponíveis / Bloqueados */}
@@ -1388,6 +1469,25 @@ function BidTaskCard({
               </div>
             )}
           </div>
+            </TabsContent>
+
+            <TabsContent value="matchmaker" className="m-0 border-none p-0 outline-none">
+              <BidMatchmaker
+                task={task}
+                candidates={leoTierFilteredCandidates}
+                dispatchParams={dispatchParams}
+                onDispatch={(c) => {
+                  if (c.disparo) return;
+                  dispatchOne(c);
+                }}
+                maxDistKm={maxDistKm}
+              />
+            </TabsContent>
+
+            <TabsContent value="radar" className="m-0 border-none p-0 outline-none">
+              <BidRadar task={task} candidates={leoTierFilteredCandidates} dispatchParams={dispatchParams} />
+            </TabsContent>
+          </Tabs>
 
           {/* ── Respostas desta tarefa ── */}
           {taskDisparos.length > 0 && (

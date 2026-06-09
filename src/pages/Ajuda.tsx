@@ -42,6 +42,8 @@ import {
   MessageCircle,
   Command,
   MessagesSquare,
+  GanttChartSquare,
+  Map,
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -108,7 +110,8 @@ const SECTIONS: Section[] = [
         savings: "~12min/dia",
         features: [
           "Atualização automática a cada 30 segundos — sem precisar clicar em nada",
-          "Dois modos de visualização: Cards (detalhado por tarefa) e Panorama (tabela compacta) — alterne com as teclas 1 e 2",
+          "Três modos de visualização: Cards (detalhado), Panorama (tabela compacta) e Timeline (Gantt por horário) — alterne com as teclas 1, 2 e 3",
+          "Timeline (Gantt): veja todas as tarefas do dia como blocos no eixo de tempo — cor indica fill rate (verde ≥80%, amarelo 50–80%, vermelho <50%) — clique num bloco para abrir o card em overlay sem sair da Timeline — altura ajusta-se automaticamente ao número de linhas paralelas",
           "Busca unificada sem acento — encontre qualquer chapa, empresa, ID ou telefone — ative com a tecla /",
           "Filtros por empresa, horário de início, status de upload e 'só pendentes' — o filtro de empresa é lembrado entre visitas",
           "Filtro 'Sem FUP Umbler': mostra apenas tarefas onde nenhum chapa recebeu FUP via Umbler Talk",
@@ -296,13 +299,17 @@ const SECTIONS: Section[] = [
         subtitle: "Mensagem formatada para o Teams — gerada em segundos",
         color: "text-primary bg-primary/10 border-primary/20",
         savings: "~5min/turno",
+        isNew: true,
         features: [
           "Acesse pelo botão 'Troca de Turno' no rodapé da barra lateral",
-          "Selector de Carteira: filtre por G1–G5 ou 'Todos' para gerar a mensagem do grupo correto",
+          "Rótulo de Carteira: dropdown para selecionar G1–G5 ou 'Geral' — serve apenas para identificação no texto da mensagem",
+          "Exclusão de empresas por sessão: popover com checkbox por empresa — marque o que não deve aparecer na mensagem; reseta ao fechar o painel",
+          "Horário de corte BID configurável: campo de hora editável (padrão 14:45) — ajuste conforme o turno do analista",
           "Seção Validações Pendentes: tarefas do dia que ainda não foram validadas pelo cliente",
-          "Seção Confirmações: tarefas futuras com chapas ainda não confirmados — mostra X/Y",
-          "Label [PréFUP] aparece automaticamente para tarefas de amanhã ou turno noturno",
-          "Seção BID — Captações em aberto: tarefas do dia a partir de 14h45 com vagas em aberto",
+          "Seção Confirmações: tarefas futuras com chapas ainda não confirmados — mostra X/Y confirmados",
+          "Label [PréFUP] aplicado automaticamente a tarefas que iniciam em mais de 6 horas a partir do momento do envio",
+          "Seção BID — Captações em aberto: tarefas com início no horário de corte ou depois, que ainda não começaram ou começaram há no máximo 30 min, e têm vagas em aberto",
+          "Quantidade de vagas BID reflete apenas os slots realmente vazios (não o total da tarefa)",
           "Botão 'Copiar para Teams': copia com formatação markdown (*negrito*) pronta para colar",
         ],
       },
@@ -360,10 +367,13 @@ const SECTIONS: Section[] = [
           "Filtro de raio configurável: 10 / 20 / 30 / 50 / 100 km — quando há link Maps com GPS",
           "Seleção múltipla + 'Disparar (N)': dispara BID em lote com 7 s de intervalo — cancelável",
           "Polling de respostas a cada 5 s e captura automática via webhook",
-          "Cada card tem duas sub-abas: Disponíveis e Bloqueados — ambas com filtro e ranking de distância",
+          "Três visões de candidatos por tarefa (abas): Lista Clássica, Matchmaker e Radar / Heatmap",
+          "Matchmaker: interface focada em 1 chapa por vez — mostra histórico e distância — botões Pular ou Disparar BID para alocação ágil",
+          "Radar / Heatmap: mapa interativo (OpenStreetMap) centralizado no local da tarefa — raios de 15km e 30km — marcadores por disponibilidade (azul=disponível, verde=disparado, cinza=ocupado)",
           "Calculadora de Negociação: calcula lucro, margem e máximo sustentável por chapa",
-          "Badges de score BID: ✓ Apr. (verde), ~ Med. (amarelo), ✗ Baixo (vermelho) — baseado no histórico da planilha BID",
-          "Importar CSV BID / Planilha BID: enriquece o ranking com histórico de respostas passadas do chapa",
+          "Badges de score BID: ✓ Apr. (verde), ~ Med. (amarelo), ✗ Baixo (vermelho) — baseado no histórico da Planilha LEO",
+          "Filtro por tier LEO: clique em 'aprovados', 'médios' ou 'baixo' no painel Análise BID para ver apenas aquele grupo na Lista, Matchmaker e Radar — clique novamente para limpar",
+          "Importar CSV BID / Planilha LEO: enriquece o ranking com histórico de respostas — gerencie em Configurações → Planilha LEO",
         ],
       },
       {
@@ -538,7 +548,8 @@ const SECTIONS: Section[] = [
           "Portaria por empresa: configure antecedência de 1h a 24h para cada cliente",
           "Fill rate threshold: defina o percentual mínimo aceitável (padrão 95%)",
           "Painel de Prioridades: ative/desative e opcionalmente oculte o nível 'Monitorar'",
-          "Visualização padrão do Dashboard: Cards ou Panorama",
+          "Visualização padrão do Dashboard: Cards, Panorama ou Timeline — escolha qual modo abre ao iniciar",
+          "Planilha LEO (BID): importe o CSV de Respostas BID ou sincronize pelo Google Sheets — dados usados no ranqueamento do BID Dashboard e na Análise de Base",
           "Operador: registre seu nome para rastreabilidade nos logs de FUP",
           "Backup: copia o banco de dados SQLite para Documentos/MCM com timestamp",
         ],
@@ -608,6 +619,7 @@ const SHORTCUTS = [
   { keys: ["←", "→"], desc: "Navegar entre datas no Dashboard" },
   { keys: ["1"], desc: "Mudar para visualização Cards (detalhada)" },
   { keys: ["2"], desc: "Mudar para visualização Panorama (compacta)" },
+  { keys: ["3"], desc: "Mudar para visualização Timeline (Gantt por horário)" },
   { keys: ["R"], desc: "Abrir a tela de Importação — funciona em qualquer tela exceto quando digitando num campo de texto" },
   { keys: ["Esc"], desc: "Fechar o campo de busca ativo" },
 ];
@@ -621,6 +633,7 @@ const TECH = [
   { label: "Desktop (EXE)", value: "Tauri v2 (Rust)" },
   { label: "Servidor webhook", value: "axum 0.7 (Rust/Tokio)" },
   { label: "Gráficos", value: "Recharts" },
+  { label: "Mapas", value: "Leaflet + React-Leaflet (OpenStreetMap)" },
   { label: "Parsing CSV", value: "PapaParse" },
   { label: "Exportação Excel", value: "xlsx" },
   { label: "Mensageria", value: "Umbler Talk API (WhatsApp)" },
@@ -740,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.67</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.73</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -754,10 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.67 — Webhook de Respostas:</strong> servidor HTTP local (porta 9988) recebe respostas do Umbler Talk em tempo real, sem depender do WhatsApp Desktop.
-              Nova página <strong>Respostas</strong> (Operacional → Respostas) com histórico unificado FUP+BID, filtros por data/tipo/resultado e export XLSX.
-              BID Dashboard: cliques nos botões de status agora registrados automaticamente no histórico.
-              Integrações: card Webhook com URL builder e botão copiar para configurar no painel da Umbler.
+              <strong>v0.9.73 — BID com filtro LEO, Configurações e Timeline padrão:</strong>{" "}
+              <strong>BID Dashboard</strong>: badges "aprovados / médios / baixo" no painel de Análise BID agora são clicáveis — filtram a lista de candidatos (e Matchmaker e Radar) apenas para aquele tier. Clique novamente para limpar.{" "}
+              <strong>Configurações</strong>: nova seção Planilha LEO — importe o CSV de Respostas BID ou sincronize direto do Google Sheets para alimentar o ranqueamento do BID Dashboard. Timeline adicionado como terceira opção de visualização padrão do Dashboard.
             </span>
           </div>
         )}
@@ -993,7 +1005,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.67 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v0.9.73 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1028,7 +1040,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.67 · © 2026 Wijngaarde Design
+        MCM v0.9.73 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

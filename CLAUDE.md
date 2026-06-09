@@ -2,6 +2,32 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## 🔄 PROTOCOLO DE SESSÃO (OBRIGATÓRIO — leia sempre ao iniciar)
+
+**A cada nova sessão, ANTES de qualquer outra coisa:**
+
+```bash
+node scripts/jira.cjs session-start
+```
+
+Isso mostra o que está "Fazendo" e o backlog "A fazer". Com base nisso:
+1. Apresente ao usuário o que está em andamento e o que está pendente
+2. Pergunte o que ele quer trabalhar hoje (nunca assuma)
+3. Só comece a executar após confirmação explícita
+4. A cada tarefa concluída, pergunte se pode avançar para a próxima
+
+**Durante a sessão:**
+- Ao iniciar uma tarefa: `node scripts/jira.cjs start MCM-X`
+- Ao concluir uma tarefa: `node scripts/jira.cjs done MCM-X "descrição do que foi feito"`
+- Ao encontrar algo para fazer no futuro: `node scripts/jira.cjs create tarefa "Título"`
+- Ao encontrar um bug: `node scripts/jira.cjs create bug "Título"`
+
+**Regra de ouro:** Nunca faça mais de uma alteração de cada vez sem consultar o usuário. Apresente o plano → aguarde aprovação → execute → reporte → pergunte sobre o próximo passo.
+
+---
+
 ## Project Overview
 
 **FUP Manager** — a desktop application for operational task management and FUP (Follow-Up) tracking. Built as a Tauri 2 + React 18 + SQLite desktop app targeting Windows.

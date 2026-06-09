@@ -19,7 +19,13 @@ import {
   User,
   HardDrive,
   TimerReset,
+  Sheet,
+  FileKey,
+  RefreshCw,
+  Upload,
+  GanttChart,
 } from "lucide-react";
+import { getLeoConfig, saveLeoConfig, syncLeo, extractSpreadsheetId, parseRespostasBidCsv } from "@/pages/AnaliseBase/modules/M_leo";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
@@ -55,6 +61,7 @@ const CONFIG_SECTIONS = [
   { id: "cfg-agenda",       icon: KanbanSquare,  label: "Agenda",         desc: "Ordenação do Kanban" },
   { id: "cfg-operador",     icon: User,          label: "Operador",       desc: "Seu nome nos logs de FUP" },
   { id: "cfg-backup",       icon: HardDrive,     label: "Backup",         desc: "Copiar banco para Documentos/MCM" },
+  { id: "cfg-leo",          icon: Sheet,         label: "Planilha LEO",   desc: "Histórico BID para ranqueamento" },
 ];
 
 function scrollToCfg(id: string) {
@@ -75,6 +82,14 @@ export default function Configuracoes() {
     () => localStorage.getItem("fup_last_backup"),
   );
 
+  // LEO
+  const [leoTotal, setLeoTotal] = useState(0);
+  const [leoLastSync, setLeoLastSync] = useState<string | null>(null);
+  const [leoSheetId, setLeoSheetId] = useState("");
+  const [leoHasCred, setLeoHasCred] = useState(false);
+  const [leoSyncing, setLeoSyncing] = useState(false);
+  const [leoCsvLoading, setLeoCsvLoading] = useState(false);
+
   useEffect(() => {
     getDb()
       .then((db) => db.select<{ nome_fantasia: string }[]>("SELECT nome_fantasia FROM carteira ORDER BY nome_fantasia"))
@@ -82,11 +97,20 @@ export default function Configuracoes() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    getLeoConfig().then((c) => {
+      if (c.spreadsheetId) setLeoSheetId(c.spreadsheetId);
+      setLeoHasCred(!!c.serviceAccountJson);
+      setLeoLastSync(c.lastSync);
+      setLeoTotal(c.totalRegistros);
+    }).catch(() => {});
+  }, []);
+
   function handleThresholdChange(value: number[]) {
     setSettings(writeSettings({ fillRateWarningThreshold: value[0] }));
   }
 
-  function handleViewChange(view: "detailed" | "panorama") {
+  function handleViewChange(view: "detailed" | "panorama" | "timeline") {
     setSettings(writeSettings({ defaultDashboardView: view }));
   }
 
@@ -109,6 +133,70 @@ export default function Configuracoes() {
 
   function removePortariaRule(id: string) {
     setSettings(writeSettings({ portariaRules: settings.portariaRules.filter((r) => r.id !== id) }));
+  }
+
+  async function handleLeoCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setLeoCsvLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const count = await parseRespostasBidCsv(String(ev.target?.result ?? ""));
+        const refreshed = await getLeoConfig();
+        setLeoTotal(refreshed.totalRegistros);
+        setLeoLastSync(refreshed.lastSync);
+        toast.success(`${count.toLocaleString("pt-BR")} números BID importados`);
+      } catch (err) {
+        toast.error(`Erro ao importar CSV: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setLeoCsvLoading(false);
+      }
+    };
+    reader.readAsText(f, "utf-8");
+  }
+
+  async function handleLeoCredFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const text = await f.text();
+    try {
+      JSON.parse(text);
+    } catch {
+      toast.error("Arquivo inválido — esperado JSON de Service Account Google.");
+      return;
+    }
+    await saveLeoConfig("service_account_json", text);
+    setLeoHasCred(true);
+    toast.success("Credencial salva com sucesso.");
+  }
+
+  async function handleLeoSaveSheetId() {
+    const id = extractSpreadsheetId(leoSheetId);
+    await saveLeoConfig("spreadsheet_id", id);
+    setLeoSheetId(id);
+    toast.success("ID da planilha salvo.");
+  }
+
+  async function handleSyncLeo() {
+    const id = extractSpreadsheetId(leoSheetId);
+    if (!id) { toast.warning("Informe o ID ou URL da planilha primeiro."); return; }
+    const cfg = await getLeoConfig();
+    if (!cfg.serviceAccountJson) { toast.warning("Carregue a credencial JSON antes de sincronizar."); return; }
+    setLeoSyncing(true);
+    try {
+      const count = await syncLeo(id, cfg.serviceAccountJson);
+      const refreshed = await getLeoConfig();
+      setLeoLastSync(refreshed.lastSync);
+      setLeoTotal(refreshed.totalRegistros);
+      toast.success(`${count.toLocaleString("pt-BR")} registros sincronizados da planilha`);
+    } catch (err) {
+      toast.error(`Erro ao sincronizar: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLeoSyncing(false);
+    }
   }
 
   async function handleBackup() {
@@ -520,7 +608,7 @@ export default function Configuracoes() {
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 type="button"
                 onClick={() => handleViewChange("detailed")}
@@ -533,7 +621,7 @@ export default function Configuracoes() {
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
                     <LayoutList className="h-4 w-4 text-foreground" />
-                    <span className="font-semibold text-sm text-foreground">Cards (detalhada)</span>
+                    <span className="font-semibold text-sm text-foreground">Cards</span>
                   </div>
                   {settings.defaultDashboardView === "detailed" && (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary">
@@ -542,12 +630,12 @@ export default function Configuracoes() {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Um card completo por tarefa com todas as ações disponíveis. Ideal para operação ativa.
+                  Card completo por tarefa. Todas as ações visíveis. Ideal para operação ativa.
                 </p>
                 <div className="mt-3 rounded-md bg-muted/60 p-2 space-y-1.5">
                   {["08:00", "10:30", "14:00"].map((h) => (
-                    <div key={h} className="h-10 rounded bg-background border border-border flex items-center px-2 gap-2">
-                      <div className="w-10 h-5 rounded bg-primary/20 text-[9px] flex items-center justify-center text-primary font-bold">{h}</div>
+                    <div key={h} className="h-8 rounded bg-background border border-border flex items-center px-2 gap-2">
+                      <div className="w-10 h-4 rounded bg-primary/20 text-[9px] flex items-center justify-center text-primary font-bold">{h}</div>
                       <div className="flex-1 h-2 rounded-full bg-muted">
                         <div className="h-full rounded-full bg-success/60" style={{ width: "70%" }} />
                       </div>
@@ -568,7 +656,7 @@ export default function Configuracoes() {
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
                     <Table2 className="h-4 w-4 text-foreground" />
-                    <span className="font-semibold text-sm text-foreground">Panorama (tabela)</span>
+                    <span className="font-semibold text-sm text-foreground">Panorama</span>
                   </div>
                   {settings.defaultDashboardView === "panorama" && (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary">
@@ -577,7 +665,7 @@ export default function Configuracoes() {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Todas as tarefas em linhas compactas. Clique para abrir o card lateral. Ideal para monitoramento.
+                  Linhas compactas. Clique para abrir o card lateral. Ideal para monitoramento.
                 </p>
                 <div className="mt-3 rounded-md bg-muted/60 p-2 space-y-1">
                   {[
@@ -585,12 +673,51 @@ export default function Configuracoes() {
                     { h: "10:30", fill: 45, color: "bg-warning" },
                     { h: "14:00", fill: 80, color: "bg-success" },
                   ].map((r) => (
-                    <div key={r.h} className="h-7 rounded bg-background border border-border flex items-center px-2 gap-2">
+                    <div key={r.h} className="h-6 rounded bg-background border border-border flex items-center px-2 gap-2">
                       <span className="text-[9px] font-bold text-foreground w-8 tabular-nums">{r.h}</span>
                       <div className="flex-1 h-1.5 rounded-full bg-muted">
                         <div className={`h-full rounded-full ${r.color}`} style={{ width: `${r.fill}%` }} />
                       </div>
                       <span className="text-[9px] text-muted-foreground tabular-nums">{r.fill}%</span>
+                    </div>
+                  ))}
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleViewChange("timeline")}
+                className={`p-4 rounded-xl border-2 text-left transition-all ${
+                  settings.defaultDashboardView === "timeline"
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-border hover:border-muted-foreground/40 hover:bg-muted/30"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <GanttChart className="h-4 w-4 text-foreground" />
+                    <span className="font-semibold text-sm text-foreground">Timeline</span>
+                  </div>
+                  {settings.defaultDashboardView === "timeline" && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary">
+                      <Check className="h-3 w-3" /> Padrão
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Gantt por horário. Blocos coloridos por fill rate. Clique para abrir em overlay.
+                </p>
+                <div className="mt-3 rounded-md bg-muted/60 p-2 space-y-1">
+                  {[
+                    { left: "0%", width: "35%", color: "bg-success" },
+                    { left: "20%", width: "40%", color: "bg-warning" },
+                    { left: "50%", width: "30%", color: "bg-destructive" },
+                  ].map((r, i) => (
+                    <div key={i} className="relative h-5 rounded bg-background border border-border overflow-hidden">
+                      <div
+                        className={`absolute top-1 bottom-1 rounded ${r.color} opacity-80`}
+                        style={{ left: r.left, width: r.width }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -703,6 +830,117 @@ export default function Configuracoes() {
               <p className="text-xs text-muted-foreground">
                 O arquivo de backup contém todas as tarefas, chapas, logs, histórico de respostas e configurações.
                 Guarde uma cópia regularmente — em especial após importações de grande volume.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Planilha LEO ── */}
+      <div id="cfg-leo" className="scroll-mt-20">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Sheet className="h-5 w-5 text-muted-foreground" />
+              Planilha LEO — Histórico BID
+            </CardTitle>
+            <CardDescription>
+              Dados de aceite/rejeição de BID usados pelo BID Dashboard para ranquear chapas.
+              Importe o CSV exportado do MeuChapa ou sincronize pela planilha Google.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+
+            {/* Status atual */}
+            {leoTotal > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-2.5">
+                <Check className="h-4 w-4 text-success shrink-0" />
+                <p className="text-xs text-success font-medium">
+                  {leoTotal.toLocaleString("pt-BR")} números carregados
+                  {leoLastSync && ` · atualizado ${new Date(leoLastSync).toLocaleString("pt-BR")}`}
+                </p>
+              </div>
+            )}
+
+            {/* Importar CSV */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold text-foreground">Importar CSV de Respostas BID</p>
+              <p className="text-xs text-muted-foreground">
+                Exporte o relatório "Respostas BID" do MeuChapa e importe aqui. Os dados ficam salvos localmente e ficam disponíveis no BID Dashboard imediatamente.
+              </p>
+              <label htmlFor="leo-csv-cfg" className="cursor-pointer">
+                <Button variant="outline" size="sm" className="gap-2 pointer-events-none" asChild>
+                  <span>
+                    <Upload className={`h-3.5 w-3.5 ${leoCsvLoading ? "animate-pulse" : ""}`} />
+                    {leoCsvLoading ? "Importando…" : "Selecionar CSV"}
+                  </span>
+                </Button>
+                <input
+                  id="leo-csv-cfg"
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  disabled={leoCsvLoading}
+                  onChange={handleLeoCsvImport}
+                />
+              </label>
+            </div>
+
+            <Separator />
+
+            {/* Sincronizar pelo Google Sheets */}
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Sincronizar pela planilha Google</p>
+              <p className="text-xs text-muted-foreground">
+                Cole o URL ou ID da planilha LEO no Google Sheets e carregue a credencial de Service Account para sincronização automática.
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={leoSheetId}
+                  onChange={(e) => setLeoSheetId(e.target.value)}
+                  placeholder="URL ou ID da planilha"
+                  className="flex-1 text-sm"
+                />
+                <Button variant="outline" size="sm" onClick={handleLeoSaveSheetId} disabled={!leoSheetId}>
+                  Salvar
+                </Button>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <label htmlFor="leo-cred-cfg" className="cursor-pointer">
+                  <Button variant="outline" size="sm" className="gap-2 pointer-events-none" asChild>
+                    <span>
+                      <FileKey className="h-3.5 w-3.5" />
+                      {leoHasCred ? "Substituir credencial" : "Carregar JSON de credencial"}
+                    </span>
+                  </Button>
+                  <input
+                    id="leo-cred-cfg"
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    onChange={handleLeoCredFile}
+                  />
+                </label>
+                {leoHasCred && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={handleSyncLeo}
+                    disabled={leoSyncing}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${leoSyncing ? "animate-spin" : ""}`} />
+                    {leoSyncing ? "Sincronizando…" : "Sincronizar agora"}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
+              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground">
+                Os dados LEO são usados pelo BID Dashboard para calcular o score de cada chapa (taxa de aceite, recorrência).
+                Também alimentam a análise "Nunca Contatados via BID" na Análise de Base. Atualize sempre que receber um novo relatório do MeuChapa.
               </p>
             </div>
           </CardContent>

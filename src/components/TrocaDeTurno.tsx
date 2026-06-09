@@ -1,15 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Copy, Check, ArrowLeftRight } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Copy, Check, ArrowLeftRight, ChevronDown } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { fmtSP, todayDateISO_SP, toSP, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { toast } from "sonner";
-
-const GRUPOS = ["G1", "G2", "G3", "G4", "G5"];
-const CORTE_HORARIO = "14:45"; // tasks from this time onwards are included in BID
 
 type TarefaRow = {
   id_tarefa: number;
@@ -48,10 +47,12 @@ function activeChapas(chapas: ChapaRow[], id_tarefa: number) {
 }
 
 function buildMessage(
-  grupo: string,
+  grupoLabel: string,
   tarefas: TarefaRow[],
   chapas: ChapaRow[],
   agendaItem: AgendaRow | null,
+  bidCorteMinutes: number,
+  excludedEmpresas: Set<string>,
 ): string {
   const now = toSP(new Date().toISOString());
   const h = now.getHours().toString().padStart(2, "0");
@@ -63,17 +64,22 @@ function buildMessage(
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowISO = tomorrowDate.toISOString().slice(0, 10);
 
-  // Header: day-of-week + date + time
+  // Header
   const diaSemana = fmtSP(now.toISOString(), "EEE dd/MM");
   const diaSemanaFmt = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
+  const grupoSuffix = grupoLabel && grupoLabel !== "Geral" ? ` — ${grupoLabel}` : "";
 
   const lines: string[] = [];
-  lines.push(`📋 *TROCA DE TURNO${grupo !== "Todos" ? ` — ${grupo}` : ""}* | ${diaSemanaFmt} | ${h}h${m}`);
+  lines.push(`📋 *TROCA DE TURNO${grupoSuffix}* | ${diaSemanaFmt} | ${h}h${m}`);
   lines.push("");
 
+  // Aplicar exclusão de empresas
+  const filtradas = excludedEmpresas.size > 0
+    ? tarefas.filter((t) => !excludedEmpresas.has(t.empresa))
+    : tarefas;
+
   // ── Validações Pendentes ──
-  // Only tasks that have already started today and aren't validated yet
-  const pendentes = tarefas.filter(
+  const pendentes = filtradas.filter(
     (t) =>
       fmtSP(t.data_tarefa, "yyyy-MM-dd") === todayISO &&
       parseTaskDate(t.data_tarefa, t.cidade_uf).getTime() <= nowMs &&
@@ -91,10 +97,10 @@ function buildMessage(
     lines.push("");
   }
 
-  // ── Confirmações / PréFUPs (unified section) ──
-  // All future tasks not 100% confirmed.
-  // PréFUP label: tomorrow's tasks OR today's tasks starting at 17h+.
-  const upcoming = tarefas.filter(
+  // ── Confirmações / PréFUPs ──
+  // PréFUP: tarefa inicia em mais de 6h a partir de agora
+  const PREFUP_THRESHOLD_MS = 6 * 60 * 60 * 1000;
+  const upcoming = filtradas.filter(
     (t) =>
       parseTaskDate(t.data_tarefa, t.cidade_uf).getTime() > nowMs &&
       t.validacao_status !== "validacao_recebida" &&
@@ -107,12 +113,11 @@ function buildMessage(
       const confirmed = ativos.filter((c) => c.status_contato === "confirmado").length;
       const requested = t.quantidade_chapas || ativos.length;
       const taskDateISO = fmtSP(t.data_tarefa, "yyyy-MM-dd");
-      const isPrefupTask =
-        taskDateISO === tomorrowISO ||
-        (taskDateISO === todayISO && toSP(t.data_tarefa).getHours() >= 17);
+      const taskMs = parseTaskDate(t.data_tarefa, t.cidade_uf).getTime();
+      const isPrefupTask = taskMs > nowMs + PREFUP_THRESHOLD_MS;
       return { t, confirmed, requested, isPrefupTask, taskDateISO };
     })
-    .filter(({ requested, confirmed, requested: r }) => r > 0 && confirmed < requested);
+    .filter(({ requested, confirmed }) => requested > 0 && confirmed < requested);
 
   if (confirmEntries.length > 0) {
     lines.push("👷 *CONFIRMAÇÕES*");
@@ -125,16 +130,22 @@ function buildMessage(
     lines.push("");
   }
 
-  // ── BID — captações em aberto (tarefas de hoje a partir de 14h45) ──
-  const [cutH, cutM] = CORTE_HORARIO.split(":").map(Number);
-  const cutMinutes = cutH * 60 + cutM;
-  const bidTasks = tarefas.filter((t) => {
+  // ── BID — captações em aberto ──
+  // Inclui tarefas de hoje a partir do corte configurável
+  // que ainda não iniciaram OU iniciaram há no máximo 30 min
+  // e têm linhas VAZIAS (slots sem chapa alguma alocada)
+  const TRINTA_MIN_MS = 30 * 60 * 1000;
+  const bidTasks = filtradas.filter((t) => {
     const taskDateISO = fmtSP(t.data_tarefa, "yyyy-MM-dd");
     if (taskDateISO !== todayISO) return false;
     const sp = toSP(t.data_tarefa);
     const taskMinutes = sp.getHours() * 60 + sp.getMinutes();
+    if (taskMinutes < bidCorteMinutes) return false;
+    const taskMs = parseTaskDate(t.data_tarefa, t.cidade_uf).getTime();
+    const jaIniciou = taskMs <= nowMs;
+    const iniciouRecentemente = jaIniciou && (nowMs - taskMs) <= TRINTA_MIN_MS;
     return (
-      taskMinutes >= cutMinutes &&
+      (!jaIniciou || iniciouRecentemente) &&
       t.validacao_status !== "validacao_recebida" &&
       t.validacao_status !== "subido_meu_chapa" &&
       t.status_tarefa !== "Concluído"
@@ -144,23 +155,22 @@ function buildMessage(
   const bidEntries = bidTasks
     .map((t) => {
       const ativos = activeChapas(chapas, t.id_tarefa);
-      const confirmed = ativos.filter((c) => c.status_contato === "confirmado").length;
-      const requested = t.quantidade_chapas || ativos.length;
-      const missing = Math.max(0, requested - confirmed);
-      return { t, missing, confirmed, requested };
+      // Linhas vazias = vagas totais minus chapas ativas (independente de confirmação)
+      const linhasVazias = Math.max(0, t.quantidade_chapas - ativos.length);
+      return { t, linhasVazias };
     })
-    .filter(({ missing }) => missing > 0);
+    .filter(({ linhasVazias }) => linhasVazias > 0);
 
   if (bidEntries.length > 0) {
     lines.push("🎯 *BID — CAPTAÇÕES EM ABERTO*");
-    for (const { t, missing, confirmed, requested } of bidEntries) {
+    for (const { t, linhasVazias } of bidEntries) {
       const dataFmt = fmtSP(t.data_tarefa, "dd/MM HH:mm");
-      lines.push(`• ${t.empresa} — ${dataFmt} — faltam ${missing} chapa${missing > 1 ? "s" : ""} (${confirmed}/${requested})`);
+      lines.push(`• ${t.empresa} — ${dataFmt} — ${linhasVazias} linha${linhasVazias > 1 ? "s" : ""} vazia${linhasVazias > 1 ? "s" : ""}`);
     }
     lines.push("");
   }
 
-  // ── Agenda item ──
+  // ── Agenda ──
   if (agendaItem) {
     lines.push("📅 *AGENDA*");
     const prazoStr = agendaItem.prazo
@@ -179,6 +189,12 @@ function buildMessage(
   return lines.join("\n");
 }
 
+// Converte "HH:MM" para total de minutos
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
 export function TrocaDeTurno({
   open,
   onClose,
@@ -186,37 +202,49 @@ export function TrocaDeTurno({
   open: boolean;
   onClose: () => void;
 }) {
-  const [grupo, setGrupo] = useState("Todos");
+  const [grupoLabel, setGrupoLabel] = useState("Geral");
+  const [gruposDisponiveis, setGruposDisponiveis] = useState<string[]>([]);
   const [agendaItems, setAgendaItems] = useState<AgendaRow[]>([]);
   const [selectedAgendaId, setSelectedAgendaId] = useState<string>("__none__");
+  const [bidCorte, setBidCorte] = useState("14:45");
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Dados carregados — para derivar lista de empresas
+  const [allTarefas, setAllTarefas] = useState<TarefaRow[]>([]);
+  const [allChapas, setAllChapas] = useState<ChapaRow[]>([]);
+
+  // Seleção de empresas (por sessão — reseta ao fechar)
+  const [excludedEmpresas, setExcludedEmpresas] = useState<Set<string>>(new Set());
+  const [empresasPopoverOpen, setEmpresasPopoverOpen] = useState(false);
+
+  // Lista única de empresas nas tarefas carregadas
+  const empresasDisponiveis = useMemo(
+    () => [...new Set(allTarefas.map((t) => t.empresa))].sort(),
+    [allTarefas],
+  );
+
+  // Reset por sessão
+  useEffect(() => {
+    if (!open) {
+      setExcludedEmpresas(new Set());
+      setEmpresasPopoverOpen(false);
+    }
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
-    loadAgenda();
+    loadStaticData();
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     generate();
-  }, [open, grupo, selectedAgendaId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, grupoLabel, selectedAgendaId, bidCorte, excludedEmpresas, allTarefas, allChapas]);
 
-  async function loadAgenda() {
-    try {
-      const db = await getDb();
-      const rows = await db.select<AgendaRow[]>(
-        "SELECT id, titulo, prazo, importancia, status FROM agenda WHERE status != 'concluido' ORDER BY prazo ASC NULLS LAST, titulo ASC",
-      );
-      setAgendaItems(rows);
-    } catch {
-      // silently skip
-    }
-  }
-
-  async function generate() {
-    setLoading(true);
+  async function loadStaticData() {
     try {
       const db = await getDb();
       const todayISO = todayDateISO_SP();
@@ -224,7 +252,7 @@ export function TrocaDeTurno({
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
       const tomorrowISO = tomorrowDate.toISOString().slice(0, 10);
 
-      const [allTarefas, allChapas, carteira] = await Promise.all([
+      const [tarefas, chapas, carteira, agenda] = await Promise.all([
         db.select<TarefaRow[]>(
           `SELECT id_tarefa, empresa, data_tarefa, cidade_uf, status_tarefa, quantidade_chapas, validacao_status
            FROM tarefas
@@ -242,36 +270,60 @@ export function TrocaDeTurno({
           [todayISO, tomorrowISO],
         ),
         db.select<CarteiraRow[]>("SELECT nome_fantasia, grupo FROM carteira"),
+        db.select<AgendaRow[]>(
+          "SELECT id, titulo, prazo, importancia, status FROM agenda WHERE status != 'concluido' ORDER BY prazo ASC NULLS LAST, titulo ASC",
+        ),
       ]);
 
-      // Filter by carteira membership (same as Dashboard — only show companies in the portfolio)
+      // Filtrar apenas empresas da carteira
       const carteiraNames = carteira.map((c) => c.nome_fantasia);
-      let tarefas = carteiraNames.length === 0
-        ? allTarefas
-        : allTarefas.filter((t) => companyMatches(t.empresa, carteiraNames));
+      const tarefasFiltradas = carteiraNames.length === 0
+        ? tarefas
+        : tarefas.filter((t) => companyMatches(t.empresa, carteiraNames));
 
-      // Filter by grupo on top
-      if (grupo !== "Todos") {
-        const empresasDoGrupo = carteira
-          .filter((c) => c.grupo === grupo)
-          .map((c) => c.nome_fantasia);
-        if (empresasDoGrupo.length > 0) {
-          tarefas = tarefas.filter((t) =>
-            companyMatches(t.empresa, empresasDoGrupo),
-          );
-        }
-      }
+      // Grupos disponíveis — dinâmicos da carteira
+      const grupos = [...new Set(carteira.map((c) => c.grupo).filter(Boolean))] as string[];
+      setGruposDisponiveis(grupos.sort());
 
+      setAllTarefas(tarefasFiltradas);
+      setAllChapas(chapas);
+      setAgendaItems(agenda);
+    } catch {
+      toast.error("Erro ao carregar dados");
+    }
+  }
+
+  function generate() {
+    if (allTarefas.length === 0 && allChapas.length === 0) return;
+    setLoading(true);
+    try {
       const agendaItem = selectedAgendaId !== "__none__"
         ? agendaItems.find((a) => a.id === selectedAgendaId) ?? null
         : null;
-
-      setMessage(buildMessage(grupo, tarefas, allChapas, agendaItem));
+      setMessage(
+        buildMessage(
+          grupoLabel,
+          allTarefas,
+          allChapas,
+          agendaItem,
+          timeToMinutes(bidCorte),
+          excludedEmpresas,
+        ),
+      );
     } catch {
       toast.error("Erro ao gerar mensagem");
     } finally {
       setLoading(false);
     }
+  }
+
+  function toggleEmpresa(empresa: string) {
+    setExcludedEmpresas((prev) => {
+      const next = new Set(prev);
+      if (next.has(empresa)) next.delete(empresa);
+      else next.add(empresa);
+      return next;
+    });
   }
 
   async function copyMessage() {
@@ -285,45 +337,107 @@ export function TrocaDeTurno({
     }
   }
 
+  const numExcluidas = excludedEmpresas.size;
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0">
-        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base font-semibold">
             <ArrowLeftRight className="h-4 w-4 text-primary" />
             Troca de Turno
           </DialogTitle>
         </DialogHeader>
 
-        <div className="px-5 py-3 border-b border-border flex items-center gap-4 flex-wrap">
-          {/* Grupo selector */}
+        <div className="px-5 py-3 border-b border-border shrink-0 flex items-center gap-3 flex-wrap">
+
+          {/* Rótulo da carteira (apenas descritivo) */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Carteira</span>
-            <Select value={grupo} onValueChange={setGrupo}>
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Carteira</span>
+            <Select value={grupoLabel} onValueChange={setGrupoLabel}>
               <SelectTrigger className="h-8 w-28 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Todos">Todos</SelectItem>
-                {GRUPOS.map((g) => (
+                <SelectItem value="Geral">Geral</SelectItem>
+                {gruposDisponiveis.map((g) => (
                   <SelectItem key={g} value={g}>{g}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Agenda item */}
+          {/* Corte do BID */}
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Incluir da Agenda</span>
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Corte BID</span>
+            <input
+              type="time"
+              value={bidCorte}
+              onChange={(e) => setBidCorte(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring w-24"
+            />
+          </div>
+
+          {/* Empresas — seleção por sessão */}
+          <Popover open={empresasPopoverOpen} onOpenChange={setEmpresasPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-sm">
+                Empresas
+                {numExcluidas > 0 && (
+                  <span className="bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                    -{numExcluidas}
+                  </span>
+                )}
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+              <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">Incluir na mensagem</span>
+                <button
+                  className="text-[11px] text-primary hover:underline"
+                  onClick={() => setExcludedEmpresas(new Set())}
+                >
+                  Todas
+                </button>
+              </div>
+              <div className="max-h-56 overflow-y-auto py-1">
+                {empresasDisponiveis.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">Nenhuma empresa</p>
+                ) : (
+                  empresasDisponiveis.map((emp) => {
+                    const checked = !excludedEmpresas.has(emp);
+                    return (
+                      <label
+                        key={emp}
+                        className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/50 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleEmpresa(emp)}
+                          className="shrink-0"
+                        />
+                        <span className="text-sm truncate">{emp}</span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Agenda */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Agenda</span>
             <Select value={selectedAgendaId} onValueChange={setSelectedAgendaId}>
-              <SelectTrigger className="h-8 w-56 text-sm">
+              <SelectTrigger className="h-8 w-44 text-sm">
                 <SelectValue placeholder="Nenhum item" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Nenhum item</SelectItem>
                 {agendaItems.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
-                    {a.titulo.length > 36 ? a.titulo.slice(0, 36) + "…" : a.titulo}
+                    {a.titulo.length > 32 ? a.titulo.slice(0, 32) + "…" : a.titulo}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -333,22 +447,22 @@ export function TrocaDeTurno({
           <Button
             size="sm"
             variant="outline"
-            className="h-8 ml-auto gap-1.5"
-            onClick={generate}
+            className="h-8 ml-auto"
+            onClick={loadStaticData}
             disabled={loading}
           >
             Atualizar
           </Button>
         </div>
 
-        {/* Message preview */}
+        {/* Prévia da mensagem */}
         <div className="flex-1 overflow-auto px-5 py-4">
           <pre className="whitespace-pre-wrap text-sm font-mono bg-muted/40 rounded-lg p-4 leading-relaxed text-foreground min-h-[200px]">
             {loading ? "Gerando…" : message}
           </pre>
         </div>
 
-        <div className="px-5 py-3 border-t border-border flex justify-end gap-2">
+        <div className="px-5 py-3 border-t border-border shrink-0 flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button>
           <Button size="sm" className="gap-1.5 min-w-[140px]" onClick={copyMessage} disabled={!message || loading}>
             {copied ? <><Check className="h-4 w-4" /> Copiado!</> : <><Copy className="h-4 w-4" /> Copiar para Teams</>}

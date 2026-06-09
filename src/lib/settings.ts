@@ -17,7 +17,7 @@ export type UmblerSettings = {
 
 export type AppSettings = {
   fillRateWarningThreshold: number;
-  defaultDashboardView: "detailed" | "panorama";
+  defaultDashboardView: "detailed" | "panorama" | "timeline";
   approachingAlertEnabled: boolean;
   soundAlertEnabled: boolean;
   portariaRules: PortariaRule[];
