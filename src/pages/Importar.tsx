@@ -203,6 +203,7 @@ export default function Importar() {
     const db = await getDb();
     try {
       // Drop and recreate to allow schema changes across imports
+      await new Promise((r) => setTimeout(r, 0));
       await db.execute("DROP TABLE IF EXISTS chapa_registry");
       await db.execute(`CREATE TABLE chapa_registry (
         cpf TEXT, nome TEXT NOT NULL, telefone TEXT,
@@ -241,7 +242,7 @@ export default function Importar() {
       const total = regRows.length;
       setRegProgress({ done: 0, total });
 
-      const CHUNK = 100;
+      const CHUNK = 30;
       for (let i = 0; i < regRows.length; i += CHUNK) {
         const chunk = regRows.slice(i, i + CHUNK);
         const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
