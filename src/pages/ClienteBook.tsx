@@ -41,6 +41,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { normalize } from "@/lib/normalize";
+import { cepGeocoder } from "@/lib/geocode";
 
 type ClienteAddress = {
   id: string;
@@ -49,6 +50,7 @@ type ClienteAddress = {
   maps_link: string;
   lat: number | null;
   lng: number | null;
+  cep: string | null;
 };
 
 type ClienteEntry = {
@@ -133,7 +135,8 @@ export default function ClienteBook() {
   const [deleteTarget, setDeleteTarget] = useState<ClienteEntry | null>(null);
   const [formEnderecos, setFormEnderecos] = useState<ClienteAddress[]>([]);
   const [addingAddr, setAddingAddr] = useState(false);
-  const [newAddr, setNewAddr] = useState({ label: "", endereco: "", maps_link: "" });
+  const [newAddr, setNewAddr] = useState({ label: "", cep: "", endereco: "", maps_link: "" });
+  const [cepLoading, setCepLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -161,12 +164,31 @@ export default function ClienteBook() {
     );
   });
 
+  async function handleCepChange(raw: string) {
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    const formatted = digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+    setNewAddr((a) => ({ ...a, cep: formatted }));
+    if (digits.length === 8) {
+      setCepLoading(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          const parts = [data.logradouro, data.bairro, `${data.localidade} - ${data.uf}`].filter(Boolean);
+          setNewAddr((a) => ({ ...a, endereco: a.endereco || parts.join(", ") }));
+        }
+      } catch { /* noop */ }
+      finally { setCepLoading(false); }
+      cepGeocoder.enqueue(digits, () => {});
+    }
+  }
+
   function openAdd() {
     setEditing(null);
     setForm({ ...EMPTY });
     setFormEnderecos([]);
     setAddingAddr(false);
-    setNewAddr({ label: "", endereco: "", maps_link: "" });
+    setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" });
     setDialogOpen(true);
   }
 
@@ -191,7 +213,7 @@ export default function ClienteBook() {
       setFormEnderecos([]);
     }
     setAddingAddr(false);
-    setNewAddr({ label: "", endereco: "", maps_link: "" });
+    setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" });
     setDialogOpen(true);
   }
 
@@ -685,14 +707,27 @@ export default function ClienteBook() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[11px] text-muted-foreground">Endereço *</label>
+                      <label className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        CEP
+                        {cepLoading && <span className="text-[10px] text-muted-foreground/60 animate-pulse">buscando…</span>}
+                      </label>
                       <Input
-                        placeholder="Rua, número, cidade"
-                        value={newAddr.endereco}
-                        onChange={(e) => setNewAddr((a) => ({ ...a, endereco: e.target.value }))}
-                        className="text-xs h-7"
+                        placeholder="00000-000"
+                        value={newAddr.cep}
+                        onChange={(e) => handleCepChange(e.target.value)}
+                        className="text-xs h-7 font-mono"
+                        maxLength={9}
                       />
                     </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-muted-foreground">Endereço *</label>
+                    <Input
+                      placeholder="Rua, número, cidade"
+                      value={newAddr.endereco}
+                      onChange={(e) => setNewAddr((a) => ({ ...a, endereco: e.target.value }))}
+                      className="text-xs h-7"
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[11px] text-muted-foreground">Link do Google Maps (opcional — extrai lat/lng automaticamente)</label>
@@ -709,7 +744,7 @@ export default function ClienteBook() {
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs px-2"
-                      onClick={() => { setAddingAddr(false); setNewAddr({ label: "", endereco: "", maps_link: "" }); }}
+                      onClick={() => { setAddingAddr(false); setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" }); }}
                     >
                       Cancelar
                     </Button>
@@ -720,19 +755,31 @@ export default function ClienteBook() {
                       disabled={!newAddr.label.trim() || !newAddr.endereco.trim()}
                       onClick={() => {
                         const parsed = newAddr.maps_link ? parseLatLng(newAddr.maps_link) : null;
+                        const cepClean = newAddr.cep.replace(/\D/g, "") || null;
+                        const id = Date.now().toString();
                         setFormEnderecos((prev) => [
                           ...prev,
                           {
-                            id: Date.now().toString(),
+                            id,
                             label: newAddr.label.trim(),
                             endereco: newAddr.endereco.trim(),
                             maps_link: newAddr.maps_link.trim(),
                             lat: parsed?.lat ?? null,
                             lng: parsed?.lng ?? null,
+                            cep: cepClean,
                           },
                         ]);
+                        if (cepClean) {
+                          cepGeocoder.enqueue(cepClean, (_cep, coords) => {
+                            if (coords) {
+                              setFormEnderecos((prev) => prev.map((a) =>
+                                a.id === id ? { ...a, lat: coords.lat, lng: coords.lng } : a,
+                              ));
+                            }
+                          });
+                        }
                         setAddingAddr(false);
-                        setNewAddr({ label: "", endereco: "", maps_link: "" });
+                        setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" });
                       }}
                     >
                       Salvar local
