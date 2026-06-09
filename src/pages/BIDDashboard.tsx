@@ -72,6 +72,7 @@ import {
   ChevronsUpDown,
   BookMarked,
   Hash,
+  Calendar,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BidMatchmaker } from "@/components/BidMatchmaker";
@@ -144,6 +145,7 @@ export type DispatchParams = {
   atividades: string;
   diaria: string;
   localCep: string;
+  dataParam: string;
 };
 
 type RegistryRow = {
@@ -285,6 +287,7 @@ const EMPTY_PARAMS: DispatchParams = {
   atividades: "",
   diaria: "",
   localCep: "",
+  dataParam: "",
 };
 
 /* ── BidTaskCard ────────────────────────────────────────────────── */
@@ -633,7 +636,7 @@ function BidTaskCard({
         settings: us,
         templateIdOverride: us.bidTemplateId || "aH6pLxMKil-bY_UP",
         overrideParams: [
-          fmtTaskDateParam(task.data_tarefa),
+          dispatchParams.dataParam || fmtTaskDateParam(task.data_tarefa),
           localParam,
           dispatchParams.atividades,
           `R$ ${dispatchParams.diaria}`,
@@ -642,7 +645,7 @@ function BidTaskCard({
       const dispId = uuid();
       const now = new Date().toISOString();
       const paramsJson = JSON.stringify({
-        data: fmtTaskDateParam(task.data_tarefa),
+        data: dispatchParams.dataParam || fmtTaskDateParam(task.data_tarefa),
         local: localParam,
         atividades: dispatchParams.atividades,
         diaria: dispatchParams.diaria,
@@ -681,6 +684,7 @@ function BidTaskCard({
         sendMapsAsLocal: dispatchParams.sendMapsAsLocal,
         atividades: dispatchParams.atividades,
         diaria: dispatchParams.diaria,
+        dataParam: dispatchParams.dataParam,
       },
     });
     if (started) setSelectedIds(new Set());
@@ -818,6 +822,31 @@ function BidTaskCard({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" /> Data / Horário do disparo
+                </label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    placeholder={fmtTaskDateParam(task.data_tarefa)}
+                    value={dispatchParams.dataParam}
+                    onChange={(e) => setDispatchParams((p) => ({ ...p, dataParam: e.target.value }))}
+                    className="h-8 text-sm flex-1"
+                  />
+                  {dispatchParams.dataParam && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-muted-foreground"
+                      onClick={() => setDispatchParams((p) => ({ ...p, dataParam: "" }))}
+                    >
+                      ↺ auto
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <MapPin className="h-3 w-3" /> Local
@@ -1013,7 +1042,7 @@ function BidTaskCard({
               <div className="sm:col-span-2 rounded-lg bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                 <span className="font-medium text-foreground/70 uppercase tracking-wider text-[10px]">Preview do template</span>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span><span className="text-foreground/60">Data:</span> {fmtTaskDateParam(task.data_tarefa)}</span>
+                  <span><span className="text-foreground/60">Data:</span> {dispatchParams.dataParam || fmtTaskDateParam(task.data_tarefa)}</span>
                   <span><span className="text-foreground/60">Local:</span> {
                     dispatchParams.sendMapsAsLocal && dispatchParams.mapsLink
                       ? <span className="text-info/80 italic text-[10px]">link maps</span>

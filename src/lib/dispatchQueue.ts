@@ -468,6 +468,7 @@ export type BidBatchParams = {
   sendMapsAsLocal: boolean;
   atividades: string;
   diaria: string;
+  dataParam?: string;
 };
 
 export type BidBatchJob = {
@@ -575,7 +576,7 @@ class BidDispatchQueue {
           settings: umblerSettings,
           templateIdOverride: umblerSettings.bidTemplateId || "aH6pLxMKil-bY_UP",
           overrideParams: [
-            fmtTaskDateParam(job.dataTarefa),
+            job.params.dataParam || fmtTaskDateParam(job.dataTarefa),
             localParam,
             job.params.atividades,
             `R$ ${job.params.diaria}`,

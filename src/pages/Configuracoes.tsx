@@ -218,6 +218,71 @@ export default function Configuracoes() {
     }
   }
 
+  const [snapshotExporting, setSnapshotExporting] = useState(false);
+  const [snapshotImporting, setSnapshotImporting] = useState(false);
+
+  async function handleExportSnapshot() {
+    if (!isTauri) { toast.error("Disponível apenas na versão desktop."); return; }
+    setSnapshotExporting(true);
+    try {
+      const dbBase64 = await invoke<string>("export_db_base64");
+      const settingsObj: Record<string, string> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)!;
+        settingsObj[k] = localStorage.getItem(k)!;
+      }
+      const snapshot = {
+        version: "1",
+        app_version: "0.9.74",
+        exported_at: new Date().toISOString(),
+        db: dbBase64,
+        local_storage: settingsObj,
+      };
+      const blob = new Blob([JSON.stringify(snapshot)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mcm_snapshot_${new Date().toISOString().slice(0, 10)}.mcmbak`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Snapshot exportado com sucesso.");
+    } catch (e) {
+      toast.error(`Erro ao exportar: ${e}`);
+    } finally {
+      setSnapshotExporting(false);
+    }
+  }
+
+  function handleImportSnapshot(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!isTauri) { toast.error("Disponível apenas na versão desktop."); return; }
+    if (!window.confirm("Isso vai SUBSTITUIR todos os dados desta máquina. Um backup automático do banco atual será criado. Confirmar?")) {
+      e.target.value = "";
+      return;
+    }
+    setSnapshotImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const raw = ev.target?.result as string;
+        const snapshot = JSON.parse(raw);
+        if (!snapshot.db || !snapshot.local_storage) throw new Error("Arquivo inválido ou corrompido.");
+        await invoke("import_db_base64", { data: snapshot.db });
+        for (const [k, v] of Object.entries(snapshot.local_storage as Record<string, string>)) {
+          localStorage.setItem(k, v);
+        }
+        toast.success("Snapshot importado.", { description: "Feche e reabra o MCM para aplicar completamente." });
+      } catch (err) {
+        toast.error(`Erro ao importar: ${err instanceof Error ? err.message : String(err)}`);
+      } finally {
+        setSnapshotImporting(false);
+        e.target.value = "";
+      }
+    };
+    reader.readAsText(file);
+  }
+
   const threshold = settings.fillRateWarningThreshold;
   const exampleBelow = Math.max(0, threshold - 10);
   const exampleAbove = Math.min(100, threshold + 10);
@@ -809,6 +874,7 @@ export default function Configuracoes() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Backup rápido existente */}
             <div className="flex items-center gap-4 flex-wrap">
               <Button
                 onClick={handleBackup}
@@ -817,19 +883,52 @@ export default function Configuracoes() {
                 className="gap-2"
               >
                 <Database className={`h-4 w-4 ${backupLoading ? "animate-pulse" : ""}`} />
-                {backupLoading ? "Fazendo backup…" : "Fazer backup agora"}
+                {backupLoading ? "Fazendo backup…" : "Backup rápido (.db)"}
               </Button>
               {lastBackup && (
                 <p className="text-xs text-muted-foreground">
-                  Último backup: <span className="text-foreground font-medium">{lastBackup}</span>
+                  Último: <span className="text-foreground font-medium">{lastBackup}</span>
                 </p>
               )}
             </div>
+
+            <Separator />
+
+            {/* Snapshot completo */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Snapshot completo</p>
+              <p className="text-xs text-muted-foreground">
+                Exporta banco de dados + configurações em um único arquivo <code>.mcmbak</code>. Use para migrar o MCM para outro computador ou restaurar tudo de uma vez.
+              </p>
+              <div className="flex flex-wrap gap-3 items-center">
+                <Button
+                  onClick={handleExportSnapshot}
+                  disabled={snapshotExporting || !isTauri}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <HardDrive className={`h-4 w-4 ${snapshotExporting ? "animate-pulse" : ""}`} />
+                  {snapshotExporting ? "Exportando…" : "Exportar snapshot"}
+                </Button>
+
+                <label className={`inline-flex items-center gap-2 cursor-pointer px-4 py-2 rounded-md border border-input bg-background text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${snapshotImporting || !isTauri ? "opacity-50 pointer-events-none" : ""}`}>
+                  <Upload className={`h-4 w-4 ${snapshotImporting ? "animate-pulse" : ""}`} />
+                  {snapshotImporting ? "Importando…" : "Importar snapshot"}
+                  <input
+                    type="file"
+                    accept=".mcmbak"
+                    className="hidden"
+                    onChange={handleImportSnapshot}
+                    disabled={snapshotImporting || !isTauri}
+                  />
+                </label>
+              </div>
+            </div>
+
             <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
               <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
               <p className="text-xs text-muted-foreground">
-                O arquivo de backup contém todas as tarefas, chapas, logs, histórico de respostas e configurações.
-                Guarde uma cópia regularmente — em especial após importações de grande volume.
+                A importação substitui <strong>todos os dados</strong> desta máquina. Um backup automático do banco atual é criado antes. Reabra o MCM após importar para aplicar completamente.
               </p>
             </div>
           </CardContent>

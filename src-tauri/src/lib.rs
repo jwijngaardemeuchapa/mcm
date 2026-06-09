@@ -316,6 +316,61 @@ fn backup_database(app: tauri::AppHandle) -> Result<String, String> {
     Ok(dest.to_string_lossy().to_string())
 }
 
+// ── Backup / Restore ─────────────────────────────────────────────────────
+
+#[tauri::command]
+fn export_db_base64(app: tauri::AppHandle) -> Result<String, String> {
+    use std::fs;
+    use tauri::Manager;
+    use base64::{Engine as _, engine::general_purpose};
+
+    let db_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Erro ao localizar dados do aplicativo: {e}"))?
+        .join("fupmanager.db");
+
+    if !db_path.exists() {
+        return Err("Banco de dados não encontrado.".into());
+    }
+
+    let bytes = fs::read(&db_path)
+        .map_err(|e| format!("Erro ao ler banco de dados: {e}"))?;
+
+    Ok(general_purpose::STANDARD.encode(&bytes))
+}
+
+#[tauri::command]
+fn import_db_base64(app: tauri::AppHandle, data: String) -> Result<(), String> {
+    use std::fs;
+    use tauri::Manager;
+    use base64::{Engine as _, engine::general_purpose};
+
+    let bytes = general_purpose::STANDARD
+        .decode(data.trim())
+        .map_err(|e| format!("Dados de backup inválidos: {e}"))?;
+
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Erro ao localizar dados do aplicativo: {e}"))?;
+
+    // Backup automático do banco atual antes de sobrescrever
+    let db_path = app_data.join("fupmanager.db");
+    if db_path.exists() {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let _ = fs::copy(&db_path, app_data.join(format!("fupmanager_pre_restore_{ts}.db")));
+    }
+
+    fs::write(&db_path, &bytes)
+        .map_err(|e| format!("Erro ao restaurar banco de dados: {e}"))?;
+
+    Ok(())
+}
+
 // ── Ollama sidecar ────────────────────────────────────────────────────────
 
 use std::sync::{Mutex, OnceLock};
@@ -1275,7 +1330,7 @@ CREATE INDEX IF NOT EXISTS idx_resposta_log_tarefa ON resposta_log(id_tarefa);
   ];
 
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![check_notification_responses, backup_database, check_bid_responses, start_ollama, stop_ollama, check_ollama, ollama_generate, ollama_pull, get_webhook_port, get_resposta_log])
+    .invoke_handler(tauri::generate_handler![check_notification_responses, backup_database, export_db_base64, import_db_base64, check_bid_responses, start_ollama, stop_ollama, check_ollama, ollama_generate, ollama_pull, get_webhook_port, get_resposta_log])
     .plugin(
       tauri_plugin_sql::Builder::default()
         .add_migrations("sqlite:fupmanager.db", migrations)
