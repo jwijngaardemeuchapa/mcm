@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { getDb, uuid, errMsg } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
-import { sendUmblerFup, fmtTaskDateParam } from "@/lib/umbler";
+import { sendUmblerFup, startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
 import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
@@ -266,12 +266,6 @@ async function clipCopy(text: string, msg: string) {
 
 /* ── Constants ──────────────────────────────────────────────────── */
 
-const ATIVIDADES_PRESETS = [
-  "Carga e Descarga",
-  "Movimentação Interna",
-  "Inventário",
-  "Montagem e Desmontagem",
-];
 
 const STATUS_CFG: Record<string, { label: string; cls: string }> = {
   aguardando:     { label: "Aguardando",     cls: "bg-muted/40 text-muted-foreground border-border" },
@@ -641,22 +635,22 @@ function BidTaskCard({
     const settings = readSettings();
     const us = settings.umblerSettings;
     if (!us.bearerToken) { toast.error("Umbler não configurado. Acesse Integrações."); return; }
+    if (!us.bidBotId || !us.bidBotTriggerName) {
+      toast.error("Configure o Bot ID e o Trigger Name do BID em Integrações.");
+      return;
+    }
 
     setDispatchingIds((prev) => new Set(prev).add(candidate._key));
     try {
-      await sendUmblerFup({
-        chapaNome: candidate.nome,
+      await startUmblerBot({
         chapaTelefone: candidate.telefone,
-        dataTarefa: task.data_tarefa,
-        empresa: task.empresa,
         settings: us,
-        templateIdOverride: us.bidTemplateId || "aH6pLxMKil-bY_UP",
-        overrideParams: [
-          dispatchParams.dataParam || fmtTaskDateParam(task.data_tarefa),
-          localParam,
-          dispatchParams.atividades,
-          `R$ ${dispatchParams.diaria}`,
-        ],
+        initialData: {
+          Data: dispatchParams.dataParam || fmtTaskDateParam(task.data_tarefa),
+          Local: localParam,
+          Atividades: dispatchParams.atividades,
+          "Diária": `R$ ${dispatchParams.diaria}`,
+        },
       });
       const dispId = uuid();
       const now = new Date().toISOString();
@@ -689,6 +683,11 @@ function BidTaskCard({
     const pool = candidateView === "bloqueados" ? blockedCandidates : candidates;
     const toDispatch = pool.filter((c) => selectedIds.has(c._key) && c.telefone);
     if (toDispatch.length === 0) return;
+    const us = readSettings().umblerSettings;
+    if (!us.bidBotId || !us.bidBotTriggerName) {
+      toast.error("Configure o Bot ID e o Trigger Name do BID em Integrações.");
+      return;
+    }
     const started = bidDispatchQueue.startBatch({
       taskId: task.id_tarefa,
       empresa: task.empresa,
@@ -1021,25 +1020,21 @@ function BidTaskCard({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Atividades</label>
-                <Select
-                  value={ATIVIDADES_PRESETS.includes(dispatchParams.atividades) ? dispatchParams.atividades : "__custom__"}
-                  onValueChange={(v) => setDispatchParams((p) => ({ ...p, atividades: v === "__custom__" ? "" : v }))}
-                >
-                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecionar…" /></SelectTrigger>
-                  <SelectContent>
-                    {ATIVIDADES_PRESETS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                    <SelectItem value="__custom__">Digitar…</SelectItem>
-                  </SelectContent>
-                </Select>
-                {!ATIVIDADES_PRESETS.includes(dispatchParams.atividades) && (
+                <label className="text-xs font-medium text-muted-foreground">Atividade</label>
+                <div className="flex items-center rounded-md border border-input bg-background h-8 overflow-hidden focus-within:ring-1 focus-within:ring-ring">
+                  <span className="pl-2.5 pr-1 text-xs text-muted-foreground whitespace-nowrap pointer-events-none select-none">
+                    🛠️ Carga e descarga de
+                  </span>
                   <Input
-                    placeholder="Descreva as atividades…"
+                    placeholder="Cimento, Materiais de Construção…"
                     value={dispatchParams.atividades}
                     onChange={(e) => setDispatchParams((p) => ({ ...p, atividades: e.target.value }))}
-                    className="h-8 text-sm mt-1"
+                    className="h-8 text-sm border-0 focus-visible:ring-0 px-1 flex-1"
                   />
-                )}
+                </div>
+                <p className="text-[10px] text-muted-foreground/70">
+                  O template já contém "Carga e descarga de" — digite apenas o complemento.
+                </p>
               </div>
 
               <div className="space-y-1">
@@ -1064,7 +1059,7 @@ function BidTaskCard({
                       ? <span className="text-info/80 italic text-[10px]">link maps</span>
                       : dispatchParams.local || <em>—</em>
                   }</span>
-                  <span><span className="text-foreground/60">Ativ.:</span> {dispatchParams.atividades || <em>—</em>}</span>
+                  <span><span className="text-foreground/60">Ativ.:</span> {dispatchParams.atividades ? `Carga e descarga de ${dispatchParams.atividades}` : <em>—</em>}</span>
                   <span><span className="text-foreground/60">Diária:</span> {dispatchParams.diaria ? `R$ ${dispatchParams.diaria}` : <em>—</em>}</span>
                 </div>
               </div>
@@ -2619,16 +2614,21 @@ function BloqueadosTab() {
       const settings = readSettings();
       const us = settings.umblerSettings;
       if (!us.bearerToken) { toast.error("Configure a integração Umbler em Configurações."); return; }
+      if (!us.bidBotId || !us.bidBotTriggerName) {
+        toast.error("Configure o Bot ID e o Trigger Name do BID em Integrações.");
+        return;
+      }
       const selectedTask = openTasks.find((t) => t.id_tarefa === taskId);
       const isoDate = selectedTask ? selectedTask.data_tarefa : `${dataTarefa}:00-03:00`;
-      await sendUmblerFup({
-        chapaNome: bidTarget.nome,
+      await startUmblerBot({
         chapaTelefone: bidTarget.telefone,
-        dataTarefa: isoDate,
-        empresa: selectedTask?.empresa ?? "",
         settings: us,
-        templateIdOverride: us.bidTemplateId || "aH6pLxMKil-bY_UP",
-        overrideParams: [fmtTaskDateParam(isoDate), local, atividades, `R$ ${diaria}`],
+        initialData: {
+          Data: fmtTaskDateParam(isoDate),
+          Local: local,
+          Atividades: atividades,
+          "Diária": `R$ ${diaria}`,
+        },
       });
       if (selectedTask) {
         const dispId = uuid();
@@ -2945,25 +2945,19 @@ function BloqueadosTab() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Atividades *</label>
-              <Select
-                value={ATIVIDADES_PRESETS.includes(bidParams.atividades) ? bidParams.atividades : "__custom__"}
-                onValueChange={(v) => setBidParams((p) => ({ ...p, atividades: v === "__custom__" ? "" : v }))}
-              >
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Selecionar…" /></SelectTrigger>
-                <SelectContent>
-                  {ATIVIDADES_PRESETS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                  <SelectItem value="__custom__">Digitar…</SelectItem>
-                </SelectContent>
-              </Select>
-              {!ATIVIDADES_PRESETS.includes(bidParams.atividades) && (
+              <label className="text-xs font-medium text-muted-foreground">Atividade *</label>
+              <div className="flex items-center rounded-md border border-input bg-background h-8 overflow-hidden focus-within:ring-1 focus-within:ring-ring">
+                <span className="pl-2.5 pr-1 text-xs text-muted-foreground whitespace-nowrap pointer-events-none select-none">
+                  🛠️ Carga e descarga de
+                </span>
                 <Input
-                  placeholder="Descreva as atividades…"
+                  placeholder="Cimento, Materiais…"
                   value={bidParams.atividades}
                   onChange={(e) => setBidParams((p) => ({ ...p, atividades: e.target.value }))}
-                  className="h-8 text-sm mt-1"
+                  className="h-8 text-sm border-0 focus-visible:ring-0 px-1 flex-1"
                 />
-              )}
+              </div>
+              <p className="text-[10px] text-muted-foreground/70">O template já contém "Carga e descarga de" — digite só o complemento.</p>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Diária (R$) *</label>

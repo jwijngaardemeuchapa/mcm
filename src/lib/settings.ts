@@ -12,6 +12,8 @@ export type UmblerSettings = {
   cancelTemplateId: string;
   taskCancelTemplateId: string;
   bidTemplateId: string;
+  bidBotId: string;
+  bidBotTriggerName: string;
   webhookPort: number;
 };
 
@@ -41,7 +43,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
   agendaSortBy: "prazo",
-  umblerSettings: { bearerToken: "", fromPhone: "", organizationId: "", templateId: "", cancelTemplateId: "", taskCancelTemplateId: "", bidTemplateId: "aH6pLxMKil-bY_UP", webhookPort: 9988 },
+  umblerSettings: { bearerToken: "", fromPhone: "", organizationId: "", templateId: "", cancelTemplateId: "", taskCancelTemplateId: "", bidTemplateId: "aH6pLxMKil-bY_UP", bidBotId: "", bidBotTriggerName: "", webhookPort: 9988 },
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,

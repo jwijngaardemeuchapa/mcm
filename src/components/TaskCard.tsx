@@ -67,7 +67,8 @@ import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
-import { useMassFupState, useTaskCancelState, useChapaJobState } from "@/lib/useDispatchJob";
+import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
+import { Checkbox } from "@/components/ui/checkbox";
 
 async function clipboardWrite(text: string, successMsg: string) {
   try {
@@ -123,11 +124,13 @@ const canalLabel: Record<string, string> = {
   whatsapp_web: "WhatsApp",
   umbler_talk: "Umbler",
   ligacao_3c: "3C",
+  umbler_custom: "Msg",
 };
 const canalLabelLong: Record<string, string> = {
   whatsapp_web: "WhatsApp Web",
   umbler_talk: "Umbler Talk",
   ligacao_3c: "Ligação 3C",
+  umbler_custom: "Mensagem personalizada",
 };
 
 function companyFilenameSlug(empresa: string): string {
@@ -234,6 +237,10 @@ export function TaskCard({
     } catch { /* noop */ }
   }
   const fupEmpresa = fupEmpresaOvr.trim() || task.empresa;
+  const [customMsgOpen, setCustomMsgOpen] = useState(false);
+  const [customMsgText, setCustomMsgText] = useState("");
+  const [customMsgSelected, setCustomMsgSelected] = useState<Set<string>>(new Set());
+  const customMsgState = useCustomMsgState(task.id_tarefa);
   const [nowTs, setNowTs] = useState(() => Date.now());
   const massFupState = useMassFupState(task.id_tarefa);
   const taskCancelState = useTaskCancelState(task.id_tarefa);
@@ -518,6 +525,24 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa };
     dispatchQueue.startMassFup(task.id_tarefa, chapasWithPhone, taskSnap);
+  }
+
+  const confirmedWithPhone = task.chapas.filter(
+    (c) => c.status_contato === "confirmado" && c.telefone_chapa && c.nome_chapa,
+  );
+  const customMsgCount = task.fup_log.filter((f) => f.canal === "umbler_custom").length;
+
+  function openCustomMsgDialog() {
+    setCustomMsgText("");
+    setCustomMsgSelected(new Set(confirmedWithPhone.map((c) => c.id)));
+    setCustomMsgOpen(true);
+  }
+
+  function startCustomMsgDispatch() {
+    const targets = confirmedWithPhone.filter((c) => customMsgSelected.has(c.id)) as ChapaSnap[];
+    if (targets.length === 0 || !customMsgText.trim()) return;
+    dispatchQueue.startCustomMsg(task.id_tarefa, targets, customMsgText.trim());
+    setCustomMsgOpen(false);
   }
 
   function startTaskCancelCountdown() {
@@ -1111,6 +1136,49 @@ Precisamos de 1 substituto para esta tarefa.`;
             </DropdownMenu>
             {(umblerReady || taskCancelTemplateReady) && (
               <div className="ml-auto flex gap-2 items-center">
+                {umblerReady && confirmedWithPhone.length > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`gap-1.5 ${
+                          customMsgState?.status === "countdown"
+                            ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                            : customMsgState?.status === "sending"
+                            ? "border-info/40 bg-info/10 text-info hover:bg-info/20"
+                            : customMsgCount > 0
+                            ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
+                            : "border-primary/40 text-primary hover:bg-primary/10"
+                        }`}
+                        onClick={
+                          customMsgState
+                            ? () => dispatchQueue.abortCustomMsg(task.id_tarefa)
+                            : openCustomMsgDialog
+                        }
+                      >
+                        {customMsgState?.status === "countdown" ? (
+                          <><X className="h-3.5 w-3.5" /><span>0:{String(customMsgState.remaining).padStart(2, "0")}</span></>
+                        ) : customMsgState?.status === "sending" ? (
+                          <><X className="h-3.5 w-3.5" /><span>Cancelar ({customMsgState.sent}/{customMsgState.total})</span></>
+                        ) : customMsgCount > 0 ? (
+                          <><Check className="h-3.5 w-3.5" /><span>Mensagem ({customMsgCount})</span></>
+                        ) : (
+                          <><MessageSquare className="h-3.5 w-3.5" /><span>Mensagem</span></>
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {customMsgState?.status === "countdown"
+                        ? "Disparo em contagem regressiva — clique para cancelar"
+                        : customMsgState?.status === "sending"
+                        ? "Enviando — clique para interromper"
+                        : customMsgCount > 0
+                        ? `${customMsgCount} mensagem(ns) personalizada(s) enviada(s) — clique para enviar outra`
+                        : `Mensagem personalizada para os ${confirmedWithPhone.length} confirmado(s) — janela de 24h aberta`}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
                 {umblerReady && (
                   <Popover>
                     <Tooltip>
@@ -1275,6 +1343,85 @@ Precisamos de 1 substituto para esta tarefa.`;
       )}
 
       {/* Removal dialog */}
+      <Dialog open={customMsgOpen} onOpenChange={setCustomMsgOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-primary" /> Mensagem personalizada
+            </DialogTitle>
+            <DialogDescription>
+              Texto livre para os chapas confirmados desta tarefa.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-md border border-success/30 bg-success/5 px-3 py-2 text-[11px] text-success leading-relaxed">
+              <Check className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              Confirmados já responderam — a janela de 24h do WhatsApp está aberta para mensagem livre.
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
+              <Textarea
+                value={customMsgText}
+                onChange={(e) => setCustomMsgText(e.target.value)}
+                placeholder="Digite a mensagem que será enviada…"
+                rows={4}
+                className="text-sm"
+                autoFocus
+              />
+              <p className="text-[10px] text-muted-foreground text-right">{customMsgText.length} caracteres</p>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Destinatários ({customMsgSelected.size} de {confirmedWithPhone.length})
+                </label>
+                <button
+                  type="button"
+                  className="text-[11px] text-primary hover:underline"
+                  onClick={() =>
+                    setCustomMsgSelected(
+                      customMsgSelected.size === confirmedWithPhone.length
+                        ? new Set()
+                        : new Set(confirmedWithPhone.map((c) => c.id)),
+                    )
+                  }
+                >
+                  {customMsgSelected.size === confirmedWithPhone.length ? "Desmarcar todos" : "Marcar todos"}
+                </button>
+              </div>
+              <div className="max-h-44 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                {confirmedWithPhone.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2.5 px-3 py-1.5 text-xs cursor-pointer hover:bg-muted/40">
+                    <Checkbox
+                      checked={customMsgSelected.has(c.id)}
+                      onCheckedChange={(v) =>
+                        setCustomMsgSelected((prev) => {
+                          const next = new Set(prev);
+                          if (v) next.add(c.id); else next.delete(c.id);
+                          return next;
+                        })
+                      }
+                    />
+                    <span className="font-medium text-foreground truncate">{c.nome_chapa}</span>
+                    <span className="text-muted-foreground ml-auto font-mono text-[10px]">{c.telefone_chapa}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomMsgOpen(false)}>Cancelar</Button>
+            <Button
+              disabled={!customMsgText.trim() || customMsgSelected.size === 0}
+              onClick={startCustomMsgDispatch}
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" />
+              Disparar para {customMsgSelected.size}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!removalTarget} onOpenChange={(o) => !o && setRemovalTarget(null)}>
         <DialogContent>
           <DialogHeader>

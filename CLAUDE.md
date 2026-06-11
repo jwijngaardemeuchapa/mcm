@@ -26,6 +26,8 @@ Isso mostra o que está "Fazendo" e o backlog "A fazer". Com base nisso:
 
 **Regra de ouro:** Nunca faça mais de uma alteração de cada vez sem consultar o usuário. Apresente o plano → aguarde aprovação → execute → reporte → pergunte sobre o próximo passo.
 
+**Git/GitHub:** Após cada build de versão (`npx tauri build`), faça o commit da versão E `git push origin main` — o repositório remoto (https://github.com/jwijngaardemeuchapa/mcm.git) deve sempre refletir a última versão compilada.
+
 ---
 
 ## Project Overview

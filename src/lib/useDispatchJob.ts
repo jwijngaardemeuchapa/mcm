@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { dispatchQueue, type MassFupState, type TaskCancelState, type ChapaJobState } from "./dispatchQueue";
+import { dispatchQueue, type MassFupState, type TaskCancelState, type ChapaJobState, type CustomMsgState } from "./dispatchQueue";
 
 export function useMassFupState(taskId: number): MassFupState {
   const [state, setState] = useState<MassFupState>(() => dispatchQueue.getMassFupState(taskId));
@@ -10,6 +10,12 @@ export function useMassFupState(taskId: number): MassFupState {
 export function useTaskCancelState(taskId: number): TaskCancelState {
   const [state, setState] = useState<TaskCancelState>(() => dispatchQueue.getTaskCancelState(taskId));
   useEffect(() => dispatchQueue.subscribeTaskCancel(taskId, setState), [taskId]);
+  return state;
+}
+
+export function useCustomMsgState(taskId: number): CustomMsgState {
+  const [state, setState] = useState<CustomMsgState>(() => dispatchQueue.getCustomMsgState(taskId));
+  useEffect(() => dispatchQueue.subscribeCustomMsg(taskId, setState), [taskId]);
   return state;
 }
 

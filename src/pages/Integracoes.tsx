@@ -381,8 +381,37 @@ export default function Integracoes() {
               className="font-mono text-xs"
             />
             <p className="text-[11px] text-muted-foreground">
-              Usado pelo <strong className="text-foreground">BID Dashboard</strong> para convidar chapas disponíveis.
-              Parâmetros: <strong className="text-foreground">parâm. 1</strong> — data/hora; <strong className="text-foreground">parâm. 2</strong> — local; <strong className="text-foreground">parâm. 3</strong> — atividades; <strong className="text-foreground">parâm. 4</strong> — diária (R$).
+              Legado — mantido como referência. O disparo de BID agora usa o <strong className="text-foreground">chatbot</strong> abaixo.
+            </p>
+          </div>
+
+          {/* BID bot (start-bot) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Bot ID — BID (chatbot)
+              </label>
+              <Input
+                value={umblerSettings.bidBotId}
+                onChange={(e) => updateUmblerSetting({ bidBotId: e.target.value })}
+                placeholder="abrvT7tO-13jbq-Z"
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Trigger Name — BID (chatbot)
+              </label>
+              <Input
+                value={umblerSettings.bidBotTriggerName}
+                onChange={(e) => updateUmblerSetting({ bidBotTriggerName: e.target.value })}
+                placeholder="BID_JEREMIAH | D0"
+                className="font-mono text-xs"
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground sm:col-span-2">
+              O disparo de BID chama o robô via <strong className="text-foreground">start-bot</strong> — o próprio fluxo envia o template como primeiro passo.
+              Variáveis enviadas em <code className="text-foreground">initialData</code>: Data, Local, Atividades, Diária.
             </p>
           </div>
 

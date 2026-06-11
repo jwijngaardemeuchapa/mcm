@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { getDb, uuid, errMsg } from "./db";
 import { readSettings } from "./settings";
-import { sendUmblerFup, fmtTaskDateParam } from "./umbler";
+import { sendUmblerFup, sendUmblerFreeText, startUmblerBot, fmtTaskDateParam } from "./umbler";
 
 export type MassFupProgress =
   | { phase: "sending"; sent: number; total: number }
@@ -19,6 +19,11 @@ export type TaskCancelState =
 
 export type ChapaJobState =
   | { status: "countdown"; remaining: number; action: "fup" | "cancel" }
+  | null;
+
+export type CustomMsgState =
+  | { status: "countdown"; remaining: number }
+  | { status: "sending"; sent: number; total: number }
   | null;
 
 export type ChapaSnap = {
@@ -46,6 +51,12 @@ class DispatchQueue {
   private massFupSubs = new Map<number, Set<Sub<MassFupState>>>();
   private taskCancelSubs = new Map<number, Set<Sub<TaskCancelState>>>();
   private chapaJobSubs = new Map<string, Set<Sub<ChapaJobState>>>();
+
+  private customMsgStates = new Map<number, CustomMsgState>();
+  private customMsgAborts = new Map<number, boolean>();
+  private customMsgSubs = new Map<number, Set<Sub<CustomMsgState>>>();
+  private customMsgIntervals = new Map<number, ReturnType<typeof setInterval>>();
+  private customMsgTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
   private massFupIntervals = new Map<number, ReturnType<typeof setInterval>>();
   private massFupTimers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -106,6 +117,133 @@ class DispatchQueue {
   private notifyChapaJob(chapaId: string) {
     const state = this.chapaJobStates.get(chapaId) ?? null;
     this.chapaJobSubs.get(chapaId)?.forEach((cb) => cb(state));
+  }
+
+  // ---- Mensagem personalizada (texto livre p/ confirmados) ----
+
+  getCustomMsgState(taskId: number): CustomMsgState {
+    return this.customMsgStates.get(taskId) ?? null;
+  }
+
+  subscribeCustomMsg(taskId: number, cb: Sub<CustomMsgState>): () => void {
+    let set = this.customMsgSubs.get(taskId);
+    if (!set) { set = new Set(); this.customMsgSubs.set(taskId, set); }
+    set.add(cb);
+    return () => { set!.delete(cb); };
+  }
+
+  private notifyCustomMsg(taskId: number) {
+    const state = this.customMsgStates.get(taskId) ?? null;
+    this.customMsgSubs.get(taskId)?.forEach((cb) => cb(state));
+  }
+
+  startCustomMsg(taskId: number, chapas: ChapaSnap[], message: string) {
+    this._clearCustomMsgTimers(taskId);
+    this.customMsgAborts.set(taskId, false);
+    this.customMsgStates.set(taskId, { status: "countdown", remaining: 30 });
+    this.notifyCustomMsg(taskId);
+
+    const interval = setInterval(() => {
+      const cur = this.customMsgStates.get(taskId);
+      if (!cur || cur.status !== "countdown") { clearInterval(interval); return; }
+      this.customMsgStates.set(taskId, { status: "countdown", remaining: Math.max(0, cur.remaining - 1) });
+      this.notifyCustomMsg(taskId);
+    }, 1000);
+    this.customMsgIntervals.set(taskId, interval);
+
+    const timer = setTimeout(() => {
+      clearInterval(interval);
+      this.customMsgIntervals.delete(taskId);
+      this.customMsgTimers.delete(taskId);
+      this._executeCustomMsg(taskId, chapas, message);
+    }, 30_000);
+    this.customMsgTimers.set(taskId, timer);
+  }
+
+  abortCustomMsg(taskId: number) {
+    const cur = this.customMsgStates.get(taskId);
+    if (!cur) return;
+    if (cur.status === "countdown") {
+      this._clearCustomMsgTimers(taskId);
+      this.customMsgStates.delete(taskId);
+      this.notifyCustomMsg(taskId);
+      toast.info("Disparo de mensagem cancelado.");
+    } else {
+      this.customMsgAborts.set(taskId, true);
+    }
+  }
+
+  private _clearCustomMsgTimers(taskId: number) {
+    const iv = this.customMsgIntervals.get(taskId);
+    if (iv !== undefined) { clearInterval(iv); this.customMsgIntervals.delete(taskId); }
+    const t = this.customMsgTimers.get(taskId);
+    if (t !== undefined) { clearTimeout(t); this.customMsgTimers.delete(taskId); }
+  }
+
+  private async _executeCustomMsg(taskId: number, chapas: ChapaSnap[], message: string) {
+    const { umblerSettings, operadorNome } = readSettings();
+    this.customMsgStates.set(taskId, { status: "sending", sent: 0, total: chapas.length });
+    this.notifyCustomMsg(taskId);
+
+    let sent = 0;
+    let failed = 0;
+    const sentIds: string[] = [];
+
+    for (let i = 0; i < chapas.length; i++) {
+      if (this.customMsgAborts.get(taskId)) break;
+      if (i > 0) {
+        for (let w = 0; w < 7; w++) {
+          if (this.customMsgAborts.get(taskId)) break;
+          await new Promise<void>((r) => setTimeout(r, 1000));
+        }
+        if (this.customMsgAborts.get(taskId)) break;
+      }
+      const chapa = chapas[i];
+      try {
+        await sendUmblerFreeText({
+          chapaTelefone: chapa.telefone_chapa!,
+          message,
+          settings: umblerSettings,
+        });
+        sent++;
+        sentIds.push(chapa.id);
+      } catch (e) {
+        failed++;
+        toast.error(`Falha ao enviar para ${chapa.nome_chapa ?? "chapa"}: ${errMsg(e)}`);
+      }
+      this.customMsgStates.set(taskId, { status: "sending", sent, total: chapas.length });
+      this.notifyCustomMsg(taskId);
+    }
+
+    const aborted = !!this.customMsgAborts.get(taskId);
+    this.customMsgStates.delete(taskId);
+    this.customMsgAborts.delete(taskId);
+
+    try {
+      if (sent > 0) {
+        const db = await getDb();
+        const now = new Date().toISOString();
+        const operador = operadorNome ? ` · ${operadorNome}` : "";
+        const preview = message.length > 80 ? `${message.slice(0, 80)}…` : message;
+        for (const id of sentIds) {
+          await db.execute(
+            "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id) VALUES (?, ?, ?, ?, ?, ?)",
+            [uuid(), taskId, "umbler_custom", now, `"${preview}"${operador}`, id],
+          );
+        }
+      }
+    } catch { /* mensagem já enviada — ignora erro de log */ }
+
+    this.notifyCustomMsg(taskId);
+    window.dispatchEvent(new CustomEvent("fup:refresh"));
+
+    if (aborted) {
+      toast.info(`Envio cancelado — ${sent} mensagem(ns) enviada(s) antes do cancelamento.`);
+    } else if (failed > 0) {
+      toast.warning(`${sent} enviada(s), ${failed} falha(s).`);
+    } else if (sent > 0) {
+      toast.success(`Mensagem enviada para ${sent} chapa(s) confirmado(s)`);
+    }
   }
 
   // ---- Mass FUP ----
@@ -568,19 +706,15 @@ class BidDispatchQueue {
       const candidate = candidates[i];
 
       try {
-        await sendUmblerFup({
-          chapaNome: candidate.nome,
+        await startUmblerBot({
           chapaTelefone: candidate.telefone,
-          dataTarefa: job.dataTarefa,
-          empresa: job.empresa,
           settings: umblerSettings,
-          templateIdOverride: umblerSettings.bidTemplateId || "aH6pLxMKil-bY_UP",
-          overrideParams: [
-            job.params.dataParam || fmtTaskDateParam(job.dataTarefa),
-            localParam,
-            job.params.atividades,
-            `R$ ${job.params.diaria}`,
-          ],
+          initialData: {
+            Data: job.params.dataParam || fmtTaskDateParam(job.dataTarefa),
+            Local: localParam,
+            Atividades: job.params.atividades,
+            "Diária": `R$ ${job.params.diaria}`,
+          },
         });
         const id = uuid();
         const now = new Date().toISOString();
