@@ -29,7 +29,9 @@ import {
   RefreshCw,
   BookMarked,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -221,6 +223,17 @@ export function TaskCard({
   const [fupAllSent, setFupAllSent] = useState(() => {
     try { return !!localStorage.getItem(`umbler_fup_all_${task.id_tarefa}`); } catch { return false; }
   });
+  const [fupEmpresaOvr, setFupEmpresaOvrState] = useState(() => {
+    try { return localStorage.getItem(`fup_empresa_ovr_${task.id_tarefa}`) ?? ""; } catch { return ""; }
+  });
+  function setFupEmpresaOvr(v: string) {
+    setFupEmpresaOvrState(v);
+    try {
+      if (v.trim()) localStorage.setItem(`fup_empresa_ovr_${task.id_tarefa}`, v);
+      else localStorage.removeItem(`fup_empresa_ovr_${task.id_tarefa}`);
+    } catch { /* noop */ }
+  }
+  const fupEmpresa = fupEmpresaOvr.trim() || task.empresa;
   const [nowTs, setNowTs] = useState(() => Date.now());
   const massFupState = useMassFupState(task.id_tarefa);
   const taskCancelState = useTaskCancelState(task.id_tarefa);
@@ -503,7 +516,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       }
       return;
     }
-    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa };
+    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa };
     dispatchQueue.startMassFup(task.id_tarefa, chapasWithPhone, taskSnap);
   }
 
@@ -515,7 +528,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       toast.error("Nenhum chapa com telefone cadastrado nesta tarefa");
       return;
     }
-    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa };
+    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa };
     dispatchQueue.startTaskCancel(task.id_tarefa, chapasWithPhone, taskSnap);
   }
 
@@ -963,7 +976,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 key={c.id}
                 chapa={c}
                 taskId={task.id_tarefa}
-                taskSnap={{ id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa }}
+                taskSnap={{ id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa }}
                 newChapaKeys={newChapaKeys}
                 fupLog={task.fup_log}
                 onContact={markContact}
@@ -1097,7 +1110,62 @@ Precisamos de 1 substituto para esta tarefa.`;
               </DropdownMenuContent>
             </DropdownMenu>
             {(umblerReady || taskCancelTemplateReady) && (
-              <div className="ml-auto flex gap-2">
+              <div className="ml-auto flex gap-2 items-center">
+                {umblerReady && (
+                  <Popover>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <PopoverTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant={fupEmpresaOvr.trim() ? "outline" : "ghost"}
+                            className={`h-8 px-2 gap-1 ${
+                              fupEmpresaOvr.trim()
+                                ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            {fupEmpresaOvr.trim() && <span className="text-[10px] font-semibold max-w-[100px] truncate">{fupEmpresaOvr.trim()}</span>}
+                          </Button>
+                        </PopoverTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {fupEmpresaOvr.trim()
+                          ? `Empresa na mensagem alterada para "${fupEmpresaOvr.trim()}" — clique para editar`
+                          : "Editar o nome da empresa enviado na mensagem de FUP"}
+                      </TooltipContent>
+                    </Tooltip>
+                    <PopoverContent align="end" className="w-72 space-y-2 p-3">
+                      <div className="text-xs font-semibold">Empresa na mensagem de FUP</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Este texto substitui o nome da empresa nos disparos desta tarefa (FUP Todos, FUPs individuais e cancelamento).
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          placeholder={task.empresa}
+                          value={fupEmpresaOvr}
+                          onChange={(e) => setFupEmpresaOvr(e.target.value)}
+                          className="h-8 text-sm flex-1"
+                        />
+                        {fupEmpresaOvr.trim() && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs text-muted-foreground"
+                            onClick={() => setFupEmpresaOvr("")}
+                          >
+                            ↺ auto
+                          </Button>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Enviando como: <span className="font-medium text-foreground">{fupEmpresa}</span>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
                 {umblerReady && (
                   <Tooltip>
                     <TooltipTrigger asChild>

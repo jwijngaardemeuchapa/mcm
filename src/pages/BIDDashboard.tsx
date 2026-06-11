@@ -188,6 +188,10 @@ function sitLabel(sit: string | null): { text: string; cls: string } {
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
+function isParcialTipo(tipo: string): boolean {
+  return tipo !== "__all__" && normalize(tipo).includes("parcial");
+}
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -335,6 +339,7 @@ function BidTaskCard({
   const [occupiedNameSet, setOccupiedNameSet] = useState<Set<string>>(new Set());
   const [blockedTipoFilter, setBlockedTipoFilter] = useState("__all__");
   const [blockedTipos, setBlockedTipos] = useState<string[]>([]);
+  const [blockedMotivoFilter, setBlockedMotivoFilter] = useState("__all__");
   const [filterPositiveOnly, setFilterPositiveOnly] = useState(false);
   const [leoTierFilter, setLeoTierFilter] = useState<"alta" | "media" | "baixa" | null>(null);
 
@@ -545,7 +550,9 @@ function BidTaskCard({
     const cepPrefix = dispatchParams.localCep
       ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
       : null;
-    const pool = blockedTipoFilter === "__all__" ? rawBlocked : rawBlocked.filter((c) => c.bloqueio === blockedTipoFilter);
+    let pool = blockedTipoFilter === "__all__" ? rawBlocked : rawBlocked.filter((c) => c.bloqueio === blockedTipoFilter);
+    if (isParcialTipo(blockedTipoFilter) && blockedMotivoFilter !== "__all__")
+      pool = pool.filter((c) => (c.motivo_bloqueio ?? "").trim() === blockedMotivoFilter);
     return pool.map((c) => {
       let distKm: number | null = null;
       if (dispatchParams.localLat !== null && dispatchParams.localLng !== null && c.lat !== null && c.lng !== null)
@@ -559,7 +566,16 @@ function BidTaskCard({
         disparo,
       };
     }).sort((a, b) => b.score - a.score);
-  }, [rawBlocked, blockedTipoFilter, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache]);
+  }, [rawBlocked, blockedTipoFilter, blockedMotivoFilter, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache]);
+
+  const blockedMotivos = useMemo<string[]>(() => {
+    if (!isParcialTipo(blockedTipoFilter)) return [];
+    const set = new Set<string>();
+    rawBlocked
+      .filter((c) => c.bloqueio === blockedTipoFilter)
+      .forEach((c) => { const m = (c.motivo_bloqueio ?? "").trim(); if (m) set.add(m); });
+    return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [rawBlocked, blockedTipoFilter]);
 
   function handleAddressSelect(val: string) {
     setAddrPickerOpen(false);
@@ -1231,7 +1247,7 @@ function BidTaskCard({
                 </Select>
               )}
               {candidateView === "bloqueados" && blockedTipos.length > 1 && (
-                <Select value={blockedTipoFilter} onValueChange={(v) => { setBlockedTipoFilter(v); setShowAll(false); }}>
+                <Select value={blockedTipoFilter} onValueChange={(v) => { setBlockedTipoFilter(v); setBlockedMotivoFilter("__all__"); setShowAll(false); }}>
                   <SelectTrigger className="h-6 w-[160px] text-[10px] border-border/50">
                     <SelectValue placeholder="Tipo de bloqueio" />
                   </SelectTrigger>
@@ -1239,6 +1255,19 @@ function BidTaskCard({
                     <SelectItem value="__all__">Todos os bloqueios</SelectItem>
                     {blockedTipos.map((t) => (
                       <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {candidateView === "bloqueados" && isParcialTipo(blockedTipoFilter) && blockedMotivos.length > 0 && (
+                <Select value={blockedMotivoFilter} onValueChange={(v) => { setBlockedMotivoFilter(v); setShowAll(false); }}>
+                  <SelectTrigger className="h-6 w-[180px] text-[10px] border-border/50">
+                    <SelectValue placeholder="Motivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos os motivos</SelectItem>
+                    {blockedMotivos.map((m) => (
+                      <SelectItem key={m} value={m}>{m}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

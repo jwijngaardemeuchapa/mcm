@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.73</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.80</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,9 +767,10 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.73 — BID com filtro LEO, Configurações e Timeline padrão:</strong>{" "}
-              <strong>BID Dashboard</strong>: badges "aprovados / médios / baixo" no painel de Análise BID agora são clicáveis — filtram a lista de candidatos (e Matchmaker e Radar) apenas para aquele tier. Clique novamente para limpar.{" "}
-              <strong>Configurações</strong>: nova seção Planilha LEO — importe o CSV de Respostas BID ou sincronize direto do Google Sheets para alimentar o ranqueamento do BID Dashboard. Timeline adicionado como terceira opção de visualização padrão do Dashboard.
+              <strong>v0.9.80 — FUP com empresa editável, Timeline com status e endereços estruturados:</strong>{" "}
+              <strong>Dashboard</strong>: ícone ✏️ ao lado de "FUP Todos" permite alterar o nome da empresa enviado nas mensagens daquela tarefa (FUP Todos, individuais e cancelamento) — vem pré-preenchido e pode ser restaurado com "↺ auto". Na visão Timeline, tarefas concluídas aparecem esmaecidas com ✓ e tarefas com validação recebida ganham um selo.{" "}
+              <strong>Caderno de Clientes</strong>: cadastro de endereço estruturado — CEP auto-preenche logradouro/bairro/cidade/UF, campos de número e complemento, ⭐ para marcar o endereço principal e link do Maps gerado automaticamente.{" "}
+              <strong>BID Dashboard</strong>: na aba Bloqueados, ao selecionar um bloqueio parcial, aparece um segundo filtro por motivo do bloqueio. Campo "Data/Horário do disparo" editável no painel de disparo. <strong>Configurações</strong>: snapshot completo de backup/restauração (.mcmbak).
             </span>
           </div>
         )}
@@ -1005,7 +1006,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.73 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v0.9.80 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1040,7 +1041,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.73 · © 2026 Wijngaarde Design
+        MCM v0.9.80 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

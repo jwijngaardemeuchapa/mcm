@@ -19,6 +19,7 @@ import {
   BookMarked,
   MapPin,
   ExternalLink,
+  Star,
 } from "lucide-react";
 import { getDb, uuid } from "@/lib/db";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,30 @@ type ClienteAddress = {
   lat: number | null;
   lng: number | null;
   cep: string | null;
+  logradouro?: string;
+  numero?: string;
+  complemento?: string;
+  bairro?: string;
+  cidade?: string;
+  uf?: string;
+  principal?: boolean;
 };
+
+const EMPTY_ADDR = {
+  label: "", cep: "", logradouro: "", numero: "", complemento: "",
+  bairro: "", cidade: "", uf: "", maps_link: "",
+};
+
+function composeEndereco(a: typeof EMPTY_ADDR): string {
+  const linha1 = [a.logradouro.trim(), a.numero.trim()].filter(Boolean).join(", ");
+  const comp = a.complemento.trim();
+  const parts = [
+    comp ? `${linha1} - ${comp}` : linha1,
+    a.bairro.trim(),
+    a.cidade.trim() && a.uf.trim() ? `${a.cidade.trim()} - ${a.uf.trim()}` : a.cidade.trim() || a.uf.trim(),
+  ].filter(Boolean);
+  return parts.join(", ");
+}
 
 type ClienteEntry = {
   id: string;
@@ -135,7 +159,7 @@ export default function ClienteBook() {
   const [deleteTarget, setDeleteTarget] = useState<ClienteEntry | null>(null);
   const [formEnderecos, setFormEnderecos] = useState<ClienteAddress[]>([]);
   const [addingAddr, setAddingAddr] = useState(false);
-  const [newAddr, setNewAddr] = useState({ label: "", cep: "", endereco: "", maps_link: "" });
+  const [newAddr, setNewAddr] = useState({ ...EMPTY_ADDR });
   const [cepLoading, setCepLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -174,8 +198,13 @@ export default function ClienteBook() {
         const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
         const data = await res.json();
         if (!data.erro) {
-          const parts = [data.logradouro, data.bairro, `${data.localidade} - ${data.uf}`].filter(Boolean);
-          setNewAddr((a) => ({ ...a, endereco: a.endereco || parts.join(", ") }));
+          setNewAddr((a) => ({
+            ...a,
+            logradouro: a.logradouro || data.logradouro || "",
+            bairro: a.bairro || data.bairro || "",
+            cidade: a.cidade || data.localidade || "",
+            uf: a.uf || data.uf || "",
+          }));
         }
       } catch { /* noop */ }
       finally { setCepLoading(false); }
@@ -188,7 +217,7 @@ export default function ClienteBook() {
     setForm({ ...EMPTY });
     setFormEnderecos([]);
     setAddingAddr(false);
-    setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" });
+    setNewAddr({ ...EMPTY_ADDR });
     setDialogOpen(true);
   }
 
@@ -213,7 +242,7 @@ export default function ClienteBook() {
       setFormEnderecos([]);
     }
     setAddingAddr(false);
-    setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" });
+    setNewAddr({ ...EMPTY_ADDR });
     setDialogOpen(true);
   }
 
@@ -667,9 +696,21 @@ export default function ClienteBook() {
                 <div className="space-y-1.5">
                   {formEnderecos.map((addr) => (
                     <div key={addr.id} className="flex items-start gap-2 rounded-md bg-muted/40 border border-border px-2 py-1.5">
-                      <MapPin className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
+                      <button
+                        type="button"
+                        title={addr.principal ? "Endereço principal" : "Definir como principal"}
+                        onClick={() =>
+                          setFormEnderecos((prev) => prev.map((a) => ({ ...a, principal: a.id === addr.id })))
+                        }
+                        className={`mt-0.5 shrink-0 transition-colors ${addr.principal ? "text-warning" : "text-muted-foreground/40 hover:text-warning"}`}
+                      >
+                        <Star className={`h-3 w-3 ${addr.principal ? "fill-current" : ""}`} />
+                      </button>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground">{addr.label}</p>
+                        <p className="text-xs font-medium text-foreground">
+                          {addr.label}
+                          {addr.principal && <span className="ml-1.5 text-[9px] text-warning font-semibold uppercase">principal</span>}
+                        </p>
                         <p className="text-[11px] text-muted-foreground truncate">{addr.endereco}</p>
                         {addr.maps_link && (
                           <a href={addr.maps_link} className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
@@ -720,17 +761,72 @@ export default function ClienteBook() {
                       />
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] text-muted-foreground">Endereço *</label>
-                    <Input
-                      placeholder="Rua, número, cidade"
-                      value={newAddr.endereco}
-                      onChange={(e) => setNewAddr((a) => ({ ...a, endereco: e.target.value }))}
-                      className="text-xs h-7"
-                    />
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1 col-span-2">
+                      <label className="text-[11px] text-muted-foreground">Logradouro *</label>
+                      <Input
+                        placeholder="Rua / Avenida"
+                        value={newAddr.logradouro}
+                        onChange={(e) => setNewAddr((a) => ({ ...a, logradouro: e.target.value }))}
+                        className="text-xs h-7"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground">Número</label>
+                      <Input
+                        placeholder="123"
+                        value={newAddr.numero}
+                        onChange={(e) => setNewAddr((a) => ({ ...a, numero: e.target.value }))}
+                        className="text-xs h-7"
+                      />
+                    </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground">Complemento</label>
+                      <Input
+                        placeholder="Galpão 2, Portaria B…"
+                        value={newAddr.complemento}
+                        onChange={(e) => setNewAddr((a) => ({ ...a, complemento: e.target.value }))}
+                        className="text-xs h-7"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground">Bairro</label>
+                      <Input
+                        placeholder="Bairro"
+                        value={newAddr.bairro}
+                        onChange={(e) => setNewAddr((a) => ({ ...a, bairro: e.target.value }))}
+                        className="text-xs h-7"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1 col-span-2">
+                      <label className="text-[11px] text-muted-foreground">Cidade *</label>
+                      <Input
+                        placeholder="Cidade"
+                        value={newAddr.cidade}
+                        onChange={(e) => setNewAddr((a) => ({ ...a, cidade: e.target.value }))}
+                        className="text-xs h-7"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] text-muted-foreground">UF</label>
+                      <Input
+                        placeholder="SP"
+                        value={newAddr.uf}
+                        onChange={(e) => setNewAddr((a) => ({ ...a, uf: e.target.value.toUpperCase().slice(0, 2) }))}
+                        className="text-xs h-7 uppercase"
+                        maxLength={2}
+                      />
+                    </div>
+                  </div>
+                  {composeEndereco(newAddr) && (
+                    <p className="text-[10px] text-muted-foreground/70 italic">📍 {composeEndereco(newAddr)}</p>
+                  )}
                   <div className="space-y-1">
-                    <label className="text-[11px] text-muted-foreground">Link do Google Maps (opcional — extrai lat/lng automaticamente)</label>
+                    <label className="text-[11px] text-muted-foreground">Link do Google Maps (opcional — se vazio, é gerado automaticamente das coordenadas)</label>
                     <Input
                       placeholder="https://maps.google.com/..."
                       value={newAddr.maps_link}
@@ -744,7 +840,7 @@ export default function ClienteBook() {
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs px-2"
-                      onClick={() => { setAddingAddr(false); setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" }); }}
+                      onClick={() => { setAddingAddr(false); setNewAddr({ ...EMPTY_ADDR }); }}
                     >
                       Cancelar
                     </Button>
@@ -752,7 +848,7 @@ export default function ClienteBook() {
                       type="button"
                       size="sm"
                       className="h-7 text-xs px-2"
-                      disabled={!newAddr.label.trim() || !newAddr.endereco.trim()}
+                      disabled={!newAddr.label.trim() || !newAddr.logradouro.trim() || !newAddr.cidade.trim()}
                       onClick={() => {
                         const parsed = newAddr.maps_link ? parseLatLng(newAddr.maps_link) : null;
                         const cepClean = newAddr.cep.replace(/\D/g, "") || null;
@@ -762,24 +858,38 @@ export default function ClienteBook() {
                           {
                             id,
                             label: newAddr.label.trim(),
-                            endereco: newAddr.endereco.trim(),
-                            maps_link: newAddr.maps_link.trim(),
+                            endereco: composeEndereco(newAddr),
+                            maps_link: newAddr.maps_link.trim() || (parsed ? `https://www.google.com/maps?q=${parsed.lat},${parsed.lng}` : ""),
                             lat: parsed?.lat ?? null,
                             lng: parsed?.lng ?? null,
                             cep: cepClean,
+                            logradouro: newAddr.logradouro.trim(),
+                            numero: newAddr.numero.trim(),
+                            complemento: newAddr.complemento.trim(),
+                            bairro: newAddr.bairro.trim(),
+                            cidade: newAddr.cidade.trim(),
+                            uf: newAddr.uf.trim(),
+                            principal: prev.length === 0,
                           },
                         ]);
-                        if (cepClean) {
+                        if (cepClean && !parsed) {
                           cepGeocoder.enqueue(cepClean, (_cep, coords) => {
                             if (coords) {
                               setFormEnderecos((prev) => prev.map((a) =>
-                                a.id === id ? { ...a, lat: coords.lat, lng: coords.lng } : a,
+                                a.id === id
+                                  ? {
+                                      ...a,
+                                      lat: coords.lat,
+                                      lng: coords.lng,
+                                      maps_link: a.maps_link || `https://www.google.com/maps?q=${coords.lat},${coords.lng}`,
+                                    }
+                                  : a,
                               ));
                             }
                           });
                         }
                         setAddingAddr(false);
-                        setNewAddr({ label: "", cep: "", endereco: "", maps_link: "" });
+                        setNewAddr({ ...EMPTY_ADDR });
                       }}
                     >
                       Salvar local
