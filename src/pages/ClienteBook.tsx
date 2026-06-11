@@ -160,7 +160,25 @@ export default function ClienteBook() {
   const [formEnderecos, setFormEnderecos] = useState<ClienteAddress[]>([]);
   const [addingAddr, setAddingAddr] = useState(false);
   const [newAddr, setNewAddr] = useState({ ...EMPTY_ADDR });
+  const [editingAddrId, setEditingAddrId] = useState<string | null>(null);
   const [cepLoading, setCepLoading] = useState(false);
+
+  function startEditAddr(addr: ClienteAddress) {
+    setNewAddr({
+      label: addr.label,
+      cep: addr.cep ? (addr.cep.length === 8 ? `${addr.cep.slice(0, 5)}-${addr.cep.slice(5)}` : addr.cep) : "",
+      // endereços antigos não têm campos estruturados — joga o texto inteiro no logradouro para edição
+      logradouro: addr.logradouro ?? addr.endereco ?? "",
+      numero: addr.numero ?? "",
+      complemento: addr.complemento ?? "",
+      bairro: addr.bairro ?? "",
+      cidade: addr.cidade ?? "",
+      uf: addr.uf ?? "",
+      maps_link: addr.maps_link ?? "",
+    });
+    setEditingAddrId(addr.id);
+    setAddingAddr(true);
+  }
 
   const load = useCallback(async () => {
     try {
@@ -217,6 +235,7 @@ export default function ClienteBook() {
     setForm({ ...EMPTY });
     setFormEnderecos([]);
     setAddingAddr(false);
+    setEditingAddrId(null);
     setNewAddr({ ...EMPTY_ADDR });
     setDialogOpen(true);
   }
@@ -242,6 +261,7 @@ export default function ClienteBook() {
       setFormEnderecos([]);
     }
     setAddingAddr(false);
+    setEditingAddrId(null);
     setNewAddr({ ...EMPTY_ADDR });
     setDialogOpen(true);
   }
@@ -723,6 +743,14 @@ export default function ClienteBook() {
                       </div>
                       <button
                         type="button"
+                        onClick={() => startEditAddr(addr)}
+                        className="text-muted-foreground/50 hover:text-primary transition-colors mt-0.5"
+                        title="Editar endereço"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setFormEnderecos((prev) => prev.filter((a) => a.id !== addr.id))}
                         className="text-muted-foreground/50 hover:text-destructive transition-colors mt-0.5"
                         title="Remover endereço"
@@ -840,7 +868,7 @@ export default function ClienteBook() {
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs px-2"
-                      onClick={() => { setAddingAddr(false); setNewAddr({ ...EMPTY_ADDR }); }}
+                      onClick={() => { setAddingAddr(false); setEditingAddrId(null); setNewAddr({ ...EMPTY_ADDR }); }}
                     >
                       Cancelar
                     </Button>
@@ -852,26 +880,31 @@ export default function ClienteBook() {
                       onClick={() => {
                         const parsed = newAddr.maps_link ? parseLatLng(newAddr.maps_link) : null;
                         const cepClean = newAddr.cep.replace(/\D/g, "") || null;
-                        const id = Date.now().toString();
-                        setFormEnderecos((prev) => [
-                          ...prev,
-                          {
-                            id,
-                            label: newAddr.label.trim(),
-                            endereco: composeEndereco(newAddr),
-                            maps_link: newAddr.maps_link.trim() || (parsed ? `https://www.google.com/maps?q=${parsed.lat},${parsed.lng}` : ""),
-                            lat: parsed?.lat ?? null,
-                            lng: parsed?.lng ?? null,
-                            cep: cepClean,
-                            logradouro: newAddr.logradouro.trim(),
-                            numero: newAddr.numero.trim(),
-                            complemento: newAddr.complemento.trim(),
-                            bairro: newAddr.bairro.trim(),
-                            cidade: newAddr.cidade.trim(),
-                            uf: newAddr.uf.trim(),
-                            principal: prev.length === 0,
-                          },
-                        ]);
+                        const id = editingAddrId ?? Date.now().toString();
+                        const built = (prev: ClienteAddress[]): ClienteAddress => ({
+                          id,
+                          label: newAddr.label.trim(),
+                          endereco: composeEndereco(newAddr),
+                          maps_link: newAddr.maps_link.trim() || (parsed ? `https://www.google.com/maps?q=${parsed.lat},${parsed.lng}` : ""),
+                          lat: parsed?.lat ?? null,
+                          lng: parsed?.lng ?? null,
+                          cep: cepClean,
+                          logradouro: newAddr.logradouro.trim(),
+                          numero: newAddr.numero.trim(),
+                          complemento: newAddr.complemento.trim(),
+                          bairro: newAddr.bairro.trim(),
+                          cidade: newAddr.cidade.trim(),
+                          uf: newAddr.uf.trim(),
+                          principal: editingAddrId
+                            ? prev.find((a) => a.id === editingAddrId)?.principal ?? false
+                            : prev.length === 0,
+                        });
+                        setFormEnderecos((prev) =>
+                          editingAddrId
+                            ? prev.map((a) => (a.id === editingAddrId ? built(prev) : a))
+                            : [...prev, built(prev)],
+                        );
+                        setEditingAddrId(null);
                         if (cepClean && !parsed) {
                           cepGeocoder.enqueue(cepClean, (_cep, coords) => {
                             if (coords) {
@@ -889,10 +922,11 @@ export default function ClienteBook() {
                           });
                         }
                         setAddingAddr(false);
+    setEditingAddrId(null);
                         setNewAddr({ ...EMPTY_ADDR });
                       }}
                     >
-                      Salvar local
+                      {editingAddrId ? "Salvar alterações" : "Salvar local"}
                     </Button>
                   </div>
                 </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
+import { ActiveDispatchesOverlay } from "./ActiveDispatchesOverlay";
 import { fmtDateLong, timeAgo } from "@/lib/datetime";
 import { Clock, Undo2, Search } from "lucide-react";
 import { getDb } from "@/lib/db";
@@ -74,6 +75,7 @@ export default function AppLayout() {
     <SidebarProvider>
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
       <DailyBriefing />
+      <ActiveDispatchesOverlay />
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
 

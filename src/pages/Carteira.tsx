@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, Trash2, Search, Plus, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
@@ -16,6 +17,7 @@ const GRUPOS = ["G1", "G2", "G3", "G4", "G5"];
 export default function Carteira() {
   const [rows, setRows] = useState<Row[]>([]);
   const [preview, setPreview] = useState<Array<{ nome_fantasia: string; cnpj: string | null }>>([]);
+  const [removeTarget, setRemoveTarget] = useState<Row | null>(null);
   const [dupCount, setDupCount] = useState(0);
   const [filter, setFilter] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -137,6 +139,7 @@ export default function Carteira() {
     try {
       const db = await getDb();
       await db.execute("DELETE FROM carteira WHERE id = ?", [id]);
+      toast.success("Empresa removida da carteira");
       load();
     } catch (e) {
       toast.error("Erro ao remover");
@@ -309,7 +312,7 @@ export default function Carteira() {
                       </Tooltip>
                     </td>
                     <td className="px-4 py-2">
-                      <Button size="icon" variant="ghost" onClick={() => remove(r.id)} aria-label={`Remover ${r.nome_fantasia}`}>
+                      <Button size="icon" variant="ghost" onClick={() => setRemoveTarget(r)} aria-label={`Remover ${r.nome_fantasia}`}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </td>
@@ -323,6 +326,27 @@ export default function Carteira() {
           </table>
         )}
       </div>
+
+      <Dialog open={!!removeTarget} onOpenChange={(o) => !o && setRemoveTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Remover empresa da carteira?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <strong className="text-foreground">{removeTarget?.nome_fantasia}</strong> será removida permanentemente da carteira.
+            As tarefas existentes não são afetadas.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoveTarget(null)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={() => { if (removeTarget) remove(removeTarget.id); setRemoveTarget(null); }}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Remover
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

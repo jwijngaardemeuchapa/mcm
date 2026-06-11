@@ -188,6 +188,12 @@ function sitLabel(sit: string | null): { text: string; cls: string } {
 
 /* ── Helpers ────────────────────────────────────────────────────── */
 
+// Parâmetros salvos antes da v0.9.81 guardavam a atividade completa ("Carga e Descarga");
+// o template do bot já contém o prefixo — remove para não duplicar na mensagem.
+function stripAtividadePrefix(s: string): string {
+  return (s ?? "").replace(/^\s*carga e descarga( de)?\s*:?\s*/i, "");
+}
+
 function isParcialTipo(tipo: string): boolean {
   return tipo !== "__all__" && normalize(tipo).includes("parcial");
 }
@@ -307,7 +313,11 @@ function BidTaskCard({
   const [dispatchParams, setDispatchParams] = useState<DispatchParams>(() => {
     try {
       const saved = localStorage.getItem(`bid_params_${task.id_tarefa}`);
-      if (saved) return { ...EMPTY_PARAMS, ...JSON.parse(saved) };
+      if (saved) {
+        const parsed = { ...EMPTY_PARAMS, ...JSON.parse(saved) };
+        parsed.atividades = stripAtividadePrefix(parsed.atividades);
+        return parsed;
+      }
     } catch { /* noop */ }
     return EMPTY_PARAMS;
   });
@@ -2597,7 +2607,7 @@ function BloqueadosTab() {
           const saved = localStorage.getItem(`bid_params_${taskId}`);
           if (saved) {
             const parsed = JSON.parse(saved);
-            return { ...next, local: parsed.local || next.local, atividades: parsed.atividades || next.atividades, diaria: parsed.diaria || next.diaria };
+            return { ...next, local: parsed.local || next.local, atividades: stripAtividadePrefix(parsed.atividades) || next.atividades, diaria: parsed.diaria || next.diaria };
           }
         } catch { /* noop */ }
       }

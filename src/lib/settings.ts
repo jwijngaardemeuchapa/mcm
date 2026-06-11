@@ -30,6 +30,7 @@ export type AppSettings = {
   operadorNome: string;
   umblerNoResponseMinutes: number;
   fupElapsedAlertMinutes: number;
+  customMsgTemplates: string[];
 };
 
 const STORAGE_KEY = "fup_settings";
@@ -47,6 +48,10 @@ export const SETTING_DEFAULTS: AppSettings = {
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,
+  customMsgTemplates: [
+    "Já chegou ao local da tarefa?",
+    "Obrigado pela confirmação, qualquer problema me avise aqui",
+  ],
 };
 
 export function readSettings(): AppSettings {

@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from "react";
 import { type TaskWithChapas } from "./TaskCard";
-import { fmtSP } from "@/lib/datetime";
+import { fmtSP, todayDateISO_SP, nowSP } from "@/lib/datetime";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Building2, Clock, Users, CheckCircle2, BadgeCheck } from "lucide-react";
 
@@ -23,9 +23,8 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
     let maxH = 0;
 
     const processed = tasks.map((t) => {
-      const date = new Date(t.data_tarefa);
-      const h = date.getHours();
-      const m = date.getMinutes();
+      const h = parseInt(fmtSP(t.data_tarefa, "HH"), 10);
+      const m = parseInt(fmtSP(t.data_tarefa, "mm"), 10);
       const startFloat = h + m / 60;
       const endFloat = startFloat + DEFAULT_DURATION_HOURS;
 
@@ -132,7 +131,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                       {!t.concluida && t.validada && <BadgeCheck className="h-3 w-3 shrink-0" />}
                       <span className="truncate">{t.empresa.toUpperCase()}</span>
                     </div>
-                    <div className="text-[9px] flex items-center gap-1 opacity-90 truncate">
+                    <div className="text-[10px] flex items-center gap-1 opacity-90 truncate">
                       <Users className="h-3 w-3" />
                       {t.confirmados}/{t.totalVagas}
                     </div>
@@ -163,10 +162,10 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
         
         {/* Current Time Indicator (if within range and today) */}
         {(() => {
-          const now = new Date();
-          const today = new Date().toISOString().slice(0, 10);
+          const now = nowSP();
+          const today = todayDateISO_SP();
           const firstTaskDay = tasks[0] ? fmtSP(tasks[0].data_tarefa, "yyyy-MM-dd") : today;
-          
+
           if (today === firstTaskDay) {
             const currentFloat = now.getHours() + now.getMinutes() / 60;
             if (currentFloat >= startHour && currentFloat <= endHour) {
@@ -175,7 +174,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                   className="absolute top-0 bottom-0 w-px bg-primary z-10"
                   style={{ left: (currentFloat - startHour) * HOUR_WIDTH, height: "100%" }}
                 >
-                  <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[9px] px-1 rounded">Agora</div>
+                  <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] px-1 rounded">Agora</div>
                 </div>
               );
             }

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, Users, AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { timeAgo, todayDateISO_SP, fmtSP } from "@/lib/datetime";
+import { cleanupTaskLocalStorage } from "@/lib/storageCleanup";
 
 function parseDateBR(s: string): string | null {
   if (!s) return null;
@@ -513,6 +514,12 @@ export default function Importar() {
       toast.error("Erro ao importar: " + errMsg(e));
       return;
     }
+
+    try {
+      const db = await getDb();
+      const allIds = await db.select<{ id_tarefa: number }[]>("SELECT id_tarefa FROM tarefas");
+      cleanupTaskLocalStorage(new Set(allIds.map((r) => r.id_tarefa)));
+    } catch { /* limpeza é melhor-esforço */ }
 
     toast.success(`✓ ${tarefasMap.size} tarefas · ${chapasFinais.length} chapas`);
     setPreview([]);

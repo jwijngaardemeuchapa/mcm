@@ -63,7 +63,7 @@ import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate, taskTzLabel } from "@/lib/datetime";
 import { isPrefup } from "@/lib/prefup";
 import { useUndo } from "@/lib/undo";
-import { readSettings } from "@/lib/settings";
+import { readSettings, writeSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
@@ -240,7 +240,15 @@ export function TaskCard({
   const [customMsgOpen, setCustomMsgOpen] = useState(false);
   const [customMsgText, setCustomMsgText] = useState("");
   const [customMsgSelected, setCustomMsgSelected] = useState<Set<string>>(new Set());
+  const [msgTemplates, setMsgTemplates] = useState<string[]>(() => readSettings().customMsgTemplates);
+  const [editingTplIdx, setEditingTplIdx] = useState<number | null>(null);
+  const [editingTplText, setEditingTplText] = useState("");
   const customMsgState = useCustomMsgState(task.id_tarefa);
+
+  function persistTemplates(next: string[]) {
+    setMsgTemplates(next);
+    writeSettings({ customMsgTemplates: next });
+  }
   const [nowTs, setNowTs] = useState(() => Date.now());
   const massFupState = useMassFupState(task.id_tarefa);
   const taskCancelState = useTaskCancelState(task.id_tarefa);
@@ -541,7 +549,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   function startCustomMsgDispatch() {
     const targets = confirmedWithPhone.filter((c) => customMsgSelected.has(c.id)) as ChapaSnap[];
     if (targets.length === 0 || !customMsgText.trim()) return;
-    dispatchQueue.startCustomMsg(task.id_tarefa, targets, customMsgText.trim());
+    dispatchQueue.startCustomMsg(task.id_tarefa, targets, customMsgText.trim(), task.empresa);
     setCustomMsgOpen(false);
   }
 
@@ -749,7 +757,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
             {taskTzLabel(task.cidade_uf) && (
-              <div className="text-[9px] font-bold opacity-75 tracking-wide leading-none mt-0.5">
+              <div className="text-[10px] font-bold opacity-75 tracking-wide leading-none mt-0.5">
                 {taskTzLabel(task.cidade_uf)}
               </div>
             )}
@@ -1358,6 +1366,70 @@ Precisamos de 1 substituto para esta tarefa.`;
               <Check className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               Confirmados já responderam — a janela de 24h do WhatsApp está aberta para mensagem livre.
             </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Atalhos</label>
+              <div className="space-y-1">
+                {msgTemplates.map((tpl, idx) => (
+                  editingTplIdx === idx ? (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <Input
+                        value={editingTplText}
+                        onChange={(e) => setEditingTplText(e.target.value)}
+                        className="h-7 text-xs flex-1"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && editingTplText.trim()) {
+                            persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                            setEditingTplIdx(null);
+                          }
+                          if (e.key === "Escape") setEditingTplIdx(null);
+                        }}
+                      />
+                      <Button
+                        size="sm" variant="ghost" className="h-7 px-2 text-xs text-success"
+                        disabled={!editingTplText.trim()}
+                        onClick={() => {
+                          persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                          setEditingTplIdx(null);
+                        }}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setEditingTplIdx(null)}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div key={idx} className="flex items-center gap-1.5 group">
+                      <button
+                        type="button"
+                        onClick={() => setCustomMsgText(tpl)}
+                        className="flex-1 text-left text-xs rounded-md border border-border bg-muted/30 hover:bg-primary/10 hover:border-primary/40 px-2.5 py-1.5 transition-colors truncate"
+                        title="Clique para usar esta mensagem"
+                      >
+                        {tpl}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-muted-foreground/40 hover:text-primary transition-colors shrink-0"
+                        title="Editar atalho"
+                        onClick={() => { setEditingTplIdx(idx); setEditingTplText(tpl); }}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        className="text-muted-foreground/40 hover:text-destructive transition-colors shrink-0"
+                        title="Excluir atalho"
+                        onClick={() => persistTemplates(msgTemplates.filter((_, i) => i !== idx))}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )
+                ))}
+              </div>
+            </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
               <Textarea
@@ -1368,7 +1440,17 @@ Precisamos de 1 substituto para esta tarefa.`;
                 className="text-sm"
                 autoFocus
               />
-              <p className="text-[10px] text-muted-foreground text-right">{customMsgText.length} caracteres</p>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  disabled={!customMsgText.trim() || msgTemplates.includes(customMsgText.trim())}
+                  className="text-[11px] text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-1"
+                  onClick={() => persistTemplates([...msgTemplates, customMsgText.trim()])}
+                >
+                  <Plus className="h-3 w-3" /> Salvar como atalho
+                </button>
+                <p className="text-[10px] text-muted-foreground">{customMsgText.length} caracteres</p>
+              </div>
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -1602,7 +1684,7 @@ function ChapaRowView({
             </button>
             {isNew && (
               <span
-                className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-success/20 text-success border border-success/40 animate-pulse whitespace-nowrap"
+                className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success/20 text-success border border-success/40 animate-pulse whitespace-nowrap"
                 title="Adicionado na última atualização"
               >
                 NOVO

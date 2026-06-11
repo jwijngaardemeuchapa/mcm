@@ -243,7 +243,7 @@ function PanoramaRow({
           {fmtTime(task.data_tarefa)}
         </div>
         {taskTzLabel(task.cidade_uf) && (
-          <div className="text-[9px] font-semibold text-muted-foreground leading-none mt-0.5">
+          <div className="text-[10px] font-semibold text-muted-foreground leading-none mt-0.5">
             {taskTzLabel(task.cidade_uf)}
           </div>
         )}

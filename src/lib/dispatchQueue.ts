@@ -26,6 +26,18 @@ export type CustomMsgState =
   | { status: "sending"; sent: number; total: number }
   | null;
 
+// Job ativo para o painel global de disparos (countdowns e envios em andamento)
+export type ActiveJob = {
+  id: string;
+  kind: "massFup" | "taskCancel" | "customMsg" | "chapaFup" | "chapaCancel";
+  taskId: number;
+  titulo: string;     // ex: empresa da tarefa
+  descricao: string;  // ex: "FUP Todos", "Mensagem personalizada", "FUP — João"
+  remaining: number | null;          // segundos de countdown (null = enviando)
+  progress: { sent: number; total: number } | null;
+  cancel: () => void;
+};
+
 export type ChapaSnap = {
   id: string;
   nome_chapa: string | null;
@@ -51,6 +63,10 @@ class DispatchQueue {
   private massFupSubs = new Map<number, Set<Sub<MassFupState>>>();
   private taskCancelSubs = new Map<number, Set<Sub<TaskCancelState>>>();
   private chapaJobSubs = new Map<string, Set<Sub<ChapaJobState>>>();
+
+  private taskMeta = new Map<number, string>(); // taskId → empresa (rótulo p/ painel global)
+  private chapaMeta = new Map<string, { nome: string; taskId: number; empresa: string }>();
+  private anyJobSubs = new Set<() => void>();
 
   private customMsgStates = new Map<number, CustomMsgState>();
   private customMsgAborts = new Map<number, boolean>();
@@ -107,16 +123,81 @@ class DispatchQueue {
   private notifyMassFup(taskId: number) {
     const state = this.massFupStates.get(taskId) ?? null;
     this.massFupSubs.get(taskId)?.forEach((cb) => cb(state));
+    this.notifyAnyJob();
   }
 
   private notifyTaskCancel(taskId: number) {
     const state = this.taskCancelStates.get(taskId) ?? null;
     this.taskCancelSubs.get(taskId)?.forEach((cb) => cb(state));
+    this.notifyAnyJob();
   }
 
   private notifyChapaJob(chapaId: string) {
     const state = this.chapaJobStates.get(chapaId) ?? null;
     this.chapaJobSubs.get(chapaId)?.forEach((cb) => cb(state));
+    this.notifyAnyJob();
+  }
+
+  private notifyAnyJob() {
+    this.anyJobSubs.forEach((cb) => cb());
+  }
+
+  subscribeAnyJob(cb: () => void): () => void {
+    this.anyJobSubs.add(cb);
+    return () => { this.anyJobSubs.delete(cb); };
+  }
+
+  getActiveJobs(): ActiveJob[] {
+    const jobs: ActiveJob[] = [];
+    this.massFupStates.forEach((st, taskId) => {
+      if (!st) return;
+      jobs.push({
+        id: `massfup-${taskId}`, kind: "massFup", taskId,
+        titulo: this.taskMeta.get(taskId) ?? `Tarefa #${taskId}`,
+        descricao: "FUP Todos",
+        remaining: st.status === "countdown" ? st.remaining : null,
+        progress: st.status === "sending" && st.progress?.phase === "sending"
+          ? { sent: st.progress.sent, total: st.progress.total } : null,
+        cancel: () => this.abortMassFup(taskId),
+      });
+    });
+    this.taskCancelStates.forEach((st, taskId) => {
+      if (!st) return;
+      jobs.push({
+        id: `cancel-${taskId}`, kind: "taskCancel", taskId,
+        titulo: this.taskMeta.get(taskId) ?? `Tarefa #${taskId}`,
+        descricao: "Cancelamento geral",
+        remaining: st.status === "countdown" ? st.remaining : null,
+        progress: null,
+        cancel: () => this.abortTaskCancel(taskId),
+      });
+    });
+    this.customMsgStates.forEach((st, taskId) => {
+      if (!st) return;
+      jobs.push({
+        id: `custommsg-${taskId}`, kind: "customMsg", taskId,
+        titulo: this.taskMeta.get(taskId) ?? `Tarefa #${taskId}`,
+        descricao: "Mensagem personalizada",
+        remaining: st.status === "countdown" ? st.remaining : null,
+        progress: st.status === "sending" ? { sent: st.sent, total: st.total } : null,
+        cancel: () => this.abortCustomMsg(taskId),
+      });
+    });
+    this.chapaJobStates.forEach((st, chapaId) => {
+      if (!st) return;
+      const meta = this.chapaMeta.get(chapaId);
+      jobs.push({
+        id: `chapa-${chapaId}`,
+        kind: st.action === "cancel" ? "chapaCancel" : "chapaFup",
+        taskId: meta?.taskId ?? 0,
+        titulo: meta?.empresa ?? "Tarefa",
+        descricao: `${st.action === "cancel" ? "Cancelamento" : "FUP"} — ${meta?.nome ?? "chapa"}`,
+        remaining: st.status === "countdown" ? st.remaining : null,
+        progress: null,
+        cancel: () => this.abortChapaJob(chapaId),
+      });
+    });
+    return jobs;
   }
 
   // ---- Mensagem personalizada (texto livre p/ confirmados) ----
@@ -135,9 +216,11 @@ class DispatchQueue {
   private notifyCustomMsg(taskId: number) {
     const state = this.customMsgStates.get(taskId) ?? null;
     this.customMsgSubs.get(taskId)?.forEach((cb) => cb(state));
+    this.notifyAnyJob();
   }
 
-  startCustomMsg(taskId: number, chapas: ChapaSnap[], message: string) {
+  startCustomMsg(taskId: number, chapas: ChapaSnap[], message: string, empresa?: string) {
+    if (empresa) this.taskMeta.set(taskId, empresa);
     this._clearCustomMsgTimers(taskId);
     this.customMsgAborts.set(taskId, false);
     this.customMsgStates.set(taskId, { status: "countdown", remaining: 30 });
@@ -249,6 +332,7 @@ class DispatchQueue {
   // ---- Mass FUP ----
 
   startMassFup(taskId: number, chapas: ChapaSnap[], task: TaskSnap) {
+    this.taskMeta.set(taskId, task.empresa);
     this._clearMassFupTimers(taskId);
     this.massFupAborts.set(taskId, false);
     this.massFupStates.set(taskId, { status: "countdown", remaining: 180 });
@@ -406,6 +490,7 @@ class DispatchQueue {
   // ---- Task Cancel ----
 
   startTaskCancel(taskId: number, chapas: ChapaSnap[], task: TaskSnap) {
+    this.taskMeta.set(taskId, task.empresa);
     this._clearTaskCancelTimers(taskId);
     this.taskCancelStates.set(taskId, { status: "countdown", remaining: 60 });
     this.notifyTaskCancel(taskId);
@@ -484,6 +569,7 @@ class DispatchQueue {
   // ---- Individual Chapa ----
 
   startChapaJob(chapaId: string, action: "fup" | "cancel", chapa: ChapaSnap, task: TaskSnap) {
+    this.chapaMeta.set(chapaId, { nome: chapa.nome_chapa ?? "chapa", taskId: task.id_tarefa, empresa: task.empresa });
     this._clearChapaTimers(chapaId);
     this.chapaJobStates.set(chapaId, { status: "countdown", remaining: 60, action });
     this.notifyChapaJob(chapaId);
@@ -666,8 +752,19 @@ class BidDispatchQueue {
     this.dispatchedSubs.forEach((cb) => cb(record));
   }
 
+  getActiveBatches(): { taskId: number; empresa: string; progress: { current: number; total: number }; waitSeconds: number | null }[] {
+    const out: { taskId: number; empresa: string; progress: { current: number; total: number }; waitSeconds: number | null }[] = [];
+    this.batchStates.forEach((st, taskId) => {
+      if (st) out.push({ taskId, empresa: this.batchMeta.get(taskId) ?? `Tarefa #${taskId}`, progress: st.progress, waitSeconds: st.waitSeconds });
+    });
+    return out;
+  }
+
+  private batchMeta = new Map<number, string>();
+
   startBatch(job: BidBatchJob): boolean {
     if (this.batchAborts.has(job.taskId)) return false;
+    this.batchMeta.set(job.taskId, job.empresa);
     this.batchAborts.set(job.taskId, false);
     this.batchStates.set(job.taskId, { progress: { current: 0, total: job.candidates.length }, waitSeconds: null });
     this._notify(job.taskId);
