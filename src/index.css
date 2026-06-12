@@ -72,6 +72,13 @@
     --gradient-fill: linear-gradient(90deg, hsl(38 95% 52%), hsl(152 64% 42%));
     --shadow-card: 0 1px 2px hsl(30 30% 20% / 0.04), 0 4px 12px hsl(30 30% 20% / 0.04);
     --shadow-elevated: 0 8px 24px hsl(24 100% 50% / 0.15);
+
+    /* Motion tokens — usar via CSS, TS usa src/lib/motion.ts */
+    --dur-fast: 120ms;
+    --dur-base: 200ms;
+    --dur-slow: 320ms;
+    --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-move:  cubic-bezier(0.45, 0, 0.25, 1);
   }
 
   .dark {
@@ -153,10 +160,27 @@
   .shadow-card { box-shadow: var(--shadow-card); }
   .shadow-elevated { box-shadow: var(--shadow-elevated); }
 
-  /* Tactile scale on click for action buttons */
   @keyframes fade-in {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  .animate-fade-in { animation: fade-in 0.25s ease-out; }
+  .animate-fade-in { animation: fade-in var(--dur-base) var(--ease-enter); }
+}
+
+/* Acessibilidade: zeramos durações e desligamos animações decorativas */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+  *, *::before, *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+  }
+  .animate-pulse, .animate-ping, .animate-bounce, .animate-spin {
+    animation: none !important;
+  }
+  .pulse-dot::after { animation: none !important; }
 }

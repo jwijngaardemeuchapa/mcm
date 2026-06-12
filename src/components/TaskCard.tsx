@@ -203,9 +203,6 @@ export function TaskCard({
   confiabilidade?: Map<string, ConfiabilidadeStats>;
 }) {
   const navigate = useNavigate();
-  const [removalTarget, setRemovalTarget] = useState<(typeof task.chapas)[number] | null>(null);
-  const [removalReason, setRemovalReason] = useState("");
-
   useEffect(() => {
     if (!autoRemoveChapaName) return;
     const norm = (s: string | null | undefined) =>
@@ -213,16 +210,21 @@ export function TaskCard({
     const match = task.chapas.find(
       (c) => c.nome_chapa && norm(c.nome_chapa) === norm(autoRemoveChapaName),
     );
-    if (match) setRemovalTarget(match);
+    if (!match) return;
+    getDb().then((db) =>
+      db.execute(
+        "UPDATE chapas SET status_contato = ?, data_remocao = ? WHERE id = ?",
+        ["removido", new Date().toISOString(), match.id],
+      ),
+    ).then(() => onRefresh()).catch(() => {});
   }, [autoRemoveChapaName]); // eslint-disable-line
-  const [removalMsg, setRemovalMsg] = useState<string | null>(null);
   const [editPhoneTarget, setEditPhoneTarget] = useState<(typeof task.chapas)[number] | null>(null);
   const [editPhoneValue, setEditPhoneValue] = useState("");
   const [confirmAllOpen, setConfirmAllOpen] = useState(false);
   const [fupOpen, setFupOpen] = useState(false);
   const [newFupCanal, setNewFupCanal] = useState("whatsapp_web");
   const [newFupObs, setNewFupObs] = useState("");
-  const { push } = useUndo();
+  const { push, undo } = useUndo();
   const [csvExportedAt, setCsvExportedAt] = useState<string | null>(() => getCsvExportedAt(task.id_tarefa));
   const [taskCancelSent, setTaskCancelSent] = useState(() => {
     try { return !!localStorage.getItem(`umbler_task_cancel_${task.id_tarefa}`); } catch { return false; }
@@ -307,25 +309,37 @@ export function TaskCard({
     toast.success(`Contato registrado: ${canalLabelLong[canal]}`);
   }
 
-  async function confirmRemoval() {
-    if (!removalTarget) return;
-    const target = removalTarget as ChapaRow;
-    await updateChapaWithUndo(
-      target,
-      {
-        status_contato: "removido",
-        data_remocao: new Date().toISOString(),
-        motivo_remocao: removalReason || null,
+  async function removeChapa(chapa: ChapaRow) {
+    const prevStatus = chapa.status_contato;
+    const prevRemocao = (chapa as Record<string, unknown>).data_remocao as string | null ?? null;
+    const prevMotivo = (chapa as Record<string, unknown>).motivo_remocao as string | null ?? null;
+    try {
+      const db = await getDb();
+      await db.execute(
+        "UPDATE chapas SET status_contato = ?, data_remocao = ?, motivo_remocao = ? WHERE id = ?",
+        ["removido", new Date().toISOString(), null, chapa.id],
+      );
+    } catch (e) { toast.error(errMsg(e)); return; }
+    push({
+      label: `remoção de ${chapa.nome_chapa ?? "chapa"}`,
+      revert: async () => {
+        const db = await getDb();
+        await db.execute(
+          "UPDATE chapas SET status_contato = ?, data_remocao = ?, motivo_remocao = ? WHERE id = ?",
+          [prevStatus, prevRemocao, prevMotivo, chapa.id],
+        );
       },
-      `remoção de ${target.nome_chapa ?? "chapa"}`,
-    );
+      onReverted: onRefresh,
+    });
+    onRefresh();
     const msg = `⚠️ Remoção sinalizada — Tarefa #${task.id_tarefa} | ${task.empresa} | ${fmtTime(task.data_tarefa)}
-Chapa removido: ${target.nome_chapa ?? "(sem nome)"} | Tel: ${target.telefone_chapa ?? "-"}
-Motivo: ${removalReason || "(não informado)"}
+Chapa removido: ${chapa.nome_chapa ?? "(sem nome)"} | Tel: ${chapa.telefone_chapa ?? "-"}
 Precisamos de 1 substituto para esta tarefa.`;
-    setRemovalMsg(msg);
-    setRemovalTarget(null);
-    setRemovalReason("");
+    toast(`${chapa.nome_chapa ?? "Chapa"} removido`, {
+      duration: 6000,
+      action: { label: "Desfazer", onClick: () => undo() },
+      cancel: { label: "Copiar mensagem", onClick: () => clipboardWrite(msg, "Mensagem copiada") },
+    });
   }
 
   async function savePhone() {
@@ -535,7 +549,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       }
       return;
     }
-    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa };
+    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa, cidade_uf: task.cidade_uf ?? null };
     dispatchQueue.startMassFup(task.id_tarefa, chapasWithPhone, taskSnap);
   }
 
@@ -565,7 +579,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       toast.error("Nenhum chapa com telefone cadastrado nesta tarefa");
       return;
     }
-    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa };
+    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa, cidade_uf: task.cidade_uf ?? null };
     dispatchQueue.startTaskCancel(task.id_tarefa, chapasWithPhone, taskSnap);
   }
 
@@ -1032,7 +1046,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                     `não respondeu — ${c.nome_chapa ?? "chapa"}`,
                   )
                 }
-                onRemove={() => setRemovalTarget(c)}
+                onRemove={() => removeChapa(c as ChapaRow)}
                 onEditPhone={() => {
                   setEditPhoneTarget(c);
                   setEditPhoneValue(c.telefone_chapa ?? "");
@@ -1509,30 +1523,6 @@ Precisamos de 1 substituto para esta tarefa.`;
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!removalTarget} onOpenChange={(o) => !o && setRemovalTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Sinalizar remoção</DialogTitle>
-            <DialogDescription>
-              Confirma sinalização de remoção de <b className="capitalize">{removalTarget?.nome_chapa?.toLowerCase()}</b>? Isso irá gerar um aviso para captação de substituto.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            placeholder="Motivo da remoção"
-            value={removalReason}
-            onChange={(e) => setRemovalReason(e.target.value)}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemovalTarget(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={confirmRemoval} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-              Confirmar remoção
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Edit phone dialog */}
       <Dialog open={!!editPhoneTarget} onOpenChange={(o) => !o && setEditPhoneTarget(null)}>
         <DialogContent>
@@ -1578,26 +1568,6 @@ Precisamos de 1 substituto para esta tarefa.`;
         </DialogContent>
       </Dialog>
 
-      {/* Removal message dialog */}
-      <Dialog open={!!removalMsg} onOpenChange={(o) => !o && setRemovalMsg(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Mensagem de remoção</DialogTitle>
-            <DialogDescription>Copie e envie para o time de captação</DialogDescription>
-          </DialogHeader>
-          <pre className="whitespace-pre-wrap bg-muted p-3 rounded-md text-xs font-mono">{removalMsg}</pre>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                if (removalMsg) clipboardWrite(removalMsg, "Mensagem copiada");
-              }}
-              className="gap-1.5"
-            >
-              <Copy className="h-3.5 w-3.5" /> Copiar mensagem
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

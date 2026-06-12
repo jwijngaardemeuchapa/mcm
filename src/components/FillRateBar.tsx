@@ -45,6 +45,9 @@ export function FillRateBar({
     );
   }
 
+  const missing = requested - confirmed;
+  const goalGradient = missing === 1 && confirmed > 0;
+
   return (
     <div className="flex items-center gap-3 min-w-[180px]">
       <div className={`flex-1 ${heightClass} rounded-full bg-muted overflow-hidden`}>
@@ -53,9 +56,15 @@ export function FillRateBar({
           style={{ width: `${w}%` }}
         />
       </div>
-      <span className={`text-xs font-semibold tabular-nums ${textColor} whitespace-nowrap`}>
-        {confirmed}/{requested} · {pct}%
-      </span>
+      {goalGradient ? (
+        <span className="text-xs font-bold text-warning whitespace-nowrap animate-pulse">
+          Falta 1!
+        </span>
+      ) : (
+        <span className={`text-xs font-semibold tabular-nums ${textColor} whitespace-nowrap`}>
+          {confirmed}/{requested} · {pct}%
+        </span>
+      )}
     </div>
   );
 }

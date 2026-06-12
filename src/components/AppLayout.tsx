@@ -44,10 +44,22 @@ export default function AppLayout() {
         e.preventDefault();
         setCmdOpen((v) => !v);
       }
+      if (e.key === "z" && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+        const active = document.activeElement;
+        const isInput = active && (
+          active.tagName === "INPUT" ||
+          active.tagName === "TEXTAREA" ||
+          (active as HTMLElement).isContentEditable
+        );
+        if (!isInput) {
+          e.preventDefault();
+          undo();
+        }
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [undo]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60_000);

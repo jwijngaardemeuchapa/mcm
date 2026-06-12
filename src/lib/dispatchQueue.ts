@@ -1,7 +1,8 @@
 import { toast } from "sonner";
 import { getDb, uuid, errMsg } from "./db";
 import { readSettings } from "./settings";
-import { sendUmblerFup, sendUmblerFreeText, startUmblerBot, fmtTaskDateParam } from "./umbler";
+import { sendUmblerFup, sendUmblerFreeText, startUmblerBot, fmtTaskDateParam, humanizarErroUmbler } from "./umbler";
+import { fmtSP, todayDateISO_SP } from "./datetime";
 
 export type MassFupProgress =
   | { phase: "sending"; sent: number; total: number }
@@ -49,6 +50,7 @@ export type TaskSnap = {
   id_tarefa: number;
   data_tarefa: string;
   empresa: string;
+  cidade_uf?: string | null;
 };
 
 type Sub<T> = (state: T) => void;
@@ -292,7 +294,7 @@ class DispatchQueue {
         sentIds.push(chapa.id);
       } catch (e) {
         failed++;
-        toast.error(`Falha ao enviar para ${chapa.nome_chapa ?? "chapa"}: ${errMsg(e)}`);
+        toast.error(`${chapa.nome_chapa ?? "Chapa"}: ${humanizarErroUmbler(e)}`);
       }
       this.customMsgStates.set(taskId, { status: "sending", sent, total: chapas.length });
       this.notifyCustomMsg(taskId);
@@ -384,6 +386,16 @@ class DispatchQueue {
       this.notifyMassFup(taskId);
       return;
     }
+
+    const taskDateStr = fmtSP(task.data_tarefa, "yyyy-MM-dd");
+    const isD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.fupBotD1Id && umblerSettings.fupBotD1TriggerName);
+    const botId = isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId;
+    const triggerName = isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName;
+    const fupInitialData = {
+      Data: fmtSP(task.data_tarefa, "dd/MM/yyyy"),
+      Cidade: task.empresa,
+    };
+
     this.massFupStates.set(taskId, { status: "sending", progress: { phase: "sending", sent: 0, total: chapas.length } });
     this.notifyMassFup(taskId);
 
@@ -405,12 +417,9 @@ class DispatchQueue {
         await startUmblerBot({
           chapaTelefone: chapa.telefone_chapa!,
           settings: umblerSettings,
-          initialData: {
-            Data: fmtTaskDateParam(task.data_tarefa),
-            Empresa: task.empresa,
-          },
-          botIdOverride: umblerSettings.fupBotId,
-          triggerNameOverride: umblerSettings.fupBotTriggerName,
+          initialData: fupInitialData,
+          botIdOverride: botId,
+          triggerNameOverride: triggerName,
         });
         sent++;
         sentIds.push(chapa.id);
@@ -446,12 +455,9 @@ class DispatchQueue {
             await startUmblerBot({
               chapaTelefone: chapa.telefone_chapa!,
               settings: umblerSettings,
-              initialData: {
-                Data: fmtTaskDateParam(task.data_tarefa),
-                Empresa: task.empresa,
-              },
-              botIdOverride: umblerSettings.fupBotId,
-              triggerNameOverride: umblerSettings.fupBotTriggerName,
+              initialData: fupInitialData,
+              botIdOverride: botId,
+              triggerNameOverride: triggerName,
             });
             sent++;
             sentIds.push(chapa.id);
@@ -631,19 +637,21 @@ class DispatchQueue {
       window.dispatchEvent(new CustomEvent("fup:refresh"));
       return;
     }
+    const taskDateStr = fmtSP(task.data_tarefa, "yyyy-MM-dd");
+    const isD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.fupBotD1Id && umblerSettings.fupBotD1TriggerName);
     try {
       await startUmblerBot({
         chapaTelefone: chapa.telefone_chapa!,
         settings: umblerSettings,
         initialData: {
-          Data: fmtTaskDateParam(task.data_tarefa),
-          Empresa: task.empresa,
+          Data: fmtSP(task.data_tarefa, "dd/MM/yyyy"),
+          Cidade: task.empresa,
         },
-        botIdOverride: umblerSettings.fupBotId,
-        triggerNameOverride: umblerSettings.fupBotTriggerName,
+        botIdOverride: isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId,
+        triggerNameOverride: isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName,
       });
     } catch (e) {
-      toast.error(`Falha ao enviar via Umbler: ${String(e)}`);
+      toast.error(humanizarErroUmbler(e));
       this.chapaJobStates.delete(chapaId);
       this.notifyChapaJob(chapaId);
       window.dispatchEvent(new CustomEvent("fup:refresh"));
@@ -858,7 +866,7 @@ class BidDispatchQueue {
         toast.success(`BID disparado para ${candidate.nome}`);
         dispatched++;
       } catch (e) {
-        toast.error(`Falha ao disparar para ${candidate.nome}: ${errMsg(e)}`);
+        toast.error(`${candidate.nome}: ${humanizarErroUmbler(e)}`);
       }
 
       if (i < candidates.length - 1 && !this.batchAborts.get(taskId)) {

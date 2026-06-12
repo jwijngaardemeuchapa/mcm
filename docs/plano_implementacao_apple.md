@@ -101,6 +101,11 @@
 - ✅ Score de confiabilidade (15 dias) no painel FUP — v0.9.84
 - ✅ Alerta de vencimento de ASO 15/7/1 dias — v0.9.84
 - ✅ Undo global, paleta Ctrl+K, fontes 10px mínimas
+- ✅ **Fase A** — motion.ts + tokens CSS (--dur-fast/base/slow, --ease-enter/move) + prefers-reduced-motion global + active:scale-[0.97] — v0.9.85
+- ✅ **Fase B parcial** — Remoção de chapa sem dialog: 1 clique + toast "Desfazer · Copiar mensagem" + Ctrl+Z global — v0.9.85
+- ✅ **Fase G parcial** — Badge Zeigarnik de validações pendentes no sidebar (FUP Dashboard) — v0.9.85
+- ✅ **Fase D parcial** — Goal Gradient: "Falta 1!" pulsando no FillRateBar quando falta 1 chapa — v0.9.85
+- ✅ **Fase G-copy** — humanizarErroUmbler(): erros 401/403/422/429/5xx → mensagem humanizada — v0.9.85
 
 ## Ordem sugerida e dependências
 

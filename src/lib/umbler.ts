@@ -1,6 +1,23 @@
 import { type UmblerSettings } from "./settings";
 import { fmtSP, fmtTime, todayDateISO_SP } from "./datetime";
 
+const UMBLER_ERROS: [RegExp, string][] = [
+  [/401/,                   "Credenciais inválidas — verifique o Bearer Token em Integrações."],
+  [/403/,                   "Sem permissão — confirme o organizationId em Integrações."],
+  [/422.*phone|phone.*422/, "Número de telefone inválido — corrija o telefone do chapa."],
+  [/422/,                   "Dados inválidos — verifique os parâmetros do bot em Integrações."],
+  [/429/,                   "Limite de envios atingido — aguarde alguns minutos e tente novamente."],
+  [/5\d\d/,                 "Serviço Umbler indisponível — tente novamente em instantes."],
+];
+
+export function humanizarErroUmbler(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  for (const [pattern, msg] of UMBLER_ERROS) {
+    if (pattern.test(raw)) return msg;
+  }
+  return `Falha no envio — ${raw.slice(0, 80)}`;
+}
+
 export function toInternationalPhone(raw: string): string {
   const d = raw.replace(/\D/g, "");
   if (d.startsWith("55") && d.length >= 12) return `+${d}`;
