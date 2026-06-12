@@ -68,10 +68,14 @@ export async function startUmblerBot({
   chapaTelefone,
   settings,
   initialData,
+  botIdOverride,
+  triggerNameOverride,
 }: {
   chapaTelefone: string;
   settings: UmblerSettings;
   initialData: Record<string, string>;
+  botIdOverride?: string;
+  triggerNameOverride?: string;
 }): Promise<void> {
   const res = await fetch("https://app-utalk.umbler.com/api/v1/chats/start-bot/", {
     method: "POST",
@@ -83,8 +87,8 @@ export async function startUmblerBot({
     body: JSON.stringify({
       toPhone: toInternationalPhone(chapaTelefone),
       fromPhone: settings.fromPhone,
-      botId: settings.bidBotId,
-      triggerName: settings.bidBotTriggerName,
+      botId: botIdOverride ?? settings.bidBotId,
+      triggerName: triggerNameOverride ?? settings.bidBotTriggerName,
       organizationId: settings.organizationId,
       initialData,
     }),

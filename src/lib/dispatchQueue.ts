@@ -377,6 +377,13 @@ class DispatchQueue {
 
   private async _executeMassFup(taskId: number, chapas: ChapaSnap[], task: TaskSnap) {
     const { umblerSettings, operadorNome } = readSettings();
+    if (!umblerSettings.fupBotId || !umblerSettings.fupBotTriggerName) {
+      toast.error("Configure o Bot ID e Trigger Name do FUP em Integrações.");
+      this.massFupStates.delete(taskId);
+      this.massFupAborts.delete(taskId);
+      this.notifyMassFup(taskId);
+      return;
+    }
     this.massFupStates.set(taskId, { status: "sending", progress: { phase: "sending", sent: 0, total: chapas.length } });
     this.notifyMassFup(taskId);
 
@@ -395,12 +402,15 @@ class DispatchQueue {
       }
       const chapa = chapas[i];
       try {
-        await sendUmblerFup({
-          chapaNome: chapa.nome_chapa!,
+        await startUmblerBot({
           chapaTelefone: chapa.telefone_chapa!,
-          dataTarefa: task.data_tarefa,
-          empresa: task.empresa,
           settings: umblerSettings,
+          initialData: {
+            Data: fmtTaskDateParam(task.data_tarefa),
+            Empresa: task.empresa,
+          },
+          botIdOverride: umblerSettings.fupBotId,
+          triggerNameOverride: umblerSettings.fupBotTriggerName,
         });
         sent++;
         sentIds.push(chapa.id);
@@ -433,12 +443,15 @@ class DispatchQueue {
           }
           const chapa = firstPassFailed[i];
           try {
-            await sendUmblerFup({
-              chapaNome: chapa.nome_chapa!,
+            await startUmblerBot({
               chapaTelefone: chapa.telefone_chapa!,
-              dataTarefa: task.data_tarefa,
-              empresa: task.empresa,
               settings: umblerSettings,
+              initialData: {
+                Data: fmtTaskDateParam(task.data_tarefa),
+                Empresa: task.empresa,
+              },
+              botIdOverride: umblerSettings.fupBotId,
+              triggerNameOverride: umblerSettings.fupBotTriggerName,
             });
             sent++;
             sentIds.push(chapa.id);
@@ -611,13 +624,23 @@ class DispatchQueue {
 
   private async _executeChapaFup(chapaId: string, chapa: ChapaSnap, task: TaskSnap) {
     const { umblerSettings } = readSettings();
+    if (!umblerSettings.fupBotId || !umblerSettings.fupBotTriggerName) {
+      toast.error("Configure o Bot ID e Trigger Name do FUP em Integrações.");
+      this.chapaJobStates.delete(chapaId);
+      this.notifyChapaJob(chapaId);
+      window.dispatchEvent(new CustomEvent("fup:refresh"));
+      return;
+    }
     try {
-      await sendUmblerFup({
-        chapaNome: chapa.nome_chapa!,
+      await startUmblerBot({
         chapaTelefone: chapa.telefone_chapa!,
-        dataTarefa: task.data_tarefa,
-        empresa: task.empresa,
         settings: umblerSettings,
+        initialData: {
+          Data: fmtTaskDateParam(task.data_tarefa),
+          Empresa: task.empresa,
+        },
+        botIdOverride: umblerSettings.fupBotId,
+        triggerNameOverride: umblerSettings.fupBotTriggerName,
       });
     } catch (e) {
       toast.error(`Falha ao enviar via Umbler: ${String(e)}`);
@@ -752,7 +775,7 @@ class BidDispatchQueue {
     this.dispatchedSubs.forEach((cb) => cb(record));
   }
 
-  getActiveBatches(): { taskId: number; empresa: string; progress: { current: number; total: number }; waitSeconds: number | null }[] {
+  getActiveBatchList(): { taskId: number; empresa: string; progress: { current: number; total: number }; waitSeconds: number | null }[] {
     const out: { taskId: number; empresa: string; progress: { current: number; total: number }; waitSeconds: number | null }[] = [];
     this.batchStates.forEach((st, taskId) => {
       if (st) out.push({ taskId, empresa: this.batchMeta.get(taskId) ?? `Tarefa #${taskId}`, progress: st.progress, waitSeconds: st.waitSeconds });

@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { getDb, uuid, errMsg } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
-import { sendUmblerFup, startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
+import { startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
 import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
@@ -77,6 +77,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BidMatchmaker } from "@/components/BidMatchmaker";
 import { BidRadar } from "@/components/BidRadar";
+import { StatusBadge } from "@/components/StatusBadge";
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -124,6 +125,7 @@ export type OpenTask = {
   cidade_uf: string | null;
   quantidade_chapas: number;
   alocados: number;
+  status_tarefa: string;
 };
 
 export type ClienteAddress = {
@@ -804,6 +806,11 @@ function BidTaskCard({
               </div>
             );
           })()}
+          {task.status_tarefa === "Em Análise" && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border shrink-0">
+              Em Análise
+            </span>
+          )}
           {expanded
             ? <ChevronUp className="h-4 w-4 text-muted-foreground/60 shrink-0" />
             : <ChevronDown className="h-4 w-4 text-muted-foreground/60 shrink-0" />}
@@ -830,6 +837,15 @@ function BidTaskCard({
 
       {expanded && (
         <>
+          {/* ── Status Em Análise warning ── */}
+          {task.status_tarefa === "Em Análise" && (
+            <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5">
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-warning leading-relaxed">
+                <strong>Tarefa Em Análise</strong> — ainda não aprovada no sistema. Pode haver vagas em aberto, mas o BID não é recomendado até aprovação. FUP pode ser aplicado se necessário.
+              </p>
+            </div>
+          )}
           {/* ── Configure ── */}
           <div className="p-4 border-b border-border bg-muted/10 space-y-3">
             <div className="flex items-center justify-between">
@@ -1707,7 +1723,7 @@ export default function BIDDashboard() {
         db.select<{ cnt: number }[]>("SELECT COUNT(*) as cnt FROM chapa_registry").catch(() => [{ cnt: 0 }]),
         db.select<{ cnt: number }[]>("SELECT COUNT(*) as cnt FROM bid_chapas").catch(() => [{ cnt: 0 }]),
         db.select<OpenTask[]>(`
-          SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas,
+          SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas, t.status_tarefa,
             (SELECT COUNT(*) FROM chapas c WHERE c.id_tarefa = t.id_tarefa
              AND c.nome_chapa IS NOT NULL AND c.status_contato != 'removido') as alocados
           FROM tarefas t
@@ -2515,7 +2531,7 @@ function BloqueadosTab() {
           ORDER BY bloqueio
         `),
         db.select<OpenTask[]>(`
-          SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas,
+          SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas, t.status_tarefa,
             (SELECT COUNT(*) FROM chapas c WHERE c.id_tarefa = t.id_tarefa
              AND c.nome_chapa IS NOT NULL AND c.status_contato != 'removido') as alocados
           FROM tarefas t

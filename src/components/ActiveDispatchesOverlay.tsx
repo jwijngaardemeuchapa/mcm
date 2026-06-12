@@ -6,11 +6,11 @@ import { dispatchQueue, bidDispatchQueue, type ActiveJob } from "@/lib/dispatchQ
 // página, separado por tarefa — com cancelamento em um clique.
 export function ActiveDispatchesOverlay() {
   const [jobs, setJobs] = useState<ActiveJob[]>([]);
-  const [batches, setBatches] = useState<ReturnType<typeof bidDispatchQueue.getActiveBatches>>([]);
+  const [batches, setBatches] = useState<ReturnType<typeof bidDispatchQueue.getActiveBatchList>>([]);
 
   const refresh = useCallback(() => {
     setJobs(dispatchQueue.getActiveJobs());
-    setBatches(bidDispatchQueue.getActiveBatches());
+    setBatches(bidDispatchQueue.getActiveBatchList());
   }, []);
 
   useEffect(() => {

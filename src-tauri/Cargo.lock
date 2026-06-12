@@ -98,6 +98,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "futures-util",
  "log",
  "reqwest 0.12.28",
