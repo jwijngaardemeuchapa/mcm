@@ -30,6 +30,7 @@ import {
   BookMarked,
   AlertCircle,
   Pencil,
+  Star,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,7 @@ import { readSettings, writeSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
+import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -190,6 +192,7 @@ export function TaskCard({
   matchHighlight,
   newChapaKeys,
   autoRemoveChapaName,
+  confiabilidade,
 }: {
   task: TaskWithChapas;
   onRefresh: () => void;
@@ -197,6 +200,7 @@ export function TaskCard({
   matchHighlight?: boolean;
   newChapaKeys?: Set<string>;
   autoRemoveChapaName?: string;
+  confiabilidade?: Map<string, ConfiabilidadeStats>;
 }) {
   const navigate = useNavigate();
   const [removalTarget, setRemovalTarget] = useState<(typeof task.chapas)[number] | null>(null);
@@ -1011,6 +1015,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 taskId={task.id_tarefa}
                 taskSnap={{ id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa }}
                 newChapaKeys={newChapaKeys}
+                conf={lookupConfiabilidade(confiabilidade, c)}
                 fupLog={task.fup_log}
                 onContact={markContact}
                 onConfirm={() =>
@@ -1615,6 +1620,7 @@ type RowProps = {
   onUndoOutcome: () => void;
   umblerReady?: boolean;
   cancelTemplateReady?: boolean;
+  conf?: ConfiabilidadeStats | null;
 };
 
 function ChapaRowView({
@@ -1631,6 +1637,7 @@ function ChapaRowView({
   onUndoOutcome,
   umblerReady,
   cancelTemplateReady,
+  conf,
 }: RowProps) {
   const navigate = useNavigate();
   const chapaJobState = useChapaJobState(chapa.id);
@@ -1682,6 +1689,28 @@ function ChapaRowView({
             >
               {chapa.nome_chapa.toLowerCase()}
             </button>
+            {conf && conf.participacoes >= CONFIABILIDADE_MIN_PARTICIPACOES && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className={`shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums cursor-help ${
+                      conf.stars >= 4 ? "text-success" : conf.stars <= 2 ? "text-destructive/80" : "text-muted-foreground"
+                    }`}
+                  >
+                    <Star className="h-2.5 w-2.5 fill-current" />
+                    {conf.stars.toFixed(1)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs space-y-0.5">
+                  <p className="font-semibold">Confiabilidade — últimos 15 dias</p>
+                  <p>{conf.participacoes} tarefa{conf.participacoes !== 1 ? "s" : ""} · {conf.confirmacoes} confirmaç{conf.confirmacoes !== 1 ? "ões" : "ão"}</p>
+                  {(conf.presencas + conf.faltas) > 0 && (
+                    <p>{conf.presencas} presença{conf.presencas !== 1 ? "s" : ""} · {conf.faltas} falta{conf.faltas !== 1 ? "s" : ""}</p>
+                  )}
+                  {conf.removidos > 0 && <p>{conf.removidos} remoç{conf.removidos !== 1 ? "ões" : "ão"}</p>}
+                </TooltipContent>
+              </Tooltip>
+            )}
             {isNew && (
               <span
                 className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success/20 text-success border border-success/40 animate-pulse whitespace-nowrap"

@@ -11,7 +11,9 @@ import {
   DoorOpen,
   Send,
   UserMinus,
+  Minus,
 } from "lucide-react";
+import { useOverlaySlot } from "@/lib/overlayStack";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { TaskCard, type TaskWithChapas } from "./TaskCard";
 import { fmtTime, parseTaskDate } from "@/lib/datetime";
@@ -391,14 +393,18 @@ type Props = {
   onRefresh: () => void;
 };
 
+const MIN_KEY = "ovl_min_approaching";
+
 export function ApproachingAlert({ tasks, onRefresh }: Props) {
   const [open, setOpen] = useState(true);
+  const [minimized, setMinimized] = useState(() => sessionStorage.getItem(MIN_KEY) === "1");
   const [sheetTask, setSheetTask] = useState<TaskWithChapas | null>(null);
   const [localTasks, setLocalTasks] = useState<TaskWithChapas[]>(tasks);
   const [donePortaria, setDonePortaria] = useState<Set<string>>(() => new Set());
   const [, setTick] = useState(0);
   const alertedIdsRef = useRef<Set<number>>(new Set());
   const isFirstRef = useRef(true);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setLocalTasks(tasks); }, [tasks]);
   useEffect(() => {
@@ -436,6 +442,8 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
   const totalChapas = groups.reduce((sum, g) => sum + g.chapas.length, 0);
   const totalSections = (totalChapas > 0 ? 1 : 0) + (portariaAlerts.length > 0 ? 1 : 0);
 
+  const offset = useOverlaySlot("approaching", rootRef, totalSections > 0, minimized);
+
   function removeLocalChapa(taskId: number, chapaId: string) {
     setLocalTasks((prev) =>
       prev.map((t) =>
@@ -450,12 +458,54 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
     onRefresh();
   }
 
+  function setMin(v: boolean) {
+    setMinimized(v);
+    try { sessionStorage.setItem(MIN_KEY, v ? "1" : "0"); } catch { /* noop */ }
+  }
+
   if (totalSections === 0) return null;
+
+  if (minimized) {
+    return (
+      <>
+        <div ref={rootRef} style={{ bottom: 16 + offset }} className="fixed right-4 z-40">
+          <button
+            type="button"
+            onClick={() => setMin(false)}
+            className="flex items-center gap-2 rounded-full border border-warning/50 bg-card px-3.5 py-2 shadow-lg hover:bg-warning/10 transition-colors"
+            title={`${totalChapas} chapa(s) a confirmar${portariaAlerts.length > 0 ? ` · ${portariaAlerts.length} portaria(s)` : ""} — clique para expandir`}
+          >
+            <span className="relative shrink-0">
+              <Clock className="h-3.5 w-3.5 text-warning" />
+              <span className="absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full bg-warning animate-ping" />
+            </span>
+            <span className="text-xs font-semibold tabular-nums text-warning">
+              {totalChapas + portariaAlerts.length}
+            </span>
+          </button>
+        </div>
+        <Sheet open={sheetTask !== null} onOpenChange={(o) => !o && setSheetTask(null)}>
+          <SheetContent side="right" className="w-full sm:w-[680px] sm:max-w-[90vw] p-0 overflow-y-auto">
+            <SheetHeader className="px-4 pt-4 pb-0">
+              <SheetTitle className="text-sm font-semibold text-muted-foreground">Detalhes da tarefa</SheetTitle>
+            </SheetHeader>
+            <div className="p-4">
+              {sheetTask && (
+                <TaskCard task={sheetTask} onRefresh={() => { onRefresh(); setSheetTask(null); }} />
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </>
+    );
+  }
 
   return (
     <>
       <div
-        className="fixed bottom-5 right-5 z-40 w-80 rounded-2xl border border-warning/50 bg-card shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.55)] overflow-hidden"
+        ref={rootRef}
+        style={{ bottom: 16 + offset }}
+        className="fixed right-4 z-40 w-80 rounded-2xl border border-warning/50 bg-card shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)] dark:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.55)] overflow-hidden"
         role="alert"
         aria-live="polite"
       >
@@ -473,6 +523,17 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
             {totalChapas > 0 && `${totalChapas} chapa${totalChapas !== 1 ? "s" : ""} a confirmar`}
             {totalChapas > 0 && portariaAlerts.length > 0 && " · "}
             {portariaAlerts.length > 0 && `${portariaAlerts.length} portaria${portariaAlerts.length !== 1 ? "s" : ""}`}
+          </span>
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); setMin(true); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setMin(true); } }}
+            className="h-6 w-6 inline-flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            title="Minimizar"
+            aria-label="Minimizar alerta de proximidade"
+          >
+            <Minus className="h-3.5 w-3.5" />
           </span>
           {open
             ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />

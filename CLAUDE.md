@@ -112,6 +112,8 @@ Migrations live in `src-tauri/src/lib.rs` as inline SQL strings. Add new migrati
 
 ## Conventions
 
+**Compatibilidade de dados (obrigatório)**: toda atualização deve ler dados gravados por versões anteriores sem quebrar nada já executado ou salvo. Na prática: novos campos de settings entram com default via spread em `readSettings()`; mudanças de schema SQLite são **aditivas** (`ALTER TABLE` em try/catch ou nova migração — nunca renomear/remover coluna); chaves novas de localStorage/sessionStorage têm fallback; chaves antigas órfãs são toleradas (nunca exigidas). Antes de cada build, revisar se algum dado da versão anterior deixaria de funcionar.
+
 **Language**: All UI text, variable names, DB columns, and function names are in Portuguese (PT-BR).
 
 **localStorage key prefixes**: `fup_` for settings, `dash_` for dashboard prefs, `quick_links` for sidebar.

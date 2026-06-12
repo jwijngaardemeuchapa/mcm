@@ -11,6 +11,7 @@ import { AlertBanner, type AlertItem } from "@/components/AlertBanner";
 import { PriorityPanel, type LembreteAlertItem } from "@/components/PriorityPanel";
 import { RefreshDiff, computeRefreshDiff, chapKey, type DiffResult } from "@/components/RefreshDiff";
 import { fetchAllRows } from "@/lib/fetchAll";
+import { buildConfiabilidadeMap, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import {
   AlertTriangle,
   CalendarClock,
@@ -131,6 +132,7 @@ export default function Dashboard() {
   const [timelineOverlayTaskId, setTimelineOverlayTaskId] = useState<number | null>(null);
   const [lembreteAlerts, setLembreteAlerts] = useState<LembreteAlertItem[]>([]);
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
+  const [confiabilidade, setConfiabilidade] = useState<Map<string, ConfiabilidadeStats>>(() => new Map());
   const { notifLog, clearLog } = useWatcherLog();
 
   const load = useCallback(async (manual = false) => {
@@ -142,6 +144,14 @@ export default function Dashboard() {
         fetchAllRows<Record<string, unknown>>("fup_log", "*"),
         fetchAllRows<{ nome_fantasia: string }>("carteira", "nome_fantasia"),
       ]);
+
+      // Score de confiabilidade — janela de 15 dias sobre o histórico completo já carregado
+      try {
+        setConfiabilidade(buildConfiabilidadeMap(
+          tarefas as unknown as Array<{ id_tarefa: number; data_tarefa: string }>,
+          chapas as unknown as Array<{ id_tarefa: number; nome_chapa?: string | null; cpf?: string | null; telefone_chapa?: string | null; status_contato?: string | null; validacao_presenca?: string | null }>,
+        ));
+      } catch { /* indicador opcional — nunca bloqueia o load */ }
 
       try {
         const cfgDb = await getDb();
@@ -1194,6 +1204,7 @@ export default function Dashboard() {
                 forceCollapse={forceCollapseMap[t.id_tarefa]}
                 matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                 newChapaKeys={newChapaKeys}
+                confiabilidade={confiabilidade}
               />
             ))}
         </section>
@@ -1399,6 +1410,7 @@ export default function Dashboard() {
                         forceCollapse={forceCollapseMap[t.id_tarefa]}
                         matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                         newChapaKeys={newChapaKeys}
+                        confiabilidade={confiabilidade}
                       />
                     ))}
                   </>
@@ -1422,6 +1434,7 @@ export default function Dashboard() {
                         forceCollapse={forceCollapseMap[t.id_tarefa]}
                         matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                         newChapaKeys={newChapaKeys}
+                        confiabilidade={confiabilidade}
                       />
                     ))}
                   </>
@@ -1477,6 +1490,7 @@ export default function Dashboard() {
                     forceCollapse={null}
                     matchHighlight={false}
                     newChapaKeys={newChapaKeys}
+                    confiabilidade={confiabilidade}
                   />
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-10">

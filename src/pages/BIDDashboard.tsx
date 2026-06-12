@@ -78,6 +78,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BidMatchmaker } from "@/components/BidMatchmaker";
 import { BidRadar } from "@/components/BidRadar";
 import { StatusBadge } from "@/components/StatusBadge";
+import { AsoBadge } from "@/components/AsoBadge";
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -1435,14 +1436,7 @@ function BidTaskCard({
                             className="text-sm font-medium hover:text-primary hover:underline truncate text-left max-w-[180px]">
                             {c.nome}
                           </button>
-                          {c.aso && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-[9px] font-bold text-success px-1 py-0.5 rounded bg-success/10 border border-success/20 cursor-help">ASO</span>
-                              </TooltipTrigger>
-                              <TooltipContent>ASO válido: {c.aso}</TooltipContent>
-                            </Tooltip>
-                          )}
+                          <AsoBadge aso={c.aso} />
                           {leoCache && leoCache.size > 0 && c.telefone && (() => {
                             const leo = leoCache.get(normalizePhone(c.telefone));
                             if (!leo) return null;
@@ -2836,9 +2830,7 @@ function BloqueadosTab() {
                       className="font-medium text-sm hover:text-primary hover:underline truncate block text-left max-w-[200px]">
                       {r.nome}
                     </button>
-                    {r.aso && (
-                      <span className="text-[9px] font-bold text-success px-1 py-0.5 rounded bg-success/10 border border-success/20 shrink-0">ASO</span>
-                    )}
+                    <AsoBadge aso={r.aso} />
                   </div>
                   {r.cpf && (
                     <button type="button" onClick={() => clipCopy(r.cpf.replace(/\D/g, ""), "CPF copiado")}
@@ -3231,9 +3223,7 @@ function CadastroTab() {
                 </div>
                 <div className="text-[10px] text-muted-foreground/60 truncate">{r.motivo_bloqueio ?? ""}</div>
                 <div>
-                  {r.aso && (
-                    <span className="text-[9px] font-bold text-success px-1 py-0.5 rounded bg-success/10 border border-success/20">ASO</span>
-                  )}
+                  <AsoBadge aso={r.aso} />
                 </div>
               </div>
             );
