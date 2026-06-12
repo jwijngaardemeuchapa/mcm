@@ -151,7 +151,6 @@ export function AppSidebar() {
               <SidebarMenu>
                 {navOperacional.map((item) => {
                   const active = pathname === item.url || (item.url === "/dashboard" && pathname === "/");
-                  const badge = item.url === "/dashboard" && pendingValidacoes > 0 ? pendingValidacoes : null;
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild isActive={active} tooltip={`${item.title} (g${item.shortcut})`}>
@@ -169,11 +168,6 @@ export function AppSidebar() {
                           {!collapsed && (
                             <>
                               <span className="flex-1">{item.title}</span>
-                              {badge !== null && (
-                                <span className="inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-warning text-warning-foreground text-[10px] font-bold leading-none">
-                                  {badge}
-                                </span>
-                              )}
                               <kbd className="text-[9px] font-mono px-1 py-px rounded border border-sidebar-border/50 text-muted-foreground/40 bg-transparent leading-none">
                                 g{item.shortcut}
                               </kbd>

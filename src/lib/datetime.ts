@@ -71,6 +71,12 @@ export function todayDateISO_SP(): string {
   return formatInTimeZone(new Date(), TZ, "yyyy-MM-dd");
 }
 
+export function tomorrowDateISO_SP(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return formatInTimeZone(d, TZ, "yyyy-MM-dd");
+}
+
 export function isSameDaySP(d: Date | string): boolean {
   return formatInTimeZone(typeof d === "string" ? new Date(d) : d, TZ, "yyyy-MM-dd") === todayDateISO_SP();
 }

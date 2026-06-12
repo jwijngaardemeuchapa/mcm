@@ -392,7 +392,7 @@ class DispatchQueue {
     const botId = isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId;
     const triggerName = isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName;
     const fupInitialData = {
-      Data: fmtSP(task.data_tarefa, "dd/MM/yyyy"),
+      Data: fmtTaskDateParam(task.data_tarefa),
       Cidade: task.empresa,
     };
 
@@ -644,7 +644,7 @@ class DispatchQueue {
         chapaTelefone: chapa.telefone_chapa!,
         settings: umblerSettings,
         initialData: {
-          Data: fmtSP(task.data_tarefa, "dd/MM/yyyy"),
+          Data: fmtTaskDateParam(task.data_tarefa),
           Cidade: task.empresa,
         },
         botIdOverride: isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId,

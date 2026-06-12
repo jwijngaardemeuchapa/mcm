@@ -1,5 +1,5 @@
 import { type UmblerSettings } from "./settings";
-import { fmtSP, fmtTime, todayDateISO_SP } from "./datetime";
+import { fmtSP, fmtTime, todayDateISO_SP, tomorrowDateISO_SP } from "./datetime";
 
 const UMBLER_ERROS: [RegExp, string][] = [
   [/401/,                   "Credenciais inválidas — verifique o Bearer Token em Integrações."],
@@ -28,6 +28,7 @@ export function fmtTaskDateParam(dataTarefa: string): string {
   const taskDate = fmtSP(dataTarefa, "yyyy-MM-dd");
   const time = fmtTime(dataTarefa);
   if (taskDate === todayDateISO_SP()) return `Hoje às ${time}`;
+  if (taskDate === tomorrowDateISO_SP()) return `Amanhã às ${time}`;
   return `${fmtSP(dataTarefa, "dd/MM")} às ${time}`;
 }
 
