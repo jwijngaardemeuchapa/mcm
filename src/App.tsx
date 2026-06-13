@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { openUrl as tauriOpen } from "@tauri-apps/plugin-opener";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -28,6 +28,8 @@ import RespostaLog from "./pages/RespostaLog";
 import NotFound from "./pages/NotFound";
 import { UndoProvider } from "./lib/undo";
 import { WatcherProvider } from "./lib/WatcherContext";
+import { IntroScreen } from "./components/IntroScreen";
+import { shouldShowIntro } from "./lib/introLogic";
 
 const queryClient = new QueryClient();
 
@@ -55,8 +57,11 @@ function useExternalLinks() {
 
 const App = () => {
   useExternalLinks();
+  const [showIntro, setShowIntro] = useState(() => shouldShowIntro());
+
   return (
   <QueryClientProvider client={queryClient}>
+    {showIntro && <IntroScreen onDone={() => setShowIntro(false)} />}
     <TooltipProvider>
       <UndoProvider>
         <WatcherProvider>

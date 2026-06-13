@@ -212,6 +212,31 @@
     100% { box-shadow: 0 0 0 0 hsl(var(--success) / 0); }
   }
   .animate-glow-sweep { animation: glow-sweep 600ms var(--ease-delight); }
+
+  /* Intro screen animations */
+  @keyframes intro-slide-up {
+    from { opacity: 0; transform: translateY(22px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes intro-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes intro-bar-grow {
+    from { transform: scaleX(0); opacity: 0; }
+    to   { transform: scaleX(1); opacity: 1; }
+  }
+  .animate-intro-slide-up {
+    animation: intro-slide-up 700ms var(--ease-spring) both;
+  }
+  .animate-intro-fade-in {
+    animation: intro-fade-in 500ms var(--ease-delight) both;
+  }
+  .animate-intro-bar-grow {
+    transform-origin: center;
+    animation: intro-bar-grow 600ms var(--ease-delight) both;
+    animation-delay: 250ms;
+  }
 }
 
 /* Acessibilidade: zeramos durações e desligamos animações decorativas */
@@ -232,6 +257,11 @@
   .confetti-particle, .chapa-flash, .animate-scale-pop, .animate-glow-sweep {
     animation: none !important;
     opacity: 0;
+  }
+  .animate-intro-slide-up, .animate-intro-fade-in, .animate-intro-bar-grow {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
   .pulse-dot::after { animation: none !important; }
 }
