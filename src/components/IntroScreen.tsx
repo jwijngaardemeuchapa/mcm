@@ -87,8 +87,8 @@ export function IntroScreen({ onDone }: Props) {
           onEnded={goText}
           onError={goText}
           style={{
-            width: "min(960px, 88vw)",
-            aspectRatio: "16 / 9",
+            width: "100vw",
+            height: "100vh",
             objectFit: "contain",
             pointerEvents: "none",
             mixBlendMode: "screen",
