@@ -417,7 +417,7 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
     const s = readSettings();
     const currentGroups = s.approachingAlertEnabled ? computeGroups(localTasks) : [];
     const currentIds = new Set(currentGroups.map((g) => g.task.id_tarefa));
-    if (!isFirstRef.current && s.soundAlertEnabled) {
+    if (!isFirstRef.current && s.sons.alertas) {
       if (currentGroups.some((g) => !alertedIdsRef.current.has(g.task.id_tarefa))) {
         playAlertBeep();
       }

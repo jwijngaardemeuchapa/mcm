@@ -30,6 +30,7 @@ import { UndoProvider } from "./lib/undo";
 import { WatcherProvider } from "./lib/WatcherContext";
 import { IntroScreen } from "./components/IntroScreen";
 import { shouldShowIntro } from "./lib/introLogic";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -59,7 +60,14 @@ const App = () => {
   useExternalLinks();
   const [showIntro, setShowIntro] = useState(() => shouldShowIntro());
 
+  useEffect(() => {
+    const handler = () => setShowIntro(true);
+    window.addEventListener("mcm:show-intro", handler);
+    return () => window.removeEventListener("mcm:show-intro", handler);
+  }, []);
+
   return (
+  <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     {showIntro && <IntroScreen onDone={() => setShowIntro(false)} />}
     <TooltipProvider>
@@ -98,6 +106,7 @@ const App = () => {
       </UndoProvider>
     </TooltipProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
   );
 };
 

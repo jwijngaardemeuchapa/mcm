@@ -1,3 +1,5 @@
+import { readSettings } from "./settings";
+
 export function playAlertBeep(): void {
   try {
     const ctx = new AudioContext();
@@ -21,6 +23,7 @@ export function playAlertBeep(): void {
 // Ascending three-note chime: C5 → E5 → G5 (major chord arpeggio)
 // Used for task validation / milestone completion
 export function playSuccessChime(): void {
+  if (!readSettings().sons.confirmacoes) return;
   try {
     const ctx = new AudioContext();
     const notes = [523, 659, 784]; // C5, E5, G5
@@ -45,6 +48,7 @@ export function playSuccessChime(): void {
 // Soft two-note "copy done" cue: C5 → G5 (fifth interval)
 // Used for clipboard copy confirmations
 export function playTeamsCopy(): void {
+  if (!readSettings().sons.turno) return;
   try {
     const ctx = new AudioContext();
     const notes = [523, 784]; // C5, G5
