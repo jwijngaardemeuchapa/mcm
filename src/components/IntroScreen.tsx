@@ -28,9 +28,9 @@ export function IntroScreen({ onDone }: Props) {
     advance("out");
   }
 
-  // Fallback: if video stalls or isn't available, go to text after 6s
+  // Fallback: se o vídeo travar ou não carregar (vídeo tem 6s, buffer de 2.5s)
   useEffect(() => {
-    const t = setTimeout(goText, 6000);
+    const t = setTimeout(goText, 8500);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
