@@ -1312,14 +1312,24 @@ export default function Dashboard() {
           ))}
         </div>
       ) : displayCards.length === 0 ? (
-        <div className="bg-card border border-dashed border-border rounded-xl p-8 flex items-center justify-center gap-4 flex-wrap">
-          <Inbox className="h-5 w-5 text-muted-foreground" />
-          <span className="text-sm text-foreground">
-            {isOnToday ? "Nenhuma tarefa — planilha ainda não importada." : `Nenhuma tarefa para ${fmtSP(`${selectedDate}T12:00:00-03:00`, "dd/MM/yyyy")}.`}
-          </span>
+        <div className="flex flex-col items-center justify-center gap-5 py-16 text-center animate-fade-in">
+          <div className="h-16 w-16 rounded-full bg-primary-soft flex items-center justify-center">
+            <Inbox className="h-7 w-7 text-primary/50" />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className="text-base font-semibold text-foreground">
+              {isOnToday ? "Nenhuma tarefa para hoje" : `Nenhuma tarefa para ${fmtSP(`${selectedDate}T12:00:00-03:00`, "dd/MM/yyyy")}`}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+              {isOnToday
+                ? "Importe a planilha para começar o dia. As tarefas aparecerão aqui assim que carregadas."
+                : "Nenhuma operação registrada para esse dia."}
+            </p>
+          </div>
           {isOnToday && (
-            <Button size="sm" onClick={() => navigate("/importar")}>
-              Importar →
+            <Button onClick={() => navigate("/importar")} className="gap-2">
+              <Upload className="h-4 w-4" />
+              Importar planilha
             </Button>
           )}
         </div>

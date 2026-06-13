@@ -58,6 +58,8 @@ import { toast } from "sonner";
 import { getDb, uuid, placeholders, errMsg } from "@/lib/db";
 import { StatusBadge } from "./StatusBadge";
 import { FillRateBar } from "./FillRateBar";
+import { Confetti } from "./Confetti";
+import { playSuccessChime } from "@/lib/sound";
 import { OvernightBadge } from "./OvernightBadge";
 import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
@@ -639,20 +641,28 @@ Precisamos de 1 substituto para esta tarefa.`;
   const [userExpanded, setUserExpanded] = useState(false);
   const [manualCollapsed, setManualCollapsed] = useState<boolean>(() => fullyValidated && !isDone);
   const [animateCollapse, setAnimateCollapse] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const prevDoneRef = useRef(isDone);
   const prevValidatedRef = useRef(fullyValidated);
   useEffect(() => {
     if (!prevDoneRef.current && isDone && !initiallyDoneRef.current) {
       setAnimateCollapse(true);
-      const t = setTimeout(() => setAnimateCollapse(false), 350);
+      setShowConfetti(true);
+      playSuccessChime();
+      const t1 = setTimeout(() => setAnimateCollapse(false), 350);
+      const t2 = setTimeout(() => setShowConfetti(false), 900);
       prevDoneRef.current = isDone;
-      return () => clearTimeout(t);
+      return () => { clearTimeout(t1); clearTimeout(t2); };
     }
     prevDoneRef.current = isDone;
   }, [isDone]);
   useEffect(() => {
     if (!prevValidatedRef.current && fullyValidated && !isDone) {
       setManualCollapsed(true);
+      setShowConfetti(true);
+      playSuccessChime();
+      const t = setTimeout(() => setShowConfetti(false), 900);
+      return () => clearTimeout(t);
     }
     prevValidatedRef.current = fullyValidated;
   }, [fullyValidated, isDone]);
@@ -767,12 +777,13 @@ Precisamos de 1 substituto para esta tarefa.`;
       } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
       <div
-        className={`p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border bg-card ${
+        className={`relative p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border bg-card ${
           isOvernight
             ? "bg-gradient-to-r from-overnight-soft to-card"
             : "bg-gradient-to-r from-primary-soft/60 to-card"
         }`}
       >
+        <Confetti active={showConfetti} />
         <div className="flex items-center gap-3 min-w-0">
           <div
             className={`text-center rounded-lg px-3 py-2 font-display shrink-0 ${
@@ -1670,7 +1681,7 @@ function ChapaRowView({
   return (
     <div
       data-chapa-name={chapa.nome_chapa ? chapa.nome_chapa.toLowerCase().trim().replace(/\s+/g, " ") : undefined}
-      className={`px-4 py-3 flex items-center gap-3 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}
+      className={`px-4 py-3 flex items-center gap-3 transition-colors duration-200 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}
     >
       {/* Zone 1 — identity */}
       <div className="flex-1 min-w-0">

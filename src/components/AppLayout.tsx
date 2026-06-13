@@ -3,8 +3,8 @@ import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ActiveDispatchesOverlay } from "./ActiveDispatchesOverlay";
-import { fmtDateLong, timeAgo } from "@/lib/datetime";
-import { Clock, Undo2, Search } from "lucide-react";
+import { fmtDateLong, timeAgo, todayDateISO_SP } from "@/lib/datetime";
+import { Clock, Undo2, Search, CheckCircle2, Send } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { useUndo } from "@/lib/undo";
@@ -40,6 +40,26 @@ export default function AppLayout() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const { awaitingChord } = useKeyboardNav(NAV_SHORTCUTS);
   const { pending: autoFupPending, confirmDispatch, skipTask } = useScheduledFup();
+  const [todayStats, setTodayStats] = useState<{ tarefas: number; confirmados: number; fups: number } | null>(null);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const db = await getDb();
+        const today = todayDateISO_SP();
+        const [t, c, f] = await Promise.all([
+          db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM tarefas WHERE data_tarefa LIKE ? AND ativo = 1", [`${today}%`]),
+          db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM chapas ch JOIN tarefas t ON ch.id_tarefa = t.id_tarefa WHERE t.data_tarefa LIKE ? AND t.ativo = 1 AND ch.status_contato = 'confirmado'", [`${today}%`]),
+          db.select<{ c: number }[]>("SELECT COUNT(DISTINCT fl.id_tarefa) as c FROM fup_log fl JOIN tarefas t ON fl.id_tarefa = t.id_tarefa WHERE t.data_tarefa LIKE ? AND fl.canal LIKE 'umbler%'", [`${today}%`]),
+        ]);
+        setTodayStats({ tarefas: t[0]?.c ?? 0, confirmados: c[0]?.c ?? 0, fups: f[0]?.c ?? 0 });
+      } catch { /* noop */ }
+    }
+    fetchStats();
+    const iv = setInterval(fetchStats, 60_000);
+    window.addEventListener("fup:refresh", fetchStats);
+    return () => { clearInterval(iv); window.removeEventListener("fup:refresh", fetchStats); };
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -131,6 +151,24 @@ export default function AppLayout() {
                 </div>
               );
             })()}
+            {todayStats && todayStats.tarefas > 0 && (
+              <div className="hidden lg:flex items-center gap-3 text-xs text-muted-foreground border-l border-border pl-3 shrink-0">
+                <span title="Tarefas hoje">
+                  <span className="font-semibold text-foreground tabular-nums">{todayStats.tarefas}</span>{" "}
+                  {todayStats.tarefas === 1 ? "tarefa" : "tarefas"}
+                </span>
+                <span className="flex items-center gap-1" title="Chapas confirmados">
+                  <CheckCircle2 className="h-3 w-3 text-success shrink-0" />
+                  <span className="font-semibold text-success tabular-nums">{todayStats.confirmados}</span>
+                </span>
+                {todayStats.fups > 0 && (
+                  <span className="flex items-center gap-1" title="FUPs disparados hoje">
+                    <Send className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-semibold text-primary tabular-nums">{todayStats.fups}</span>
+                  </span>
+                )}
+              </div>
+            )}
             <button
               onClick={() => setCmdOpen(true)}
               className="hidden md:flex items-center gap-2 h-8 px-3 rounded-md border border-border bg-background text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"

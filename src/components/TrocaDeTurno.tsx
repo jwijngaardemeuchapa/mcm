@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, Check, ArrowLeftRight, ChevronDown } from "lucide-react";
+import { Copy, Check, ArrowLeftRight, ChevronDown, PartyPopper } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { fmtSP, todayDateISO_SP, toSP, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { toast } from "sonner";
+import { Confetti } from "./Confetti";
+import { playTeamsCopy } from "@/lib/sound";
 
 type TarefaRow = {
   id_tarefa: number;
@@ -330,8 +332,9 @@ export function TrocaDeTurno({
     try {
       await navigator.clipboard.writeText(message);
       setCopied(true);
-      toast.success("Mensagem copiada para a área de transferência");
-      setTimeout(() => setCopied(false), 2500);
+      playTeamsCopy();
+      toast.success("Troca de turno copiada! Cole no Teams.", { icon: "🎉", duration: 3000 });
+      setTimeout(() => setCopied(false), 3000);
     } catch {
       toast.error("Erro ao copiar");
     }
@@ -462,10 +465,18 @@ export function TrocaDeTurno({
           </pre>
         </div>
 
-        <div className="px-5 py-3 border-t border-border shrink-0 flex justify-end gap-2">
+        <div className="relative px-5 py-3 border-t border-border shrink-0 flex justify-end gap-2">
+          <Confetti active={copied} className="bottom-auto top-0" />
           <Button variant="ghost" size="sm" onClick={onClose}>Fechar</Button>
-          <Button size="sm" className="gap-1.5 min-w-[140px]" onClick={copyMessage} disabled={!message || loading}>
-            {copied ? <><Check className="h-4 w-4" /> Copiado!</> : <><Copy className="h-4 w-4" /> Copiar para Teams</>}
+          <Button
+            size="sm"
+            onClick={copyMessage}
+            disabled={!message || loading}
+            className={`gap-1.5 min-w-[140px] transition-all duration-200 ${copied ? "animate-glow-sweep bg-success text-success-foreground hover:bg-success/90" : ""}`}
+          >
+            {copied
+              ? <><PartyPopper className="h-4 w-4" /> Copiado!</>
+              : <><Copy className="h-4 w-4" /> Copiar para Teams</>}
           </Button>
         </div>
       </DialogContent>

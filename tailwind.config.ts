@@ -56,6 +56,10 @@ export default {
           foreground: "hsl(var(--overnight-foreground))",
           soft: "hsl(var(--overnight-soft))",
         },
+        "in-progress": {
+          DEFAULT: "hsl(var(--in-progress))",
+          foreground: "hsl(var(--in-progress-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
@@ -87,6 +91,10 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      transitionTimingFunction: {
+        spring: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        delight: "cubic-bezier(0.16, 1, 0.3, 1)",
       },
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },

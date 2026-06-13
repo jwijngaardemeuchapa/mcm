@@ -4,7 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* FUP Manager — tema claro estilo MeuChapa (laranja/branco) */
+/* FUP Manager — tema claro estilo MeuChapa */
 
 @layer base {
   :root {
@@ -20,25 +20,25 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 20% 18%;
 
-    /* Brand — MeuChapa orange */
-    --primary: 24 100% 50%;             /* #ff6a00 */
+    /* Brand — MeuChapa orange (refined: deeper, less neon) */
+    --primary: 22 92% 48%;              /* #e85f00 */
     --primary-foreground: 0 0% 100%;
     --primary-glow: 30 100% 60%;
-    --primary-soft: 30 100% 96%;
+    --primary-soft: 28 85% 93%;         /* warm tint with real visual weight */
 
     --secondary: 210 30% 96%;
     --secondary-foreground: 222 20% 18%;
 
     --muted: 30 15% 94%;
-    --muted-foreground: 220 10% 45%;
+    --muted-foreground: 28 8% 44%;      /* warm-tinted gray, harmonizes with bg */
 
-    --accent: 30 100% 96%;
-    --accent-foreground: 24 100% 40%;
+    --accent: 28 85% 93%;
+    --accent-foreground: 22 92% 38%;
 
     --destructive: 0 84% 58%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 64% 42%;
+    --success: 150 68% 38%;             /* slightly deeper, richer green */
     --success-foreground: 0 0% 100%;
 
     --warning: 38 95% 52%;
@@ -51,54 +51,59 @@
     --overnight-foreground: 0 0% 100%;
     --overnight-soft: 255 80% 96%;
 
+    --in-progress: 185 65% 38%;         /* teal — neutral-positive "working" state */
+    --in-progress-foreground: 0 0% 100%;
+
     --border: 30 15% 88%;
     --input: 30 15% 90%;
-    --ring: 24 100% 50%;
+    --ring: 22 92% 48%;
 
     --radius: 0.625rem;
 
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 20% 25%;
-    --sidebar-primary: 24 100% 50%;
+    --sidebar-primary: 22 92% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 30 100% 96%;
-    --sidebar-accent-foreground: 24 100% 40%;
+    --sidebar-accent: 28 85% 93%;
+    --sidebar-accent-foreground: 22 92% 38%;
     --sidebar-border: 30 15% 90%;
-    --sidebar-ring: 24 100% 50%;
+    --sidebar-ring: 22 92% 48%;
 
     /* Gradients & shadows */
-    --gradient-primary: linear-gradient(135deg, hsl(24 100% 50%), hsl(35 100% 58%));
-    --gradient-fill: linear-gradient(90deg, hsl(38 95% 52%), hsl(152 64% 42%));
+    --gradient-primary: linear-gradient(135deg, hsl(22 92% 48%), hsl(35 100% 56%));
+    --gradient-fill: linear-gradient(90deg, hsl(38 95% 52%), hsl(150 68% 38%));
     --shadow-card: 0 1px 2px hsl(30 30% 20% / 0.04), 0 4px 12px hsl(30 30% 20% / 0.04);
-    --shadow-elevated: 0 8px 24px hsl(24 100% 50% / 0.15);
+    --shadow-elevated: 0 8px 24px hsl(22 92% 48% / 0.15);
 
-    /* Motion tokens — usar via CSS, TS usa src/lib/motion.ts */
+    /* Motion tokens */
     --dur-fast: 120ms;
     --dur-base: 200ms;
     --dur-slow: 320ms;
-    --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
-    --ease-move:  cubic-bezier(0.45, 0, 0.25, 1);
+    --ease-enter:   cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-move:    cubic-bezier(0.45, 0, 0.25, 1);
+    --ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);  /* overshoot bounce */
+    --ease-delight: cubic-bezier(0.16, 1, 0.3, 1);       /* Apple fast-out */
   }
 
   .dark {
-    --background: 222 20% 10%;
+    --background: 225 22% 9%;
     --foreground: 30 20% 95%;
-    --card: 222 20% 13%;
+    --card: 225 20% 12%;
     --card-foreground: 30 20% 95%;
-    --popover: 222 20% 13%;
+    --popover: 225 20% 12%;
     --popover-foreground: 30 20% 95%;
-    --primary: 24 100% 55%;
+    --primary: 24 88% 58%;              /* softer orange in dark — less neon */
     --primary-foreground: 0 0% 100%;
     --secondary: 222 15% 18%;
     --secondary-foreground: 30 20% 95%;
     --muted: 222 15% 18%;
-    --muted-foreground: 220 10% 65%;
+    --muted-foreground: 220 12% 60%;
     --accent: 222 15% 20%;
-    --accent-foreground: 24 100% 60%;
+    --accent-foreground: 24 88% 65%;
     --destructive: 0 70% 55%;
     --destructive-foreground: 0 0% 100%;
-    --success: 152 60% 48%;
+    --success: 150 65% 48%;
     --success-foreground: 0 0% 100%;
     --warning: 38 95% 58%;
     --warning-foreground: 30 60% 10%;
@@ -107,20 +112,22 @@
     --overnight: 255 75% 70%;
     --overnight-foreground: 222 20% 10%;
     --overnight-soft: 255 30% 22%;
+    --in-progress: 185 60% 48%;
+    --in-progress-foreground: 222 20% 10%;
     --primary-soft: 24 40% 18%;
-    --surface: 222 20% 13%;
+    --surface: 225 20% 12%;
     --surface-muted: 222 20% 16%;
     --border: 222 15% 22%;
     --input: 222 15% 22%;
-    --ring: 24 100% 55%;
-    --sidebar-background: 222 20% 12%;
+    --ring: 24 88% 58%;
+    --sidebar-background: 225 22% 11%;
     --sidebar-foreground: 30 20% 90%;
-    --sidebar-primary: 24 100% 55%;
+    --sidebar-primary: 24 88% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 222 15% 20%;
-    --sidebar-accent-foreground: 24 100% 60%;
+    --sidebar-accent-foreground: 24 88% 65%;
     --sidebar-border: 222 15% 22%;
-    --sidebar-ring: 24 100% 55%;
+    --sidebar-ring: 24 88% 58%;
   }
 }
 
@@ -165,6 +172,46 @@
     to { opacity: 1; transform: translateY(0); }
   }
   .animate-fade-in { animation: fade-in var(--dur-base) var(--ease-enter); }
+
+  /* Confetti burst — CSS-only particle animation */
+  @keyframes confetti-burst {
+    0%   { transform: translate(-50%, -50%) translate(0, 0) rotate(0deg) scale(1.2); opacity: 1; }
+    15%  { opacity: 1; }
+    100% { transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(0); opacity: 0; }
+  }
+  .confetti-particle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    animation: confetti-burst 650ms var(--ease-spring) forwards;
+  }
+
+  /* Chapa row flash when status changes */
+  @keyframes row-flash {
+    0%   { background-color: hsl(var(--primary) / 0.12); }
+    100% { background-color: transparent; }
+  }
+  .chapa-flash { animation: row-flash 500ms var(--ease-delight) forwards; }
+
+  /* Scale-pop for button reward feedback */
+  @keyframes scale-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.08); }
+    70%  { transform: scale(0.97); }
+    100% { transform: scale(1); }
+  }
+  .animate-scale-pop { animation: scale-pop 400ms var(--ease-spring); }
+
+  /* Teams copy celebration: brief glow sweep */
+  @keyframes glow-sweep {
+    0%   { box-shadow: 0 0 0 0 hsl(var(--success) / 0.5); }
+    50%  { box-shadow: 0 0 0 8px hsl(var(--success) / 0); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--success) / 0); }
+  }
+  .animate-glow-sweep { animation: glow-sweep 600ms var(--ease-delight); }
 }
 
 /* Acessibilidade: zeramos durações e desligamos animações decorativas */
@@ -173,14 +220,18 @@
     --dur-fast: 0ms;
     --dur-base: 0ms;
     --dur-slow: 0ms;
+    --ease-spring: ease;
+    --ease-delight: ease;
   }
   *, *::before, *::after {
     animation-duration: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0ms !important;
   }
-  .animate-pulse, .animate-ping, .animate-bounce, .animate-spin {
+  .animate-pulse, .animate-ping, .animate-bounce, .animate-spin,
+  .confetti-particle, .chapa-flash, .animate-scale-pop, .animate-glow-sweep {
     animation: none !important;
+    opacity: 0;
   }
   .pulse-dot::after { animation: none !important; }
 }
