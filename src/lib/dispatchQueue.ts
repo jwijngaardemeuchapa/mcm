@@ -331,6 +331,29 @@ class DispatchQueue {
     }
   }
 
+  // ---- Auto FUP (agendado — chapas avaliados no momento do disparo) ----
+
+  async startAutoFup(task: TaskSnap) {
+    if (this.massFupStates.has(task.id_tarefa)) return;
+    try {
+      const db = await getDb();
+      const chapas = await db.select<ChapaSnap[]>(
+        `SELECT id, nome_chapa, telefone_chapa, status_contato FROM chapas
+         WHERE id_tarefa = ?
+           AND status_contato NOT IN ('confirmado', 'removido')
+           AND telefone_chapa IS NOT NULL AND telefone_chapa != ''`,
+        [task.id_tarefa],
+      );
+      if (chapas.length === 0) {
+        toast.info(`FUP automático — nenhum chapa pendente em ${task.empresa}`);
+        return;
+      }
+      this.startMassFup(task.id_tarefa, chapas, task);
+    } catch (e) {
+      toast.error(`FUP automático: ${errMsg(e)}`);
+    }
+  }
+
   // ---- Mass FUP ----
 
   startMassFup(taskId: number, chapas: ChapaSnap[], task: TaskSnap) {

@@ -12,6 +12,8 @@ import { ThemeToggle } from "./ThemeToggle";
 import { CommandPalette } from "./CommandPalette";
 import { DailyBriefing } from "./DailyBriefing";
 import { useKeyboardNav, type NavShortcut } from "@/lib/useKeyboardNav";
+import { useScheduledFup } from "@/lib/useScheduledFup";
+import { AutoFupConfirmDialog } from "./AutoFupConfirmDialog";
 
 const NAV_SHORTCUTS: NavShortcut[] = [
   { key: "b", url: "/bid" },
@@ -37,6 +39,7 @@ export default function AppLayout() {
   const { last, undo } = useUndo();
   const [cmdOpen, setCmdOpen] = useState(false);
   const { awaitingChord } = useKeyboardNav(NAV_SHORTCUTS);
+  const { pending: autoFupPending, confirmDispatch, skipTask } = useScheduledFup();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -87,6 +90,13 @@ export default function AppLayout() {
     <SidebarProvider>
       <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
       <DailyBriefing />
+      {autoFupPending && (
+        <AutoFupConfirmDialog
+          pending={autoFupPending}
+          onConfirm={() => confirmDispatch(autoFupPending.taskId)}
+          onSkip={() => skipTask(autoFupPending.taskId)}
+        />
+      )}
       <ActiveDispatchesOverlay />
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />

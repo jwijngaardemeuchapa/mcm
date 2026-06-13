@@ -31,6 +31,7 @@ import {
   AlertCircle,
   Pencil,
   Star,
+  Bell,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,7 @@ import { OvernightBadge } from "./OvernightBadge";
 import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
 import { ObservationsPanel } from "./ObservationsPanel";
-import { fmtTime, fmtDateTime, fmtSP, parseTaskDate, taskTzLabel } from "@/lib/datetime";
+import { fmtTime, fmtDateTime, fmtSP, parseTaskDate, taskTzLabel, minutesUntil } from "@/lib/datetime";
 import { isPrefup } from "@/lib/prefup";
 import { useUndo } from "@/lib/undo";
 import { readSettings, writeSettings } from "@/lib/settings";
@@ -520,13 +521,18 @@ Precisamos de 1 substituto para esta tarefa.`;
   const fupAllCount = task.fup_log.filter((f) => f.canal === "umbler_talk" && !f.chapa_id).length;
   const fupDispatched = task.fup_log.length > 0 || !!csvExportedAt;
 
+  // Auto-FUP scheduled indicator
+  const minUntilTask = minutesUntil(task.data_tarefa);
+  const autoFupActive = fupAgendarMinAntes > 0 && minUntilTask > 0 && fupAllCount === 0;
+  const minUntilAutoFup = autoFupActive ? minUntilTask - fupAgendarMinAntes : null;
+
   const lastFupLog = task.fup_log.length > 0
     ? task.fup_log.reduce((a, b) => a.data_disparo > b.data_disparo ? a : b)
     : null;
   const lastFupAt = lastFupLog?.data_disparo ?? csvExportedAt ?? null;
   const minutesSinceFup = lastFupAt ? Math.floor((nowTs - new Date(lastFupAt).getTime()) / 60_000) : null;
 
-  const { umblerSettings, operadorNome, fupElapsedAlertMinutes } = readSettings();
+  const { umblerSettings, operadorNome, fupElapsedAlertMinutes, fupAgendarMinAntes } = readSettings();
   const umblerReady = !!(
     umblerSettings.bearerToken &&
     umblerSettings.fromPhone &&
@@ -810,6 +816,25 @@ Precisamos de 1 substituto para esta tarefa.`;
                 {task.empresa.toLowerCase()}
               </span>
               {isOvernight && <OvernightBadge />}
+              {autoFupActive && minUntilAutoFup !== null && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${
+                      minUntilAutoFup <= 0
+                        ? "bg-warning/20 text-warning border-warning/40 animate-pulse"
+                        : minUntilAutoFup <= 15
+                        ? "bg-warning/15 text-warning border-warning/30"
+                        : "bg-muted/60 text-muted-foreground border-border"
+                    }`}>
+                      <Bell className="h-2.5 w-2.5" />
+                      {minUntilAutoFup <= 0 ? "FUP auto agora" : `FUP auto em ${Math.round(minUntilAutoFup)}min`}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    FUP automático agendado para {fupAgendarMinAntes}min antes da tarefa
+                  </TooltipContent>
+                </Tooltip>
+              )}
               {hasClienteNotes && clienteInfo && (
                 <Tooltip>
                   <TooltipTrigger asChild>

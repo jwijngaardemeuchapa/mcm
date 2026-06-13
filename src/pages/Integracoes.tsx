@@ -49,6 +49,7 @@ interface NotificationMatch {
 export default function Integracoes() {
   const [unlocked, setUnlocked] = useState(false);
   const [umblerSettings, setUmblerSettings] = useState(() => readSettings().umblerSettings);
+  const [fupAgendarMinAntes, setFupAgendarMinAntes] = useState(() => readSettings().fupAgendarMinAntes ?? 0);
   const [webhookHost, setWebhookHost] = useState("127.0.0.1");
   const [webhookPort, setWebhookPort] = useState(() => readSettings().umblerSettings.webhookPort ?? 9988);
   const [showToken, setShowToken] = useState(false);
@@ -373,30 +374,81 @@ export default function Integracoes() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
-                Bot ID — FUP (chatbot)
+                Bot ID — FUP D0 (chatbot)
               </label>
               <Input
                 value={umblerSettings.fupBotId}
                 onChange={(e) => updateUmblerSetting({ fupBotId: e.target.value })}
-                placeholder="abrvT7tO-xxxxx"
+                placeholder="abry27tO-13jrsi3"
                 className="font-mono text-xs"
               />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
-                Trigger Name — FUP (chatbot)
+                Trigger Name — FUP D0
               </label>
               <Input
                 value={umblerSettings.fupBotTriggerName}
                 onChange={(e) => updateUmblerSetting({ fupBotTriggerName: e.target.value })}
-                placeholder="FUP_JEREMIAH | D0"
+                placeholder="FUP_JEREMIAH| D0"
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Bot ID — FUP D1 (chatbot)
+              </label>
+              <Input
+                value={umblerSettings.fupBotD1Id}
+                onChange={(e) => updateUmblerSetting({ fupBotD1Id: e.target.value })}
+                placeholder="abry86xIPqGJg7Jl"
+                className="font-mono text-xs"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Trigger Name — FUP D1
+              </label>
+              <Input
+                value={umblerSettings.fupBotD1TriggerName}
+                onChange={(e) => updateUmblerSetting({ fupBotD1TriggerName: e.target.value })}
+                placeholder="FUP_JEREMIAH| D1"
                 className="font-mono text-xs"
               />
             </div>
             <p className="text-[11px] text-muted-foreground sm:col-span-2">
-              O disparo de FUP (confirmação de presença) chama o robô via <strong className="text-foreground">start-bot</strong>.
-              Variáveis enviadas em <code className="text-foreground">initialData</code>: <code className="text-foreground">Data</code>, <code className="text-foreground">Empresa</code>.
+              O disparo de FUP chama o robô via <strong className="text-foreground">start-bot</strong>.
+              D0 = dia da tarefa (ou futuro), D1 = pós-tarefa (dia seguinte em diante).
+              Variáveis enviadas em <code className="text-foreground">initialData</code>: <code className="text-foreground">Data</code> (Hoje/Amanhã às HH:mm / dd/MM às HH:mm), <code className="text-foreground">Cidade</code>.
             </p>
+            <div className="sm:col-span-2 space-y-1.5 pt-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Agendamento automático de FUP
+              </label>
+              <div className="flex items-center gap-3">
+                <div className="relative w-28">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={480}
+                    value={fupAgendarMinAntes}
+                    onChange={(e) => {
+                      const v = Math.max(0, Math.min(480, Number(e.target.value) || 0));
+                      setFupAgendarMinAntes(v);
+                    }}
+                    onBlur={() => writeSettings({ fupAgendarMinAntes })}
+                    className="font-mono text-xs pr-8"
+                    disabled={!unlocked}
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">min</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {fupAgendarMinAntes > 0
+                    ? `FUP disparado automaticamente ${fupAgendarMinAntes} min antes da tarefa. Um confirmador aparece ${fupAgendarMinAntes <= 15 ? "junto" : "15 min antes"}.`
+                    : "Desativado — FUP somente manual. Configure um valor maior que 0 para ativar."}
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* BID bot (start-bot) */}

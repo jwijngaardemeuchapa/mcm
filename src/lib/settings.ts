@@ -34,6 +34,7 @@ export type AppSettings = {
   umblerNoResponseMinutes: number;
   fupElapsedAlertMinutes: number;
   customMsgTemplates: string[];
+  fupAgendarMinAntes: number;
 };
 
 const STORAGE_KEY = "fup_settings";
@@ -55,6 +56,7 @@ export const SETTING_DEFAULTS: AppSettings = {
     "Já chegou ao local da tarefa?",
     "Obrigado pela confirmação, qualquer problema me avise aqui",
   ],
+  fupAgendarMinAntes: 0,
 };
 
 export function readSettings(): AppSettings {
