@@ -83,6 +83,7 @@ export function IntroScreen({ onDone }: Props) {
           autoPlay
           muted
           playsInline
+          preload="auto"
           onEnded={goText}
           onError={goText}
           style={{
@@ -101,28 +102,34 @@ export function IntroScreen({ onDone }: Props) {
       {/* Text reveal */}
       {showText && (
         <div
-          className="flex flex-col items-center gap-6 text-center px-8"
+          className="flex flex-col items-center gap-5 text-center px-8"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* App label */}
+          {/* App name — Montserrat: "Meu" light, "Chapa" black, "Manager" regular */}
           <p
-            className="font-medium tracking-[0.3em] uppercase animate-intro-slide-up"
+            className="uppercase animate-intro-slide-up"
             style={{
-              color: "hsl(0 0% 100% / 0.35)",
-              fontSize: "0.75rem",
-              letterSpacing: "0.3em",
+              fontFamily: "'Montserrat', sans-serif",
+              color: "hsl(0 0% 100% / 0.38)",
+              fontSize: "0.8rem",
+              letterSpacing: "0.32em",
               animationDelay: "0ms",
             }}
           >
-            Meu Chapa Manager
+            <span style={{ fontWeight: 300 }}>Meu </span>
+            <span style={{ fontWeight: 900 }}>Chapa</span>
+            <span style={{ fontWeight: 400 }}> Manager</span>
           </p>
 
-          {/* Main slogan */}
+          {/* Slogan — Comfortaa com kerning largo, identidade visual da marca */}
           <h1
-            className="font-display font-bold leading-none animate-intro-slide-up"
+            className="leading-tight animate-intro-slide-up"
             style={{
+              fontFamily: "'Comfortaa', 'Arial Rounded MT Bold', sans-serif",
+              fontWeight: 700,
               color: "hsl(0 0% 100%)",
-              fontSize: "clamp(2.5rem, 8vw, 5rem)",
+              fontSize: "clamp(2.2rem, 7vw, 4.5rem)",
+              letterSpacing: "0.04em",
               animationDelay: "90ms",
             }}
           >
