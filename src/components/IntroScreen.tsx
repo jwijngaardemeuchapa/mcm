@@ -76,7 +76,7 @@ export function IntroScreen({ onDone }: Props) {
         </p>
       )}
 
-      {/* Video */}
+      {/* Video — mix-blend-mode: screen torna o fundo preto transparente */}
       {phase === "video" && (
         <video
           src="/intro.mp4"
@@ -85,7 +85,15 @@ export function IntroScreen({ onDone }: Props) {
           playsInline
           onEnded={goText}
           onError={goText}
-          style={{ maxHeight: "65vh", maxWidth: "85vw", objectFit: "contain", pointerEvents: "none" }}
+          style={{
+            maxHeight: "65vh",
+            maxWidth: "65vw",
+            width: "min(520px, 65vw)",
+            aspectRatio: "1 / 1",
+            objectFit: "contain",
+            pointerEvents: "none",
+            mixBlendMode: "screen",
+          }}
           className="animate-intro-fade-in"
         />
       )}
