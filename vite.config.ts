@@ -16,18 +16,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     mode === "development" && componentTagger(),
-    mode === "production" && obfuscator({
-      options: {
-        compact: true,
-        identifierNamesGenerator: "hexadecimal",
-        stringArray: false,
-        splitStrings: false,
-        selfDefending: false,
-        debugProtection: false,
-        controlFlowFlattening: false,
-        deadCodeInjection: false,
-      },
-    }),
+    // obfuscator desabilitado — causa TDZ com esbuild (identifiers renomeados antes de inicializar)
+    // esbuild minify já oferece ofuscação suficiente via tree-shaking + renaming interno
   ].filter(Boolean),
   resolve: {
     alias: {
