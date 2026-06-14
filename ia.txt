@@ -1,0 +1,100 @@
+requisitar o arquivo base de fil rate (mesmo arquivo usado na sessão 2.0) filtrado pelo mesmo periodo que o CSV de tarefas. E usar estes dados para analisar fill rate (pois neste arquivo temos dados mais confiaveis de chapas requisitados x entregues).
+
+
+
+
+
+Preciso que aaplicação consulte esta planilha (input 04, aplicação do leo, especie de funil de comunicação whatsapp/umbler) para inserção do modulo  de analise de BID, (quantas tarefas foram oferecidas x quantas aceitas), a planilha consistenas colunas (numero, resposta, total de vezes que o número aparece, total de sim por numero, percentual de sim, marca se passa de 75% e se repete) https://docs.google.com/spreadsheets/d/1BAEsx5sVmPogJtEPNmw-ZZHIL4sW3MvjY12lNH27b34/edit?gid=0#gid=0 precisa ter google oauth para acessar a api e extrar os dados da planilha, filtrando em seguida apeans os numeros que aparecem no pool de chapas aprovados da empresa, ou na falta dele presentes na lista de tarefas importada. (e também incluir estes dados na analise para determinar categoria e qual plano de ação para o ajudante) 
+
+
+
+
+
+Analise se a analise de cliente está cumprindo as funcionalidades do escopo, previstas no arquivo "Escopo aplicacao v2.html" presente na pasta raiz.
+
+
+
+e baseado nas analises, preciso de uma sugestão de escala, para entrar em contato com os chapas, sugerindo
+
+
+
+vamos implementar a IA, quero usar a phi 3 rodando no background localmente da propria aplicação e com um RAG configurado com tudo que já sabe da empresa e do fluxo. 
+
+
+
+Inserir flags para motivos de falta de interesse ou tem interesse em tarefas.
+
+
+
+E garantir que a IA esteja pronta para esse tipo de analise, com botão e interface pronta para acionamento no momento de preferencia do usuario e também cumprindo as funções estipuladas no escopo especificado acima. 
+
+
+
+Âncora 01 · Ficha do Chapa
+
+
+
+
+
+Função real: traduzir métricas em prosa + sugerir tom de abordagem + rascunhar mensagem
+
+
+
+Não esperar: insight sobre por que o chapa está como está
+
+
+
+Valor pro analista: economiza 2-3 minutos de leitura e redação por chapa
+
+Âncora 02 · Lista Acionável
+
+
+
+
+
+Função real: priorizar lista por critério explícito + sugerir script-padrão + identificar quem ignorar
+
+
+
+Não esperar: insight estratégico sobre a campanha
+
+
+
+Valor pro analista: transforma lista de 40 nomes em "comece por esses 5, depois esses 10, ignore esses 3"
+
+Âncora 03 · Dashboard do Cliente
+
+
+
+
+
+Função real: resumir o estado do cliente em 3 frases + apontar a mudança mais importante da semana + nomear o que merece atenção primeiro
+
+
+
+Não esperar: plano estratégico, projeções, recomendações de longo prazo
+
+
+
+Valor pro analista: briefing matinal de 30 segundos
+
+Uma 4ª âncora que vale considerar
+
+Pensando no fluxo real, talvez falte uma:
+
+Âncora 04 · Comparação semanal
+
+
+
+
+
+Função real: comparar snapshot de hoje com o de uma semana atrás e narrar mudanças em linguagem natural
+
+
+
+Output: "Esta semana: 3 chapas viraram Em Risco (Carlos, Pedro, Ana), 2 dormentes voltaram (Lucas, Marcos), e o José que era Pilar caiu pra Frequente. Atenção principal: Carlos que era Pilar há 30 dias"
+
+
+
+Onde mora: topo do dashboard, ao lado de "Foco da semana", aparece só se há snapshot anterior pra comparar 
+

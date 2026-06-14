@@ -1,0 +1,121 @@
+═══════════════════════════════════════════════════════════════
+MENSAGENS PRONTAS PARA O TEAMS — ATUALIZAÇÕES DO MCM
+(copie e cole o bloco que quiser enviar)
+═══════════════════════════════════════════════════════════════
+
+
+───────────────────────────────────────────────────────────────
+OPÇÃO 1 — MENSAGEM ÚNICA (resumo geral das 3 versões)
+───────────────────────────────────────────────────────────────
+
+🚀 Atualizações do MCM — novidades das versões 0.9.80 a 0.9.82
+
+Pessoal, o MCM recebeu um pacote grande de melhorias. Segue o que mudou e como usar:
+
+📨 1. Mensagem personalizada para confirmados
+Agora dá pra mandar uma mensagem de texto livre para os chapas que JÁ CONFIRMARAM presença (como eles já responderam, o WhatsApp permite mensagem livre por 24h).
+Como usar: no card da tarefa, clique no botão "Mensagem" → escreva o texto (ou use um atalho pronto, tipo "Já chegou ao local da tarefa?") → escolha pra quem enviar → Disparar.
+Você tem 30 segundos para se arrepender e cancelar antes do envio começar. 😉
+
+🤖 2. BID agora dispara pelo robô (chatbot)
+O convite de BID não envia mais um template solto — ele aciona o robô da Umbler, que envia o template e já conduz a conversa sozinho.
+⚠️ Atenção no campo "Atividade": o texto "Carga e descarga de" já vai automático na mensagem. Digite SÓ o complemento (ex.: "Cimento", "Materiais de Construção").
+
+⏱️ 3. Painel de disparos em andamento
+Apareceu um quadrinho novo no canto inferior direito da tela: ele mostra TUDO que está sendo enviado ou em contagem regressiva (FUP Todos, mensagens, cancelamentos, lotes de BID), separado por tarefa.
+Serve pra você nunca mais perder de vista um disparo — e dá pra cancelar qualquer um com 1 clique, de qualquer página.
+
+✏️ 4. Nome da empresa editável no FUP
+Ao lado do botão "FUP Todos" tem um lápis: clicando nele, você muda o nome da empresa que sai na mensagem daquela tarefa (útil quando o nome importado vem estranho). Vem preenchido com o nome atual e dá pra voltar ao automático com "↺ auto".
+
+📍 5. Cadastro de endereços muito mais esperto (Caderno de Clientes)
+• Digite o CEP e ele preenche rua, bairro, cidade e UF sozinho
+• Campos separados para número e complemento
+• Estrela ⭐ para marcar o endereço principal do cliente
+• Link do Google Maps gerado automaticamente
+• E agora dá pra EDITAR um endereço (lápis ✏️) sem precisar excluir e recriar
+
+📊 6. Timeline mais informativa
+Na visão Timeline do Dashboard, tarefas concluídas aparecem esmaecidas com um ✓ e tarefas com validação recebida ganham um selo — bate o olho e já sabe o que está encerrado.
+(E corrigimos um bug: a linha "Agora" sumia depois das 21h. Não some mais!)
+
+🔍 7. Filtro de motivo nos bloqueados (BID Dashboard)
+Na aba Bloqueados, quando você seleciona um bloqueio PARCIAL, aparece um segundo filtro com os motivos — dá pra achar exatamente o grupo que interessa.
+
+💾 8. Backup completo
+Em Configurações existe o "Snapshot completo": ele salva o banco de dados E todas as preferências (incluindo os atalhos de mensagem) num arquivo .mcmbak, que pode ser restaurado em outro computador.
+
+🛡️ Outros refinamentos: confirmação antes de excluir empresa da Carteira, textos um pouco maiores nos cards, e limpeza automática de dados temporários a cada importação.
+
+Qualquer dúvida me chamem! 🙌
+
+
+───────────────────────────────────────────────────────────────
+OPÇÃO 2 — MENSAGENS SEPARADAS POR VERSÃO (progresso constante)
+───────────────────────────────────────────────────────────────
+
+▼▼▼ POST 1 — v0.9.80 ▼▼▼
+
+✅ MCM v0.9.80 disponível!
+
+Três melhorias de qualidade de vida nesta versão:
+
+✏️ Empresa editável no FUP — apareceu um lápis ao lado do botão "FUP Todos". Pra que serve? Quando o nome da empresa vem estranho da importação (ex.: razão social gigante), você clica no lápis e escreve como quer que apareça na mensagem pro chapa. Vale só para aquela tarefa e dá pra voltar ao automático quando quiser.
+
+📊 Timeline com status — na visão Timeline (Gantt), as tarefas que já foram concluídas ficam com a cor apagada e um ✓, e as que receberam validação do cliente ganham um selo. Resultado: um olhar e você já sabe o que ainda precisa de atenção.
+
+📍 Endereços inteligentes no Caderno de Clientes — ao adicionar o endereço de um cliente, digite só o CEP: rua, bairro, cidade e UF preenchem sozinhos. Tem campo próprio para número e complemento, estrela ⭐ para marcar o endereço principal, e o link do Maps é gerado automaticamente.
+
+🔍 Bônus: na aba Bloqueados do BID, agora dá pra filtrar por MOTIVO do bloqueio quando o tipo é parcial.
+
+▲▲▲ FIM DO POST 1 ▲▲▲
+
+
+▼▼▼ POST 2 — v0.9.81 ▼▼▼
+
+✅ MCM v0.9.81 disponível!
+
+Duas novidades grandes nesta versão:
+
+🤖 BID agora dispara pelo robô (chatbot da Umbler)
+O que mudou na prática? Antes o sistema enviava um template "solto" e esperava a resposta. Agora ele aciona o robô, que envia o convite E conduz a conversa toda sozinho (interesse, confirmação etc.).
+⚠️ IMPORTANTE — campo "Atividade": o texto "Carga e descarga de" já está embutido no template. Você digita SÓ o complemento. Exemplo: digite "Cimento" e o chapa recebe "🛠️ Atividade: Carga e descarga de Cimento". Se digitar "Carga e descarga de cimento", sairia duplicado — por isso o campo mudou de cara.
+
+📨 Mensagem personalizada para confirmados
+Sabe quando você quer avisar algo só pra quem confirmou? ("o portão mudou", "chegou cedo demais, aguarde") Agora tem o botão "Mensagem" no card da tarefa:
+1. Clique em "Mensagem" (aparece quando a tarefa tem confirmados)
+2. Escreva o texto livre
+3. Marque/desmarque quem deve receber
+4. Disparar — você tem 30 segundos pra cancelar se mudar de ideia
+Tudo fica registrado no histórico de FUPs da tarefa. E pode mensagem livre mesmo: como o chapa já respondeu, o WhatsApp abre uma janela de 24h sem restrição de template.
+
+▲▲▲ FIM DO POST 2 ▲▲▲
+
+
+▼▼▼ POST 3 — v0.9.82 ▼▼▼
+
+✅ MCM v0.9.82 disponível!
+
+Versão focada em fluidez no dia a dia:
+
+⏱️ Painel de disparos em andamento (a estrela da versão)
+Quadrinho novo no canto inferior direito que aparece sempre que algo está sendo enviado: FUP Todos, mensagem personalizada, cancelamento, lote de BID — tudo separado por tarefa, com a contagem regressiva ao vivo e botão Cancelar.
+Por que isso é bom? Antes, se você rolasse a página ou trocasse de tela durante um countdown, perdia ele de vista. Agora está sempre visível, em qualquer página do sistema.
+
+💬 Atalhos de mensagem prontos
+No disparo de mensagem personalizada, agora existem atalhos clicáveis:
+• "Já chegou ao local da tarefa?"
+• "Obrigado pela confirmação, qualquer problema me avise aqui"
+Um clique e a mensagem está pronta. Dá pra editar os atalhos (✏️), excluir (✕) e salvar novos: escreveu uma mensagem que vai usar de novo? Clique em "Salvar como atalho". Eles ficam guardados e entram no backup.
+
+✏️ Endereços editáveis
+No Caderno de Clientes, cada endereço ganhou um lápis — errou o número? Edita direto, sem excluir e cadastrar de novo.
+
+🐛 Correções importantes:
+• A linha "Agora" da Timeline sumia depois das 21h (problema de fuso horário) — corrigido
+• Parâmetros antigos de BID não duplicam mais o texto "Carga e descarga de"
+• Excluir empresa da Carteira agora pede confirmação (adeus exclusão acidental)
+• Textos pequenos dos cards ficaram um pouco maiores
+• O sistema limpa sozinho dados temporários antigos a cada importação
+
+▲▲▲ FIM DO POST 3 ▲▲▲

@@ -1,0 +1,424 @@
+MÓDULO DE ANÁLISE DA BASE DE CHAPAS + IA LOCAL
+CONTEXTO
+Stack alvo: Tauri + React (gerado pelo Lovable) + Rust + SQLite local. App existente do MeuChapa que já roda offline. Este módulo é uma feature nova dentro da app existente, plugando como src/features/analise-base/. Tudo roda local, sem nuvem, sem rede externa.
+Identidade visual: laranja MeuChapa (#F26F21) como primária. Plus Jakarta Sans (corpo) + IBM Plex Mono (números/códigos).
+
+MISSÃO
+Transformar dados brutos da base de chapas em decisões operacionais didáticas. A app entrega:
+
+Análise determinística da base (M1–M7) para qualquer cliente do MeuChapa
+Camada de IA local (M8) que recomenda abordagem em 3 âncoras estratégicas da UI, sob demanda
+
+
+INPUTS (3 CSVs)
+INPUT 01 · OBRIGATÓRIO — CSV de Tarefas (FUP de Ativação)
+1 linha por chapa-tarefa. Colunas:
+
+ID Tarefa (agrupador da operação)
+Data da Tarefa (formato "May 25, 2026, 10:00 PM" — extrai turno e dia da semana)
+Cidade/UF
+Empresa
+Status da Tarefa (Finalizado / Cancelado / Aguardando Início)
+Nome do Chapa
+Telefone Chapa
+Quantidade de Chapas
+Status FUP (FUP CONFIRMADO / CHAPA A CAMINHO / etc)
+
+INPUT 02 · OBRIGATÓRIO — CSV de Fill Rate
+1 linha por tarefa. Colunas:
+
+tarefa (chave para join com input 01)
+Data
+Status (Finalizado / Cancelado)
+Nome fantasia / Grupo Econômico / Carteira (hierarquia de cliente)
+Tipo de trabalho
+Cidade / UF
+Motivo de Cancelamento (No Show chapa / Base indisponível / etc — dado contaminado, ver nota abaixo)
+Valor da Tarefa (R)/Repasse(R) / Repasse (R
+)/Repasse(R) / Markup Executado / Take Rate
+Chapas Atendidos / Chapas Solicitados / Fill Rate
+
+INPUT 03 · OPCIONAL — Pool de Aprovados
+Separador: ; (ponto-e-vírgula). Colunas:
+
+Nome (primeiro nome)
+Sobrenome
+CPF (chave única forte para match e desduplicação)
+Telefone (normalizar máscaras: +55, parênteses, hífens)
+
+Sem este input: a app classifica apenas quem aparece nas tarefas. Com ele: identifica "fantasmas" (aprovados que nunca trabalharam) e dimensiona pool teórico vs real.
+NOTA CRÍTICA sobre Motivo de Cancelamento: o campo "No Show chapa" é categoria default dos analistas — não diagnóstico confiável. O breakdown por motivo NÃO deve ser usado para decisões. Inputs futuros (sistema do Léo) vão resolver isso.
+
+8 MÓDULOS DE PROCESSAMENTO
+M1 · Importação & Normalização (Setup)
+Recebe os 3 CSVs, normaliza, persiste em SQLite.
+Funções:
+
+Auto-detecção de encoding (UTF-8, Latin-1) e delimitador (, ou ;)
+Parser de datas robusto (aceita "May 25, 2026, 10:00 PM", "25/05/2026 22:00", ISO 8601)
+Normalização de nomes (caixa, acentuação, espaços; merge de "JOSE WAGNER" e "José Wagner")
+Match cross-CSV: chave forte = CPF (pool), chave fraca = nome+telefone (tarefas)
+Filtro hierárquico de cliente: Nome Fantasia / Grupo Econômico / Carteira / Cidade
+Janela temporal configurável (padrão 90 dias)
+Snapshot versionado: cada importação grava timestamp; análises anteriores acessíveis
+
+M2 · Detecção Automática de Turnos (Auto-discovery)
+Descobre turnos relevantes lendo horários dos dados. Sem hardcode.
+Funções:
+
+Clustering por horário com tolerância ±30 min (ajustável)
+Filtro de relevância: turnos com ≥5% das tarefas; resto vira "outros"
+Auto-naming: sugere "matinal" (5–9h), "diurno" (10–14h), "vespertino" (15–19h), "noturno" (20–23h), "madrugada" (0–4h)
+Tela de confirmação: usuário valida, renomeia, força fusão/separação
+Métricas por turno: demanda, fill rate, tendência mensal, top chapas, mono-chapas
+
+M3 · Métricas Individuais por Chapa (Core)
+Para cada chapa do período, calcula todas as métricas.
+Métricas básicas:
+
+Total finalizado, Total cancelado, Recência (dias), Frequência (mediana semanal)
+Tendência: subindo/estável/caindo (regressão simples nos últimos 60d)
+Fill rate individual: presenças efetivas / oportunidades onde foi designado
+Tempo de base: desde a 1ª tarefa (proxy)
+
+Perfil de turno:
+
+Mono (1 turno) / Duo (2 turnos) / Multi (3+)
+Distribuição percentual por turno
+Concentração (% do turno que depende dele)
+
+Padrão semanal:
+
+Dias preferidos / Dias evitados
+Padrão fim-de-semana vs semana (proxy de segundo emprego)
+
+Bonificação:
+
+Semanas que bateu meta (configurável, padrão 6 tarefas/sem)
+Distância média da meta
+
+M4 · Classificação por Categoria (Engine)
+Aplica regras hierárquicas. Verifica Pilar primeiro; só vai pra próxima se não atender.
+7 categorias com critérios numéricos (90 dias padrão):
+CategoriaCritérioSignificadoPilar≥15 tarefas · recência <14d · fill rate ≥95%Sustenta a operação. Saída = catástrofeFrequente5–14 tarefas · recência <30d · fill rate ≥85%Coluna do meio. Volume sem ser estrelaCasual2–4 tarefas · recência <60dRenda extra. Não conta como capacidade fixaEm RiscoEra Frequente/Pilar nos 60d anteriores · recência 15–30dSumindo. Próximo passo: dormenteDormenteRecência 30–89d · histórico ≥3 tarefasSaiu, pode voltar com gatilhoFantasmaAprovado mas nunca trabalhou · OU recência ≥90dExiste só no cadastroNovo1ª tarefa há menos de 30 diasJanela crítica de retenção
+Funções:
+
+Score 0–100 = fill rate × consistência semanal × recência (pesos ajustáveis)
+Detecção de transição: flag quando muda de categoria entre análises (ex: Pilar → Em Risco)
+Limiares ajustáveis por cliente via UI
+Reaplica em segundos ao mudar parâmetros, sem reprocessar M1–M3
+
+M5 · Análise de Concentração e Risco (Risk)
+Identifica SPOFs — chapas cuja saída derruba a operação.
+Funções:
+
+Top N concentração: % da operação que top 5/10/20 chapas representam
+SPOF por turno: turnos onde 1–2 chapas representam >25% da capacidade
+Risco de migração: quando turno X é cortado, quantos mono-X ficam órfãos
+Lista de SPOFs com "% da operação que cai se este sair" + sugestão de substitutos compatíveis
+
+M6 · Cohort & Retenção (Churn)
+Saúde longitudinal da base.
+Funções:
+
+Cohort mensal: pra cada mês, quantos chapas novos entraram e quantos ativos em M+1/M+2/M+3
+Taxa de churn mensal e trimestral
+Tempo médio de vida entre 1ª e última tarefa, por categoria
+Curva de aprendizado: em quantas tarefas o Novo vira Casual/Frequente
+Recuperações: dormentes que voltaram após gatilho
+
+M7 · Listas Acionáveis (Output)
+7 listas prontas pra ação:
+
+Pilares para conversa 1:1 — top chapas com motivo (concentração %, semanas ativas, score)
+Em Risco — ligar hoje — chapas ativos sumindo, ordenados por importância histórica
+Mono-X órfãos — quando turno X é cortado, candidatos a migração
+Dormentes recuperáveis — eram bons, sumiram 30–60 dias atrás
+Fantasmas para limpeza — aprovados que nunca trabalharam ou inativos 90+ dias
+Novos para padrinho — entraram <30 dias, com pilar compatível sugerido
+Candidatos a bonificação — em 3–4 tarefas/sem, empurráveis para 5–6
+
+M8 · IA Local (Consultor sob demanda)
+Camada offline usando Phi-3 mini via Ollama em http://localhost:11434.
+Responsabilidades:
+
+Construir prompt a partir de contexto estruturado (JSON com métricas)
+Chamar Ollama via fetch local
+Sanitizar resposta (extrair seções, formatar markdown, lidar com timeout de 8s)
+Cachear no SQLite: chave = hash dos dados do chapa, invalida quando dados mudam
+Streaming opcional para reduzir percepção de latência
+Fallback gracioso se Ollama offline (banner discreto, app continua funcional)
+
+Garantias:
+
+Zero rede externa
+IA não computa números, só interpreta os já calculados por M3–M7
+System prompt fixo no código, não no usuário
+Resposta sempre em formato estruturado (3 blocos curtos)
+
+
+AS 3 ÂNCORAS DE IA (MODELO A+)
+Âncora 01 · Ficha do Chapa
+Botão: "Recomendar abordagem"
+Contexto: métricas completas + categoria + histórico de transições
+Output: 3 blocos curtos
+
+DIAGNÓSTICO (até 50 palavras): o que esses números dizem
+ABORDAGEM (3 bullets): ações concretas e ordenadas
+SCRIPT (até 40 palavras): rascunho WhatsApp para contato
+
+Âncora 02 · Lista Acionável (alto payoff)
+Botão: "Organizar campanha" no topo de cada lista
+Contexto: lista + contagem + razão de cada chapa
+Output:
+
+Sequência sugerida (priorização com critério)
+Script-padrão (mensagem inicial)
+Regra de exclusão (quem ignorar)
+
+Esta âncora tem maior valor por chamada — 1 chamada serve para 40 chapas simultâneos.
+Âncora 03 · Dashboard do Cliente
+Botão: "Foco da semana"
+Contexto: KPIs + comparação semana anterior + alertas ativos
+Output:
+
+Panorama (2 frases)
+Prioridade da semana (1 ação principal)
+Riscos a monitorar (até 3)
+
+
+EXEMPLO DE PROMPT (Âncora 01)
+SYSTEM:
+Você é um consultor operacional especializado em gestão de chapas (trabalhadores avulsos de carga e descarga) para o MeuChapa. Recebe dados estruturados de um chapa específico e devolve recomendação curta e direta para o analista que vai entrar em contato. Tom: profissional, próximo, sem jargão corporativo. Estrutura obrigatória: 3 blocos curtos (diagnóstico / abordagem / script). Nunca invente números — use apenas os dados fornecidos. Resposta em português brasileiro.
+
+CONTEXT:
+Chapa: {nome}
+Categoria atual: {categoria} (era {categoria_anterior})
+Score: {score}/100
+Métricas (90d): {total_tarefas} tarefas, recência {recencia} dias, fill rate {fill_rate}%
+Perfil de turno: {perfil_turno}
+Padrão semanal: prefere {dias_pref}, evita {dias_evit}
+Concentração: representa {concentracao}% da operação
+Cliente: {cliente_nome}
+
+TASK:
+Gere uma recomendação de abordagem em 3 blocos:
+1. DIAGNÓSTICO (até 50 palavras): o que esses números dizem sobre este chapa.
+2. ABORDAGEM (3 bullets): ações concretas e ordenadas.
+3. SCRIPT (até 40 palavras): rascunho de mensagem WhatsApp para iniciar contato.
+
+5 TELAS PRINCIPAIS
+TELA 01 · Importação & Seleção de Cliente
+Tela vazia, sem dados. Entrada do módulo.
+Estrutura:
+
+Header: logo MeuChapa + "Análise de Base"
+Coluna esquerda: 3 áreas drag-drop empilhadas (CSV tarefas, CSV fill rate, Pool opcional). Cada uma mostra filename, tamanho, n linhas detectadas, status validação
+Coluna direita: dropdown cliente (auto-detectado dos CSVs), date range (padrão 90d), toggle "comparar período anterior", toggle "incluir histórico estendido para cohort"
+Botão primário: "Analisar Base" (desabilitado até 2 CSVs obrigatórios carregados)
+Rodapé: "Análises anteriores" — lista de snapshots SQLite, clicáveis para retomar
+
+UX notes:
+
+Sem âncora de IA aqui
+Validação inline (erro no card de upload, não em modal)
+Drag-drop > botão browse
+Auto-detecção de cliente após upload
+Barra de progresso por módulo (M1→M7) ao analisar
+
+TELA 02 · Dashboard do Cliente
+Visão geral. Onde mora a Âncora 03.
+Estrutura:
+
+Header: "Cliente: [nome] · Período: [range] · [Trocar]" + botão "Foco da Semana" (Âncora 03)
+4 KPIs grandes em cards com borda colorida superior por severidade:
+
+Fill rate maio (vermelho)
+Capacidade real X/Y (vermelho)
+Concentração % (amarelo)
+Churn mensal (vermelho)
+
+
+Linha 1 de visualização: Sparkline fill rate (mês a mês com pontos clicáveis) + Distribuição de categorias (barras horizontais empilhadas)
+Linha 2 de visualização: Heatmap turno × dia (7 × N turnos detectados) + Transições críticas (alertas tipo "2 Pilares viraram Em Risco esta semana")
+Rodapé: acesso rápido às 7 listas acionáveis (botões grandes lado a lado, fundo escuro)
+
+UX notes:
+
+Densidade alta mas hierárquica (KPIs top, visualizações meio, ações bottom)
+Cores semânticas consistentes: <75% vermelho, 75–85% amarelo, 85%+ verde
+Botão "Foco da Semana" sempre visível no topo (custo de invocar IA precisa ser baixo)
+Sparkline interativa (hover tooltip, click expande modal mensal)
+Heatmap respeita N turnos detectados pelo M2 (sem hardcode)
+
+TELA 03 · Ficha Individual do Chapa
+Drill-down 360°. Onde mora a Âncora 01.
+Estrutura:
+
+Header: nome · telefone · CPF mascarado · "Chapa desde [mês]" + badge grande de categoria no canto superior direito (cor por categoria, score)
+3 cards lado a lado:
+
+Métricas 90d (tarefas, recência, fill rate, frequência, tendência, tempo de base)
+Perfil de turno (Mono/Duo/Multi, distribuição %, concentração)
+Padrão semanal (preferidos, evitados, proxy de segundo emprego)
+
+
+Timeline horizontal: histórico de categorias mês a mês (jan: NOVO → fev: CASUAL → mar: FREQUENTE → ...)
+Botão primário destacado: "Recomendar Abordagem" (Âncora 01) — ao clicar, expande painel lateral com diagnóstico + abordagem + script
+2 cards inferiores:
+
+Tarefas recentes (tabela das últimas 20)
+Anotações do analista (campo aberto, persistido no SQLite — diferencial enorme)
+
+
+
+UX notes:
+
+Badge de categoria sempre canto superior direito (1ª coisa que olho busca)
+Histórico de categorias é a parte mais didática (visualiza jornada)
+Botão de IA destacado mas não dominante (no meio, depois das métricas)
+Painel de recomendação expande lateralmente, não em modal
+Anotações livres salvam timestamp e ficam no histórico
+
+TELA 04 · Lista Acionável
+Tela operacional do dia a dia. Onde mora a Âncora 02.
+Estrutura:
+
+Header: "Lista: [nome] · X chapas · [cliente]" + botão "Organizar Campanha" (Âncora 02)
+Filtros: recência, score mínimo, turno, status contato
+Tabela compacta: # · Nome+Tel · Categoria anterior · Recência · Score · Status (○ pendente / ● contatado / ⊘ excluído) · Ação ("Contatar" → modal pequeno registra timestamp + observação)
+Ordem default: por score descendente
+Bulk actions no rodapé: marcar todos contatados, exportar CSV, enviar pra Umbler, imprimir
+
+UX notes:
+
+Listas são tabelas, não cards (densidade importa)
+Status visual com bolinha (micro-interação rápida)
+Modal de "Contatar" não tira da lista
+"Organizar Campanha" no topo (IA gera sequência e script ANTES do analista começar — apoio inicial, não final)
+
+TELA 05 · Configurações & Turnos Detectados
+Setup avançado.
+Estrutura:
+
+Card "Turnos detectados": 3+ cards lado a lado, cada um com horário central, % das tarefas, nome editável, botão "fundir/separar"
+Card "Limiares de categorização": sliders ajustáveis pra cada categoria (Pilar: ≥15 tarefas / 14d recência / 95% fill rate, etc) + botão "Reaplicar classificação"
+Card "Status IA local" (fundo escuro): Ollama rodando? Modelo carregado? Última chamada quando, quanto tempo? Cache count. Botões "Recarregar modelo" / "Limpar cache"
+Card "Snapshots salvos": lista cronológica com [carregar] [excluir]
+
+UX notes:
+
+Tela menos visitada — densidade maior OK
+Turnos detectados precisam de validação humana sempre
+Sliders pra limiares (analista experimenta sem editar texto)
+Status da IA visível (analista entende quando está down)
+
+
+LINGUAGEM VISUAL
+Paleta:
+
+Laranja MeuChapa #F26F21 — primária, ações, destaques
+Vermelho crítico #C8341E — alertas, risco, queda
+Amarelo aviso #E89518 — atenção, transição
+Verde saudável #3D7A47 — pilares, sucesso, recuperação
+Azul informativo #2A4A73 — novos, neutro com sinal
+Preto/cinza — texto, estrutura, IA (sempre que IA aparece, fundo escuro)
+
+Tipografia:
+
+Plus Jakarta Sans — corpo, títulos, UI (300–800)
+IBM Plex Mono — números, métricas, códigos, tags
+Tamanhos: 11px (mono labels), 12.5px (corpo), 14px (principal), 18–26px (títulos), 42–56px (KPIs)
+
+Componentes-chave:
+
+Card de KPI: borda superior colorida por severidade, número grande mono, caption explicando
+Badge de categoria: mesma cor por categoria em toda a app, formato pill
+Tabela compacta: alturas pequenas, separadores sutis, hover destaca linha
+Painel de IA: sempre fundo escuro com acento laranja (distingue conteúdo gerado de dados)
+Modal de ação rápida: pra "contatar", "marcar status", sem tirar do contexto
+
+Densidade por tela:
+
+Dashboard: denso e hierárquico
+Listas operacionais: compactas
+Ficha individual: respirável (tela de decisão)
+Configurações: técnica, densidade maior
+
+Estados:
+
+Loading: skeleton screens, não spinners
+Vazio: sempre com call-to-action ("Nenhum chapa Em Risco. Excelente! Veja outras categorias →")
+Erro: específico, com sugestão de correção
+IA offline: banner discreto no topo, app continua funcional sem âncoras
+
+Microcopy:
+Direto e operacional. "Recomendar abordagem" não "Ver insights". "Foco da semana" não "Análise estratégica AI-powered". "Contatar" não "Iniciar fluxo de engajamento".
+Atalhos de teclado:
+
+Cmd/Ctrl+K: busca global de chapa por nome
+Cmd/Ctrl+1..7: pula direto pra cada lista
+Esc: fecha modais
+?: cheat sheet
+
+
+8 PRINCÍPIOS NÃO-FUNCIONAIS
+
+OFFLINE-FIRST — Tudo local. Dados não saem da máquina. IA não consulta rede.
+GENERALIZAÇÃO — Funciona em qualquer cliente sem reconfigurar código. Zero hardcode.
+TRANSPARÊNCIA — Toda classificação mostra os números que a justificam. Auditável.
+AÇÃO > INSIGHT — Cada análise termina em lista de pessoas com nome, telefone e o que fazer.
+IA COMO ASSISTENTE — IA opina, analista decide. Botão é "Recomendar", nunca "Executar".
+VERSIONÁVEL — Cada execução salva snapshot. Permite comparar evolução.
+PLUGÁVEL — Inputs futuros (sistema do Léo, Forms) entram como camadas adicionais sem refactor.
+IDENTIDADE — Visual coerente com MeuChapa. Não inventar paleta/fonte nova.
+
+
+STACK TÉCNICA
+
+App existente: Tauri + React + SQLite (módulo integra como feature)
+Processamento: TypeScript no frontend para M1–M7 (volume cabe em memória)
+Persistência: SQLite via Tauri SQL plugin
+
+Tabelas: snapshots, chapas_classified, annotations, ai_cache, settings
+
+
+IA local: Ollama + Phi-3 mini (3.8B Q4)
+
+Instalação one-time: ollama pull phi3:mini
+Endpoint: http://localhost:11434/api/generate
+Latência esperada em CPU i7 8gen com 8GB RAM: 4–8s
+Ocupa ~2.3GB disco e ~3GB RAM quando carregado
+
+
+Libs sugeridas:
+
+PapaParse (CSV)
+date-fns (datas)
+Recharts ou Visx (gráficos)
+TanStack Table (tabelas)
+shadcn/ui (componentes)
+
+
+
+Estrutura de pastas:
+src/features/analise-base/
+├── modules/        (M1.ts, M2.ts ... M8.ts — funções puras)
+├── screens/        (Importacao, Dashboard, FichaChapa, ListaAcionavel, Config)
+├── components/     (KpiCard, Badge, HeatmapTurnos, etc)
+├── ai/             (prompts.ts, ollama-client.ts, types.ts)
+├── db/             (migrations.sql, queries.ts)
+└── types.ts        (Chapa, Tarefa, Turno, Classificacao)
+
+PONTOS DE EXTENSÃO FUTUROS
+Comentar no código pra facilitar evolução:
+
+INPUT 04 (Sistema do Léo): dados de funil de comunicação WhatsApp. Vai medir:
+
+Recebeu oferta (alcance real)
+Clicou sim/não na oferta (aceite)
+Recebeu confirmação
+Respondeu sim/não/ignorou (intenção final)
+
+Quando vier, M3 ganha métricas de funil por chapa (taxa de aceite, taxa de cumprimento, etc). M4 incorpora score de confiabilidade real. M7 fica mais cirúrgico.
+INPUT 05 (Respostas do Forms): disponibilidade declarada vs comportamento observado. Quando vier, M3 ganha cruzamento intenção × ação.

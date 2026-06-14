@@ -1,0 +1,16 @@
+Novo dashboard chamado BID Dashboard
+
+atuação nas linhas em aberto das tarefas.
+preferencialmente chapas ativos (já fizeram tarefa)
+cruzamento de dados entre busca chapa (solicitar anexo de base de chapas da tarefa, planilha "Busca Chapa" e metabase (solicitar o anexo da planilha de ativação de chapa geral com tarefas do dia anterior, dia atual e próximo dia) e desconsiderar chapas já alocados na data vigente (um chapa que tem muitas tarefas executadas, mas nenhuma recente, não necessariamente ´eum chapa ativo mas ao mesmo tempo, se tarefas são recentes). Necessario fazer uma analise para ver qual vale a pena baseado em distancia, ultima tarefa feita, quantidade de tarefas executadas (execute essa analise como um especialista em operações)
+campo de endereço da tarefa, onde será cruzado com a latitude e longetude do cadastro do chapa e me dará um ranking de chapas próximos até 30km, com ordem de prioridade (fazendo cruzamento com as prioridades de tarefas realizadas, ultima tarefa etc)
+botão de disparo ao lado do nome do chapa
+ao clicar no nome ou telefone, ser copiado para area de transferencia
+id do template na umbler para disparo de BID (id aH6pLxMKil-bY_UP), configurar as variaveis. (o valor da tarefa (qual é o numero da variavel) será cadastrado manualmente. E incluir endereço (criar uma categoria para endereços atrelados à clientes no "Caderno de Clientes" e ser possível digitar ou selecionar um endereço desta lista). As variaveis no template de BID são: param1 data(Hoje, amanhã às 10h exemplo.), local (endereço ou nome da empresa), Atividades (deixar o usuario digitar, mas ter opção de Carga e Descarga e movimentação interna, diária (usuário digita o valor)
+disparo de link localização da tarefa para o chapa (na categoria de endereços, ter a possibilidade de cadastrar um link do maps para o endereço do cliente)
+listener precisa monitorar os contatos que foi disparado o BID (template), o fluxo é: SIM ou NÃO (primeira resposta de interesse), em seguida (consegue aceitar no aplicativo?) Sim e Não ou Preciso de ajuda (com exatamente esta terminologia). 
+Classificar, quem tem interesse, quem disse que consegue aceitar e quem precisa de ajuda.
+Remover da solicitação especifica ao perceber o “NÃO”
+Sinalizar quem disser o “Não” (quer dizer que tem interesse, mas não consegue aceitar no aplicativo)
+No dash de BID, exibir o valor máximo que pode ser pago aos chapas (para fins de negociação), ao clicar em “negociação” (icone de dinheiro) abrir um popup, para preencher: valor total da tarefa, valor de cada chapa, quantidade de chaps. Precisa devolver o calculo acusando qual o valor máximo possivel a ser pago (valor total da tarefa multiplicado por 0.7 e dividido pela quantidade de chapas. .
+considerar a planilha de busca chapa como o exemplo nesta pasta chamado "buscachapa.xlsx"

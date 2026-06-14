@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Escopo Funcional + UX/UI · Módulo de Análise da Base de Chapas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-2: #f6f6f6;
+    --bg-3: #ededed;
+    --ink: #1a1a1a;
+    --ink-soft: #525252;
+    --ink-faint: #8a8a8a;
+    --rule: #e3e3e3;
+    --rule-dark: #cfcfcf;
+    --orange: #f26f21;
+    --orange-deep: #d85a0f;
+    --orange-soft: #fdf0e6;
+    --alert: #c8341e;
+    --alert-soft: #fbe9e6;
+    --warn: #e89518;
+    --good: #3d7a47;
+    --good-soft: #e6f0e7;
+    --dark: #161616;
+    --blue: #2a4a73;
+    --blue-soft: #e9eff5;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    padding: 48px 56px;
+    max-width: 1240px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* HEADER */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-bottom: 28px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 36px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .brand-logo {
+    width: 36px; height: 36px; transform: rotate(45deg);
+    border: 3px solid var(--orange); border-radius: 4px; position: relative;
+  }
+  .brand-logo::before {
+    content: ''; position: absolute; inset: 4px;
+    background: var(--orange); border-radius: 2px;
+    transform: rotate(-45deg) scale(0.6);
+    clip-path: polygon(30% 0%, 45% 0%, 45% 55%, 65% 30%, 80% 40%, 55% 75%, 55% 100%, 30% 100%);
+  }
+  .brand-text { font-weight: 800; font-size: 18px; letter-spacing: -0.02em; }
+  .brand-text span { color: var(--orange); }
+  .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-faint); font-weight: 500;
+  }
+  h1 {
+    font-weight: 800; font-size: 46px; line-height: 1;
+    letter-spacing: -0.035em; margin-top: 8px;
+  }
+  h1 .accent { color: var(--orange); }
+  .h-right {
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; color: var(--ink-faint); line-height: 1.85;
+  }
+  .h-right b { color: var(--ink); font-weight: 600; }
+
+  /* MISSION */
+  .mission {
+    background: var(--dark); color: white;
+    padding: 36px 44px; margin-bottom: 44px;
+    border-radius: 8px; position: relative; overflow: hidden;
+  }
+  .mission::before {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 5px; height: 100%; background: var(--orange);
+  }
+  .mission-tag {
+    position: absolute; top: 16px; right: 24px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.2em;
+    color: var(--orange); font-weight: 600;
+  }
+  .mission-headline {
+    font-weight: 700; font-size: 26px; line-height: 1.2;
+    letter-spacing: -0.025em; margin-bottom: 16px;
+  }
+  .mission-headline .hl { color: var(--orange); }
+  .mission-body {
+    font-size: 14px; color: #c7c7c7;
+    line-height: 1.7; max-width: 820px;
+  }
+  .mission-body b { color: white; font-weight: 600; }
+
+  /* SECTION */
+  .section { margin-bottom: 52px; }
+  .section-head {
+    display: flex; align-items: baseline; gap: 18px;
+    margin-bottom: 22px; padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; color: var(--orange);
+    letter-spacing: 0.12em; font-weight: 600;
+  }
+  .section-title {
+    font-weight: 700; font-size: 26px;
+    letter-spacing: -0.025em; line-height: 1.15;
+  }
+  .section-title .accent { color: var(--orange); }
+  .section-summary {
+    margin-bottom: 22px; padding: 14px 20px;
+    background: var(--bg-2); border-left: 3px solid var(--orange);
+    font-size: 13.5px; line-height: 1.6; font-weight: 500;
+    border-radius: 0 4px 4px 0;
+  }
+  .section-summary b { font-weight: 700; }
+
+  /* MODULE CARDS */
+  .modules-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .module {
+    background: var(--bg); border: 1px solid var(--rule);
+    border-radius: 8px; overflow: hidden;
+  }
+  .module-head {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 24px; background: var(--bg-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  .module-icon {
+    width: 40px; height: 40px;
+    background: var(--orange); color: white;
+    border-radius: 6px; display: flex;
+    align-items: center; justify-content: center;
+    font-weight: 800; font-size: 15px;
+    letter-spacing: -0.02em; flex-shrink: 0;
+  }
+  .module-ai .module-icon { background: var(--dark); color: var(--orange); }
+  .module-info { flex: 1; }
+  .module-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; color: var(--orange);
+    letter-spacing: 0.16em; font-weight: 600;
+  }
+  .module-ai .module-num { color: var(--ink); }
+  .module-title {
+    font-size: 18px; font-weight: 700;
+    letter-spacing: -0.02em; margin-top: 2px;
+  }
+  .module-tag {
+    background: var(--orange-soft); color: var(--orange-deep);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    padding: 5px 10px; border-radius: 3px;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .module-ai .module-tag { background: var(--dark); color: var(--orange); }
+  .module-body { padding: 22px 28px; }
+  .module-purpose {
+    font-size: 13.5px; color: var(--ink-soft);
+    line-height: 1.65; margin-bottom: 16px;
+    padding-bottom: 14px; border-bottom: 1px dashed var(--rule);
+  }
+  .module-purpose b { color: var(--ink); font-weight: 600; }
+
+  .func-block { margin-bottom: 14px; }
+  .func-block:last-child { margin-bottom: 0; }
+  .func-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    color: var(--orange); text-transform: uppercase;
+    font-weight: 600; margin-bottom: 8px;
+  }
+  .func-list {
+    list-style: none; font-size: 12.5px; line-height: 1.6;
+  }
+  .func-list li {
+    padding: 6px 0 6px 22px; position: relative;
+    color: var(--ink-soft); border-bottom: 1px dotted var(--rule);
+  }
+  .func-list li:last-child { border: none; }
+  .func-list li::before {
+    content: '›'; position: absolute; left: 4px;
+    color: var(--orange); font-weight: 700; font-size: 14px; top: 4px;
+  }
+  .func-list b { color: var(--ink); font-weight: 600; }
+  .func-list code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg-2); border: 1px solid var(--rule);
+    padding: 1px 6px; font-size: 11px;
+    border-radius: 3px; color: var(--ink);
+  }
+
+  /* WIREFRAME */
+  .wf {
+    background: var(--bg-2); border: 1px solid var(--rule);
+    border-radius: 8px; overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .wf-head {
+    background: var(--ink); color: white;
+    padding: 12px 22px; display: flex;
+    justify-content: space-between; align-items: center;
+  }
+  .wf-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: 0.14em;
+    font-weight: 600;
+  }
+  .wf-title b { color: var(--orange); font-weight: 700; }
+  .wf-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; opacity: 0.6;
+  }
+  .wf-body { padding: 24px 26px; }
+  .wf-purpose {
+    font-size: 13px; color: var(--ink-soft);
+    margin-bottom: 18px; padding-bottom: 14px;
+    border-bottom: 1px dashed var(--rule); line-height: 1.6;
+  }
+  .wf-purpose b { color: var(--ink); font-weight: 600; }
+
+  /* WIREFRAME BLOCKS */
+  .wf-canvas {
+    background: white; border: 1.5px dashed var(--rule-dark);
+    border-radius: 6px; padding: 18px;
+    margin-bottom: 14px; position: relative;
+  }
+  .wf-canvas::before {
+    content: attr(data-label);
+    position: absolute; top: -8px; left: 14px;
+    background: white; padding: 0 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; letter-spacing: 0.16em;
+    color: var(--ink-faint); font-weight: 700;
+    text-transform: uppercase;
+  }
+  .wf-row {
+    display: flex; gap: 10px; align-items: stretch;
+    margin-bottom: 10px;
+  }
+  .wf-row:last-child { margin-bottom: 0; }
+  .wf-cell {
+    background: var(--bg-2); border: 1px solid var(--rule);
+    border-radius: 4px; padding: 10px 12px;
+    flex: 1; font-size: 11.5px; line-height: 1.45;
+  }
+  .wf-cell-h {
+    background: var(--ink); color: white;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    font-weight: 600; text-transform: uppercase;
+  }
+  .wf-cell-orange {
+    background: var(--orange); color: white; font-weight: 600;
+  }
+  .wf-cell-alert { background: var(--alert-soft); border-color: var(--alert); color: var(--alert); }
+  .wf-cell-good { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+  .wf-cell-dark { background: var(--dark); color: white; }
+  .wf-cell-ai {
+    background: var(--dark); color: white;
+    border-color: var(--orange); border-left: 3px solid var(--orange);
+  }
+  .wf-cell-ai .ai-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; color: var(--orange);
+    letter-spacing: 0.16em; font-weight: 700;
+    display: block; margin-bottom: 4px;
+  }
+  .wf-cell b { font-weight: 700; }
+  .wf-cell .num {
+    font-weight: 800; font-size: 18px;
+    letter-spacing: -0.02em; display: block;
+  }
+  .wf-cell .lbl {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em;
+    text-transform: uppercase; opacity: 0.7;
+    font-weight: 600; margin-bottom: 4px;
+  }
+
+  .wf-notes {
+    background: var(--orange-soft);
+    border-left: 3px solid var(--orange);
+    padding: 14px 18px; margin-top: 14px;
+    border-radius: 0 4px 4px 0;
+    font-size: 12px; line-height: 1.6;
+    color: var(--ink-soft);
+  }
+  .wf-notes b { color: var(--ink); font-weight: 600; }
+  .wf-notes-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    color: var(--orange); text-transform: uppercase;
+    font-weight: 700; margin-bottom: 6px;
+  }
+
+  /* AI ANCHOR */
+  .ai-anchors {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  .anchor {
+    background: var(--dark); color: white;
+    border-radius: 8px; padding: 22px 24px;
+    position: relative; overflow: hidden;
+  }
+  .anchor::before {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: 4px; height: 100%; background: var(--orange);
+  }
+  .anchor-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; color: var(--orange);
+    letter-spacing: 0.18em; font-weight: 700;
+  }
+  .anchor-title {
+    font-size: 18px; font-weight: 700;
+    margin: 8px 0 12px; letter-spacing: -0.02em;
+  }
+  .anchor-body {
+    font-size: 12.5px; color: #b8b8b8;
+    line-height: 1.6;
+  }
+  .anchor-body b { color: white; font-weight: 600; }
+  .anchor-trigger {
+    margin-top: 14px; padding: 8px 12px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.1em;
+    color: var(--orange); font-weight: 600;
+  }
+
+  /* DESIGN PRINCIPLES */
+  .principles {
+    background: var(--orange); color: white;
+    padding: 32px 40px; border-radius: 8px;
+  }
+  .principles h2 {
+    font-size: 22px; font-weight: 800;
+    margin-bottom: 18px; letter-spacing: -0.02em;
+  }
+  .principles-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .principle-item {
+    padding: 14px 0;
+    border-top: 1px solid rgba(255,255,255,0.25);
+  }
+  .principle-item:nth-child(1), .principle-item:nth-child(2) {
+    border-top: none; padding-top: 0;
+  }
+  .principle-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.16em;
+    font-weight: 700; opacity: 0.85; margin-bottom: 4px;
+  }
+  .principle-text {
+    font-size: 13.5px; line-height: 1.55; font-weight: 500;
+  }
+
+  /* TECH SPEC */
+  .tech-spec {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 24px 28px;
+  }
+  .tech-row {
+    display: grid; grid-template-columns: 160px 1fr;
+    gap: 16px; padding: 12px 0;
+    border-bottom: 1px dashed var(--rule);
+    font-size: 13px; line-height: 1.6;
+  }
+  .tech-row:last-child { border: none; }
+  .tech-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; letter-spacing: 0.12em;
+    color: var(--orange); text-transform: uppercase;
+    font-weight: 600; padding-top: 1px;
+  }
+  .tech-value { color: var(--ink-soft); }
+  .tech-value b { color: var(--ink); font-weight: 600; }
+  .tech-value code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: white; border: 1px solid var(--rule);
+    padding: 1px 6px; font-size: 11px;
+    border-radius: 3px; color: var(--ink);
+  }
+
+  /* PROMPT EXAMPLE */
+  .prompt-ex {
+    background: var(--dark); color: white;
+    border-radius: 6px; padding: 22px 26px;
+    margin-top: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px; line-height: 1.7;
+  }
+  .prompt-ex .role {
+    color: var(--orange); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    font-size: 10px; margin-bottom: 4px; display: block;
+  }
+  .prompt-ex .section-p {
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px dashed rgba(255,255,255,0.2);
+  }
+  .prompt-ex .section-p:last-child { border: none; }
+  .prompt-ex .placeholder { color: var(--orange); }
+  .prompt-ex .comment { color: #888; font-style: italic; }
+
+  /* FOOTER */
+  .footer {
+    margin-top: 44px; padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    display: flex; justify-content: space-between;
+    align-items: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em;
+    color: var(--ink-faint); text-transform: uppercase;
+    font-weight: 500;
+  }
+  .footer-brand { display: flex; align-items: center; gap: 8px; }
+  .footer-dot {
+    width: 6px; height: 6px;
+    background: var(--orange); transform: rotate(45deg);
+  }
+
+  @media (max-width: 900px) {
+    body { padding: 24px; }
+    .ai-anchors, .principles-grid { grid-template-columns: 1fr; }
+    .wf-row { flex-direction: column; }
+    h1 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="brand">
+      <div class="brand-logo"></div>
+      <div class="brand-text">MEU<span>CHAPA</span></div>
+    </div>
+    <div class="meta">Escopo Funcional + UX/UI · v.2 · Documento técnico</div>
+    <h1>Módulo de Análise da<br><span class="accent">Base de Chapas</span> + IA Local</h1>
+  </div>
+  <div class="h-right">
+    Stack alvo <b>Tauri + React + Rust + SQLite</b><br>
+    IA local <b>Phi-3 mini via Ollama</b><br>
+    Modelo UX <b>Consultor sob demanda (A+)</b><br>
+    Identidade <b>MeuChapa</b><br>
+    Por <b>Jeremiah W.</b>
+  </div>
+</div>
+
+<!-- MISSION -->
+<div class="mission">
+  <div class="mission-tag">MISSÃO</div>
+  <div class="mission-headline">
+    Transformar dados brutos da base em <span class="hl">decisões operacionais</span> didáticas — com IA local que recomenda abordagem, sem exigir prompts.
+  </div>
+  <div class="mission-body">
+    O módulo plugar à aplicação existente do MeuChapa (Tauri + Rust + SQLite) entrega <b>análise determinística</b> da base de chapas de qualquer cliente (M1–M7) e uma <b>camada de IA local</b> (M8) que gera recomendações em três pontos estratégicos da interface — não como chat livre, mas como consultor especializado que aparece quando chamado. Tudo offline, tudo local, tudo dentro do app.
+  </div>
+</div>
+
+<!-- SECTION 1: ANALYSIS MODULES -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 01</div>
+    <div class="section-title">Módulos de análise (o que a app calcula)</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> oito módulos em pipeline. Sete deterministas (M1–M7) que processam dados, um (M8) de IA local que interpreta os resultados quando solicitado.
+  </div>
+
+  <div class="modules-grid">
+
+    <div class="module">
+      <div class="module-head">
+        <div class="module-icon">M1</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 01</div>
+          <div class="module-title">Importação & Normalização</div>
+        </div>
+        <div class="module-tag">Setup</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Recebe os CSVs (tarefas, fill rate, pool), normaliza encoding/datas/nomes/telefones e prepara dados para análise. Persiste o resultado na <b>tabela SQLite existente</b>.
+        </div>
+        <ul class="func-list">
+          <li><b>Auto-detecção</b> de encoding (UTF-8, Latin-1) e delimitador (vírgula, ponto-e-vírgula)</li>
+          <li><b>Parser de datas robusto</b> — aceita "May 25, 2026, 10:00 PM", "25/05/2026 22:00", ISO 8601</li>
+          <li><b>Normalização de nomes</b> — caixa, acentuação, espaços; merge de "JOSE WAGNER" e "José Wagner"</li>
+          <li><b>Match cross-CSV</b> — chave forte = CPF (do pool), chave fraca = nome+telefone (das tarefas)</li>
+          <li><b>Filtro hierárquico</b> de cliente — Nome Fantasia / Grupo Econômico / Carteira / Cidade</li>
+          <li><b>Janela temporal configurável</b> — padrão 90 dias, ajustável pelo usuário</li>
+          <li><b>Snapshot versionado</b> — cada importação grava timestamp; análises anteriores ficam acessíveis</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="module-head">
+        <div class="module-icon">M2</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 02</div>
+          <div class="module-title">Detecção automática de turnos</div>
+        </div>
+        <div class="module-tag">Auto-discovery</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Descobre turnos relevantes do cliente lendo horários dos dados — sem hardcode. <b>Generalização real entre clientes.</b>
+        </div>
+        <ul class="func-list">
+          <li><b>Clustering por horário</b> com tolerância ±30 min (ajustável)</li>
+          <li><b>Filtro de relevância</b> — turnos com ≥5% das tarefas; resto vira "outros"</li>
+          <li><b>Auto-naming</b> — sugere "matinal" (5–9h), "diurno" (10–14h), "vespertino" (15–19h), "noturno" (20–23h), "madrugada" (0–4h)</li>
+          <li><b>Tela de confirmação</b> — usuário valida, renomeia, força fusão/separação manual</li>
+          <li><b>Métricas por turno</b> — demanda, fill rate, tendência mensal, top chapas, mono-chapas</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="module-head">
+        <div class="module-icon">M3</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 03</div>
+          <div class="module-title">Métricas individuais por chapa</div>
+        </div>
+        <div class="module-tag">Core</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Para cada chapa do período calcula <b>todas as métricas</b> que alimentam a classificação e os outputs. Saída em estrutura única consultável.
+        </div>
+        <div class="func-block">
+          <div class="func-label">Métricas básicas</div>
+          <ul class="func-list">
+            <li><b>Total finalizado</b> · <b>Total cancelado</b> · <b>Recência</b> (dias) · <b>Frequência</b> (mediana semanal)</li>
+            <li><b>Tendência</b> — subindo / estável / caindo (regressão simples nos últimos 60d)</li>
+            <li><b>Fill rate individual</b> — presenças efetivas / oportunidades onde foi designado</li>
+            <li><b>Tempo de base</b> — desde a 1ª tarefa (proxy)</li>
+          </ul>
+        </div>
+        <div class="func-block">
+          <div class="func-label">Perfil de turno</div>
+          <ul class="func-list">
+            <li><b>Mono</b> (1 turno) · <b>Duo</b> (2 turnos) · <b>Multi</b> (3+)</li>
+            <li><b>Distribuição percentual</b> por turno · <b>Concentração</b> (% do turno que depende dele)</li>
+          </ul>
+        </div>
+        <div class="func-block">
+          <div class="func-label">Padrão semanal</div>
+          <ul class="func-list">
+            <li><b>Dias preferidos</b> · <b>Dias evitados</b> · <b>Padrão fds-vs-semana</b> (proxy de segundo emprego)</li>
+          </ul>
+        </div>
+        <div class="func-block">
+          <div class="func-label">Bonificação</div>
+          <ul class="func-list">
+            <li><b>Semanas que bateu meta</b> (configurável, padrão 6 tarefas/sem) · <b>Distância média da meta</b></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="module-head">
+        <div class="module-icon">M4</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 04</div>
+          <div class="module-title">Classificação por categoria</div>
+        </div>
+        <div class="module-tag">Engine</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Aplica as regras hierárquicas (Pilar → Frequente → Casual → Em Risco → Dormente → Fantasma → Novo) e atribui <b>score de confiabilidade 0–100</b>.
+        </div>
+        <ul class="func-list">
+          <li><b>7 categorias</b> com critérios numéricos definidos (ver §02)</li>
+          <li><b>Score 0–100</b> = fill rate × consistência semanal × recência (pesos ajustáveis)</li>
+          <li><b>Detecção de transição</b> — flag quando muda de categoria entre análises (ex: Pilar → Em Risco)</li>
+          <li><b>Limiares ajustáveis por cliente</b> — operações de baixo volume usam thresholds menores</li>
+          <li><b>Reaplica em segundos</b> ao mudar parâmetros, sem reprocessar M1–M3</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="module-head">
+        <div class="module-icon">M5</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 05</div>
+          <div class="module-title">Análise de concentração e risco</div>
+        </div>
+        <div class="module-tag">Risk</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Identifica <b>SPOFs</b> — chapas ou grupos cuja saída derruba a operação.
+        </div>
+        <ul class="func-list">
+          <li><b>Top N concentração</b> — % da operação que top 5/10/20 chapas representam</li>
+          <li><b>SPOF por turno</b> — turnos onde 1–2 chapas representam &gt;25% da capacidade</li>
+          <li><b>Risco de migração</b> — quando turno é cortado, quantos mono-X ficam órfãos</li>
+          <li><b>Lista de SPOFs</b> com "% da operação que cai se este sair" + sugestão de substitutos compatíveis</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="module-head">
+        <div class="module-icon">M6</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 06</div>
+          <div class="module-title">Cohort & retenção</div>
+        </div>
+        <div class="module-tag">Churn</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Saúde longitudinal da base — quem entra, quem fica, quem some.
+        </div>
+        <ul class="func-list">
+          <li><b>Cohort mensal</b> — para cada mês, quantos chapas novos entraram e quantos ativos em M+1/M+2/M+3</li>
+          <li><b>Taxa de churn</b> mensal e trimestral</li>
+          <li><b>Tempo médio de vida</b> entre 1ª e última tarefa, por categoria</li>
+          <li><b>Curva de aprendizado</b> — em quantas tarefas o Novo vira Casual / Frequente</li>
+          <li><b>Recuperações</b> — dormentes que voltaram após gatilho (referência futura)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module">
+      <div class="module-head">
+        <div class="module-icon">M7</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 07</div>
+          <div class="module-title">Listas acionáveis</div>
+        </div>
+        <div class="module-tag">Output</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Listas <b>prontas para ação</b> que vão da tela direto para o operacional (telefone, WhatsApp, escala).
+        </div>
+        <ul class="func-list">
+          <li><b>"Pilares para conversa 1:1"</b> — top chapas com motivo (% concentração, semanas ativas, score)</li>
+          <li><b>"Em Risco — ligar hoje"</b> — chapas ativos que estão sumindo, ordenados por importância</li>
+          <li><b>"Mono-X órfãos"</b> — quando turno X é cortado, candidatos a migração</li>
+          <li><b>"Dormentes recuperáveis"</b> — eram bons, sumiram 30–60 dias atrás</li>
+          <li><b>"Fantasmas para limpeza"</b> — aprovados que nunca trabalharam ou inativos 90+ dias</li>
+          <li><b>"Novos para padrinho"</b> — entraram &lt;30 dias, com pilar compatível sugerido</li>
+          <li><b>"Candidatos a bonificação"</b> — em 3–4 tarefas/sem, empurráveis para 5–6</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="module module-ai">
+      <div class="module-head">
+        <div class="module-icon">M8</div>
+        <div class="module-info">
+          <div class="module-num">MÓDULO 08 · IA LOCAL</div>
+          <div class="module-title">Consultor de recomendações</div>
+        </div>
+        <div class="module-tag">AI · Phi-3</div>
+      </div>
+      <div class="module-body">
+        <div class="module-purpose">
+          Camada de IA <b>local e offline</b> usando Phi-3 mini via Ollama. Não roda em loop — é invocada sob demanda em <b>3 âncoras específicas</b> da UI (§04). Recebe contexto já estruturado por M1–M7, gera recomendação curta e específica.
+        </div>
+        <div class="func-block">
+          <div class="func-label">Responsabilidades</div>
+          <ul class="func-list">
+            <li><b>Construir prompt</b> a partir de contexto estruturado (JSON com métricas do chapa/lista/cliente)</li>
+            <li><b>Chamar Ollama</b> em <code>http://localhost:11434/api/generate</code> via fetch local</li>
+            <li><b>Sanitizar resposta</b> — extrair seções, formatar markdown, lidar com timeouts (8s) e erros</li>
+            <li><b>Cachear</b> recomendações no SQLite — chapa+timestamp → texto gerado</li>
+            <li><b>Streaming opcional</b> — exibe texto enquanto chega, reduz percepção de latência</li>
+            <li><b>Fallback gracioso</b> — se Ollama está offline ou modelo não carregado, exibe mensagem clara</li>
+          </ul>
+        </div>
+        <div class="func-block">
+          <div class="func-label">Garantias</div>
+          <ul class="func-list">
+            <li><b>Sem rede externa</b> — tudo offline, dados não saem da máquina</li>
+            <li><b>Sem cálculos</b> — IA não computa números, só interpreta os já calculados por M3–M7</li>
+            <li><b>System prompt fixo</b> — tom, formato e limites definidos no código, não no usuário</li>
+            <li><b>Tamanho controlado</b> — resposta sempre em formato estruturado (3 blocos curtos)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SECTION 2: CLASSIFICATION CRITERIA -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 02</div>
+    <div class="section-title">Critérios numéricos das categorias</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> sete categorias com regras hierárquicas — chapa é avaliado contra Pilar primeiro; só vai pra próxima categoria se não atender a anterior.
+  </div>
+
+  <div style="background: var(--bg-2); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden;">
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 12px 22px; background: var(--ink); color: white; font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.12em; font-weight: 700; text-transform: uppercase;">
+      <div>Categoria</div>
+      <div>Critério (90 dias por padrão)</div>
+      <div>Significado operacional</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 14px 22px; border-bottom: 1px solid var(--rule); font-size: 12.5px; line-height: 1.55;">
+      <div><span style="background: var(--good); color: white; padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;">Pilar</span></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;">≥ 15 tarefas · recência &lt; 14 dias · fill rate ≥ 95%</div>
+      <div style="color: var(--ink-soft);">Sustenta a operação. Saída = catástrofe imediata.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 14px 22px; border-bottom: 1px solid var(--rule); font-size: 12.5px; line-height: 1.55;">
+      <div><span style="background: var(--orange); color: white; padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;">Frequente</span></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;">5–14 tarefas · recência &lt; 30 dias · fill rate ≥ 85%</div>
+      <div style="color: var(--ink-soft);">Coluna do meio. Volume sem ser estrela.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 14px 22px; border-bottom: 1px solid var(--rule); font-size: 12.5px; line-height: 1.55;">
+      <div><span style="background: var(--warn); color: white; padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;">Casual</span></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;">2–4 tarefas · recência &lt; 60 dias</div>
+      <div style="color: var(--ink-soft);">Renda extra. Não conta como capacidade fixa.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 14px 22px; border-bottom: 1px solid var(--rule); font-size: 12.5px; line-height: 1.55;">
+      <div><span style="background: var(--alert); color: white; padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;">Em Risco</span></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;">Era Frequente/Pilar nos 60d anteriores · recência 15–30 dias</div>
+      <div style="color: var(--ink-soft);">Sumindo. Próximo passo natural é virar dormente.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 14px 22px; border-bottom: 1px solid var(--rule); font-size: 12.5px; line-height: 1.55;">
+      <div><span style="background: var(--ink-faint); color: white; padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;">Dormente</span></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;">Recência 30–89 dias · histórico de ≥ 3 tarefas</div>
+      <div style="color: var(--ink-soft);">Saiu, mas pode voltar com gatilho certo.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 14px 22px; border-bottom: 1px solid var(--rule); font-size: 12.5px; line-height: 1.55;">
+      <div><span style="background: var(--dark); color: var(--ink-faint); padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; border: 1px dashed var(--ink-faint);">Fantasma</span></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;">Aprovado mas nunca trabalhou · OU recência ≥ 90 dias</div>
+      <div style="color: var(--ink-soft);">Existe só no cadastro. Inflam métricas.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1.4fr 1.5fr; padding: 14px 22px; font-size: 12.5px; line-height: 1.55;">
+      <div><span style="background: var(--blue); color: white; padding: 3px 10px; border-radius: 3px; font-weight: 700; font-size: 11px; font-family: 'IBM Plex Mono', monospace; text-transform: uppercase;">Novo</span></div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 11.5px;">1ª tarefa há menos de 30 dias</div>
+      <div style="color: var(--ink-soft);">Janela crítica. Decide se vira Frequente ou some.</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: AI ANCHORS -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 03</div>
+    <div class="section-title">As 3 âncoras de IA (modelo A+)</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> a IA não fica solta — aparece em 3 lugares específicos com contexto pré-formatado. Cada âncora tem prompt otimizado, garantindo qualidade mesmo com modelo pequeno (Phi-3 mini).
+  </div>
+
+  <div class="ai-anchors">
+
+    <div class="anchor">
+      <div class="anchor-num">ÂNCORA 01</div>
+      <div class="anchor-title">Ficha do chapa</div>
+      <div class="anchor-body">
+        Na página individual de um chapa específico. Botão <b>"Recomendar abordagem"</b>. IA recebe métricas completas do chapa + categoria + histórico de transições. Devolve: <b>diagnóstico</b> (1 parágrafo), <b>abordagem sugerida</b> (3 bullets), <b>script de mensagem</b> (1 parágrafo curto).
+      </div>
+      <div class="anchor-trigger">EX: "COMO ABORDAR JOSÉ WAGNER"</div>
+    </div>
+
+    <div class="anchor">
+      <div class="anchor-num">ÂNCORA 02</div>
+      <div class="anchor-title">Lista acionável</div>
+      <div class="anchor-body">
+        No topo de qualquer das 7 listas do M7. Botão <b>"Organizar campanha"</b>. IA recebe a lista + contagem + razão de cada chapa. Devolve: <b>sequência sugerida</b> (priorização com critério), <b>script-padrão</b> (mensagem inicial), <b>regra de exclusão</b> (quem ignorar).
+      </div>
+      <div class="anchor-trigger">EX: "ORGANIZAR REATIVAÇÃO DE DORMENTES"</div>
+    </div>
+
+    <div class="anchor">
+      <div class="anchor-num">ÂNCORA 03</div>
+      <div class="anchor-title">Dashboard do cliente</div>
+      <div class="anchor-body">
+        Topo do dashboard de um cliente. Botão <b>"Foco da semana"</b>. IA recebe KPIs do cliente + comparação semana anterior + alertas ativos. Devolve: <b>panorama</b> (2 frases), <b>prioridade da semana</b> (1 ação principal), <b>riscos a monitorar</b> (até 3).
+      </div>
+      <div class="anchor-trigger">EX: "FOCO DA SEMANA TRAGETTA CPQ"</div>
+    </div>
+
+  </div>
+
+  <h3 style="margin-top: 32px; margin-bottom: 14px; font-size: 18px; font-weight: 700; letter-spacing: -0.02em;">Estrutura do prompt (exemplo Âncora 01)</h3>
+  <div class="prompt-ex">
+    <div class="section-p">
+      <span class="role">SYSTEM</span>
+      Você é um consultor operacional especializado em gestão de chapas (trabalhadores avulsos de carga e descarga) para o MeuChapa. Recebe dados estruturados de um chapa específico e devolve recomendação curta e direta para o analista que vai entrar em contato. Tom: profissional, próximo, sem jargão corporativo. Estrutura obrigatória: 3 blocos curtos (diagnóstico / abordagem / script). Nunca invente números — use apenas os dados fornecidos. Resposta em português brasileiro.
+    </div>
+    <div class="section-p">
+      <span class="role">CONTEXT</span>
+      Chapa: <span class="placeholder">{nome}</span><br>
+      Categoria atual: <span class="placeholder">{categoria}</span> (era <span class="placeholder">{categoria_anterior}</span>)<br>
+      Score: <span class="placeholder">{score}</span>/100<br>
+      Métricas (90d): <span class="placeholder">{total_tarefas}</span> tarefas, recência <span class="placeholder">{recencia}</span> dias, fill rate <span class="placeholder">{fill_rate}</span>%<br>
+      Perfil de turno: <span class="placeholder">{perfil_turno}</span><br>
+      Padrão semanal: prefere <span class="placeholder">{dias_pref}</span>, evita <span class="placeholder">{dias_evit}</span><br>
+      Concentração: representa <span class="placeholder">{concentracao}</span>% da operação<br>
+      Cliente: <span class="placeholder">{cliente_nome}</span>
+    </div>
+    <div class="section-p">
+      <span class="role">TASK</span>
+      Gere uma recomendação de abordagem em 3 blocos:<br>
+      1. DIAGNÓSTICO (até 50 palavras): o que esses números dizem sobre este chapa.<br>
+      2. ABORDAGEM (3 bullets): ações concretas e ordenadas.<br>
+      3. SCRIPT (até 40 palavras): rascunho de mensagem WhatsApp para iniciar contato.
+    </div>
+    <div class="section-p">
+      <span class="comment">// Resposta esperada: ~150 palavras total, formatada em markdown leve.</span><br>
+      <span class="comment">// Tempo médio Phi-3 mini em CPU i7 8gen: 4–7 segundos.</span>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4: SCREEN WIREFRAMES -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 04</div>
+    <div class="section-title">Telas principais (wireframes textuais)</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> 5 telas cobrem 100% do uso. Cada uma tem propósito único, hierarquia visual clara e — quando aplicável — uma âncora de IA bem posicionada.
+  </div>
+
+  <!-- WIREFRAME 1 -->
+  <div class="wf">
+    <div class="wf-head">
+      <div class="wf-title">TELA 01 · <b>IMPORTAÇÃO & SELEÇÃO DE CLIENTE</b></div>
+      <div class="wf-meta">Entrada do módulo</div>
+    </div>
+    <div class="wf-body">
+      <div class="wf-purpose">
+        <b>Propósito:</b> tela vazia, sem dados. O analista carrega CSVs (ou seleciona análise salva), escolhe o cliente alvo e janela temporal. Antes de qualquer cálculo, a tela já mostra preview dos dados pra confirmar match.
+      </div>
+      <div class="wf-canvas" data-label="ESTRUTURA">
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-h" style="flex: 1;">HEADER · LOGO MEUCHAPA · ANÁLISE DE BASE</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Coluna esquerda · Upload</b><br>3 áreas drag-drop empilhadas:<br>· CSV de tarefas (obrigatório)<br>· CSV de fill rate (obrigatório)<br>· Pool de aprovados (opcional)<br>Cada uma mostra: filename, tamanho, n linhas detectadas, status validação</div>
+          <div class="wf-cell" style="flex: 1;"><b>Coluna direita · Configuração</b><br>· Dropdown: cliente (auto-detectado dos CSVs)<br>· Date range: janela temporal (padrão 90d)<br>· Toggle: comparar com período anterior<br>· Toggle: incluir histórico estendido para cohort</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-orange" style="flex: 1;">BOTÃO PRIMÁRIO · "ANALISAR BASE" (desabilitado até 2 CSVs obrigatórios carregados)</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1; font-style: italic; color: var(--ink-faint);">Rodapé · "Análises anteriores" (lista de snapshots salvos no SQLite, clicáveis pra retomar)</div>
+        </div>
+      </div>
+      <div class="wf-notes">
+        <div class="wf-notes-title">UX/UI NOTES</div>
+        <b>Sem âncora de IA aqui</b> — IA só faz sentido depois que há dados analisados. · <b>Validação inline</b> — se um CSV tem coluna faltando, mostra erro específico no card de upload, não em modal. · <b>Drag-drop > botão</b> — drag-drop mais rápido pro fluxo diário; botão "browse" como fallback. · <b>Auto-detecção de cliente</b> — após upload, app lista os Nome Fantasia únicos do CSV e o usuário escolhe; resolve generalização. · <b>Indicador visual de progresso</b> ao clicar "Analisar" — barra de progresso por módulo (M1→M7).
+      </div>
+    </div>
+  </div>
+
+  <!-- WIREFRAME 2 -->
+  <div class="wf">
+    <div class="wf-head">
+      <div class="wf-title">TELA 02 · <b>DASHBOARD DO CLIENTE</b></div>
+      <div class="wf-meta">Tela principal · Âncora IA 03</div>
+    </div>
+    <div class="wf-body">
+      <div class="wf-purpose">
+        <b>Propósito:</b> visão geral do cliente em uma tela. KPIs grandes, distribuição de categorias, turnos detectados, transições críticas. <b>Aqui mora a âncora "Foco da semana"</b>.
+      </div>
+      <div class="wf-canvas" data-label="ESTRUTURA">
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-h" style="flex: 5;">HEADER · CLIENTE: TRAGETTA CPQ · PERÍODO: 21 JAN – 29 MAI 2026 · [TROCAR]</div>
+          <div class="wf-cell wf-cell-ai" style="flex: 2;"><span class="ai-tag">ÂNCORA IA 03</span>BOTÃO "FOCO DA SEMANA" →</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1; border-top: 3px solid var(--alert);"><span class="lbl">Fill rate maio</span><span class="num" style="color: var(--alert);">65%</span>134/206 vagas · era 92% em fev</div>
+          <div class="wf-cell" style="flex: 1; border-top: 3px solid var(--alert);"><span class="lbl">Capacidade real</span><span class="num" style="color: var(--alert);">27/197</span>91 inativos 30+ dias</div>
+          <div class="wf-cell" style="flex: 1; border-top: 3px solid var(--warn);"><span class="lbl">Concentração</span><span class="num" style="color: var(--warn);">33%</span>5 chapas seguram 1/3</div>
+          <div class="wf-cell" style="flex: 1; border-top: 3px solid var(--alert);"><span class="lbl">Churn mensal</span><span class="num" style="color: var(--alert);">56%</span>vs abril</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 2;"><b>Sparkline fill rate</b><br>Linha mês a mês jan→mai com pontos clicáveis. Cada ponto mostra fill rate, demanda, base ativa.</div>
+          <div class="wf-cell" style="flex: 1;"><b>Distribuição categorias</b><br>Barras horizontais empilhadas:<br>Pilar (5) · Frequente (12) · Casual (10) · Em Risco (3) · Dormente (40) · Fantasma (51) · Novo (2)</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Heatmap turno × dia</b><br>Matriz 7×N (dias × turnos detectados), cor por fill rate. Tons de laranja → vermelho. Clique numa célula mostra detalhe.</div>
+          <div class="wf-cell" style="flex: 1;"><b>Transições críticas</b> (alertas)<br>· 2 Pilares viraram Em Risco esta semana<br>· 8 chapas Em Risco entraram em Dormente<br>· 1 Novo virou Frequente (parabenizar)</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-dark" style="flex: 1;"><b>Acesso rápido às 7 listas acionáveis →</b> (botões grandes lado a lado)</div>
+        </div>
+      </div>
+      <div class="wf-notes">
+        <div class="wf-notes-title">UX/UI NOTES</div>
+        <b>Densidade alta, mas hierárquica</b> — KPIs grandes acima, visualizações no meio, ações abaixo. Olho percorre top→bottom. · <b>Cores semânticas</b> — fill rate &lt;75% sempre vermelho; 75–85% amarelo; 85%+ verde. Consistente em toda a app. · <b>Botão Foco da Semana sempre visível no topo</b> — não esconde em menu. Custo de invocar IA precisa ser baixo. · <b>Sparkline interativa</b> — hover mostra tooltip, click expande pra modal com detalhe mensal. · <b>Heatmap respeita cliente</b> — se cliente tem 3 turnos, é 7×3. Se tem 5, é 7×5. Sem hardcode.
+      </div>
+    </div>
+  </div>
+
+  <!-- WIREFRAME 3 -->
+  <div class="wf">
+    <div class="wf-head">
+      <div class="wf-title">TELA 03 · <b>FICHA INDIVIDUAL DO CHAPA</b></div>
+      <div class="wf-meta">Drill-down · Âncora IA 01</div>
+    </div>
+    <div class="wf-body">
+      <div class="wf-purpose">
+        <b>Propósito:</b> tela 360° de um chapa específico. Acessada clicando em qualquer nome. Mostra todas as métricas, histórico de transições, padrão semanal, e abre espaço para a IA recomendar abordagem individual.
+      </div>
+      <div class="wf-canvas" data-label="ESTRUTURA">
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-h" style="flex: 5;">JOSÉ WAGNER · (19) 99X-XXXX · CPF ***.***.***-** · CHAPA DESDE FEV/2026</div>
+          <div class="wf-cell wf-cell-good" style="flex: 1; text-align: center;"><b>PILAR</b><br>SCORE 87/100</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Métricas 90d</b><br>· 23 tarefas · recência 2d<br>· fill rate 96% · freq 5,2/sem<br>· tendência: estável<br>· tempo de base: 3 meses</div>
+          <div class="wf-cell" style="flex: 1;"><b>Perfil de turno</b><br>DUO · 12h30 (60%) + 22h (40%)<br>Concentração 22h: 12%<br>Concentração 12h30: 7%</div>
+          <div class="wf-cell" style="flex: 1;"><b>Padrão semanal</b><br>Prefere: seg, qua, sex, sáb<br>Evita: dom, ter<br>Padrão: sem segundo emprego aparente</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Histórico de categorias</b> (timeline horizontal)<br>jan · 1ª tarefa · NOVO → fev · CASUAL → mar · FREQUENTE → abr · FREQUENTE → mai · PILAR</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-ai" style="flex: 1;"><span class="ai-tag">ÂNCORA IA 01 · BOTÃO PRIMÁRIO</span><b>RECOMENDAR ABORDAGEM</b> → ao clicar, expande painel lateral com diagnóstico + abordagem + script gerado por Phi-3</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Tarefas recentes</b> (tabela)<br>Lista das últimas 20 tarefas: data, turno, status, valor. Permite identificar padrões de falta.</div>
+          <div class="wf-cell" style="flex: 1;"><b>Anotações do analista</b> (campo aberto)<br>Histórico de interações: "Liguei em 28/05, disse que está bem, vai pegar 4 tarefas semana que vem". Persistido no SQLite.</div>
+        </div>
+      </div>
+      <div class="wf-notes">
+        <div class="wf-notes-title">UX/UI NOTES</div>
+        <b>Categoria sempre no canto superior direito</b>, em badge grande colorido — é a primeira informação que o olho busca. · <b>Histórico de categorias é a parte mais didática da tela</b> — visualiza a jornada do chapa numa linha. · <b>Botão de IA destacado, mas não dominante</b> — ele é meio da tela, depois das métricas. Analista lê os números primeiro, IA é segunda opinião. · <b>Painel de recomendação expande lateralmente</b> — não interrompe contexto, analista lê IA e dados ao mesmo tempo. · <b>Anotações livres</b> — diferencial enorme. Bate o telefone, marca aqui, próxima análise sabe.
+      </div>
+    </div>
+  </div>
+
+  <!-- WIREFRAME 4 -->
+  <div class="wf">
+    <div class="wf-head">
+      <div class="wf-title">TELA 04 · <b>LISTA ACIONÁVEL</b></div>
+      <div class="wf-meta">Modo trabalho · Âncora IA 02</div>
+    </div>
+    <div class="wf-body">
+      <div class="wf-purpose">
+        <b>Propósito:</b> tela operacional do dia a dia. Carrega uma das 7 listas do M7. Analista vê pessoas, prioriza, marca contatos feitos. <b>Aqui mora a âncora "Organizar campanha"</b>.
+      </div>
+      <div class="wf-canvas" data-label="ESTRUTURA">
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-h" style="flex: 5;">LISTA: DORMENTES RECUPERÁVEIS · 40 CHAPAS · TRAGETTA CPQ</div>
+          <div class="wf-cell wf-cell-ai" style="flex: 2;"><span class="ai-tag">ÂNCORA IA 02</span>"ORGANIZAR CAMPANHA" →</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1; color: var(--ink-soft); font-size: 11.5px;"><b>Filtros:</b> [recência: 30–60d ▾] [score mín: 50 ▾] [turno: todos ▾] [Status contato: pendente ▾]</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-h" style="flex: 0.5;">#</div>
+          <div class="wf-cell wf-cell-h" style="flex: 2;">NOME · TEL</div>
+          <div class="wf-cell wf-cell-h" style="flex: 1;">CATEGORIA ANTERIOR</div>
+          <div class="wf-cell wf-cell-h" style="flex: 1;">RECÊNCIA</div>
+          <div class="wf-cell wf-cell-h" style="flex: 1;">SCORE</div>
+          <div class="wf-cell wf-cell-h" style="flex: 1;">STATUS</div>
+          <div class="wf-cell wf-cell-h" style="flex: 1;">AÇÃO</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 0.5;">1</div>
+          <div class="wf-cell" style="flex: 2;"><b>Carlos Silva</b><br>(19) 99X-XXXX</div>
+          <div class="wf-cell" style="flex: 1;">Frequente</div>
+          <div class="wf-cell" style="flex: 1;">35 dias</div>
+          <div class="wf-cell" style="flex: 1;">72</div>
+          <div class="wf-cell" style="flex: 1;">○ Pendente</div>
+          <div class="wf-cell wf-cell-orange" style="flex: 1;">CONTATAR</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 0.5;">2</div>
+          <div class="wf-cell" style="flex: 2;"><b>Roberto Sá</b><br>(19) 98X-XXXX</div>
+          <div class="wf-cell" style="flex: 1;">Pilar</div>
+          <div class="wf-cell" style="flex: 1;">42 dias</div>
+          <div class="wf-cell" style="flex: 1;">85</div>
+          <div class="wf-cell wf-cell-good" style="flex: 1;">● Contatado</div>
+          <div class="wf-cell" style="flex: 1; font-style: italic; font-size: 10.5px;">→ Ver ficha</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 5; color: var(--ink-faint); font-style: italic;">... (paginação ou scroll virtual) ...</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-dark" style="flex: 1; font-size: 11.5px;"><b>Bulk:</b> [marcar todos contatados ▾] [exportar CSV] [enviar para Umbler] [imprimir]</div>
+        </div>
+      </div>
+      <div class="wf-notes">
+        <div class="wf-notes-title">UX/UI NOTES</div>
+        <b>Listas são tabelas, não cards</b> — densidade de info importa. Cards consomem espaço sem ganho. · <b>Ordem default por score</b> dentro de cada lista — quem é mais valioso aparece primeiro. · <b>Status visual com bolinha</b> (○ pendente, ● contatado, ⊘ excluído) — micro-interação rápida. · <b>Botão CONTATAR abre modal pequeno</b> — registra timestamp, observação curta, marca status. Não tira o analista da lista. · <b>"Organizar campanha" no topo</b> — IA gera sequência e script ANTES de o analista começar. Apoio inicial, não final. · <b>Bulk actions</b> no rodapé pra usar só quando estiver maduro.
+      </div>
+    </div>
+  </div>
+
+  <!-- WIREFRAME 5 -->
+  <div class="wf">
+    <div class="wf-head">
+      <div class="wf-title">TELA 05 · <b>CONFIGURAÇÕES & TURNOS DETECTADOS</b></div>
+      <div class="wf-meta">Setup avançado</div>
+    </div>
+    <div class="wf-body">
+      <div class="wf-purpose">
+        <b>Propósito:</b> ajuste fino. Confirmar/editar turnos detectados pelo M2, ajustar limiares de categorização do M4, gerenciar conexão com Ollama, ver snapshots salvos.
+      </div>
+      <div class="wf-canvas" data-label="ESTRUTURA">
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-h" style="flex: 1;">CONFIGURAÇÕES · TRAGETTA CPQ</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Turnos detectados</b> (3 cards lado a lado)<br>Cada card mostra: horário central, % das tarefas, nome editável, botão "fundir com outro" ou "separar"<br>· 06:30 · 17% das tarefas · "Matinal" [editar]<br>· 12:30 · 36% · "Diurno" [editar]<br>· 22:00 · 41% · "Noturno" [editar]</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Limiares de categorização</b><br>Sliders ajustáveis:<br>· Pilar: ≥ [15 ▾] tarefas / [14 ▾] dias recência / [95 ▾]% fill rate<br>· Frequente: ≥ [5 ▾] tarefas / [30 ▾] dias recência / [85 ▾]% fill rate<br>· (etc para Casual, Em Risco, Dormente, Fantasma, Novo)<br>Botão: "Reaplicar classificação" (sem reprocessar)</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell wf-cell-dark" style="flex: 1;"><b>Status IA local</b><br>● Ollama: rodando em localhost:11434<br>● Modelo: phi3:mini (3.8B, ~2.3GB)<br>● Última chamada: 28/05 15h34, 4,8s<br>· Cache de recomendações: 47 entradas<br>[Recarregar modelo] [Limpar cache]</div>
+        </div>
+        <div class="wf-row">
+          <div class="wf-cell" style="flex: 1;"><b>Snapshots salvos</b><br>Lista cronológica de análises:<br>· 29/05/2026 · 14h22 · Tragetta CPQ · 90d · [carregar] [excluir]<br>· 22/05/2026 · 09h15 · Tragetta CPQ · 90d · [carregar] [excluir]<br>· 15/05/2026 · ... </div>
+        </div>
+      </div>
+      <div class="wf-notes">
+        <div class="wf-notes-title">UX/UI NOTES</div>
+        <b>Configurações é tela "menos visitada"</b> — entra via menu, não via flow principal. Pode ter densidade maior. · <b>Turnos detectados precisam de validação humana</b> sempre — não confiar 100% no clustering. · <b>Sliders pra limiares</b> — analista experimenta e vê efeito sem editar texto. · <b>Status da IA visível</b> — analista entende quando ela está down e quando funciona.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 5: VISUAL LANGUAGE -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 05</div>
+    <div class="section-title">Linguagem visual & recomendações UX</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> identidade MeuChapa aplicada como design system — cores semânticas, tipografia funcional, componentes consistentes. Sem reinventar nada.
+  </div>
+
+  <div class="tech-spec">
+    <div class="tech-row">
+      <div class="tech-label">Paleta</div>
+      <div class="tech-value">
+        <b>Laranja MeuChapa</b> <code>#F26F21</code> — primária, ações, destaques.<br>
+        <b>Vermelho crítico</b> <code>#C8341E</code> — alertas, risco, queda. Família laranja, não conflita.<br>
+        <b>Amarelo aviso</b> <code>#E89518</code> — atenção, transição, monitoramento.<br>
+        <b>Verde saudável</b> <code>#3D7A47</code> — pilares, sucesso, recuperação.<br>
+        <b>Azul informativo</b> <code>#2A4A73</code> — novos, neutro com sinal.<br>
+        <b>Preto/cinza</b> — texto, estrutura, IA (sempre que IA aparece, o fundo é preto).
+      </div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Tipografia</div>
+      <div class="tech-value">
+        <b>Plus Jakarta Sans</b> — corpo, títulos, UI. Geometric sans moderna, pesos 300–800.<br>
+        <b>IBM Plex Mono</b> — números, métricas, códigos, tags. Diferenciação imediata entre "dado" e "texto".<br>
+        Tamanhos: 11px (mono labels), 12.5px (corpo), 14px (texto principal), 18–26px (títulos), 42–56px (números KPI).
+      </div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Componentes-chave</div>
+      <div class="tech-value">
+        <b>Card de KPI</b> — borda superior colorida por severidade · número grande mono · caption explicando.<br>
+        <b>Badge de categoria</b> — sempre mesma cor por categoria em toda a app, formato pill, texto curto.<br>
+        <b>Tabela compacta</b> — alturas pequenas, separadores sutis, hover destaca linha.<br>
+        <b>Painel de IA</b> — sempre fundo escuro com acento laranja. Distingue conteúdo gerado de dados.<br>
+        <b>Modal de ação rápida</b> — pra "contatar", "marcar status". Não tira do contexto.
+      </div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Densidade</div>
+      <div class="tech-value">
+        Dashboard <b>denso e hierárquico</b> — analista quer ver muito sem rolar. Listas operacionais <b>compactas</b> — uma tabela bem feita supera 50 cards. Ficha individual <b>respirável</b> — é tela de decisão, vale dar espaço. Configurações <b>técnica</b> — densidade maior, audiência avançada.
+      </div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Estados</div>
+      <div class="tech-value">
+        <b>Loading</b> — skeleton screens, não spinners. <b>Vazio</b> — sempre com call-to-action ("Nenhum chapa Em Risco. Excelente! Veja outras categorias →"). <b>Erro</b> — específico, com sugestão de correção. <b>IA offline</b> — banner discreto no topo, app continua funcional, só sem âncoras.
+      </div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Microcopy</div>
+      <div class="tech-value">
+        Direto e operacional. <b>"Recomendar abordagem"</b> não "Ver insights". <b>"Foco da semana"</b> não "Análise estratégica AI-powered". <b>"Contatar"</b> não "Iniciar fluxo de engajamento". Palavras que o analista usaria no dia a dia.
+      </div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Atalhos</div>
+      <div class="tech-value">
+        <code>Cmd/Ctrl+K</code> abre busca global de chapa por nome. <code>Cmd/Ctrl+1..7</code> pula direto pra cada lista. <code>Esc</code> fecha modais. <code>?</code> mostra cheat sheet. Analista que usa todo dia merece velocidade.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 6: PRINCIPLES -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 06</div>
+    <div class="section-title">Princípios não-funcionais</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> as regras que toda decisão de design e implementação precisa respeitar — sem exceção.
+  </div>
+  <div class="principles">
+    <h2>O que precisa ser verdade no produto final</h2>
+    <div class="principles-grid">
+      <div class="principle-item">
+        <div class="principle-label">P1 · OFFLINE-FIRST</div>
+        <div class="principle-text">Tudo roda local. Dados não saem da máquina. IA não consulta rede. App funciona sem internet.</div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-label">P2 · GENERALIZAÇÃO</div>
+        <div class="principle-text">Funciona em qualquer cliente sem reconfigurar código. Tragetta, AmBev, qualquer um. Zero hardcode.</div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-label">P3 · TRANSPARÊNCIA</div>
+        <div class="principle-text">Toda classificação mostra os números que a justificam. Nenhuma decisão "mágica". Auditável sempre.</div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-label">P4 · AÇÃO &gt; INSIGHT</div>
+        <div class="principle-text">Cada análise termina em lista de pessoas com nome, telefone e o que fazer. Nada de "métrica que não vira ação".</div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-label">P5 · IA COMO ASSISTENTE</div>
+        <div class="principle-text">IA opina, analista decide. Recomendação nunca é executada automaticamente. Botão sempre é "Recomendar", não "Executar".</div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-label">P6 · VERSIONÁVEL</div>
+        <div class="principle-text">Cada execução salva snapshot. Permite comparar "como estava semana passada" — fundamental pra detectar transições e provar evolução.</div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-label">P7 · PLUGÁVEL</div>
+        <div class="principle-text">Inputs futuros (Léo + Forms) entram como camadas adicionais sem refactor. Lógica core dos módulos não muda.</div>
+      </div>
+      <div class="principle-item">
+        <div class="principle-label">P8 · IDENTIDADE</div>
+        <div class="principle-text">Visual coerente com MeuChapa em toda a app. Não inventar paleta nova. Não inventar fonte nova. Coerência &gt; criatividade.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 7: TECH STACK -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 07</div>
+    <div class="section-title">Stack técnica resumida</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> tudo dentro da app Tauri existente — sem dependências externas, sem nuvem, sem instalações extras (exceto Ollama uma vez).
+  </div>
+
+  <div class="tech-spec">
+    <div class="tech-row">
+      <div class="tech-label">App existente</div>
+      <div class="tech-value"><b>Tauri</b> (Rust core) + <b>React</b> (gerado pelo Lovable) + <b>SQLite</b> local. Módulo de análise integra como feature, não como app separado.</div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Processamento</div>
+      <div class="tech-value">TypeScript no frontend para M1–M7. Volume de dados (chapas, tarefas) cabe folgado em memória. Operações pesadas (se surgirem) podem migrar para Rust via Tauri commands.</div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Persistência</div>
+      <div class="tech-value"><b>SQLite</b> via Tauri SQL plugin. Tabelas: <code>snapshots</code>, <code>chapas_classified</code>, <code>annotations</code>, <code>ai_cache</code>, <code>settings</code>.</div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">IA local</div>
+      <div class="tech-value"><b>Ollama</b> + <b>Phi-3 mini</b> (3.8B Q4). Instalação one-time. Tauri faz fetch para <code>http://localhost:11434</code>. Latência 4–8s em CPU i7 8gen com 8GB RAM. Modelo ocupa ~2.3GB de disco e ~3GB de RAM quando carregado.</div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Libs sugeridas</div>
+      <div class="tech-value"><b>PapaParse</b> (CSV), <b>date-fns</b> (datas), <b>Recharts</b> ou <b>Visx</b> (gráficos), <b>TanStack Table</b> (tabelas), <b>shadcn/ui</b> (componentes). Tudo já compatível com React/Tauri.</div>
+    </div>
+    <div class="tech-row">
+      <div class="tech-label">Estrutura sugerida</div>
+      <div class="tech-value">
+        <code>src/features/analise-base/</code><br>
+        ├── <code>modules/</code> (M1.ts, M2.ts ... M8.ts — funções puras)<br>
+        ├── <code>screens/</code> (Importacao, Dashboard, FichaChapa, ListaAcionavel, Config)<br>
+        ├── <code>components/</code> (KpiCard, Badge, HeatmapTurnos, etc)<br>
+        ├── <code>ai/</code> (prompts.ts, ollama-client.ts, types.ts)<br>
+        ├── <code>db/</code> (migrations.sql, queries.ts)<br>
+        └── <code>types.ts</code> (Chapa, Tarefa, Turno, Classificacao)
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-brand">
+    <div class="footer-dot"></div>
+    <span>MeuChapa · Precisou, tá aqui!</span>
+  </div>
+  <div>Jeremiah Wijngaarde · Analista de Operações</div>
+  <div>Maio 2026 · Escopo Funcional + UX/UI v.2</div>
+</div>
+
+</body>
+</html>

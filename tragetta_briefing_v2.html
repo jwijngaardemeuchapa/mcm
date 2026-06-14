@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Tragetta CPQ — Diagnóstico Operacional · MeuChapa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #ffffff;
+    --bg-2: #f6f6f6;
+    --bg-3: #ededed;
+    --ink: #1a1a1a;
+    --ink-soft: #525252;
+    --ink-faint: #8a8a8a;
+    --rule: #e3e3e3;
+    --rule-dark: #cfcfcf;
+    --orange: #f26f21;
+    --orange-deep: #d85a0f;
+    --orange-soft: #fdf0e6;
+    --alert: #c8341e;
+    --alert-soft: #fbe9e6;
+    --warn: #e89518;
+    --warn-soft: #fdf3e0;
+    --good: #3d7a47;
+    --good-soft: #e6f0e7;
+    --dark: #161616;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    padding: 48px 56px;
+    max-width: 1240px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* HEADER */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-bottom: 28px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 36px;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .brand-logo {
+    width: 36px;
+    height: 36px;
+    transform: rotate(45deg);
+    border: 3px solid var(--orange);
+    border-radius: 4px;
+    position: relative;
+  }
+  .brand-logo::before {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    background: var(--orange);
+    border-radius: 2px;
+    transform: rotate(-45deg) scale(0.6);
+    clip-path: polygon(30% 0%, 45% 0%, 45% 55%, 65% 30%, 80% 40%, 55% 75%, 55% 100%, 30% 100%);
+  }
+  .brand-text {
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+  }
+  .brand-text span { color: var(--orange); }
+  .meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 500;
+  }
+  h1 {
+    font-weight: 800;
+    font-size: 52px;
+    line-height: 1;
+    letter-spacing: -0.035em;
+    margin-top: 8px;
+  }
+  h1 .accent { color: var(--orange); }
+  .h-right {
+    text-align: right;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    line-height: 1.85;
+  }
+  .h-right b { color: var(--ink); font-weight: 600; }
+
+  /* 30 SECONDS SHORTCUT */
+  .shortcut {
+    background: var(--orange);
+    color: white;
+    padding: 32px 40px;
+    margin-bottom: 36px;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+  .shortcut::before {
+    content: '⏱';
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    font-size: 18px;
+    opacity: 0.6;
+  }
+  .shortcut-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    font-weight: 700;
+    margin-bottom: 14px;
+    opacity: 0.85;
+  }
+  .shortcut-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+  .shortcut-left {
+    border-right: 1px solid rgba(255,255,255,0.25);
+    padding-right: 28px;
+  }
+  .shortcut-headline {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 14px;
+    letter-spacing: -0.02em;
+  }
+  .shortcut-headline strong {
+    font-weight: 800;
+    background: rgba(0,0,0,0.18);
+    padding: 0 6px;
+    border-radius: 3px;
+  }
+  .shortcut-body {
+    font-size: 13px;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.95);
+  }
+  .shortcut-right strong {
+    color: white;
+    font-weight: 700;
+  }
+  .shortcut-list {
+    list-style: none;
+    margin-top: 4px;
+  }
+  .shortcut-list li {
+    padding: 7px 0 7px 28px;
+    position: relative;
+    font-size: 13.5px;
+    line-height: 1.5;
+    border-bottom: 1px solid rgba(255,255,255,0.18);
+  }
+  .shortcut-list li:last-child { border: none; }
+  .shortcut-list li::before {
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    color: var(--orange);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  .shortcut-list li:nth-child(1)::before { content: '1'; }
+  .shortcut-list li:nth-child(2)::before { content: '2'; }
+  .shortcut-list li:nth-child(3)::before { content: '3'; }
+  .shortcut-list b { font-weight: 700; }
+  .shortcut-promise {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: rgba(0,0,0,0.22);
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .shortcut-promise b { font-weight: 800; }
+
+  /* TL;DR */
+  .tldr {
+    background: var(--dark);
+    color: white;
+    padding: 36px 44px;
+    margin-bottom: 44px;
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .tldr::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 5px;
+    height: 100%;
+    background: var(--orange);
+  }
+  .tldr-tag {
+    position: absolute;
+    top: 16px;
+    right: 24px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--orange);
+    font-weight: 600;
+  }
+  .tldr-text {
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+  .tldr-text .hl { color: var(--orange); }
+  .tldr-sub {
+    margin-top: 20px;
+    font-size: 14px;
+    color: #c7c7c7;
+    max-width: 760px;
+    line-height: 1.7;
+  }
+  .tldr-sub b { color: white; font-weight: 600; }
+
+  /* NUMBERS */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 44px;
+  }
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    padding: 22px 22px 22px;
+    position: relative;
+    border-radius: 6px;
+  }
+  .stat.alert { border-top: 4px solid var(--alert); }
+  .stat.warn { border-top: 4px solid var(--warn); }
+  .stat.orange { border-top: 4px solid var(--orange); }
+  .stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+  .stat-value {
+    font-weight: 800;
+    font-size: 52px;
+    line-height: 1;
+    letter-spacing: -0.045em;
+  }
+  .stat-value .unit {
+    font-size: 18px;
+    color: var(--ink-faint);
+    font-weight: 500;
+    margin-left: 2px;
+  }
+  .stat.alert .stat-value { color: var(--alert); }
+  .stat.warn .stat-value { color: var(--warn); }
+  .stat.orange .stat-value { color: var(--orange); }
+  .stat-caption {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+  .stat-caption b { color: var(--ink); font-weight: 600; }
+
+  /* SECTION */
+  .section { margin-bottom: 52px; }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .section-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--orange);
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+  .section-title {
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+  }
+  .section-title .accent { color: var(--orange); }
+  .section-summary {
+    margin-bottom: 20px;
+    padding: 14px 20px;
+    background: var(--bg-2);
+    border-left: 3px solid var(--orange);
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--ink);
+    font-weight: 500;
+    border-radius: 0 4px 4px 0;
+  }
+  .section-summary b { font-weight: 700; }
+
+  /* HOW TO READ NOTE */
+  .read-note {
+    margin-bottom: 22px;
+    padding: 14px 20px;
+    background: var(--orange-soft);
+    border-left: 3px solid var(--orange);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    border-radius: 0 4px 4px 0;
+  }
+  .read-note b {
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    margin-right: 8px;
+    font-weight: 600;
+  }
+
+  /* TIMELINE */
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  .tl-month {
+    background: var(--bg-2);
+    padding: 18px 16px;
+    border-top: 3px solid var(--rule-dark);
+    border-radius: 4px;
+  }
+  .tl-month.peak { border-top-color: var(--good); }
+  .tl-month.crit { border-top-color: var(--alert); background: var(--alert-soft); }
+  .tl-month .month {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .tl-month .big {
+    font-weight: 800;
+    font-size: 42px;
+    line-height: 1;
+    margin: 10px 0 8px;
+    letter-spacing: -0.04em;
+  }
+  .tl-month .small {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+  .tl-month .small b { color: var(--ink); font-weight: 600; }
+  .tl-month .change {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    margin-top: 8px;
+    color: var(--alert);
+    font-weight: 600;
+  }
+  .tl-month.crit .big { color: var(--alert); }
+  .tl-month.peak .big { color: var(--good); }
+
+  /* SHIFTS */
+  .shifts {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+  }
+  .shift {
+    border: 1px solid var(--rule);
+    padding: 22px 22px 24px;
+    background: var(--bg);
+    border-radius: 6px;
+  }
+  .shift.dead {
+    background: var(--alert-soft);
+    border-color: var(--alert);
+  }
+  .shift.risk { border: 1px solid var(--alert); border-top: 4px solid var(--alert); }
+  .shift.ok { border-top: 4px solid var(--warn); }
+  .shift-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .shift-status {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 3px 9px;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    background: var(--ink);
+    color: white;
+    font-weight: 700;
+    border-radius: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .shift.dead .shift-status { background: var(--alert); }
+  .shift.risk .shift-status { background: var(--alert); }
+  .shift.ok .shift-status { background: var(--warn); }
+  .shift-pct {
+    font-weight: 800;
+    font-size: 64px;
+    line-height: 1;
+    margin: 14px 0 4px;
+    letter-spacing: -0.045em;
+  }
+  .shift.dead .shift-pct, .shift.risk .shift-pct { color: var(--alert); }
+  .shift.ok .shift-pct { color: var(--warn); }
+  .shift-trend {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+  .shift-trend b {
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+  }
+  .shift-note {
+    border-top: 1px dashed var(--rule-dark);
+    padding-top: 12px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+  }
+  .shift-note b { color: var(--ink); font-weight: 600; }
+
+  /* INSIGHTS */
+  .insights {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .insight {
+    background: var(--bg-2);
+    border-left: 3px solid var(--ink);
+    padding: 16px 22px 18px;
+    border-radius: 0 6px 6px 0;
+  }
+  .insight.crit { border-left-color: var(--alert); background: var(--alert-soft); }
+  .insight.orange { border-left-color: var(--orange); background: var(--orange-soft); }
+  .insight-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--orange);
+    letter-spacing: 0.14em;
+    font-weight: 600;
+  }
+  .insight.crit .insight-num { color: var(--alert); }
+  .insight-title {
+    font-size: 17px;
+    line-height: 1.25;
+    margin: 5px 0 8px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .insight-body {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+  }
+  .insight-body b { color: var(--ink); font-weight: 600; }
+  .insight-body code {
+    font-family: 'IBM Plex Mono', monospace;
+    background: white;
+    border: 1px solid var(--rule);
+    padding: 1px 6px;
+    font-size: 11px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  /* SPIRAL */
+  .spiral {
+    background: var(--bg-2);
+    padding: 30px 32px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+  }
+  .spiral-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr) 36px;
+    align-items: center;
+  }
+  .spiral-node { text-align: center; padding: 12px 8px; }
+  .spiral-node .step {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--orange);
+    letter-spacing: 0.2em;
+    font-weight: 700;
+  }
+  .spiral-node .desc {
+    font-size: 13.5px;
+    line-height: 1.25;
+    margin-top: 8px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .spiral-arrow {
+    text-align: center;
+    color: var(--orange);
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .spiral-loop {
+    text-align: center;
+    margin-top: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--orange);
+    font-weight: 600;
+  }
+
+  /* FORMS CRITIQUE */
+  .forms-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--ink);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .forms-col { padding: 22px 24px; }
+  .forms-col.bad {
+    background: var(--bg);
+    border-right: 1px solid var(--ink);
+  }
+  .forms-col.good { background: var(--dark); color: white; }
+  .forms-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed currentColor;
+  }
+  .forms-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    font-weight: 600;
+  }
+  .forms-col.bad .forms-tag { color: var(--alert); }
+  .forms-col.good .forms-tag { color: var(--orange); }
+  .forms-list { list-style: none; font-size: 12.5px; line-height: 1.6; }
+  .forms-list li {
+    padding: 6px 0 6px 22px;
+    position: relative;
+  }
+  .forms-list li::before {
+    position: absolute;
+    left: 0;
+    top: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .forms-col.bad .forms-list li::before { content: '×'; color: var(--alert); }
+  .forms-col.good .forms-list li::before { content: '+'; color: var(--orange); }
+  .verdict {
+    margin-top: 18px;
+    padding: 16px 22px;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-left: 4px solid var(--orange);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    border-radius: 0 6px 6px 0;
+  }
+  .verdict b { color: var(--ink); font-weight: 700; }
+
+  /* PLAN */
+  .plan {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .phase {
+    background: var(--bg-2);
+    padding: 24px 24px 26px;
+    border-radius: 6px;
+    border: 1px solid var(--rule);
+    border-top: 4px solid var(--orange);
+  }
+  .phase:nth-child(2) { border-top-color: var(--orange-deep); }
+  .phase:nth-child(3) { border-top-color: var(--ink); }
+  .phase-window {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    color: var(--orange);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .phase:nth-child(2) .phase-window { color: var(--orange-deep); }
+  .phase:nth-child(3) .phase-window { color: var(--ink); }
+  .phase-title {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1.1;
+    margin: 8px 0 4px;
+    letter-spacing: -0.025em;
+  }
+  .phase-title .accent { color: var(--orange); }
+  .phase:nth-child(2) .phase-title .accent { color: var(--orange-deep); }
+  .phase:nth-child(3) .phase-title .accent {
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: var(--orange);
+    text-underline-offset: 4px;
+    text-decoration-thickness: 3px;
+  }
+  .phase-goal {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.55;
+    margin-bottom: 16px;
+  }
+  .phase-impact {
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    background: white;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .phase-impact-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .phase-impact-value {
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--good);
+    letter-spacing: -0.02em;
+  }
+  .actions { list-style: none; }
+  .action {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px dotted var(--rule-dark);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .action:last-child { border-bottom: none; }
+  .action-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--orange);
+    flex-shrink: 0;
+    padding-top: 2px;
+    min-width: 24px;
+  }
+  .phase:nth-child(2) .action-num { color: var(--orange-deep); }
+  .phase:nth-child(3) .action-num { color: var(--ink); }
+  .action b { color: var(--ink); font-weight: 600; }
+  .action span { color: var(--ink-soft); }
+
+  /* FILL RATE FORECAST */
+  .forecast {
+    background: linear-gradient(135deg, var(--orange) 0%, var(--orange-deep) 100%);
+    color: white;
+    padding: 36px 40px;
+    border-radius: 8px;
+    margin-bottom: 18px;
+  }
+  .forecast-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.3);
+  }
+  .forecast-title {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .forecast-base {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    opacity: 0.85;
+    letter-spacing: 0.05em;
+  }
+  .forecast-bars {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    align-items: end;
+    height: 200px;
+    margin-bottom: 16px;
+  }
+  .fbar {
+    text-align: center;
+    padding: 0 10px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .fbar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    opacity: 0.85;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .fbar-bar {
+    background: rgba(0,0,0,0.25);
+    height: 100%;
+    position: relative;
+    border-radius: 3px 3px 0 0;
+    margin: 0 auto;
+    width: 70%;
+    max-width: 80px;
+  }
+  .fbar-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-radius: 3px 3px 0 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 8px;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
+  }
+  .fbar-fill .num {
+    color: var(--orange-deep);
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+  }
+  .fbar-window {
+    font-size: 11px;
+    margin-top: 8px;
+    opacity: 0.9;
+  }
+  .forecast-note {
+    font-size: 12.5px;
+    line-height: 1.6;
+    opacity: 0.92;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.25);
+  }
+  .forecast-note b { font-weight: 700; }
+
+  /* QUESTIONS */
+  .questions {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    padding: 32px 36px;
+    border-radius: 6px;
+  }
+  .q-intro {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--rule);
+    line-height: 1.65;
+    font-style: italic;
+  }
+  .q-intro b { color: var(--ink); font-style: normal; font-weight: 600; }
+  .q-block { margin-bottom: 22px; }
+  .q-block:last-child { margin-bottom: 0; }
+  .q-section-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    color: var(--orange);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  .q-item {
+    display: flex;
+    gap: 14px;
+    padding: 9px 0;
+    border-bottom: 1px dotted var(--rule-dark);
+  }
+  .q-item:last-child { border-bottom: none; }
+  .q-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-faint);
+    min-width: 22px;
+    padding-top: 2px;
+    font-weight: 500;
+  }
+  .q-text { font-size: 13px; line-height: 1.55; flex: 1; }
+  .q-text b { font-weight: 600; }
+  .q-text .why {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  .q-tips {
+    margin-top: 24px;
+    padding: 18px 22px;
+    background: var(--orange-soft);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.65;
+  }
+  .q-tips b { color: var(--ink); font-weight: 700; }
+
+  /* NEXT */
+  .next {
+    background: var(--dark);
+    color: white;
+    padding: 32px 40px;
+    border-radius: 8px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 28px;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .next::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 100%;
+    background: var(--orange);
+  }
+  .next-icon {
+    font-size: 80px;
+    line-height: 0.8;
+    color: var(--orange);
+    font-weight: 800;
+  }
+  .next-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+  .next-body {
+    font-size: 13.5px;
+    color: #cccccc;
+    line-height: 1.65;
+  }
+  .next-body b { color: var(--orange); font-weight: 600; }
+
+  /* FOOTER */
+  .footer {
+    margin-top: 44px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .footer-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--orange);
+    transform: rotate(45deg);
+  }
+
+  @media (max-width: 900px) {
+    body { padding: 24px; }
+    .stats, .timeline, .shifts, .insights, .plan, .forms-box, .forecast-bars, .shortcut-content { grid-template-columns: 1fr; }
+    .shortcut-left { border-right: none; padding-right: 0; border-bottom: 1px solid rgba(255,255,255,0.25); padding-bottom: 20px; }
+    h1 { font-size: 36px; }
+    .next { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <div class="brand">
+      <div class="brand-logo"></div>
+      <div class="brand-text">MEU<span>CHAPA</span></div>
+    </div>
+    <div class="meta">Briefing Operacional · v.2 · Confidencial</div>
+    <h1>Tragetta CPQ<br><span class="accent">diagnóstico de churn</span></h1>
+  </div>
+  <div class="h-right">
+    Período <b>21 jan – 29 mai 2026</b><br>
+    Fill rate maio <b style="color: var(--alert);">65,0%</b><br>
+    Fill rate período <b>80,8%</b><br>
+    Pico fev <b style="color: var(--good);">92,3%</b><br>
+    Por <b>Jeremiah W. · MeuChapa</b>
+  </div>
+</div>
+
+<!-- 30 SECONDS SHORTCUT -->
+<div class="shortcut">
+  <div class="shortcut-tag">LEIA EM 30 SEGUNDOS</div>
+  <div class="shortcut-content">
+    <div class="shortcut-left">
+      <div class="shortcut-headline">
+        A Tragetta está <strong>perdendo a paciência</strong>. Já cortou 1 turno e o 2º está a caminho.
+      </div>
+      <div class="shortcut-body">
+        Em maio, entregamos <b style="color:white">65%</b> das vagas pedidas — caímos de <b style="color:white">92% em fevereiro</b>. Já sabemos entregar bem; estamos perdendo a capacidade. Nossa "base de 197 chapas" é ilusão: na prática trabalham <b style="color:white">27 pessoas</b>, e 5 delas seguram 1/3 da operação. Se 2 chapas-chave saírem, o cliente vai embora em semanas.
+      </div>
+    </div>
+    <div>
+      <div style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.18em; font-weight: 700; opacity: 0.85; margin-bottom: 10px;">3 AÇÕES IMEDIATAS</div>
+      <ul class="shortcut-list">
+        <li><b>Conversa 1:1</b> com os 5–10 chapas-pilar (retenção de talento)</li>
+        <li><b>Migrar os 23 mono-6h30</b> para outros turnos via ligação ativa</li>
+        <li><b>Falar com a Tragetta</b> antes que peçam pra cortar o 22h</li>
+      </ul>
+      <div class="shortcut-promise">
+        Com o plano completo, projetamos <b>recuperar para 90–95% em 6 meses</b> — saindo dos 65% atuais. Já provamos que dá (92% em fevereiro).
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TL;DR -->
+<div class="tldr">
+  <div class="tldr-tag">EM UMA FRASE</div>
+  <div class="tldr-text">
+    Não estamos perdendo chapas.<br>
+    Estamos perdendo <span class="hl">o cliente</span>.
+  </div>
+  <div class="tldr-sub">
+    Cancelamento no sistema = vaga vazia. O motivo registrado é quase sempre "No-Show", mas é a categoria default dos analistas — não diagnóstico real. Sem instrumentação confiável, não dá pra saber quanto é chapa que furou, quanto é base indisponível, quanto é problema operacional. Para o cliente, no entanto, o resultado é o mesmo — vaga vazia. Ele vota silenciosamente: parando de lançar tarefas. A demanda da Tragetta já caiu pela metade (<b>475 → 219 chapas/mês</b>) entre março e maio.
+  </div>
+</div>
+
+<!-- NUMBERS -->
+<div class="stats">
+  <div class="stat alert">
+    <div class="stat-label">Fill rate maio</div>
+    <div class="stat-value">65<span class="unit">%</span></div>
+    <div class="stat-caption"><b>134 de 206 vagas entregues em maio.</b> Era 92% em fevereiro. Queda de 27 pontos em 4 meses. <b>1 em cada 3 vagas vazia</b>.</div>
+  </div>
+  <div class="stat alert">
+    <div class="stat-label">Capacidade real</div>
+    <div class="stat-value">27<span class="unit">/197</span></div>
+    <div class="stat-caption">Chapas que efetivamente trabalharam em maio. <b>91 estão inativos há 30+ dias</b> — o pool de 197 é teórico.</div>
+  </div>
+  <div class="stat warn">
+    <div class="stat-label">Concentração</div>
+    <div class="stat-value">33<span class="unit">%</span></div>
+    <div class="stat-caption"><b>5 chapas carregam 1/3</b> da operação. Se 2 saírem, perdemos 12–15% da capacidade no mesmo dia.</div>
+  </div>
+  <div class="stat alert">
+    <div class="stat-label">Churn da base</div>
+    <div class="stat-value">56<span class="unit">%</span></div>
+    <div class="stat-caption">Dos chapas ativos em abril, <b>mais da metade não voltou em maio</b>. Comparado a março, 72% evaporaram.</div>
+  </div>
+</div>
+
+<!-- SECTION 1 -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 01</div>
+    <div class="section-title">A erosão tem cinco meses de história</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> chegamos a 86 chapas ativos em março, com fill rate em 82%. Hoje temos 27 chapas e 65% de fill rate — perdemos capacidade e entrega ao mesmo tempo.
+  </div>
+  <div class="timeline">
+    <div class="tl-month">
+      <div class="month">Janeiro</div>
+      <div class="big">29</div>
+      <div class="small">chapas ativos<br>Fill rate <b>83%</b></div>
+    </div>
+    <div class="tl-month">
+      <div class="month">Fevereiro</div>
+      <div class="big">33</div>
+      <div class="small">chapas ativos<br>Fill rate <b style="color: var(--good);">92%</b></div>
+      <div class="change" style="color: var(--good)">PICO</div>
+    </div>
+    <div class="tl-month peak">
+      <div class="month">Março</div>
+      <div class="big">86</div>
+      <div class="small">chapas ativos<br>Fill rate <b>82%</b></div>
+      <div class="change" style="color: var(--good)">+160% base</div>
+    </div>
+    <div class="tl-month crit">
+      <div class="month">Abril</div>
+      <div class="big">53</div>
+      <div class="small">chapas ativos<br>Fill rate <b>85%</b></div>
+      <div class="change">−38% base</div>
+    </div>
+    <div class="tl-month crit">
+      <div class="month">Maio</div>
+      <div class="big">27</div>
+      <div class="small">chapas ativos<br>Fill rate <b style="color: var(--alert);">65%</b></div>
+      <div class="change">CRISE INSTALADA</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2 -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 02</div>
+    <div class="section-title">Cada turno conta uma história</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> o 6h30 já caiu. O 22h está repetindo a curva exata do 6h30 com 60 dias de atraso.
+  </div>
+  <div class="read-note">
+    <b>COMO LER:</b>"Cancelado" no sistema = tarefa que terminou sem chapa. O motivo registrado é quase sempre "No-Show chapa", mas analistas usam essa categoria como default — então o breakdown por motivo não é confiável. O que sabemos: vaga vazia é vaga vazia, e a Tragetta vota silenciosamente parando de lançar tarefas na semana seguinte.
+  </div>
+  <div class="shifts">
+    <div class="shift dead">
+      <div class="shift-time">06:30 <span class="shift-status">cliente cortou</span></div>
+      <div class="shift-pct">51%</div>
+      <div class="shift-trend">vagas não preenchidas em maio · era <b>22%</b> em abril</div>
+      <div class="shift-note">Cliente parou de lançar depois de meses sem entregarmos. <b>23 chapas eram "mono 6h30"</b> — vão sumir agora se não houver migração ativa.</div>
+    </div>
+    <div class="shift risk">
+      <div class="shift-time">22:00 <span class="shift-status">próximo</span></div>
+      <div class="shift-pct">36%</div>
+      <div class="shift-trend">vagas não preenchidas em maio · era <b>22%</b> em abril</div>
+      <div class="shift-note">Mesma trajetória do 6h30 com 60 dias de atraso. Se continuarmos sem preencher, cliente para de lançar. <b>Janela mais urgente.</b></div>
+    </div>
+    <div class="shift ok">
+      <div class="shift-time">12:30 <span class="shift-status">sob pressão</span></div>
+      <div class="shift-pct">27%</div>
+      <div class="shift-trend">vagas não preenchidas em maio · era <b>11%</b> em abril</div>
+      <div class="shift-note">Mais saudável dos três, mas dobrou de mês a mês. Único turno multi-uso (24 chapas distintos atuam).</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3 -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 03</div>
+    <div class="section-title">Onze padrões por trás do colapso</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> o problema não é falta de chapa — é base concentrada, churn altíssimo, incentivo mal calibrado e sem onboarding.
+  </div>
+  <div class="insights">
+
+    <div class="insight crit">
+      <div class="insight-num">01 · ECONOMIA</div>
+      <div class="insight-title">A "base de 197" é ficção contábil</div>
+      <div class="insight-body">120 apareceram em 5 meses, 91 estão inativos 30+ dias, <b>27 trabalham em maio</b>. Forms baseado nos 197 parte de premissa falsa. <code>197 → 27</code> é a realidade.</div>
+    </div>
+
+    <div class="insight crit">
+      <div class="insight-num">02 · CONFIANÇA</div>
+      <div class="insight-title">Demanda do cliente caiu pela metade</div>
+      <div class="insight-body">De <code>475 chapas/mês</code> em março para <code>219</code> em maio. Tragetta lança demanda semanalmente — reduzir é literal. <b>É a única forma de medir a confiança dela</b>, e está caindo rápido.</div>
+    </div>
+
+    <div class="insight orange">
+      <div class="insight-num">03 · COMPORTAMENTO</div>
+      <div class="insight-title">Especialização forte por turno</div>
+      <div class="insight-body">Entre os ativos: <b>23 mono-6h30</b>, <b>6 mono-22h</b>, <b>3 mono-12h30</b>, 11 multi-turno. Cortar 6h30 sem migração = perder 23 pessoas que só trabalham naquele horário.</div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-num">04 · INCENTIVO</div>
+      <div class="insight-title">Bonificação engaja a elite, não a base</div>
+      <div class="insight-body">Em 5 meses, apenas <b>13 chapas distintos</b> bateram a meta de 6 tarefas/semana. A maioria gravita entre 1–3 tarefas. O bônus é tudo-ou-nada — não capta quem está em 4–5.</div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-num">05 · GEOGRAFIA SEMANAL</div>
+      <div class="insight-title">Falta mora no meio da semana</div>
+      <div class="insight-body">Ter/qua/qui concentram cancelamentos no 6h30 e 22h. Sábado é o melhor dia. Sintoma de quem mantém duas rendas em paralelo.</div>
+    </div>
+
+    <div class="insight orange">
+      <div class="insight-num">06 · CONCENTRAÇÃO</div>
+      <div class="insight-title">5 pessoas seguram 1/3 da operação</div>
+      <div class="insight-body">Érisson + José Wagner sozinhos = 42 das 226 presenças de maio. Sem retenção dedicada a esse núcleo, qualquer férias ou troca é catástrofe imediata.</div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-num">07 · RECRUTAMENTO</div>
+      <div class="insight-title">Balde furado: 31 chapas vieram só 1 vez</div>
+      <div class="insight-body">31+16 chapas vieram 1 ou 2 vezes em todo o período. Recrutar mais não resolve se a fixação na primeira semana for tão baixa. <b>Falta onboarding</b>.</div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-num">08 · INSTRUMENTAÇÃO</div>
+      <div class="insight-title">Não medimos o que importa</div>
+      <div class="insight-body">35% das tarefas com Status FUP em branco = vaga sem chapa. Não distinguimos <b>"ninguém viu"</b> de <b>"viu e ignorou"</b> de <b>"aceitou e furou"</b>. Sem isso, qualquer plano é cego.</div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-num">09 · PERFIL</div>
+      <div class="insight-title">"Vício de fixos" é racional, não preguiça</div>
+      <div class="insight-body">Semi-fixos que faltam 2x/semana provavelmente têm segundo emprego. Não substituível por força bruta — tem que oferecer escala compatível ou aceitar a folga.</div>
+    </div>
+
+    <div class="insight crit">
+      <div class="insight-num">10 · DADOS SUJOS</div>
+      <div class="insight-title">Não sabemos por que as vagas cancelam</div>
+      <div class="insight-body">Analistas registram quase todo cancelamento como "No-Show chapa" por default — independente do motivo real (chapa furou, base indisponível, problema técnico, EPI faltando). <b>Estamos cegos para a causa raiz.</b> Sem instrumentação confiável, não dá pra escolher entre "recrutar mais" vs "reter melhor" — é decisão no escuro. Tornar a instrumentação BID/FUP confiável vira prioridade.</div>
+    </div>
+
+    <div class="insight">
+      <div class="insight-num">11 · BACKUP</div>
+      <div class="insight-title">Backup falha porque é mesmo perfil</div>
+      <div class="insight-body">4 backups para vaga de 10 e chegam 9 significa que backup vem do mesmo pool cansado. Sem diversificação geográfica/perfil, backup é só mais peso no mesmo grupo.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SECTION 4: SPIRAL -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 04</div>
+    <div class="section-title">A espiral em curso</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> cada vaga não preenchida hoje vira menos demanda do cliente amanhã, menos oportunidade pro chapa, e mais churn — um ciclo que se realimenta.
+  </div>
+  <div class="spiral">
+    <div class="spiral-grid">
+      <div class="spiral-node"><div class="step">01</div><div class="desc">Cliente pede 10 chapas</div></div>
+      <div class="spiral-arrow">→</div>
+      <div class="spiral-node"><div class="step">02</div><div class="desc">Só 7 confirmam</div></div>
+      <div class="spiral-arrow">→</div>
+      <div class="spiral-node"><div class="step">03</div><div class="desc">3 vagas viram "canceladas"</div></div>
+      <div class="spiral-arrow">↓</div>
+    </div>
+    <div class="spiral-grid">
+      <div class="spiral-node"><div class="step">06</div><div class="desc">Cliente reduz volume ou corta turno</div></div>
+      <div class="spiral-arrow">←</div>
+      <div class="spiral-node"><div class="step">05</div><div class="desc">MeuChapa perde receita e capacidade</div></div>
+      <div class="spiral-arrow">←</div>
+      <div class="spiral-node"><div class="step">04</div><div class="desc">Chapas têm menos oportunidade, ficam dormentes</div></div>
+      <div class="spiral-arrow">↑</div>
+    </div>
+    <div class="spiral-loop">↻ &nbsp; CICLO SE REPETE A CADA MÊS &nbsp; ↻</div>
+  </div>
+</div>
+
+<!-- SECTION 5: FORMS CRITIQUE -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 05</div>
+    <div class="section-title">O Forms com ultimato resolve sozinho? <span class="accent">Não.</span></div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> Forms é útil como peça de um plano maior — sozinho é gesto vazio. E o tom ultimato pode queimar chapas que ainda dá pra recuperar.
+  </div>
+  <div class="forms-box">
+    <div class="forms-col bad">
+      <div class="forms-header">
+        <div class="forms-tag">RISCOS</div>
+      </div>
+      <ul class="forms-list">
+        <li>Quem responde "sim, quero trabalhar" não garante presença — intenção e comportamento são coisas diferentes.</li>
+        <li>Tom ultimato queima relação com chapas dormentes que seriam reativáveis.</li>
+        <li>91 inativos já não respondem — proxy ruim de saneamento.</li>
+        <li>Não cria capacidade nova — só filtra a existente.</li>
+        <li>Não toca na causa raiz: <b>por que quem era bom em março sumiu em maio.</b></li>
+      </ul>
+    </div>
+    <div class="forms-col good">
+      <div class="forms-header">
+        <div class="forms-tag">VALOR REAL</div>
+      </div>
+      <ul class="forms-list">
+        <li>Coleta declarações que os dados não revelam (turno preferido, dias evitados, motivo de afastamento).</li>
+        <li>Gatilho de reativação para ~40 chapas em zona cinza (inativos 30–60 dias).</li>
+        <li>Limpa formalmente cadastro morto — útil pra reporting interno.</li>
+        <li>Sinaliza ao chapa que ele importa — bem usado, é cuidado, não ameaça.</li>
+        <li>Gera baseline pra medir efeito das próximas ações.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="verdict">
+    <b>Veredito:</b> usar o Forms <b>sim, mas como peça de um plano</b> — não isolado e não com tom de ultimato. Reformatar como "recadastro + escuta ativa" multiplica retorno e preserva relacionamento com a base recuperável.
+  </div>
+</div>
+
+<!-- SECTION 6: PLAN -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 06</div>
+    <div class="section-title">Plano em três horizontes</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> parar a sangria em 2 semanas, reconstruir fluxo em 2 meses, mudar a estrutura em 6 meses. Cada fase com meta clara de fill rate.
+  </div>
+  <div class="plan">
+
+    <div class="phase">
+      <div class="phase-window">Horizonte 1 · 0–14 dias</div>
+      <div class="phase-title">Parar a <span class="accent">sangria</span></div>
+      <div class="phase-goal">Salvar o turno das 22h antes que a Tragetta peça pra cortar. Estabilizar relação com o cliente. Falar com quem importa.</div>
+      <div class="phase-impact">
+        <div>
+          <div class="phase-impact-label">Fill rate projetado</div>
+          <div class="phase-impact-value">65% → 72–78%</div>
+        </div>
+      </div>
+      <ul class="actions">
+        <li class="action"><div class="action-num">1.1</div><div><b>Conversa 1:1 com 5–10 chapas-pilar</b><span> — entender o que prende e o que afasta. Retenção de talento.</span></div></li>
+        <li class="action"><div class="action-num">1.2</div><div><b>Protocolo de confirmação + backup</b><span> — ligar ou WhatsApp na véspera para todo chapa designado; ter 1 backup pré-acionado por tarefa. Reduz risco de vaga vazia independentemente do motivo real do cancelamento.</span></div></li>
+        <li class="action"><div class="action-num">1.3</div><div><b>Migração ativa dos 23 mono-6h30</b><span> — ligação individual: "o que conseguiria fazer no 12h30 ou 22h?".</span></div></li>
+        <li class="action"><div class="action-num">1.4</div><div><b>Conversa franca com a Tragetta</b><span> — apresentar este diagnóstico + plano antes que peçam pra cortar 22h.</span></div></li>
+        <li class="action"><div class="action-num">1.5</div><div><b>Despachar a app de classificação</b><span> — escopo no documento companheiro. Visibilidade diária da base.</span></div></li>
+        <li class="action"><div class="action-num">1.6</div><div><b>Instrumentação confiável com o Léo (PRIORIDADE)</b><span> — distinguir motivos reais de cancelamento + rastrear "viu / aceitou / foi". Sem isso, todo plano é decisão no escuro.</span></div></li>
+      </ul>
+    </div>
+
+    <div class="phase">
+      <div class="phase-window">Horizonte 2 · 15–60 dias</div>
+      <div class="phase-title">Reconstruir <span class="accent">fluxo</span></div>
+      <div class="phase-goal">Reabrir a base com perfil compatível com o que falta. Reformular incentivos. Operacionalizar o saneamento.</div>
+      <div class="phase-impact">
+        <div>
+          <div class="phase-impact-label">Fill rate projetado</div>
+          <div class="phase-impact-value">75% → 85–90%</div>
+        </div>
+      </div>
+      <ul class="actions">
+        <li class="action"><div class="action-num">2.1</div><div><b>Forms de recadastro (não ultimato)</b><span> — tom de escuta. Foco em disponibilidade real e fricção.</span></div></li>
+        <li class="action"><div class="action-num">2.2</div><div><b>Reformular bonificação</b><span> — escala progressiva: R$30 na 4ª, +R$30 na 5ª, +R$50 na 6ª.</span></div></li>
+        <li class="action"><div class="action-num">2.3</div><div><b>Recrutar com viés inverso</b><span> — buscar chapas disponíveis ter/qua/qui (não fim de semana).</span></div></li>
+        <li class="action"><div class="action-num">2.4</div><div><b>Padrinho na primeira semana</b><span> — todo novo chapa entra com um pilar como contato. Reduz 1-vez-só de 31 para &lt;10.</span></div></li>
+        <li class="action"><div class="action-num">2.5</div><div><b>SLA visível ao cliente</b><span> — dashboard semanal de preenchimento. Transparência reconstrói confiança mais rápido que promessas.</span></div></li>
+      </ul>
+    </div>
+
+    <div class="phase">
+      <div class="phase-window">Horizonte 3 · 60–180 dias</div>
+      <div class="phase-title">Mudar a <span class="accent">estrutura</span></div>
+      <div class="phase-goal">Sair do balde furado. Criar base que se autossustenta sem depender de força bruta nem de 5 pessoas-chave.</div>
+      <div class="phase-impact">
+        <div>
+          <div class="phase-impact-label">Fill rate projetado</div>
+          <div class="phase-impact-value">88% → 92–95%</div>
+        </div>
+      </div>
+      <ul class="actions">
+        <li class="action"><div class="action-num">3.1</div><div><b>Estratificação formal da base</b><span> em pilares / frequentes / casuais / dormentes. Política própria por perfil.</span></div></li>
+        <li class="action"><div class="action-num">3.2</div><div><b>Diversificação geográfica</b><span> — mapear bairros e cruzar com horários. Tem cluster preso por transporte.</span></div></li>
+        <li class="action"><div class="action-num">3.3</div><div><b>Cohort de retenção mensal</b><span> — medir novos chapas do mês X ainda ativos no X+2. Hoje provavelmente &lt;30%.</span></div></li>
+        <li class="action"><div class="action-num">3.4</div><div><b>Programa de carreira/permanência</b><span> — não é só dinheiro: previsibilidade, reconhecimento, benefício acumulado.</span></div></li>
+        <li class="action"><div class="action-num">3.5</div><div><b>Replicar o playbook</b><span> nos outros clientes do MeuChapa.</span></div></li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- SECTION 7: FORECAST -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 07</div>
+    <div class="section-title">O que esperar do fill rate</div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> de <b>65%</b> em maio para <b>92–95%</b> em 6 meses. Já conseguimos 92% em fevereiro — não é fantasia, é recuperação.
+  </div>
+  <div class="forecast">
+    <div class="forecast-head">
+      <div class="forecast-title">Trajetória + Projeção de Fill Rate</div>
+      <div class="forecast-base">PERÍODO ANALISADO · TRAGETTA CAMPINAS CPQ · 948/1173 vagas (80,8% médio)</div>
+    </div>
+    <div class="forecast-bars" style="grid-template-columns: repeat(8, 1fr);">
+      <div class="fbar">
+        <div class="fbar-label">Jan</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 83%;"><div class="num" style="font-size: 14px;">83%</div></div>
+        </div>
+        <div class="fbar-window">histórico</div>
+      </div>
+      <div class="fbar">
+        <div class="fbar-label">Fev</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 92%; background: rgba(255,255,255,0.92);"><div class="num" style="font-size: 14px;">92%</div></div>
+        </div>
+        <div class="fbar-window">pico</div>
+      </div>
+      <div class="fbar">
+        <div class="fbar-label">Mar</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 82%;"><div class="num" style="font-size: 14px;">82%</div></div>
+        </div>
+        <div class="fbar-window">histórico</div>
+      </div>
+      <div class="fbar">
+        <div class="fbar-label">Abr</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 85%;"><div class="num" style="font-size: 14px;">85%</div></div>
+        </div>
+        <div class="fbar-window">histórico</div>
+      </div>
+      <div class="fbar">
+        <div class="fbar-label">Mai</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 65%; background: rgba(0,0,0,0.45);"><div class="num" style="color: white; font-size: 14px;">65%</div></div>
+        </div>
+        <div class="fbar-window" style="font-weight: 700;">hoje</div>
+      </div>
+      <div class="fbar">
+        <div class="fbar-label">+14d</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 75%; background: rgba(255,255,255,0.7); border: 2px dashed white; border-bottom: none;"><div class="num" style="font-size: 13px;">72–78%</div></div>
+        </div>
+        <div class="fbar-window">H1</div>
+      </div>
+      <div class="fbar">
+        <div class="fbar-label">+60d</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 87%; background: rgba(255,255,255,0.7); border: 2px dashed white; border-bottom: none;"><div class="num" style="font-size: 13px;">85–90%</div></div>
+        </div>
+        <div class="fbar-window">H2</div>
+      </div>
+      <div class="fbar">
+        <div class="fbar-label">+180d</div>
+        <div class="fbar-bar">
+          <div class="fbar-fill" style="height: 93%; background: rgba(255,255,255,0.7); border: 2px dashed white; border-bottom: none;"><div class="num" style="font-size: 13px;">92–95%</div></div>
+        </div>
+        <div class="fbar-window">H3</div>
+      </div>
+    </div>
+    <div class="forecast-note">
+      <b>Por que essa projeção é realista:</b> em fevereiro, com base menor que hoje (33 chapas ativos), o fill rate foi 92%. A capacidade existe — o problema é manutenção. <b>Como chegamos aos números:</b> migrar os 23 mono-6h30 para outros turnos adiciona ~6% de capacidade (+4p). Protocolo de confirmação na véspera + backup pronto reduz vagas vazias por qualquer motivo (+5p). Recuperar 15–25 dormentes via Forms bem feito (+4p). Reformular bonificação tira gente da zona 3–4 tarefas pra 5–6 (+3p). Padrinho reduz 1-vez-só (+2p). Estratificação e diversificação geográfica adicionam os últimos +5p. <b>Projeção, não promessa</b> — depende de execução disciplinada e do cliente não cortar mais turnos antes.
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 8: QUESTIONS -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">§ 08</div>
+    <div class="section-title">Se for usar o Forms, faça <span class="accent">assim</span></div>
+  </div>
+  <div class="section-summary">
+    <b>Em uma frase:</b> 11 perguntas, tom de escuta, follow-up por ligação para os top 30 — não um questionário de RH ameaçador.
+  </div>
+  <div class="questions">
+    <div class="q-intro">
+      Reformatar como <b>"Atualização de cadastro Tragetta CPQ — queremos te oferecer mais tarefas do jeito certo"</b>. Disparo único, prazo de 7 dias, follow-up por ligação para quem não responder (e for top 30).
+    </div>
+
+    <div class="q-block">
+      <div class="q-section-title">A · Identificação</div>
+      <div class="q-item"><div class="q-num">01</div><div class="q-text"><b>Confirme seu nome completo</b><span class="why">cruzar com base atual e detectar duplicatas/inativos</span></div></div>
+      <div class="q-item"><div class="q-num">02</div><div class="q-text"><b>Telefone atual com WhatsApp</b><span class="why">muitos números no cadastro estão desatualizados</span></div></div>
+    </div>
+
+    <div class="q-block">
+      <div class="q-section-title">B · Disponibilidade real</div>
+      <div class="q-item"><div class="q-num">03</div><div class="q-text"><b>Em qual turno você consegue trabalhar com regularidade?</b> · 12h30 · 22h00 · Outro<span class="why">revela o universo real de oferta</span></div></div>
+      <div class="q-item"><div class="q-num">04</div><div class="q-text"><b>Em quais dias da semana você tem disponibilidade?</b> (seg a dom)<span class="why">resolve o gargalo ter/qua/qui</span></div></div>
+      <div class="q-item"><div class="q-num">05</div><div class="q-text"><b>Quantas tarefas/semana você está buscando?</b> · Até 2 · 3–4 · 5–6 · Mais de 6<span class="why">distingue "fixo desejado" de "esporádico"</span></div></div>
+      <div class="q-item"><div class="q-num">06</div><div class="q-text"><b>Você tem outro trabalho que limita seus horários?</b> · Não · Sim na semana · Sim no fds · Prefiro não dizer<span class="why">explica padrão de falta sem culpabilizar</span></div></div>
+    </div>
+
+    <div class="q-block">
+      <div class="q-section-title">C · Fricções operacionais</div>
+      <div class="q-item"><div class="q-num">07</div><div class="q-text"><b>O que mais te impede de aceitar uma tarefa?</b> · Aviso em cima da hora · Horário ruim · Valor baixo · Distância · Outro trabalho · Cansaço · Não vejo a mensagem<span class="why">identifica gargalo de oferta vs gargalo do chapa</span></div></div>
+      <div class="q-item"><div class="q-num">08</div><div class="q-text"><b>Como prefere receber as ofertas?</b> · WhatsApp · App · Ligação · Os três<span class="why">otimiza canal</span></div></div>
+      <div class="q-item"><div class="q-num">09</div><div class="q-text"><b>Antecedência mínima pra confirmar?</b> · 1h · 2–4h · 4–12h · 12–24h · 1 dia+<span class="why">calibra a régua do BID</span></div></div>
+    </div>
+
+    <div class="q-block">
+      <div class="q-section-title">D · Sinal de intenção</div>
+      <div class="q-item"><div class="q-num">10</div><div class="q-text"><b>Em uma escala de 0 a 10, quanto você quer estar entre os chapas regulares da Tragetta?</b><span class="why">quem responde &lt;5 sai da oferta prioritária sem ultimato</span></div></div>
+      <div class="q-item"><div class="q-num">11</div><div class="q-text"><b>Tem algo que mudaria seu jogo?</b> (campo aberto, opcional, 300 caracteres)<span class="why">campo aberto = ouro operacional</span></div></div>
+    </div>
+
+    <div class="q-tips">
+      <b>Boas práticas:</b> mandar de manhã, reabrir prazo 1x, ligar para top-30 que não respondeu, e devolver retorno aos respondentes ("recebemos seu cadastro, você vai começar a ver ofertas X").
+    </div>
+  </div>
+</div>
+
+<!-- NEXT -->
+<div class="next">
+  <div class="next-icon">→</div>
+  <div>
+    <div class="next-title">Documento companheiro: escopo da aplicação</div>
+    <div class="next-body">
+      Em paralelo a este briefing, foi produzido o <b>documento de escopo funcional da aplicação</b> de classificação da base de chapas — não vinculada à Tragetta, aplicável a qualquer cliente do MeuChapa, com detecção automática de turnos a partir dos dados. É o que vai operacionalizar a visibilidade que falta hoje, e roda no Claude Code para integração com sistemas existentes.
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-brand">
+    <div class="footer-dot"></div>
+    <span>MeuChapa · Precisou, tá aqui!</span>
+  </div>
+  <div>Jeremiah Wijngaarde · Analista de Operações</div>
+  <div>Maio 2026 · Tragetta CPQ Briefing v.2</div>
+</div>
+
+</body>
+</html>
