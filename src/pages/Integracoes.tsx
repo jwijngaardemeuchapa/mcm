@@ -481,54 +481,93 @@ export default function Integracoes() {
           {/* FUP bots */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">Bot FUP — Chatbot de follow-up</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Bot D0 — dia da tarefa / futuro
-                </label>
-                <Select
-                  value={umblerSettings.fupBotId || ""}
-                  onValueChange={(val) => {
-                    const entry = FUP_D0_BOTS.find((b) => b.botId === val);
-                    if (entry) updateUmblerSetting({ fupBotId: entry.botId, fupBotTriggerName: entry.label });
-                  }}
-                >
-                  <SelectTrigger className="font-mono text-xs">
-                    <SelectValue placeholder="Selecionar bot D0…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FUP_D0_BOTS.map((b) => (
-                      <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
-                        {b.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Bot D1 — pós-tarefa (dia seguinte em diante)
-                </label>
-                <Select
-                  value={umblerSettings.fupBotD1Id || ""}
-                  onValueChange={(val) => {
-                    const entry = FUP_D1_BOTS.find((b) => b.botId === val);
-                    if (entry) updateUmblerSetting({ fupBotD1Id: entry.botId, fupBotD1TriggerName: entry.label });
-                  }}
-                >
-                  <SelectTrigger className="font-mono text-xs">
-                    <SelectValue placeholder="Selecionar bot D1…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FUP_D1_BOTS.map((b) => (
-                      <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
-                        {b.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+            {/* D0 */}
+            <div className="rounded-md border border-border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Bot D0 — dia da tarefa / futuro</p>
+              <Select
+                value={FUP_D0_BOTS.find((b) => b.botId === umblerSettings.fupBotId)?.botId ?? ""}
+                onValueChange={(val) => {
+                  const entry = FUP_D0_BOTS.find((b) => b.botId === val);
+                  if (entry) updateUmblerSetting({ fupBotId: entry.botId, fupBotTriggerName: entry.label });
+                }}
+              >
+                <SelectTrigger className="font-mono text-xs">
+                  <SelectValue placeholder="Selecionar da lista…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FUP_D0_BOTS.map((b) => (
+                    <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
+                      {b.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Trigger Name</label>
+                  <Input
+                    value={umblerSettings.fupBotTriggerName}
+                    onChange={(e) => updateUmblerSetting({ fupBotTriggerName: e.target.value })}
+                    placeholder="FUP_NOME | D0"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Bot ID</label>
+                  <Input
+                    value={umblerSettings.fupBotId}
+                    onChange={(e) => updateUmblerSetting({ fupBotId: e.target.value })}
+                    placeholder="abry27tO-13jrsi3"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* D1 */}
+            <div className="rounded-md border border-border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Bot D1 — pós-tarefa (dia seguinte em diante)</p>
+              <Select
+                value={FUP_D1_BOTS.find((b) => b.botId === umblerSettings.fupBotD1Id)?.botId ?? ""}
+                onValueChange={(val) => {
+                  const entry = FUP_D1_BOTS.find((b) => b.botId === val);
+                  if (entry) updateUmblerSetting({ fupBotD1Id: entry.botId, fupBotD1TriggerName: entry.label });
+                }}
+              >
+                <SelectTrigger className="font-mono text-xs">
+                  <SelectValue placeholder="Selecionar da lista…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FUP_D1_BOTS.map((b) => (
+                    <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
+                      {b.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Trigger Name</label>
+                  <Input
+                    value={umblerSettings.fupBotD1TriggerName}
+                    onChange={(e) => updateUmblerSetting({ fupBotD1TriggerName: e.target.value })}
+                    placeholder="FUP_NOME | D1"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Bot ID</label>
+                  <Input
+                    value={umblerSettings.fupBotD1Id}
+                    onChange={(e) => updateUmblerSetting({ fupBotD1Id: e.target.value })}
+                    placeholder="abry86xIPqGJg7Jl"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+              </div>
+            </div>
+
             <p className="text-[11px] text-muted-foreground">
               O disparo de FUP chama o robô via <strong className="text-foreground">start-bot</strong>.
               Variáveis enviadas em <code className="text-foreground">initialData</code>: <code className="text-foreground">Data</code> (Hoje/Amanhã às HH:mm / dd/MM às HH:mm), <code className="text-foreground">Cidade</code>.
@@ -565,19 +604,16 @@ export default function Integracoes() {
           {/* BID bot */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">Bot BID — Chatbot de convite de tarefa</p>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Bot BID ativo
-              </label>
+            <div className="rounded-md border border-border p-3 space-y-2">
               <Select
-                value={umblerSettings.bidBotId || ""}
+                value={BID_BOTS.find((b) => b.botId === umblerSettings.bidBotId)?.botId ?? ""}
                 onValueChange={(val) => {
                   const entry = BID_BOTS.find((b) => b.botId === val);
                   if (entry) updateUmblerSetting({ bidBotId: entry.botId, bidBotTriggerName: entry.label });
                 }}
               >
                 <SelectTrigger className="font-mono text-xs">
-                  <SelectValue placeholder="Selecionar bot BID…" />
+                  <SelectValue placeholder="Selecionar da lista…" />
                 </SelectTrigger>
                 <SelectContent>
                   {BID_BOTS.map((b) => (
@@ -587,6 +623,26 @@ export default function Integracoes() {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Trigger Name</label>
+                  <Input
+                    value={umblerSettings.bidBotTriggerName}
+                    onChange={(e) => updateUmblerSetting({ bidBotTriggerName: e.target.value })}
+                    placeholder="BID_NOME | D0"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Bot ID</label>
+                  <Input
+                    value={umblerSettings.bidBotId}
+                    onChange={(e) => updateUmblerSetting({ bidBotId: e.target.value })}
+                    placeholder="abrvT7tO-13jbq-Z"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+              </div>
             </div>
             <p className="text-[11px] text-muted-foreground">
               O disparo de BID chama o robô via <strong className="text-foreground">start-bot</strong>.
