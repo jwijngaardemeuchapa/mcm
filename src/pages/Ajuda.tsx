@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.84</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.90</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,10 +767,11 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.84 — score de confiabilidade, alerta de ASO e painéis organizados:</strong>{" "}
-              <strong>Score de confiabilidade</strong>: chapas no painel FUP agora exibem ★ com nota 0–5 calculada dos últimos 15 dias (presenças, confirmações, faltas e remoções) — passe o mouse para ver o detalhamento. Aparece a partir de 2 participações.{" "}
-              <strong>Alerta de ASO</strong>: no BID Dashboard, o selo ASO agora lê a data de vencimento — fica âmbar a 15 dias do vencimento e vermelho a 7 dias ou vencido.{" "}
-              <strong>Painéis flutuantes organizados</strong>: o painel de disparos e o alerta de proximidade não se sobrepõem mais — empilham no canto inferior direito e ambos podem ser minimizados em uma pílula compacta (—).
+              <strong>v0.9.90 — UX, acessibilidade e Integrações aprimoradas:</strong>{" "}
+              <strong>Integrações protegidas por senha</strong>: a tela de Integrações agora exige senha de acesso, com valores de remetente e organização pré-preenchidos.{" "}
+              <strong>Dropdowns de bot</strong>: FUP D0, FUP D1 e BID agora selecionados via dropdown com lista completa de bots — seleção preenche automaticamente Trigger Name e Bot ID, com opção de edição manual.{" "}
+              <strong>Vídeo de abertura</strong>: intro exibido nas 2 primeiras aberturas do app e toda segunda-feira na primeira abertura do dia.{" "}
+              <strong>Confirmações e acessibilidade</strong>: botão Limpar dados do Fillrate agora pede confirmação; botões de remoção de chapa e exclusão de registro com aria-label para leitores de tela.
             </span>
           </div>
         )}
@@ -1006,7 +1007,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.84 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v0.9.90 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1041,7 +1042,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.84 · © 2026 Wijngaarde Design
+        MCM v0.9.90 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
