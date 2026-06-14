@@ -520,6 +520,8 @@ Precisamos de 1 substituto para esta tarefa.`;
     onRefresh();
   }
 
+  const { umblerSettings, operadorNome, fupElapsedAlertMinutes, fupAgendarMinAntes } = readSettings();
+
   const fupAllCount = task.fup_log.filter((f) => f.canal === "umbler_talk" && !f.chapa_id).length;
   const fupDispatched = task.fup_log.length > 0 || !!csvExportedAt;
 
@@ -533,8 +535,6 @@ Precisamos de 1 substituto para esta tarefa.`;
     : null;
   const lastFupAt = lastFupLog?.data_disparo ?? csvExportedAt ?? null;
   const minutesSinceFup = lastFupAt ? Math.floor((nowTs - new Date(lastFupAt).getTime()) / 60_000) : null;
-
-  const { umblerSettings, operadorNome, fupElapsedAlertMinutes, fupAgendarMinAntes } = readSettings();
   const umblerReady = !!(
     umblerSettings.bearerToken &&
     umblerSettings.fromPhone &&
