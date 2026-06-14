@@ -20,11 +20,19 @@ export type UmblerSettings = {
   webhookPort: number;
 };
 
+export type SonsSettings = {
+  intro: boolean;        // áudio do vídeo de abertura
+  alertas: boolean;      // bipe de chapa sem confirmação
+  confirmacoes: boolean; // chime ao validar/concluir tarefa
+  turno: boolean;        // som ao copiar troca de turno
+};
+
 export type AppSettings = {
   fillRateWarningThreshold: number;
   defaultDashboardView: "detailed" | "panorama" | "timeline";
   approachingAlertEnabled: boolean;
   soundAlertEnabled: boolean;
+  sons: SonsSettings;
   portariaRules: PortariaRule[];
   priorityPanelEnabled: boolean;
   priorityPanelHideMonitorar: boolean;
@@ -44,6 +52,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   defaultDashboardView: "detailed",
   approachingAlertEnabled: true,
   soundAlertEnabled: false,
+  sons: { intro: true, alertas: false, confirmacoes: true, turno: true },
   portariaRules: [],
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
@@ -67,6 +76,10 @@ export function readSettings(): AppSettings {
     return {
       ...SETTING_DEFAULTS,
       ...parsed,
+      sons: {
+        ...SETTING_DEFAULTS.sons,
+        ...(parsed.sons ?? {}),
+      },
       umblerSettings: {
         ...SETTING_DEFAULTS.umblerSettings,
         ...(parsed.umblerSettings ?? {}),

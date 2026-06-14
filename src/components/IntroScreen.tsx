@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { markIntroShown } from "@/lib/introLogic";
+import { readSettings } from "@/lib/settings";
 
 type Phase = "video" | "text" | "out";
 
@@ -81,7 +82,7 @@ export function IntroScreen({ onDone }: Props) {
         <video
           src="/intro.mp4"
           autoPlay
-          muted
+          muted={!readSettings().sons.intro}
           playsInline
           preload="auto"
           onEnded={goText}

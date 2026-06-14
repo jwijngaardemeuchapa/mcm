@@ -132,7 +132,13 @@ export function AppSidebar() {
     <>
       <Sidebar collapsible="icon" className="border-r border-sidebar-border">
         <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-          <img src={logo} alt="MCM" className="h-9 w-9 shrink-0" />
+          <img
+            src={logo}
+            alt="MCM"
+            className="h-9 w-9 shrink-0 cursor-pointer hover:opacity-75 transition-opacity duration-150 active:scale-95"
+            title="Ver intro"
+            onClick={() => window.dispatchEvent(new CustomEvent("mcm:show-intro"))}
+          />
           {!collapsed && (
             <div className="leading-tight">
               <div className="font-display font-bold text-sidebar-foreground text-base">MCM</div>
