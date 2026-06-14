@@ -57,7 +57,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
   agendaSortBy: "prazo",
-  umblerSettings: { bearerToken: "", fromPhone: "", organizationId: "", templateId: "", cancelTemplateId: "", taskCancelTemplateId: "", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", webhookPort: 9988 },
+  umblerSettings: { bearerToken: "", fromPhone: "+55109997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", webhookPort: 9988 },
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,
@@ -80,10 +80,17 @@ export function readSettings(): AppSettings {
         ...SETTING_DEFAULTS.sons,
         ...(parsed.sons ?? {}),
       },
-      umblerSettings: {
-        ...SETTING_DEFAULTS.umblerSettings,
-        ...(parsed.umblerSettings ?? {}),
-      },
+      umblerSettings: (() => {
+        const merged = { ...SETTING_DEFAULTS.umblerSettings, ...(parsed.umblerSettings ?? {}) };
+        const d = SETTING_DEFAULTS.umblerSettings;
+        return {
+          ...merged,
+          fromPhone: merged.fromPhone || d.fromPhone,
+          organizationId: merged.organizationId || d.organizationId,
+          cancelTemplateId: merged.cancelTemplateId || d.cancelTemplateId,
+          taskCancelTemplateId: merged.taskCancelTemplateId || d.taskCancelTemplateId,
+        };
+      })(),
     };
   } catch {
     return { ...SETTING_DEFAULTS };

@@ -17,12 +17,21 @@ import {
   Clock,
   Webhook,
   Copy,
+  Lock,
+  KeyRound,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +45,7 @@ import { errMsg } from "@/lib/db";
 import { toast } from "sonner";
 
 const LISTENER_TIMEOUT_SECS = 120;
+const SENHA_INTEGRACOES = "ch@p@Meu";
 
 type ListenerStep = "input" | "waiting" | "done";
 type ListenerResult = "sim" | "nao" | "timeout" | null;
@@ -46,15 +56,98 @@ interface NotificationMatch {
   arrival_time_secs: number;
 }
 
+type BotEntry = { label: string; botId: string };
+
+const FUP_D0_BOTS: BotEntry[] = [
+  { label: "FUP_ERIC | D0",         botId: "aV__ocFdmFMzyOP5" },
+  { label: "FUP_ELIDIANY | D0",     botId: "aXn0gZxj-7WGDBw-" },
+  { label: "FUP_WALLACE | D0",      botId: "aXn040hi2Y-QhKZE" },
+  { label: "FUP_LUANAMOURA | D0",   botId: "aXuXJnwIz18MZ-dL" },
+  { label: "FUP_ISABELA | D0",      botId: "abFqSCNwTvBnSbgz" },
+  { label: "FUP_SABRINA | D0",      botId: "abFu2V0cILE1_EOM" },
+  { label: "FUP_JEREMIAH | D0",     botId: "abry27tO-13jrsi3" },
+  { label: "FUP_Jonathan | D0",     botId: "ac10xUJ8K2MU3kNY" },
+  { label: "FUP_Matheus | D0",      botId: "ac169EJ8K2MU8JKj" },
+  { label: "FUP_VICTORIA | D0",     botId: "aV5dFA42PnbCuTXG" },
+  { label: "FUP_ISAAC | D0",        botId: "aJX_f14daaS-uu8s" },
+  { label: "FUP_ALANIS | D0",       botId: "aJX__UsQRpfSKFAc" },
+  { label: "FUP_HILARY | D0",       botId: "aJYMeV4daaS-3IH8" },
+  { label: "FUP_GUILHERME | D0",    botId: "aLmSyS9_r7wQX2MC" },
+  { label: "FUP_JAKELINE | D0",     botId: "aUFq21RK_T9enOJf" },
+  { label: "FUP_EMANUELLE | D0",    botId: "aUQ9nsNnXHj9ZCM2" },
+  { label: "FUP_ANA R. | D0",       botId: "aUQ9wDIB26TfeGbI" },
+  { label: "FUP_LUCAS V. | D0",     botId: "aUQ93vkLIBV3bQsI" },
+  { label: "FUP_VITOR S. | D0",     botId: "aUQ-EmY0VXoP1TL1" },
+  { label: "FUP_GEOVANA C. | D0",   botId: "aUQ-gPkLIBV3bzPY" },
+];
+
+const FUP_D1_BOTS: BotEntry[] = [
+  { label: "FUP_Jonathan | D1",     botId: "aV5dKydtZ6Fk1Lit" },
+  { label: "FUP_ELIDIANY | D1",     botId: "aXn0lJt03nJW2ysn" },
+  { label: "FUP_ISABELA | D1",      botId: "aXn08bkI2KlxM2bX" },
+  { label: "FUP_LUANAMOURA | D1",   botId: "aXuXeAdxiGyzd3H6" },
+  { label: "FUP_SABRINA | D1",      botId: "abFvhDEvA1SuGZmu" },
+  { label: "FUP_JEREMIAH | D1",     botId: "abry86xIPqGJg7Jl" },
+  { label: "FUP_Matheus | D1",      botId: "ac1737JWbBIsvMPd" },
+  { label: "FUP_VICTORIA | D1",     botId: "ac7FxG463tVTItRW" },
+  { label: "FUP_WALLACE | D1",      botId: "ac7F_UUUKxBDo0oa" },
+  { label: "FUP_LARYSSA | D1",      botId: "aKM0oDB-csnl0EXh" },
+  { label: "FUP_ISAAC | D1",        botId: "aKM0zLZ-B3gfL0tP" },
+  { label: "FUP_HILARY | D1",       botId: "aKM05LZ-B3gfL5VG" },
+  { label: "FUP_ALANIS | D1",       botId: "aKM1B947HAxfNMsA" },
+  { label: "FUP_JAKELINE | D1",     botId: "aUFq-FRK_T9enWRu" },
+  { label: "FUP_GUILHERME | D1",    botId: "aLmS5i9_r7wQX6Y2" },
+];
+
+const BID_BOTS: BotEntry[] = [
+  { label: "BID_ERIC | D0",          botId: "aV__0KcwKZ5WAnKz" },
+  { label: "BID_ELIDIANY | D0",      botId: "aXn0Spxj-7WGC6aO" },
+  { label: "BID_ELIDIANY | D1",      botId: "aXn0W5t03nJW2pTO" },
+  { label: "BID_WALLACE | D0",       botId: "aXn1ObkI2KlxNGPe" },
+  { label: "BID_WALLACE | D1",       botId: "aXn1SrkI2KlxNK5B" },
+  { label: "BID_LUANAMOURA | D1",    botId: "aXuW3AdxiGyzdQSg" },
+  { label: "BID_LUANAMOURA | D2",    botId: "aXuXAHwIz18MZ1Vt" },
+  { label: "BID_ISABELA | D0",       botId: "abFudF0cILE1-o--" },
+  { label: "BID_ISABELA | D1",       botId: "abFtDPUaqYILhtYR" },
+  { label: "BID_SABRINA | D0",       botId: "aKNqKN47HAxfoH8o" },
+  { label: "BID_SABRINA | D1",       botId: "aNP_7D1LMkmDJCkh" },
+  { label: "BID_JEREMIAH | D0",      botId: "abrvT7tO-13jbq-Z" },
+  { label: "BID_JEREMIAH | D1",      botId: "abryoLtO-13jqmdT" },
+  { label: "BID_Jonathan | D0",      botId: "ac10l7JWbBIso2Lh" },
+  { label: "BID_Jonathan | D1",      botId: "ac10WLJWbBIsoost" },
+  { label: "BID_Matheus | D0",       botId: "ac17l0J8K2MU8fUT" },
+  { label: "BID_Matheus | D1",       botId: "ac17GsFYnQ5MQem7" },
+  { label: "BID_ALICE | D1",         botId: "aKMxLLZ-B3gfJH_X" },
+  { label: "BID_GUILHERME | D0",     botId: "aLmSHx4t2mV79KuP" },
+  { label: "BID_GUILHERME | D1",     botId: "aLmSmVJu3woN_9r7" },
+  { label: "BID_ISAAC | D0",         botId: "aLGzwsBxzPDrbpgQ" },
+  { label: "BID_GABRIEL P. | D0",    botId: "aJ1TgUUYd9zpTCQD" },
+  { label: "BID_GABRIEL P. | D1",    botId: "aKMvLTB-csnlv5AU" },
+  { label: "BID_ALANIS | D0",        botId: "aJ1Ts8NSi9fWvQp6" },
+  { label: "BID_ALANIS | D1",        botId: "aKMwfLZ-B3gfIkOg" },
+  { label: "BID_VICTORIA | D0",      botId: "aV1rYFEmPoQY4BBA" },
+  { label: "BID_VICTORIA | D1",      botId: "aV1rejkiFJDh_q2C" },
+  { label: "BID_JAKELINE | D0",      botId: "aUFqck1YZxY6KYlt" },
+  { label: "BID_JAKELINE | D1",      botId: "aUFqtvlQfRBIjxgn" },
+  { label: "BID_VITOR DOS S. | D0",  botId: "aUQml8NnXHj9HOOZ" },
+  { label: "BID_LUCAS V. | D0",      botId: "aUQnJPkLIBV3Jzuw" },
+  { label: "BID_EMANUELLE R. | D0",  botId: "aUQnYWY0VXoPjsS7" },
+  { label: "BID_ANA V. | D0",        botId: "aUQnpmY0VXoPj5TU" },
+  { label: "BID_GEOVANA C. | D0",    botId: "aUQn3TIB26TfOTN8" },
+];
+
 export default function Integracoes() {
   const [unlocked, setUnlocked] = useState(false);
+  const [senhaInput, setSenhaInput] = useState("");
+  const [senhaErro, setSenhaErro] = useState(false);
+  const [showSenha, setShowSenha] = useState(false);
   const [umblerSettings, setUmblerSettings] = useState(() => readSettings().umblerSettings);
   const [fupAgendarMinAntes, setFupAgendarMinAntes] = useState(() => readSettings().fupAgendarMinAntes ?? 0);
   const [webhookHost, setWebhookHost] = useState("127.0.0.1");
   const [webhookPort, setWebhookPort] = useState(() => readSettings().umblerSettings.webhookPort ?? 9988);
   const [showToken, setShowToken] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
-  const [testMode, setTestMode] = useState<"fup" | "cancel" | "taskCancel">("fup");
+  const [testMode, setTestMode] = useState<"cancel" | "taskCancel">("cancel");
   const [testPhone, setTestPhone] = useState("");
   const [testSending, setTestSending] = useState(false);
 
@@ -98,19 +191,24 @@ export default function Integracoes() {
     updateUmblerSetting({ webhookPort: port });
   }
 
+  function tentarSenha() {
+    if (senhaInput === SENHA_INTEGRACOES) {
+      setUnlocked(true);
+      setSenhaErro(false);
+      setSenhaInput("");
+    } else {
+      setSenhaErro(true);
+    }
+  }
+
   const webhookUrl = `http://${webhookHost}:${webhookPort}/webhook/umbler`;
 
   async function sendTest() {
     setTestSending(true);
     try {
-      const overrideParams =
-        testMode === "cancel" ? [] :
-        testMode === "taskCancel" ? ["00000", "Hoje às 08:00"] :
-        ["teste", "teste"];
+      const overrideParams = testMode === "taskCancel" ? ["00000", "Hoje às 08:00"] : [];
       const templateIdOverride =
-        testMode === "cancel" ? umblerSettings.cancelTemplateId :
-        testMode === "taskCancel" ? umblerSettings.taskCancelTemplateId :
-        undefined;
+        testMode === "cancel" ? umblerSettings.cancelTemplateId : umblerSettings.taskCancelTemplateId;
       await sendUmblerFup({
         chapaNome: "Verificação MCM",
         chapaTelefone: testPhone,
@@ -130,7 +228,7 @@ export default function Integracoes() {
     }
   }
 
-  function openTest(mode: "fup" | "cancel" | "taskCancel") {
+  function openTest(mode: "cancel" | "taskCancel") {
     setTestMode(mode);
     setTestPhone("");
     setTestDialogOpen(true);
@@ -193,14 +291,14 @@ export default function Integracoes() {
     if (listenerCountdownRef.current) { clearInterval(listenerCountdownRef.current); listenerCountdownRef.current = null; }
   }
 
-  /* ── Tela de bloqueio ── */
+  /* ── Tela de senha ── */
   if (!unlocked) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center space-y-6">
           <div className="flex justify-center">
             <div className="h-16 w-16 rounded-2xl bg-warning/10 border border-warning/30 flex items-center justify-center">
-              <ShieldAlert className="h-8 w-8 text-warning" />
+              <Lock className="h-8 w-8 text-warning" />
             </div>
           </div>
 
@@ -222,10 +320,34 @@ export default function Integracoes() {
             </ul>
           </div>
 
-          <Button onClick={() => setUnlocked(true)} className="gap-2 w-full sm:w-auto">
-            <ShieldCheck className="h-4 w-4" />
-            Acessar área restrita
-          </Button>
+          <div className="space-y-3">
+            <div className="relative">
+              <Input
+                type={showSenha ? "text" : "password"}
+                placeholder="Senha de acesso"
+                value={senhaInput}
+                onChange={(e) => { setSenhaInput(e.target.value); setSenhaErro(false); }}
+                onKeyDown={(e) => { if (e.key === "Enter") tentarSenha(); }}
+                className={`pr-10 text-center ${senhaErro ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowSenha((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label={showSenha ? "Ocultar senha" : "Exibir senha"}
+              >
+                {showSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {senhaErro && (
+              <p className="text-xs text-destructive">Senha incorreta. Tente novamente.</p>
+            )}
+            <Button onClick={tentarSenha} className="gap-2 w-full" disabled={!senhaInput.trim()}>
+              <KeyRound className="h-4 w-4" />
+              Acessar área restrita
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -235,8 +357,7 @@ export default function Integracoes() {
   const coreReady = !!(
     umblerSettings.bearerToken &&
     umblerSettings.fromPhone &&
-    umblerSettings.organizationId &&
-    umblerSettings.templateId
+    umblerSettings.organizationId
   );
 
   return (
@@ -297,21 +418,19 @@ export default function Integracoes() {
             </div>
           </div>
 
-          {/* fromPhone */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              Número remetente — canal de saída (formato internacional)
-            </label>
-            <Input
-              value={umblerSettings.fromPhone}
-              onChange={(e) => updateUmblerSetting({ fromPhone: e.target.value })}
-              placeholder="+5519900000000"
-              className="font-mono text-xs"
-            />
-          </div>
-
-          {/* org + template FUP */}
+          {/* fromPhone + organizationId */}
           <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">
+                Número remetente (formato internacional)
+              </label>
+              <Input
+                value={umblerSettings.fromPhone}
+                onChange={(e) => updateUmblerSetting({ fromPhone: e.target.value })}
+                placeholder="+5519900000000"
+                className="font-mono text-xs"
+              />
+            </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
                 Identificador da organização
@@ -320,17 +439,6 @@ export default function Integracoes() {
                 value={umblerSettings.organizationId}
                 onChange={(e) => updateUmblerSetting({ organizationId: e.target.value })}
                 placeholder="Z6tcYuFXi6pOKFCf"
-                className="font-mono text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Template — Confirmação de presença
-              </label>
-              <Input
-                value={umblerSettings.templateId}
-                onChange={(e) => updateUmblerSetting({ templateId: e.target.value })}
-                placeholder="aG6yWYsgj8AxCG3W"
                 className="font-mono text-xs"
               />
             </div>
@@ -366,62 +474,66 @@ export default function Integracoes() {
             />
             <p className="text-[11px] text-muted-foreground">
               Ativa o botão <strong className="text-foreground">Cancelar Tarefa</strong> no dashboard.
-              Parâmetros enviados automaticamente: <strong className="text-foreground">parâm. 1</strong> — código da tarefa; <strong className="text-foreground">parâm. 2</strong> — data e horário. Disparado para todos os chapas com telefone cadastrado.
+              Parâmetros enviados automaticamente: <strong className="text-foreground">parâm. 1</strong> — código da tarefa; <strong className="text-foreground">parâm. 2</strong> — data e horário.
             </p>
           </div>
 
-          {/* FUP bot (start-bot) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Bot ID — FUP D0 (chatbot)
-              </label>
-              <Input
-                value={umblerSettings.fupBotId}
-                onChange={(e) => updateUmblerSetting({ fupBotId: e.target.value })}
-                placeholder="abry27tO-13jrsi3"
-                className="font-mono text-xs"
-              />
+          {/* FUP bots */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">Bot FUP — Chatbot de follow-up</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Bot D0 — dia da tarefa / futuro
+                </label>
+                <Select
+                  value={umblerSettings.fupBotId || ""}
+                  onValueChange={(val) => {
+                    const entry = FUP_D0_BOTS.find((b) => b.botId === val);
+                    if (entry) updateUmblerSetting({ fupBotId: entry.botId, fupBotTriggerName: entry.label });
+                  }}
+                >
+                  <SelectTrigger className="font-mono text-xs">
+                    <SelectValue placeholder="Selecionar bot D0…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FUP_D0_BOTS.map((b) => (
+                      <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
+                        {b.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Bot D1 — pós-tarefa (dia seguinte em diante)
+                </label>
+                <Select
+                  value={umblerSettings.fupBotD1Id || ""}
+                  onValueChange={(val) => {
+                    const entry = FUP_D1_BOTS.find((b) => b.botId === val);
+                    if (entry) updateUmblerSetting({ fupBotD1Id: entry.botId, fupBotD1TriggerName: entry.label });
+                  }}
+                >
+                  <SelectTrigger className="font-mono text-xs">
+                    <SelectValue placeholder="Selecionar bot D1…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FUP_D1_BOTS.map((b) => (
+                      <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
+                        {b.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Trigger Name — FUP D0
-              </label>
-              <Input
-                value={umblerSettings.fupBotTriggerName}
-                onChange={(e) => updateUmblerSetting({ fupBotTriggerName: e.target.value })}
-                placeholder="FUP_JEREMIAH| D0"
-                className="font-mono text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Bot ID — FUP D1 (chatbot)
-              </label>
-              <Input
-                value={umblerSettings.fupBotD1Id}
-                onChange={(e) => updateUmblerSetting({ fupBotD1Id: e.target.value })}
-                placeholder="abry86xIPqGJg7Jl"
-                className="font-mono text-xs"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Trigger Name — FUP D1
-              </label>
-              <Input
-                value={umblerSettings.fupBotD1TriggerName}
-                onChange={(e) => updateUmblerSetting({ fupBotD1TriggerName: e.target.value })}
-                placeholder="FUP_JEREMIAH| D1"
-                className="font-mono text-xs"
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground sm:col-span-2">
+            <p className="text-[11px] text-muted-foreground">
               O disparo de FUP chama o robô via <strong className="text-foreground">start-bot</strong>.
-              D0 = dia da tarefa (ou futuro), D1 = pós-tarefa (dia seguinte em diante).
               Variáveis enviadas em <code className="text-foreground">initialData</code>: <code className="text-foreground">Data</code> (Hoje/Amanhã às HH:mm / dd/MM às HH:mm), <code className="text-foreground">Cidade</code>.
             </p>
-            <div className="sm:col-span-2 space-y-1.5 pt-1">
+            <div className="space-y-1.5 pt-1">
               <label className="text-xs font-medium text-muted-foreground">
                 Agendamento automático de FUP
               </label>
@@ -438,45 +550,46 @@ export default function Integracoes() {
                     }}
                     onBlur={() => writeSettings({ fupAgendarMinAntes })}
                     className="font-mono text-xs pr-8"
-                    disabled={!unlocked}
                   />
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">min</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   {fupAgendarMinAntes > 0
-                    ? `FUP disparado automaticamente ${fupAgendarMinAntes} min antes da tarefa. Um confirmador aparece ${fupAgendarMinAntes <= 15 ? "junto" : "15 min antes"}.`
-                    : "Desativado — FUP somente manual. Configure um valor maior que 0 para ativar."}
+                    ? `FUP disparado automaticamente ${fupAgendarMinAntes} min antes da tarefa.`
+                    : "Desativado — FUP somente manual."}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* BID bot (start-bot) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* BID bot */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-foreground">Bot BID — Chatbot de convite de tarefa</p>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">
-                Bot ID — BID (chatbot)
+                Bot BID ativo
               </label>
-              <Input
-                value={umblerSettings.bidBotId}
-                onChange={(e) => updateUmblerSetting({ bidBotId: e.target.value })}
-                placeholder="abrvT7tO-13jbq-Z"
-                className="font-mono text-xs"
-              />
+              <Select
+                value={umblerSettings.bidBotId || ""}
+                onValueChange={(val) => {
+                  const entry = BID_BOTS.find((b) => b.botId === val);
+                  if (entry) updateUmblerSetting({ bidBotId: entry.botId, bidBotTriggerName: entry.label });
+                }}
+              >
+                <SelectTrigger className="font-mono text-xs">
+                  <SelectValue placeholder="Selecionar bot BID…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BID_BOTS.map((b) => (
+                    <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
+                      {b.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Trigger Name — BID (chatbot)
-              </label>
-              <Input
-                value={umblerSettings.bidBotTriggerName}
-                onChange={(e) => updateUmblerSetting({ bidBotTriggerName: e.target.value })}
-                placeholder="BID_JEREMIAH | D0"
-                className="font-mono text-xs"
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground sm:col-span-2">
-              O disparo de BID (convite de tarefa) chama o robô via <strong className="text-foreground">start-bot</strong>.
+            <p className="text-[11px] text-muted-foreground">
+              O disparo de BID chama o robô via <strong className="text-foreground">start-bot</strong>.
               Variáveis enviadas em <code className="text-foreground">initialData</code>: Data, Local, Atividades, Diária.
             </p>
           </div>
@@ -492,16 +605,6 @@ export default function Integracoes() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => openTest("fup")}
-                disabled={!coreReady}
-              >
-                <Send className="h-3.5 w-3.5" />
-                Testar confirmação
-              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -550,7 +653,6 @@ export default function Integracoes() {
           <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
             <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong className="text-foreground">Confirmação:</strong> parâm. 1 = data/hora da tarefa (ex.: "Hoje às 08:00"); parâm. 2 = razão social da empresa.</p>
               <p><strong className="text-foreground">Ausência de resposta:</strong> sem parâmetros — template deve ser configurado sem variáveis na plataforma.</p>
               <p><strong className="text-foreground">Cancelamento geral:</strong> parâm. 1 = código da tarefa; parâm. 2 = data/hora. Disparado para todos os chapas com telefone cadastrado.</p>
             </div>
@@ -613,10 +715,10 @@ export default function Integracoes() {
                 <strong className="text-foreground">Como configurar:</strong> No painel do Umbler Talk, acesse <strong className="text-foreground">Configurações → Integrações → Webhook</strong> e cole a URL acima.
               </p>
               <p>
-                <strong className="text-foreground">IP:</strong> Use o IP local desta máquina (ex.: <code className="font-mono">192.168.1.x</code>) para que o Umbler Talk (nuvem) alcance o MCM. Se estiver usando ngrok ou similar, use o domínio público.
+                <strong className="text-foreground">IP:</strong> Use o IP local desta máquina (ex.: <code className="font-mono">192.168.1.x</code>) para que o Umbler Talk (nuvem) alcance o MCM.
               </p>
               <p>
-                <strong className="text-foreground">Porta padrão:</strong> 9988. O servidor webhook inicia automaticamente com o MCM — não requer configuração adicional.
+                <strong className="text-foreground">Porta padrão:</strong> 9988. O servidor webhook inicia automaticamente com o MCM.
               </p>
               <p>
                 <strong className="text-foreground">Respostas detectadas:</strong> SIM / NÃO / 1 / 2 / 3 / Preciso de ajuda / Aceito app. Histórico completo em <strong className="text-foreground">Operacional → Respostas</strong>.
@@ -635,9 +737,7 @@ export default function Integracoes() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              {testMode === "fup"
-                ? "Verificar template de confirmação"
-                : testMode === "cancel"
+              {testMode === "cancel"
                 ? "Verificar template de ausência de resposta"
                 : "Verificar template de cancelamento geral"}
             </DialogTitle>
@@ -655,25 +755,10 @@ export default function Integracoes() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              {testMode === "fup" ? (
-                <>
-                  Parâmetros enviados:{" "}
-                  <strong className="text-foreground">["teste", "teste"]</strong>. Nome do
-                  contato:{" "}
-                  <strong className="text-foreground">Verificação MCM</strong>.
-                </>
-              ) : testMode === "cancel" ? (
-                <>
-                  Template sem variáveis — enviado sem parâmetros. Nome do contato:{" "}
-                  <strong className="text-foreground">Verificação MCM</strong>.
-                </>
+              {testMode === "cancel" ? (
+                <>Template sem variáveis — enviado sem parâmetros. Nome do contato: <strong className="text-foreground">Verificação MCM</strong>.</>
               ) : (
-                <>
-                  Parâmetros enviados:{" "}
-                  <strong className="text-foreground">["00000", "Hoje às 08:00"]</strong>. Nome do
-                  contato:{" "}
-                  <strong className="text-foreground">Verificação MCM</strong>.
-                </>
+                <>Parâmetros enviados: <strong className="text-foreground">["00000", "Hoje às 08:00"]</strong>. Nome do contato: <strong className="text-foreground">Verificação MCM</strong>.</>
               )}
             </p>
           </div>
@@ -707,7 +792,6 @@ export default function Integracoes() {
             </DialogTitle>
           </DialogHeader>
 
-          {/* ── step: input ── */}
           {listenerStep === "input" && (
             <div className="space-y-4 py-2">
               <p className="text-xs text-muted-foreground leading-relaxed">
@@ -726,12 +810,11 @@ export default function Integracoes() {
                 />
               </div>
               <div className="rounded-md bg-muted/40 border border-border px-3 py-2.5 text-xs text-muted-foreground">
-                Template de confirmação enviado com parâmetros <strong className="text-foreground">["teste", "teste"]</strong>. O listener monitorará notificações do Windows por <strong className="text-foreground">{LISTENER_TIMEOUT_SECS} segundos</strong>.
+                O listener monitorará notificações do Windows por <strong className="text-foreground">{LISTENER_TIMEOUT_SECS} segundos</strong>.
               </div>
             </div>
           )}
 
-          {/* ── step: waiting ── */}
           {listenerStep === "waiting" && (
             <div className="py-4 space-y-5">
               <div className="flex flex-col items-center gap-3 text-center">
@@ -746,7 +829,6 @@ export default function Integracoes() {
                   </p>
                 </div>
               </div>
-
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
                 <p className="text-xs text-muted-foreground">No WhatsApp, responda com exatamente:</p>
                 <div className="flex flex-col gap-1.5">
@@ -761,7 +843,6 @@ export default function Integracoes() {
                   </span>
                 </div>
               </div>
-
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-3.5 w-3.5" />
                 <span>
@@ -774,7 +855,6 @@ export default function Integracoes() {
             </div>
           )}
 
-          {/* ── step: done ── */}
           {listenerStep === "done" && (
             <div className="py-4 space-y-4">
               {listenerResult === "sim" && (
@@ -799,8 +879,7 @@ export default function Integracoes() {
                   <div>
                     <p className="font-semibold text-destructive text-sm">Resposta NÃO detectada!</p>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      O listener leu a notificação corretamente. Chapas que responderem{" "}
-                      <strong className="text-foreground">NÃO, quero cancelar!</strong> gerarão um popup de sugestão de remoção no dashboard.
+                      O listener leu a notificação corretamente.
                     </p>
                   </div>
                 </div>
@@ -813,8 +892,7 @@ export default function Integracoes() {
                   <div>
                     <p className="font-semibold text-warning text-sm">Nenhuma resposta detectada</p>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      O tempo de {LISTENER_TIMEOUT_SECS} segundos expirou sem que o listener encontrasse a resposta. Verifique se:{" "}
-                      as notificações do Chrome estão ativadas no Windows, o Umbler Talk está aberto no navegador, e a resposta foi enviada com o texto exato.
+                      O tempo de {LISTENER_TIMEOUT_SECS} segundos expirou sem que o listener encontrasse a resposta.
                     </p>
                   </div>
                 </div>
@@ -825,19 +903,13 @@ export default function Integracoes() {
           <DialogFooter>
             {listenerStep === "input" && (
               <>
-                <Button variant="outline" onClick={closeListenerDialog}>
-                  Cancelar
-                </Button>
+                <Button variant="outline" onClick={closeListenerDialog}>Cancelar</Button>
                 <Button
                   onClick={startListenerTest}
                   disabled={!listenerPhone.trim() || listenerSending}
                   className="gap-1.5"
                 >
-                  {listenerSending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Send className="h-3.5 w-3.5" />
-                  )}
+                  {listenerSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                   {listenerSending ? "Enviando…" : "Enviar e monitorar"}
                 </Button>
               </>
@@ -848,9 +920,7 @@ export default function Integracoes() {
               </Button>
             )}
             {listenerStep === "done" && (
-              <Button onClick={closeListenerDialog} className="w-full">
-                Fechar
-              </Button>
+              <Button onClick={closeListenerDialog} className="w-full">Fechar</Button>
             )}
           </DialogFooter>
         </DialogContent>
