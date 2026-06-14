@@ -652,6 +652,9 @@ function BidTaskCard({
       toast.error("Configure o Bot ID e o Trigger Name do BID em Integrações.");
       return;
     }
+    const isBidD1 = fmtSP(task.data_tarefa, "yyyy-MM-dd") > todayDateISO_SP() && !!(us.bidBotD1Id && us.bidBotD1TriggerName);
+    const bidBotIdToUse = isBidD1 ? us.bidBotD1Id : us.bidBotId;
+    const bidTriggerToUse = isBidD1 ? us.bidBotD1TriggerName : us.bidBotTriggerName;
 
     setDispatchingIds((prev) => new Set(prev).add(candidate._key));
     try {
@@ -664,6 +667,8 @@ function BidTaskCard({
           Atividades: dispatchParams.atividades,
           "Diária": `R$ ${dispatchParams.diaria}`,
         },
+        botIdOverride: bidBotIdToUse,
+        triggerNameOverride: bidTriggerToUse,
       });
       const dispId = uuid();
       const now = new Date().toISOString();
@@ -698,7 +703,7 @@ function BidTaskCard({
     if (toDispatch.length === 0) return;
     const us = readSettings().umblerSettings;
     if (!us.bidBotId || !us.bidBotTriggerName) {
-      toast.error("Configure o Bot ID e o Trigger Name do BID em Integrações.");
+      toast.error("Configure o Bot ID e o Trigger Name do BID (D0) em Integrações.");
       return;
     }
     const started = bidDispatchQueue.startBatch({
@@ -2635,11 +2640,12 @@ function BloqueadosTab() {
       const us = settings.umblerSettings;
       if (!us.bearerToken) { toast.error("Configure a integração Umbler em Configurações."); return; }
       if (!us.bidBotId || !us.bidBotTriggerName) {
-        toast.error("Configure o Bot ID e o Trigger Name do BID em Integrações.");
+        toast.error("Configure o Bot ID e o Trigger Name do BID (D0) em Integrações.");
         return;
       }
       const selectedTask = openTasks.find((t) => t.id_tarefa === taskId);
       const isoDate = selectedTask ? selectedTask.data_tarefa : `${dataTarefa}:00-03:00`;
+      const isBidD1 = fmtSP(isoDate, "yyyy-MM-dd") > todayDateISO_SP() && !!(us.bidBotD1Id && us.bidBotD1TriggerName);
       await startUmblerBot({
         chapaTelefone: bidTarget.telefone,
         settings: us,
@@ -2649,6 +2655,8 @@ function BloqueadosTab() {
           Atividades: atividades,
           "Diária": `R$ ${diaria}`,
         },
+        botIdOverride: isBidD1 ? us.bidBotD1Id : us.bidBotId,
+        triggerNameOverride: isBidD1 ? us.bidBotD1TriggerName : us.bidBotTriggerName,
       });
       if (selectedTask) {
         const dispId = uuid();

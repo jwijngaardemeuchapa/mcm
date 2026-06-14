@@ -601,10 +601,13 @@ export default function Integracoes() {
             </div>
           </div>
 
-          {/* BID bot */}
+          {/* BID bots */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">Bot BID — Chatbot de convite de tarefa</p>
+
+            {/* BID D0 */}
             <div className="rounded-md border border-border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Bot D0 — dia da tarefa / futuro próximo</p>
               <Select
                 value={BID_BOTS.find((b) => b.botId === umblerSettings.bidBotId)?.botId ?? ""}
                 onValueChange={(val) => {
@@ -644,8 +647,53 @@ export default function Integracoes() {
                 </div>
               </div>
             </div>
+
+            {/* BID D1 */}
+            <div className="rounded-md border border-border p-3 space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Bot D1 — pós-tarefa (dia seguinte em diante)</p>
+              <Select
+                value={BID_BOTS.find((b) => b.botId === umblerSettings.bidBotD1Id)?.botId ?? ""}
+                onValueChange={(val) => {
+                  const entry = BID_BOTS.find((b) => b.botId === val);
+                  if (entry) updateUmblerSetting({ bidBotD1Id: entry.botId, bidBotD1TriggerName: entry.label });
+                }}
+              >
+                <SelectTrigger className="font-mono text-xs">
+                  <SelectValue placeholder="Selecionar da lista…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BID_BOTS.map((b) => (
+                    <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
+                      {b.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Trigger Name</label>
+                  <Input
+                    value={umblerSettings.bidBotD1TriggerName}
+                    onChange={(e) => updateUmblerSetting({ bidBotD1TriggerName: e.target.value })}
+                    placeholder="BID_NOME | D1"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">Bot ID</label>
+                  <Input
+                    value={umblerSettings.bidBotD1Id}
+                    onChange={(e) => updateUmblerSetting({ bidBotD1Id: e.target.value })}
+                    placeholder="abryoLtO-13jqmdT"
+                    className="font-mono text-xs h-8"
+                  />
+                </div>
+              </div>
+            </div>
+
             <p className="text-[11px] text-muted-foreground">
               O disparo de BID chama o robô via <strong className="text-foreground">start-bot</strong>.
+              D0 = dia da tarefa ou mesmo dia, D1 = dia seguinte em diante.
               Variáveis enviadas em <code className="text-foreground">initialData</code>: Data, Local, Atividades, Diária.
             </p>
           </div>

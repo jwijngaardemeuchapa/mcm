@@ -847,6 +847,10 @@ class BidDispatchQueue {
     const localParam = job.params.sendMapsAsLocal && job.params.mapsLink
       ? job.params.mapsLink
       : job.params.local;
+    const taskDateStr = fmtSP(job.dataTarefa, "yyyy-MM-dd");
+    const isBidD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.bidBotD1Id && umblerSettings.bidBotD1TriggerName);
+    const bidBotIdToUse = isBidD1 ? umblerSettings.bidBotD1Id : umblerSettings.bidBotId;
+    const bidTriggerToUse = isBidD1 ? umblerSettings.bidBotD1TriggerName : umblerSettings.bidBotTriggerName;
 
     let dispatched = 0;
 
@@ -866,6 +870,8 @@ class BidDispatchQueue {
             Atividades: job.params.atividades,
             "Diária": `R$ ${job.params.diaria}`,
           },
+          botIdOverride: bidBotIdToUse,
+          triggerNameOverride: bidTriggerToUse,
         });
         const id = uuid();
         const now = new Date().toISOString();
