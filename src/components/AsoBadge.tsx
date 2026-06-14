@@ -11,7 +11,7 @@ export function AsoBadge({ aso }: { aso: string | null | undefined }) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="text-[9px] font-bold text-success px-1 py-0.5 rounded bg-success/10 border border-success/20 cursor-help shrink-0">ASO</span>
+          <span className="text-[10px] font-bold text-success px-1 py-0.5 rounded bg-success/10 border border-success/20 cursor-help shrink-0">ASO</span>
         </TooltipTrigger>
         <TooltipContent>
           {info ? `ASO válido até ${info.dateLabel} (${info.days} dias)` : `ASO válido: ${aso}`}
@@ -36,7 +36,7 @@ export function AsoBadge({ aso }: { aso: string | null | undefined }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={`text-[9px] font-bold px-1 py-0.5 rounded border cursor-help shrink-0 ${cls}`}>{label}</span>
+        <span className={`text-[10px] font-bold px-1 py-0.5 rounded border cursor-help shrink-0 ${cls}`}>{label}</span>
       </TooltipTrigger>
       <TooltipContent>{tip}</TooltipContent>
     </Tooltip>

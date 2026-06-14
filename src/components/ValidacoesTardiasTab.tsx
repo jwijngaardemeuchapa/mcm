@@ -312,7 +312,7 @@ export default function ValidacoesTardiasTab() {
                       <div key={i} className="flex gap-2 items-center">
                         <Input placeholder="Nome do chapa" value={c.nome} onChange={(e) => updateChapa(i, "nome", e.target.value)} className="flex-1" />
                         <Input placeholder="Telefone" value={c.telefone} onChange={(e) => updateChapa(i, "telefone", e.target.value)} className="flex-1" />
-                        <Button type="button" size="icon" variant="ghost" onClick={() => removeChapa(i)}><Trash2 className="h-4 w-4" /></Button>
+                        <Button type="button" size="icon" variant="ghost" aria-label="Remover chapa" onClick={() => removeChapa(i)}><Trash2 className="h-4 w-4" /></Button>
                       </div>
                     ))}
                   </div>
@@ -362,7 +362,7 @@ export default function ValidacoesTardiasTab() {
                   <td className="px-4 py-2">{cs.length === 0 ? <span className="text-muted-foreground">—</span> : <span title={cs.map((c) => `${c.nome} ${c.telefone}`).join("\n")} className="cursor-help"><Badge variant="outline">{cs.length}</Badge></span>}</td>
                   <td className="px-4 py-2 text-muted-foreground">{r.registrado_por ?? "—"}</td>
                   <td className="px-4 py-2 text-muted-foreground max-w-[240px] truncate" title={r.observacao ?? ""}>{r.observacao ?? "—"}</td>
-                  <td className="px-4 py-2"><Button size="icon" variant="ghost" onClick={() => handleDelete(r.id)}><Trash2 className="h-4 w-4" /></Button></td>
+                  <td className="px-4 py-2"><Button size="icon" variant="ghost" aria-label="Excluir registro" onClick={() => handleDelete(r.id)}><Trash2 className="h-4 w-4" /></Button></td>
                 </tr>
               );
             })}

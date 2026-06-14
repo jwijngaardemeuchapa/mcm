@@ -307,7 +307,7 @@ export function FichaChapa({ resultado, chapaSearch, onVoltar }: Props) {
                     isPref ? "bg-success/15" : isEvit ? "bg-destructive/10" : "bg-muted/30"
                   }`}
                 >
-                  <span className="text-[9px] text-muted-foreground">{DIAS[dia].slice(0, 1)}</span>
+                  <span className="text-[10px] text-muted-foreground">{DIAS[dia].slice(0, 1)}</span>
                   <div className={`h-2 w-2 rounded-full ${
                     isPref ? "bg-success" : isEvit ? "bg-destructive/50" : "bg-muted"
                   }`} />
@@ -510,7 +510,7 @@ export function FichaChapa({ resultado, chapaSearch, onVoltar }: Props) {
               <div key={i} className="flex items-center gap-1 shrink-0">
                 <div className="flex flex-col items-center gap-1">
                   <CategoryBadge categoria={h.categoria as any} size="sm" />
-                  <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                     {new Date(h.periodo_inicio).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" })}
                   </span>
                 </div>

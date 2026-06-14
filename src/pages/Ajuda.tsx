@@ -683,7 +683,7 @@ function ModuleCard({ mod }: { mod: Module }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm text-foreground">{mod.name}</span>
             {mod.isNew && (
-              <Badge className="text-[9px] h-4 px-1.5 bg-success text-success-foreground font-bold">NOVO</Badge>
+              <Badge className="text-[10px] h-4 px-1.5 bg-success text-success-foreground font-bold">NOVO</Badge>
             )}
             {mod.savings && (
               <Badge variant="outline" className="text-[10px] h-4 px-1.5 text-success border-success/40 bg-success/5 font-semibold">

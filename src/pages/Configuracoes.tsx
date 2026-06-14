@@ -54,6 +54,7 @@ const isTauri = "__TAURI_INTERNALS__" in window;
 
 /* ── seções do sumário ── */
 const CONFIG_SECTIONS = [
+  { id: "cfg-sons",         icon: Volume2,        label: "Sons",           desc: "Intro, alertas, confirmações, troca de turno" },
   { id: "cfg-alertas",      icon: Bell,          label: "Alertas",        desc: "Painel flutuante, sonoro, timers, portaria" },
   { id: "cfg-fillrate",     icon: TriangleAlert, label: "Fill Rate",      desc: "Threshold mínimo de preenchimento" },
   { id: "cfg-prioridades",  icon: Zap,           label: "Prioridades",    desc: "Painel de urgência no Dashboard" },
@@ -320,6 +321,82 @@ export default function Configuracoes() {
             );
           })}
         </div>
+      </div>
+
+      {/* ── Sons ── */}
+      <div id="cfg-sons" className="scroll-mt-20">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Volume2 className="h-5 w-5 text-muted-foreground" />
+              Sons
+            </CardTitle>
+            <CardDescription>
+              Controle quais sons o MCM reproduz durante o uso. As alterações entram em vigor imediatamente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Áudio da intro</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Toca o áudio do vídeo de abertura exibido ao iniciar o MCM e toda segunda-feira.
+                </p>
+              </div>
+              <Switch
+                checked={settings.sons.intro}
+                onCheckedChange={(v) => setSettings(writeSettings({ sons: { ...settings.sons, intro: v } }))}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Alertas de chapa</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Bipe curto quando um chapa entra na janela de 1 hora sem confirmação.
+                </p>
+              </div>
+              <Switch
+                checked={settings.sons.alertas}
+                onCheckedChange={(v) => setSettings(writeSettings({ sons: { ...settings.sons, alertas: v } }))}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Confirmações e validações</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Chime ao concluir ou validar uma tarefa com sucesso.
+                </p>
+              </div>
+              <Switch
+                checked={settings.sons.confirmacoes}
+                onCheckedChange={(v) => setSettings(writeSettings({ sons: { ...settings.sons, confirmacoes: v } }))}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Troca de turno</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Som ao copiar a mensagem de troca de turno para o Teams.
+                </p>
+              </div>
+              <Switch
+                checked={settings.sons.turno}
+                onCheckedChange={(v) => setSettings(writeSettings({ sons: { ...settings.sons, turno: v } }))}
+              />
+            </div>
+
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── Alertas ── */}
@@ -700,7 +777,7 @@ export default function Configuracoes() {
                 <div className="mt-3 rounded-md bg-muted/60 p-2 space-y-1.5">
                   {["08:00", "10:30", "14:00"].map((h) => (
                     <div key={h} className="h-8 rounded bg-background border border-border flex items-center px-2 gap-2">
-                      <div className="w-10 h-4 rounded bg-primary/20 text-[9px] flex items-center justify-center text-primary font-bold">{h}</div>
+                      <div className="w-10 h-4 rounded bg-primary/20 text-[10px] flex items-center justify-center text-primary font-bold">{h}</div>
                       <div className="flex-1 h-2 rounded-full bg-muted">
                         <div className="h-full rounded-full bg-success/60" style={{ width: "70%" }} />
                       </div>
@@ -739,11 +816,11 @@ export default function Configuracoes() {
                     { h: "14:00", fill: 80, color: "bg-success" },
                   ].map((r) => (
                     <div key={r.h} className="h-6 rounded bg-background border border-border flex items-center px-2 gap-2">
-                      <span className="text-[9px] font-bold text-foreground w-8 tabular-nums">{r.h}</span>
+                      <span className="text-[10px] font-bold text-foreground w-8 tabular-nums">{r.h}</span>
                       <div className="flex-1 h-1.5 rounded-full bg-muted">
                         <div className={`h-full rounded-full ${r.color}`} style={{ width: `${r.fill}%` }} />
                       </div>
-                      <span className="text-[9px] text-muted-foreground tabular-nums">{r.fill}%</span>
+                      <span className="text-[10px] text-muted-foreground tabular-nums">{r.fill}%</span>
                     </div>
                   ))}
                 </div>

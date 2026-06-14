@@ -436,13 +436,13 @@ function CompanyRankingTable({ stats, selected, onSelect }: {
                   </span>
                   <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                     {s.grupoEconomico && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">{s.grupoEconomico}</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary">{s.grupoEconomico}</span>
                     )}
                     {s.carteiras.map((c) => (
-                      <span key={c} className="text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{c}</span>
+                      <span key={c} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{c}</span>
                     ))}
                     {s.ufs.length > 0 && (
-                      <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                         <MapPin className="h-2.5 w-2.5" />
                         {s.ufs.length > 3 ? `${s.ufs.slice(0, 3).join(", ")} +${s.ufs.length - 3}` : s.ufs.join(", ")}
                       </span>
@@ -1007,7 +1007,12 @@ export default function FillrateDetalhe() {
           </Button>
           <Button size="sm" variant="ghost"
             className="gap-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-            onClick={() => { localStorage.removeItem(STORAGE_KEY); setStored(null); setSelectedEmpresa("__all__"); }}>
+            onClick={() => {
+              if (!confirm("Remover os dados de fillrate carregados?")) return;
+              localStorage.removeItem(STORAGE_KEY);
+              setStored(null);
+              setSelectedEmpresa("__all__");
+            }}>
             <X className="h-3.5 w-3.5" /> Limpar
           </Button>
           <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden"

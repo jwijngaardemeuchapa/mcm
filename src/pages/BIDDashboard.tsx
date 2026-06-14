@@ -1451,7 +1451,7 @@ function BidTaskCard({
                             return (
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <span className={`text-[9px] font-bold px-1 py-0.5 rounded border cursor-help shrink-0 ${cls}`}>{label}</span>
+                                  <span className={`text-[10px] font-bold px-1 py-0.5 rounded border cursor-help shrink-0 ${cls}`}>{label}</span>
                                 </TooltipTrigger>
                                 <TooltipContent>{Math.round(leo.pct_sim * 100)}% · {leo.total_sim}/{leo.total_ofertas} ofertas</TooltipContent>
                               </Tooltip>

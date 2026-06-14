@@ -729,7 +729,7 @@ export default function ClienteBook() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-foreground">
                           {addr.label}
-                          {addr.principal && <span className="ml-1.5 text-[9px] text-warning font-semibold uppercase">principal</span>}
+                          {addr.principal && <span className="ml-1.5 text-[10px] text-warning font-semibold uppercase">principal</span>}
                         </p>
                         <p className="text-[11px] text-muted-foreground truncate">{addr.endereco}</p>
                         {addr.maps_link && (

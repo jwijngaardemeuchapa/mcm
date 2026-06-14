@@ -319,7 +319,7 @@ export function ListaAcionavel({ resultado, tipoAtivo, onVerFicha, onVoltar }: P
                       {st === "pendente" ? "Contatar" : st === "contatado" ? "Contatado" : "Excluído"}
                     </button>
                     {rec?.nota && (
-                      <p className="text-[9px] text-muted-foreground truncate max-w-[80px] mt-0.5">{rec.nota}</p>
+                      <p className="text-[10px] text-muted-foreground truncate max-w-[80px] mt-0.5">{rec.nota}</p>
                     )}
                   </td>
                   <td className="px-2 py-2.5">
