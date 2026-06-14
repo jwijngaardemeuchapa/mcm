@@ -20,10 +20,8 @@ export default defineConfig(({ mode }) => ({
       options: {
         compact: true,
         identifierNamesGenerator: "hexadecimal",
-        stringArray: true,
-        stringArrayEncoding: ["none"],
-        stringArrayThreshold: 0.5,
-        splitStrings: true,
+        stringArray: false,
+        splitStrings: false,
         selfDefending: false,
         debugProtection: false,
         controlFlowFlattening: false,
