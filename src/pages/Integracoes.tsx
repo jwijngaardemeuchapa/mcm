@@ -168,6 +168,7 @@ export default function Integracoes() {
   const [listenerBotType, setListenerBotType] = useState<ListenerBotType>("fup");
   const [listenerSending, setListenerSending] = useState(false);
   const [listenerResult, setListenerResult] = useState<ListenerResult>(null);
+  const [listenerDebug, setListenerDebug] = useState<string | null>(null);
   const [listenerCountdown, setListenerCountdown] = useState(LISTENER_TIMEOUT_SECS);
   const listenerUnsubRef = useRef<Unsubscribe | null>(null);
   const listenerCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -291,6 +292,7 @@ export default function Integracoes() {
 
     setListenerStep("waiting");
     setListenerCountdown(LISTENER_TIMEOUT_SECS);
+    setListenerDebug(null);
     setListenerSending(false);
 
     /* 3. Escutar Firestore */
@@ -299,19 +301,43 @@ export default function Integracoes() {
         if (change.type !== "added") return;
         const data = change.doc.data();
         const payload = data?.payload ?? data;
-        const phone = extractPhone(payload);
-        if (!phone) return;
-        if (phone.replace(/\D/g, "").slice(-11) !== testSuffix) return;
 
-        /* match encontrado */
-        const body = extractBody(payload) ?? "";
-        const code = classifyResponse(body);
+        const phone = extractPhone(payload);
+        const body = extractBody(payload);
+        const code = body ? classifyResponse(body) : null;
+        const phoneSuffix = phone ? phone.replace(/\D/g, "").slice(-11) : null;
+
+        console.log("[MCM listener] doc recebido:", {
+          docId: change.doc.id,
+          rawData: data,
+          payload,
+          phoneSuffix,
+          testSuffix,
+          body,
+          code,
+        });
+
+        if (!phone) {
+          setListenerDebug(`Doc recebido — telefone não encontrado no payload. Campos disponíveis: ${Object.keys(payload ?? {}).join(", ")}`);
+          return;
+        }
+        if (phoneSuffix !== testSuffix) {
+          setListenerDebug(`Doc recebido — telefone ${phoneSuffix} não bate com ${testSuffix}`);
+          return;
+        }
+        if (!body) {
+          setListenerDebug(`Telefone OK — corpo da mensagem não encontrado. Campos: ${Object.keys(payload ?? {}).join(", ")}`);
+          return;
+        }
+
         stopListenerTest();
         setListenerResult(code ?? "timeout");
+        setListenerDebug(`Telefone: ${phoneSuffix} | Corpo: "${body}" | Código: ${code ?? "não classificado"}`);
         setListenerStep("done");
       });
     }, (err) => {
       console.error("Firebase listener erro:", err);
+      setListenerDebug(`Erro Firebase: ${errMsg(err)}`);
     });
 
     /* 4. Countdown */
@@ -981,6 +1007,9 @@ export default function Integracoes() {
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {listenerBotType === "fup" ? "FUP" : "BID"} enviado para <strong className="text-foreground">{listenerPhone}</strong>
                   </p>
+                  {listenerDebug && (
+                    <p className="text-[11px] font-mono text-amber-500 mt-1 break-all">{listenerDebug}</p>
+                  )}
                 </div>
               </div>
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
@@ -1049,11 +1078,20 @@ export default function Integracoes() {
                     <AlertCircle className="h-7 w-7 text-warning" />
                   </div>
                   <div>
-                    <p className="font-semibold text-warning text-sm">Nenhuma resposta detectada</p>
+                    <p className="font-semibold text-warning text-sm">
+                      {listenerDebug ? "Mensagem recebida — não lida" : "Nenhuma resposta detectada"}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      O tempo de {LISTENER_TIMEOUT_SECS}s expirou. Verifique se o bot foi disparado corretamente e se a resposta chegou à fila Firestore.
+                      {listenerDebug
+                        ? "O Firebase recebeu uma mensagem mas não conseguiu processá-la. Veja o diagnóstico abaixo."
+                        : `O tempo de ${LISTENER_TIMEOUT_SECS}s expirou. Verifique se o bot foi disparado e se a resposta chegou ao Firestore.`}
                     </p>
                   </div>
+                </div>
+              )}
+              {listenerDebug && (
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] font-mono text-muted-foreground break-all">
+                  {listenerDebug}
                 </div>
               )}
             </div>
