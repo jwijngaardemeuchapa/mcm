@@ -89,19 +89,32 @@ function stripNonDigits(s: string): string {
 }
 
 export function extractPhone(payload: unknown): string | null {
+  // Tenta string primeiro via pick
   const raw = pick(payload, [
-    ["chat"],           // Umbler Talk: chat ID é o telefone do contato
+    ["chat"],
     ["from"],
     ["data", "from"],
     ["contact", "phone"],
+    ["Contact", "PhoneNumber"],  // formato PascalCase do webhook Umbler
     ["data", "contact", "phone"],
     ["sender"],
     ["phone"],
     ["telefone"],
   ]);
-  if (!raw) return null;
-  const d = stripNonDigits(raw);
-  return d.length >= 10 ? d : null;
+  if (raw) {
+    const d = stripNonDigits(raw);
+    if (d.length >= 10) return d;
+  }
+
+  // Fallback: campo "chat" pode vir como número no Firestore
+  const p = payload as Record<string, unknown>;
+  const chatVal = p?.chat ?? p?.Chat;
+  if (chatVal !== undefined && chatVal !== null) {
+    const d = stripNonDigits(String(chatVal));
+    if (d.length >= 10) return d;
+  }
+
+  return null;
 }
 
 export function extractBody(payload: unknown): string | null {

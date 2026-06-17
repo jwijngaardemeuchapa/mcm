@@ -318,7 +318,9 @@ export default function Integracoes() {
         });
 
         if (!phone) {
-          setListenerDebug(`Doc recebido — telefone não encontrado no payload. Campos disponíveis: ${Object.keys(payload ?? {}).join(", ")}`);
+          const p = payload as Record<string, unknown>;
+          const chatRaw = p?.chat ?? p?.Chat;
+          setListenerDebug(`Doc recebido — telefone não encontrado. Campos: ${Object.keys(p ?? {}).join(", ")} | chat="${chatRaw}" (tipo: ${typeof chatRaw})`);
           return;
         }
         if (phoneSuffix !== testSuffix) {
