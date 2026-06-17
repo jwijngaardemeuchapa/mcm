@@ -90,12 +90,14 @@ function stripNonDigits(s: string): string {
 
 export function extractPhone(payload: unknown): string | null {
   const raw = pick(payload, [
+    ["chat"],           // Umbler Talk: chat ID é o telefone do contato
     ["from"],
     ["data", "from"],
     ["contact", "phone"],
     ["data", "contact", "phone"],
     ["sender"],
     ["phone"],
+    ["telefone"],
   ]);
   if (!raw) return null;
   const d = stripNonDigits(raw);
@@ -104,11 +106,11 @@ export function extractPhone(payload: unknown): string | null {
 
 export function extractBody(payload: unknown): string | null {
   return pick(payload, [
-    ["body"],
-    ["text"],
+    ["data", "Data"],   // Umbler Talk: resposta de botão
     ["data", "body"],
     ["data", "text"],
-    ["data", "Data"],
+    ["body"],
+    ["text"],
     ["message", "body"],
     ["message", "text"],
     ["payload", "Data"],
