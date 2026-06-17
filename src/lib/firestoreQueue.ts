@@ -128,7 +128,8 @@ export function extractPhone(payload: unknown): string | null {
 
 export function extractBody(payload: unknown): string | null {
   const named = pick(payload, [
-    ["Data", "Data"],   // top-level Data object, variável "Data" do fluxo
+    ["resposta_opcao"],  // campo direto da fila Firestore (Vercel MCM)
+    ["Data", "Data"],
     ["data", "Data"],
     ["data", "body"],
     ["data", "text"],
@@ -140,9 +141,14 @@ export function extractBody(payload: unknown): string | null {
   ]);
   if (named) return named;
 
-  // Varre Data (PascalCase, top-level) e data (lowercase) procurando
-  // qualquer valor string que classifyResponse consiga classificar.
+  // Fallback: varre todos os valores string do payload raiz e de objetos
+  // aninhados procurando qualquer um que classifyResponse classifique.
   const p = payload as Record<string, unknown>;
+  for (const val of Object.values(p)) {
+    if (typeof val === "string" && val.trim() && classifyResponse(val) !== null) {
+      return val;
+    }
+  }
   for (const key of ["Data", "data"]) {
     const dataObj = p?.[key];
     if (dataObj && typeof dataObj === "object") {
