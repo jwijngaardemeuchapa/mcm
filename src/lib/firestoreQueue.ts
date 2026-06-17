@@ -128,7 +128,9 @@ export function extractPhone(payload: unknown): string | null {
 
 export function extractBody(payload: unknown): string | null {
   const named = pick(payload, [
-    ["resposta_opcao"],  // campo direto da fila Firestore (Vercel MCM)
+    ["resposta_opcao"],    // FUP D0/D1: "SIM, tô nessa!" / "NÃO, quero cancelar!"
+    ["resposta_interesse"],// BID etapa 1: "SIM" / "NÃO"
+    ["resposta_aceite"],   // BID etapa 2: "Sim" / "Não" / "Preciso de ajuda"
     ["Data", "Data"],
     ["data", "Data"],
     ["data", "body"],
