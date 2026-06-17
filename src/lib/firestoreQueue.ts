@@ -38,8 +38,8 @@ export type ProcessResult =
 export function classifyResponse(raw: string): RespostaCode | null {
   const norm = normalize(raw).trim();
 
-  // Respostas dos botões do template FUP (frases exatas)
-  if (norm.includes("nessa") || (norm.includes("estou") && norm.includes("sim"))) {
+  // Botões do FUP: "SIM, tô nessa!" → confirmado / "NÃO, quero cancelar!" → cancelado
+  if (norm.includes("nessa")) {
     return "confirmado";
   }
   if (norm.includes("quero cancelar") || norm.includes("nao quero")) {
