@@ -23,6 +23,10 @@ export default function Carteira() {
   const [dragOver, setDragOver] = useState(false);
   const [showOnlyHidden, setShowOnlyHidden] = useState(false);
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addNome, setAddNome] = useState("");
+  const [addCnpj, setAddCnpj] = useState("");
+  const [addSaving, setAddSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -135,6 +139,28 @@ export default function Carteira() {
     }
   }
 
+  async function addManual() {
+    const nome = addNome.trim().replace(/\s+/g, " ");
+    if (!nome) return;
+    setAddSaving(true);
+    try {
+      const db = await getDb();
+      await db.execute(
+        "INSERT OR IGNORE INTO carteira (id, nome_fantasia, cnpj, created_at) VALUES (?, ?, ?, ?)",
+        [uuid(), nome, addCnpj.trim() || null, new Date().toISOString()],
+      );
+      toast.success(`"${nome}" adicionada à carteira`);
+      setAddOpen(false);
+      setAddNome("");
+      setAddCnpj("");
+      load();
+    } catch (e) {
+      toast.error("Erro ao adicionar: " + errMsg(e));
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
   async function remove(id: string) {
     try {
       const db = await getDb();
@@ -243,6 +269,10 @@ export default function Carteira() {
                 {showOnlyHidden ? "Mostrar todas" : `Ver ${hiddenCompanies.length} oculta${hiddenCompanies.length !== 1 ? "s" : ""}`}
               </Button>
             )}
+            <Button size="sm" variant="outline" className="gap-1.5 h-9 text-xs" onClick={() => setAddOpen(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Adicionar
+            </Button>
             <div className="relative">
               <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-muted-foreground" />
               <Input className="pl-8 h-9 w-64" placeholder="Buscar..." value={filter} onChange={(e) => setFilter(e.target.value)} />
@@ -326,6 +356,47 @@ export default function Carteira() {
           </table>
         )}
       </div>
+
+      {/* ── Dialog: adicionar empresa manualmente ── */}
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) { setAddOpen(false); setAddNome(""); setAddCnpj(""); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Adicionar empresa manualmente
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Nome Fantasia <span className="text-destructive">*</span></label>
+              <Input
+                value={addNome}
+                onChange={(e) => setAddNome(e.target.value)}
+                placeholder="Ex: Meuchapa Serviços"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter" && addNome.trim() && !addSaving) addManual(); }}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">CNPJ <span className="text-muted-foreground/60">(opcional)</span></label>
+              <Input
+                value={addCnpj}
+                onChange={(e) => setAddCnpj(e.target.value)}
+                placeholder="00.000.000/0001-00"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); setAddNome(""); setAddCnpj(""); }}>
+              Cancelar
+            </Button>
+            <Button onClick={addManual} disabled={!addNome.trim() || addSaving} className="gap-1.5">
+              {addSaving ? <Upload className="h-3.5 w-3.5 animate-pulse" /> : <Plus className="h-3.5 w-3.5" />}
+              {addSaving ? "Salvando…" : "Adicionar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!removeTarget} onOpenChange={(o) => !o && setRemoveTarget(null)}>
         <DialogContent className="sm:max-w-sm">

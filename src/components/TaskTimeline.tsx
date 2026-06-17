@@ -10,7 +10,7 @@ interface TaskTimelineProps {
 }
 
 export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Constants
   const HOUR_WIDTH = 120; // 120px per hour
@@ -80,6 +80,20 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
     return { startHour: minH, endHour: maxH, processedTasks: withLanes };
   }, [tasks]);
 
+  // Scroll para a linha do "Agora" ao montar ou quando as tarefas mudam
+  useEffect(() => {
+    if (!scrollRef.current || tasks.length === 0) return;
+    const today = todayDateISO_SP();
+    const firstTaskDay = fmtSP(tasks[0].data_tarefa, "yyyy-MM-dd");
+    if (today !== firstTaskDay) return;
+    const now = nowSP();
+    const currentFloat = now.getHours() + now.getMinutes() / 60;
+    if (currentFloat < startHour || currentFloat > endHour) return;
+    const nowX = (currentFloat - startHour) * HOUR_WIDTH;
+    const half = scrollRef.current.clientWidth / 2;
+    scrollRef.current.scrollLeft = Math.max(0, nowX - half);
+  }, [startHour, endHour, tasks]);
+
   const hoursArray = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const totalWidth = hoursArray.length * HOUR_WIDTH;
 
@@ -90,7 +104,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
   const containerHeight = Math.max(120, numLanes * 50 + 60);
 
   return (
-    <div className="w-full overflow-x-auto rounded-xl border border-border bg-card p-4">
+    <div ref={scrollRef} className="w-full overflow-x-auto rounded-xl border border-border bg-card p-4">
       <div className="relative min-w-max" style={{ width: totalWidth, height: containerHeight }}>
 
         {/* Linhas de grade verticais — altura total do container */}
@@ -122,7 +136,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                     className={`absolute h-10 rounded-md border text-left px-2 py-1 shadow-sm transition-all hover:ring-2 hover:ring-primary overflow-hidden ${t.colorClass}`}
                     style={{
                       left: (t.startFloat - startHour) * HOUR_WIDTH,
-                      width: (t.endFloat - t.startFloat) * HOUR_WIDTH - 4, // -4px for gap
+                      width: Math.max(80, (t.endFloat - t.startFloat) * HOUR_WIDTH - 4),
                       top: t.lane * 50
                     }}
                   >
@@ -131,8 +145,8 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                       {!t.concluida && t.validada && <BadgeCheck className="h-3 w-3 shrink-0" />}
                       <span className="truncate">{t.empresa.toUpperCase()}</span>
                     </div>
-                    <div className="text-[10px] flex items-center gap-1 opacity-90 truncate">
-                      <Users className="h-3 w-3" />
+                    <div className="text-[10px] flex items-center gap-1 opacity-90 whitespace-nowrap">
+                      <Users className="h-3 w-3 shrink-0" />
                       {t.confirmados}/{t.totalVagas}
                     </div>
                   </button>

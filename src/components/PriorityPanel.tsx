@@ -143,7 +143,7 @@ export function PriorityPanel({
   hideMonitorar?: boolean;
   lembreteItems?: LembreteAlertItem[];
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const allItems = useMemo(() => buildPriorities(tasks, fillThreshold), [tasks, fillThreshold]);
   const items = hideMonitorar ? allItems.filter((i) => i.level !== "monitorar") : allItems;

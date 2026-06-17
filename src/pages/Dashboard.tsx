@@ -1557,7 +1557,7 @@ function WatcherLogPanel({
   onClear: () => void;
   onFlashTask: (id: number) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
