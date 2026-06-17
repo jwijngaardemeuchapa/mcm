@@ -165,7 +165,7 @@ export default function Integracoes() {
   const [listenerOpen, setListenerOpen] = useState(false);
   const [listenerStep, setListenerStep] = useState<ListenerStep>("input");
   const [listenerPhone, setListenerPhone] = useState("");
-  const [listenerBotType, setListenerBotType] = useState<ListenerBotType>("fup");
+  const [listenerBotType, setListenerBotType] = useState<ListenerBotType>("bid");
   const [listenerSending, setListenerSending] = useState(false);
   const [listenerResult, setListenerResult] = useState<ListenerResult>(null);
   const [listenerDebug, setListenerDebug] = useState<string | null>(null);
