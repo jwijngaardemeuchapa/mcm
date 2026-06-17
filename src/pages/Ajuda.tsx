@@ -767,12 +767,13 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.91 — Firebase, Timeline e melhorias de UX:</strong>{" "}
-              <strong>Respostas via Firebase</strong>: recepção de respostas FUP e BID migrada para fila Firebase Firestore — sem depender de porta local ou WhatsApp Desktop. Correlação automática por telefone do chapa.{" "}
-              <strong>Teste ponta a ponta</strong>: Integrações agora tem teste de disparo (FUP ou BID) com escuta Firebase em tempo real para validar o ciclo completo.{" "}
-              <strong>Timeline aprimorada</strong>: visão Timeline abre centralizada na hora atual ("Agora"); cards nunca cortam a contagem de confirmados.{" "}
-              <strong>Painéis colapsados por padrão</strong>: Prioridades de Ação e Confirmações Automáticas iniciam fechados para não poluir a tela.{" "}
-              <strong>Carteira manual</strong>: botão "Adicionar" na Carteira de Empresas permite incluir clientes sem precisar de CSV.
+              <strong>v0.9.91 — Firebase, BID completo, Timeline e UX:</strong>{" "}
+              <strong>Respostas via Firebase</strong>: recepção de respostas FUP e BID migrada para fila Firebase Firestore — sem depender de porta local ou WhatsApp Desktop.{" "}
+              <strong>BID — fluxo completo de 3 etapas</strong>: etapa 1 (interesse sim/não), etapa 2 (aceita app / precisa ajuda / não aceita), etapa 3 (motivo de não aceitar: em cima da hora, localização, valor, não uso mais o app, outro). Dashboard distingue "Interesse — Sem App" de "Sem Interesse" com badge laranja "manual".{" "}
+              <strong>Teste ponta a ponta</strong>: Integrações tem teste de disparo (FUP ou BID) com escuta Firebase em tempo real para validar o ciclo completo.{" "}
+              <strong>Timeline aprimorada</strong>: abre centralizada na hora atual; cards nunca cortam a contagem de confirmados.{" "}
+              <strong>Painéis colapsados por padrão</strong>: Prioridades de Ação e Confirmações Automáticas iniciam fechados.{" "}
+              <strong>Carteira manual</strong>: botão "Adicionar" na Carteira permite incluir clientes sem CSV.
             </span>
           </div>
         )}

@@ -4,6 +4,7 @@
 | Session ID | Actor | Agent | Started | Status | Focus |
 |---|---|---|---|---|---|
 | 09c351a9 | jeremiah | claude | 2026-06-17 | completed | Firebase migration + MCM-53/54/55/56 + Carteira + v0.9.91 + Lead Protocol install |
+| 6203ccf2 | jeremiah | claude | 2026-06-14 | active | Retomada em máquina principal — Lead Protocol adotado daqui em diante |
 
 ## Notes
 
