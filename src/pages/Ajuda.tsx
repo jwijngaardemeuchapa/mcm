@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.90</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.91</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,11 +767,12 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.90 — UX, acessibilidade e Integrações aprimoradas:</strong>{" "}
-              <strong>Integrações protegidas por senha</strong>: a tela de Integrações agora exige senha de acesso, com valores de remetente e organização pré-preenchidos.{" "}
-              <strong>Dropdowns de bot</strong>: FUP D0, FUP D1 e BID agora selecionados via dropdown com lista completa de bots — seleção preenche automaticamente Trigger Name e Bot ID, com opção de edição manual.{" "}
-              <strong>Vídeo de abertura</strong>: intro exibido nas 2 primeiras aberturas do app e toda segunda-feira na primeira abertura do dia.{" "}
-              <strong>Confirmações e acessibilidade</strong>: botão Limpar dados do Fillrate agora pede confirmação; botões de remoção de chapa e exclusão de registro com aria-label para leitores de tela.
+              <strong>v0.9.91 — Firebase, Timeline e melhorias de UX:</strong>{" "}
+              <strong>Respostas via Firebase</strong>: recepção de respostas FUP e BID migrada para fila Firebase Firestore — sem depender de porta local ou WhatsApp Desktop. Correlação automática por telefone do chapa.{" "}
+              <strong>Teste ponta a ponta</strong>: Integrações agora tem teste de disparo (FUP ou BID) com escuta Firebase em tempo real para validar o ciclo completo.{" "}
+              <strong>Timeline aprimorada</strong>: visão Timeline abre centralizada na hora atual ("Agora"); cards nunca cortam a contagem de confirmados.{" "}
+              <strong>Painéis colapsados por padrão</strong>: Prioridades de Ação e Confirmações Automáticas iniciam fechados para não poluir a tela.{" "}
+              <strong>Carteira manual</strong>: botão "Adicionar" na Carteira de Empresas permite incluir clientes sem precisar de CSV.
             </span>
           </div>
         )}
@@ -1007,7 +1008,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.90 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v0.9.91 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1042,7 +1043,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.90 · © 2026 Wijngaarde Design
+        MCM v0.9.91 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
