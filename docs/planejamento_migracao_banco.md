@@ -545,22 +545,213 @@ A página de Integrações (Integracoes.tsx) receberá uma nova seção para con
 
 ---
 
-## 7. Mapeamento de Campos — Banco Origem → SQLite Local
+## 7. Mapeamento de Campos — Banco Origem (PostgreSQL) → SQLite Local
 
-> **Pendente**: aguardando levantamento na máquina com Antigravity instalado.
+> **Banco de origem confirmado**: PostgreSQL (plataforma Antigravity / Meu Chapa)  
+> **Driver Rust a usar**: `sqlx` com feature `postgres` (ou `tokio-postgres`)
 
-Estrutura esperada quando preenchido:
+---
 
+### 7.1 `tarefas` ← `WorkHeader` + JOIN `Business` + JOIN `Address`
+
+Query de origem:
+```sql
+SELECT
+  wh."Id"                                    AS id_tarefa,
+  wh."TaskDate"                              AS data_tarefa,
+  CONCAT(a."City", '/', a."State")           AS cidade_uf,
+  b."FantasyName"                            AS empresa,
+  b."DocumentNumber"                         AS cnpj,
+  wh."IdWorkStatus"::text                    AS status_tarefa,
+  wh."WorkersQty"                            AS quantidade_chapas,
+  CASE WHEN wh."IsFinished" THEN 0 ELSE 1 END AS ativo,
+  wh."Obs"                                   AS observacoes,
+  wh."TaskEndDate"                           AS data_tarefa_fim,
+  wh."CreateDate"                            AS importado_em
+FROM "WorkHeader" wh
+JOIN "Business" b ON b."Id" = wh."IdBusiness"
+LEFT JOIN "Address" a ON a."Id" = wh."IdTaskAddress"
+WHERE wh."TaskDate" >= NOW() - INTERVAL '90 days'  -- ajustar conforme necessidade
+ORDER BY wh."TaskDate" DESC
 ```
-Tabela de origem: <nome_tabela_origem>
-Tabela local:     tarefas
 
 Mapeamento de colunas:
-  origem.campo_x  → local.id_tarefa    (INTEGER)
-  origem.campo_y  → local.empresa      (TEXT)
-  origem.campo_z  → local.data_tarefa  (TEXT ISO-8601)
-  ...
+
+| PG (`WorkHeader`) | SQLite (`tarefas`) | Tipo SQLite | Obs |
+|---|---|---|---|
+| `Id` (bigint) | `id_tarefa` | INTEGER | PK |
+| `TaskDate` (timestamp) | `data_tarefa` | TEXT ISO-8601 | Converter para `-03:00` |
+| `City`/`State` (via Address) | `cidade_uf` | TEXT | `"São Paulo/SP"` |
+| `Business.FantasyName` | `empresa` | TEXT | Via JOIN |
+| `Business.DocumentNumber` | `cnpj` | TEXT | Via JOIN |
+| `IdWorkStatus` (int/text) | `status_tarefa` | TEXT | Ver mapeamento abaixo |
+| `WorkersQty` | `quantidade_chapas` | INTEGER | |
+| `IsFinished` | `ativo` | INTEGER | 0 se finalizado, 1 caso contrário |
+| `Obs` | `observacoes` | TEXT | |
+| `CreateDate` | `importado_em` | TEXT | Timestamp do registro original |
+
+**Mapeamento de `IdWorkStatus` → `status_tarefa`:**
+> Os valores exatos de `WorkStatus.Description` precisam ser confirmados no banco.  
+> Provável: `1=Em Aberto`, `2=Em Andamento`, `3=Finalizado`, `4=Cancelado`
+
+---
+
+### 7.2 `chapas` ← `WorkItem` + JOIN `User`
+
+Query de origem:
+```sql
+SELECT
+  wi."Code"::text                            AS id,
+  wi."IdWorkHeader"                          AS id_tarefa,
+  CONCAT(u."FirstName", ' ', u."LastName")   AS nome_chapa,
+  u."Phone"                                  AS telefone_chapa,
+  u."DocumentNumber"                         AS cpf,
+  wi."IdWorkStatus"::text                    AS status_contato,
+  wi."TaskAcceptance"                        AS task_acceptance,
+  wi."CreateDate"                            AS data_contato
+FROM "WorkItem" wi
+LEFT JOIN "User" u ON u."Id" = wi."IdUser"
+WHERE wi."IdWorkHeader" IN (/* ids das tarefas sincronizadas */)
 ```
+
+Mapeamento de colunas:
+
+| PG (`WorkItem`) | SQLite (`chapas`) | Tipo SQLite | Obs |
+|---|---|---|---|
+| `Code` (uuid) | `id` | TEXT | UUID → string |
+| `IdWorkHeader` | `id_tarefa` | INTEGER | FK → tarefas |
+| `User.FirstName + LastName` | `nome_chapa` | TEXT | Concatenar |
+| `User.Phone` | `telefone_chapa` | TEXT | |
+| `User.DocumentNumber` | `cpf` | TEXT | CPF do trabalhador |
+| `IdWorkStatus` | `status_contato` | TEXT | Ver mapeamento |
+| `TaskAcceptance` | `validacao_presenca` | TEXT | Mapear para `presente`/`ausente` |
+| `CreateDate` | `data_contato` | TEXT | |
+
+**Mapeamento de `TaskAcceptance` → `validacao_presenca`:**
+- `"Accepted"` → `"presente"`
+- `"Rejected"` / `"Canceled"` → `"ausente"`
+- `null` → `null`
+
+---
+
+### 7.3 `chapa_registry` ← `User` + JOIN `Address`
+
+Tabela mais pesada — sincronizar 2x/semana. Query filtra apenas usuários chapa (Profile = trabalhador).
+
+```sql
+SELECT
+  u."DocumentNumber"                         AS cpf,
+  CONCAT(u."FirstName", ' ', u."LastName")   AS nome,
+  u."Phone"                                  AS telefone,
+  a."City"                                   AS cidade,
+  a."Neighborhood"                           AS bairro,
+  a."State"                                  AS estado,
+  a."Street"                                 AS rua,
+  a."ZipCode"                                AS cep,
+  a."Number"                                 AS numero,
+  u."ASO"                                    AS aso,
+  CASE WHEN u."IsActive" THEN 'ativo' ELSE 'inativo' END AS situacao,
+  CASE WHEN bl."Id" IS NOT NULL THEN 'bloqueado' ELSE NULL END AS bloqueio,
+  bl_reason."Description"                    AS motivo_bloqueio,
+  u."CreateDate"                             AS importado_em
+FROM "User" u
+LEFT JOIN "Address" a ON a."Id" = u."IdAddress"
+LEFT JOIN "Blacklist" bl ON bl."IdUser" = u."Id" AND bl."IsBlockAllBusiness" = true
+LEFT JOIN "BlacklistReason" bl_reason ON bl_reason."Id" = bl."IdBlacklistReason"
+WHERE u."IsDeleted" = false
+  AND u."Profile" = 3  -- ajustar conforme valor do perfil "chapa" no sistema
+ORDER BY u."Id"
+```
+
+Mapeamento de colunas:
+
+| PG (`User`) | SQLite (`chapa_registry`) | Tipo SQLite | Obs |
+|---|---|---|---|
+| `DocumentNumber` | `cpf` | TEXT | **PK** |
+| `FirstName + LastName` | `nome` | TEXT | |
+| `Phone` | `telefone` | TEXT | |
+| `Address.City` | `cidade` | TEXT | |
+| `Address.Neighborhood` | `bairro` | TEXT | |
+| `Address.State` | `estado` | TEXT | |
+| `Address.Street` | `rua` | TEXT | |
+| `Address.ZipCode` | `cep` | TEXT | |
+| `Address.Number` | `numero` | TEXT | |
+| `ASO` | `aso` | TEXT | Atestado de saúde |
+| `IsActive` | `situacao` | TEXT | `'ativo'`/`'inativo'` |
+| `Blacklist` (join) | `bloqueio` | TEXT | `'bloqueado'` se tiver registro |
+| `BlacklistReason.Description` | `motivo_bloqueio` | TEXT | |
+| `IsMobileAppUser` | — | — | Usado em `bid_chapas.usuario_app` |
+
+---
+
+### 7.4 `bid_chapas` ← `User` + JOIN `Address`
+
+Mesma origem que `chapa_registry`. A diferença é o escopo e campos adicionais de localização.
+
+```sql
+SELECT
+  u."Id"                                     AS id_usuario,
+  CONCAT(u."FirstName", ' ', u."LastName")   AS nome,
+  u."Phone"                                  AS telefone,
+  a."Latitude"                               AS lat,
+  a."Longitude"                              AS lng,
+  a."City"                                   AS cidade,
+  a."State"                                  AS estado,
+  u."IsMobileAppUser"                        AS usuario_app,
+  u."BackgroundCheckN1"                      AS verificacao1,
+  u."BackgroundCheckN2"                      AS verificacao2,
+  u."CreateDate"                             AS importado_em
+FROM "User" u
+LEFT JOIN "Address" a ON a."Id" = u."IdAddress"
+WHERE u."IsDeleted" = false
+  AND u."Profile" = 3
+  AND u."IsActive" = true
+```
+
+Mapeamento de colunas:
+
+| PG (`User`) | SQLite (`bid_chapas`) | Tipo SQLite | Obs |
+|---|---|---|---|
+| `Id` | `id_usuario` | INTEGER | ID no sistema original |
+| `FirstName + LastName` | `nome` | TEXT | |
+| `Phone` | `telefone` | TEXT | |
+| `Address.Latitude` | `lat` | REAL | |
+| `Address.Longitude` | `lng` | REAL | |
+| `Address.City` | `cidade` | TEXT | |
+| `Address.State` | `estado` | TEXT | |
+| `IsMobileAppUser` | `usuario_app` | INTEGER | 1=tem app |
+| `BackgroundCheckN1` | `verificacao1` | TEXT | |
+| `BackgroundCheckN2` | `verificacao2` | TEXT | |
+| (gerado) | `id` | TEXT | UUID gerado no upsert |
+| `CreateDate` | `importado_em` | TEXT | |
+
+---
+
+### 7.5 `carteira` ← `Business`
+
+Não sincronizada automaticamente (dados mantidos manualmente no app). Pode ser feita uma importação inicial única.
+
+```sql
+SELECT
+  "FantasyName"   AS nome_fantasia,
+  "DocumentNumber" AS cnpj
+FROM "Business"
+WHERE "IsDeleted" = false AND "IsActive" = true
+ORDER BY "FantasyName"
+```
+
+---
+
+### 7.6 Pontos a Confirmar
+
+| Item | Pergunta |
+|---|---|
+| `User.Profile` | Qual o valor numérico do perfil "chapa" (trabalhador)? |
+| `WorkHeader.IdWorkStatus` | Quais os IDs e descrições de cada status? |
+| `WorkItem.IdWorkStatus` | Mesma tabela de status ou outra? |
+| Latitude/Longitude | Estão em `Address` ou em outra tabela? (o schema mostra ambas) |
+| Filtro de datas | Quantos dias de histórico sincronizar em `WorkHeader`? |
+| Acesso de rede | O banco PostgreSQL é acessível via IP público ou só via VPN/rede local? |
 
 ---
 
