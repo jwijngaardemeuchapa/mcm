@@ -73,6 +73,7 @@ import {
   BookMarked,
   Hash,
   Calendar,
+  PhoneCall,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BidMatchmaker } from "@/components/BidMatchmaker";
@@ -222,9 +223,8 @@ function parseLatLngFromUrl(url: string): { lat: number; lng: number } | null {
   return null;
 }
 
-function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null, maxDist?: number, leoCache?: Map<string, LeoMetrics>): number {
+function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null, maxDist?: number, leoCache?: Map<string, LeoMetrics>, disparoStatus?: string): number {
   let score = 0;
-  // New chapas (0 tasks) get a base score so proximity + BID rate can still rank them competitively
   score += c.tarefas === 0 ? 10 : Math.min(c.tarefas, 100) * 1.0;
   const scale = maxDist ?? 30;
   if (distKm !== null) score += Math.max(0, scale - distKm) * (60 / scale);
@@ -237,6 +237,8 @@ function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | n
   else if (sit.includes("ainda") || sit.includes("não ativo") || sit.includes("nao ativo")) score += 5;
   if (c.aso) score += 10;
   if (cepPrefix && distKm === null && c.cep && c.cep.replace(/\D/g, "").startsWith(cepPrefix)) score += 20;
+  // Chapa tem interesse mas não tem app ou precisa de ajuda — ainda é candidato positivo
+  if (disparoStatus && (STATUS_MANUAL as readonly string[]).includes(disparoStatus)) score += 30;
   if (leoCache && c.telefone) {
     const leo = leoCache.get(normalizePhone(c.telefone));
     if (leo) {
@@ -277,13 +279,16 @@ async function clipCopy(text: string, msg: string) {
 
 
 const STATUS_CFG: Record<string, { label: string; cls: string }> = {
-  aguardando:     { label: "Aguardando",     cls: "bg-muted/40 text-muted-foreground border-border" },
-  interesse_sim:  { label: "Interesse ✓",    cls: "bg-success/10 text-success border-success/30" },
-  interesse_nao:  { label: "Interesse ✗",    cls: "bg-destructive/10 text-destructive border-destructive/30" },
-  aceita_app:     { label: "Aceita App",     cls: "bg-success/15 text-success border-success/40" },
-  nao_aceita_app: { label: "Não Aceita App", cls: "bg-warning/10 text-warning border-warning/30" },
-  precisa_ajuda:  { label: "Precisa Ajuda",  cls: "bg-warning/10 text-warning border-warning/30" },
+  aguardando:     { label: "Aguardando",          cls: "bg-muted/40 text-muted-foreground border-border" },
+  interesse_sim:  { label: "Interesse ✓",         cls: "bg-success/10 text-success border-success/30" },
+  interesse_nao:  { label: "Sem Interesse",        cls: "bg-destructive/10 text-destructive border-destructive/30" },
+  aceita_app:     { label: "Aceita App ✓",         cls: "bg-success/15 text-success border-success/40" },
+  nao_aceita_app: { label: "Interesse — Sem App",  cls: "bg-orange-500/10 text-orange-500 border-orange-500/30" },
+  precisa_ajuda:  { label: "Interesse — Precisa Ajuda", cls: "bg-orange-500/10 text-orange-500 border-orange-500/30" },
 };
+
+// Chapas com interesse real mas que precisam de ação manual (sem app ou precisam de ajuda)
+const STATUS_MANUAL = ["nao_aceita_app", "precisa_ajuda"] as const;
 
 const EMPTY_PARAMS: DispatchParams = {
   local: "",
@@ -535,7 +540,7 @@ function BidTaskCard({
       return {
         ...c,
         distance_km: distKm,
-        score: isOccupied ? -9999 : computeScore(c, distKm, cepPrefix, maxDistKm, leoCache),
+        score: isOccupied ? -9999 : computeScore(c, distKm, cepPrefix, maxDistKm, leoCache, disparo?.status),
         is_occupied: isOccupied,
         disparo,
       };
@@ -791,7 +796,8 @@ function BidTaskCard({
           {taskDisparos.length > 0 && (() => {
             const aguardando = taskDisparos.filter((d) => d.status === "aguardando").length;
             const positivo = taskDisparos.filter((d) => ["interesse_sim", "aceita_app"].includes(d.status)).length;
-            const negativo = taskDisparos.filter((d) => ["interesse_nao", "nao_aceita_app"].includes(d.status)).length;
+            const manual = taskDisparos.filter((d) => (STATUS_MANUAL as readonly string[]).includes(d.status)).length;
+            const negativo = taskDisparos.filter((d) => d.status === "interesse_nao").length;
             return (
               <div className="flex items-center gap-1 shrink-0">
                 {aguardando > 0 && (
@@ -802,6 +808,11 @@ function BidTaskCard({
                 {positivo > 0 && (
                   <span className="flex items-center gap-0.5 text-[10px] font-bold text-success px-1.5 py-0.5 rounded-full bg-success/10 border border-success/20 tabular-nums">
                     {positivo}<CheckCircle2 className="h-2.5 w-2.5" />
+                  </span>
+                )}
+                {manual > 0 && (
+                  <span className="flex items-center gap-0.5 text-[10px] font-bold text-orange-500 px-1.5 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 tabular-nums">
+                    {manual}<PhoneCall className="h-2.5 w-2.5" />
                   </span>
                 )}
                 {negativo > 0 && (
@@ -1578,10 +1589,12 @@ function BidTaskCard({
                   {(() => {
                     const a = taskDisparos.filter((d) => d.status === "aguardando").length;
                     const p = taskDisparos.filter((d) => ["interesse_sim", "aceita_app"].includes(d.status)).length;
-                    const n = taskDisparos.filter((d) => ["interesse_nao", "nao_aceita_app"].includes(d.status)).length;
+                    const m = taskDisparos.filter((d) => (STATUS_MANUAL as readonly string[]).includes(d.status)).length;
+                    const n = taskDisparos.filter((d) => d.status === "interesse_nao").length;
                     return <>
                       {a > 0 && <span className="flex items-center gap-0.5 text-warning tabular-nums">{a} aguard. <Clock className="h-3 w-3" /></span>}
                       {p > 0 && <span className="flex items-center gap-0.5 text-success tabular-nums">{p} interesse <CheckCircle2 className="h-3 w-3" /></span>}
+                      {m > 0 && <span className="flex items-center gap-0.5 text-orange-500 tabular-nums">{m} manual <PhoneCall className="h-3 w-3" /></span>}
                       {n > 0 && <span className="flex items-center gap-0.5 text-destructive tabular-nums">{n} negativo <XCircle className="h-3 w-3" /></span>}
                     </>;
                   })()}
