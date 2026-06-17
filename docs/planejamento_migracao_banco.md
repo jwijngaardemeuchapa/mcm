@@ -443,7 +443,128 @@ Para uma migração **seletiva** (ex: sincronizar apenas tarefas entre instânci
 
 ---
 
-## 6. Considerações Para Migração Multi-Operador (MCM-42)
+## 6. Arquitetura de Sincronização Direta com o Banco de Origem
+
+### Contexto
+
+Atualmente o fluxo de dados é:
+```
+Banco original → Metabase (exportação manual) → arquivo CSV/XLSX → importação no app
+```
+
+O objetivo é substituir por:
+```
+Banco original → sync automático no Rust (Tauri command) → SQLite local
+```
+
+O SQLite local **permanece como banco operacional**. A conexão com o banco de origem é somente leitura — os dados são lidos de lá e escritos no SQLite local via upsert.
+
+### Tabelas a Sincronizar
+
+| Tabela local | Frequência | Gatilho |
+|---|---|---|
+| `tarefas` | Max 1x/3min | Ao abrir o app + botão "Atualizar" |
+| `chapas` | Max 1x/3min | Junto com tarefas |
+| `chapa_registry` | Max 2x/semana | Ao abrir o app (verifica último sync) |
+
+### Comportamento do Botão "Atualizar"
+
+O botão "Atualizar" no Dashboard (Dashboard.tsx:1032) atualmente apenas relê o SQLite local (`load(true)`). Precisa ser expandido:
+
+1. **Verificar throttle**: ler `localStorage.getItem("mcm_sync_last")` — se `Date.now() - last < 3 * 60 * 1000` (3 min), pular sync e só relê local
+2. **Chamar comando Tauri**: `invoke("sync_from_source")` que conecta ao banco de origem e faz upsert no SQLite local
+3. **Atualizar timestamp**: `localStorage.setItem("mcm_sync_last", Date.now().toString())`
+4. **Re-ler SQLite local**: o `load()` já existente roda normalmente após o sync
+
+Para `chapa_registry`:
+- Chave: `mcm_sync_registry_last` (timestamp)
+- Throttle: `Date.now() - last < 3.5 * 24 * 60 * 60 * 1000` (3.5 dias → max 2x/semana)
+- Disparado apenas na abertura do app, não no botão "Atualizar"
+
+### Estrutura do Comando Tauri (Rust)
+
+```rust
+// src-tauri/src/lib.rs
+#[tauri::command]
+async fn sync_from_source(app: tauri::AppHandle) -> Result<SyncResult, String> {
+    // 1. Ler credenciais do banco de origem das configurações do app
+    //    (armazenadas em app_data_dir/sync_config.json — nunca em localStorage por segurança)
+    let config = read_sync_config(&app)?;
+
+    // 2. Conectar ao banco de origem (driver depende do tipo: PostgreSQL, MySQL, etc.)
+    let remote = connect_remote(&config).await?;
+
+    // 3. Executar queries mapeadas (ver seção 7)
+    let tarefas = remote.fetch_tarefas().await?;
+    let chapas  = remote.fetch_chapas().await?;
+
+    // 4. Abrir SQLite local e fazer upsert
+    let local_db = open_local_db(&app)?;
+    upsert_tarefas(&local_db, tarefas)?;
+    upsert_chapas(&local_db, chapas)?;
+
+    Ok(SyncResult { tarefas_synced: ..., chapas_synced: ... })
+}
+
+#[tauri::command]
+async fn sync_registry_from_source(app: tauri::AppHandle) -> Result<SyncResult, String> {
+    // Mesmo padrão, mas para chapa_registry (tabela maior, menos frequente)
+}
+```
+
+### Configuração de Conexão
+
+As credenciais do banco de origem **não devem ficar em localStorage** (visível via DevTools). Devem ser armazenadas em:
+```
+%APPDATA%\com.fupmanager.app\sync_config.json
+```
+
+Acessado apenas pelo processo Rust, nunca exposto ao WebView. Estrutura:
+```json
+{
+  "host": "...",
+  "port": 5432,
+  "database": "...",
+  "user": "...",
+  "password": "...",
+  "db_type": "postgresql"
+}
+```
+
+A página de Integrações (Integracoes.tsx) receberá uma nova seção para configurar esta conexão. O comando `save_sync_config` escreverá no arquivo diretamente via Rust.
+
+### Dependências Rust a Adicionar (após confirmar tipo do banco)
+
+| Banco | Crate |
+|-------|-------|
+| PostgreSQL | `tokio-postgres` ou `sqlx` com feature `postgres` |
+| MySQL/MariaDB | `sqlx` com feature `mysql` |
+| MS SQL Server | `tiberius` |
+
+> **Próximo passo**: identificar o tipo do banco e o schema das tabelas de origem na máquina com Antigravity. Com isso, escrever o mapeamento de campos (seção 7).
+
+---
+
+## 7. Mapeamento de Campos — Banco Origem → SQLite Local
+
+> **Pendente**: aguardando levantamento na máquina com Antigravity instalado.
+
+Estrutura esperada quando preenchido:
+
+```
+Tabela de origem: <nome_tabela_origem>
+Tabela local:     tarefas
+
+Mapeamento de colunas:
+  origem.campo_x  → local.id_tarefa    (INTEGER)
+  origem.campo_y  → local.empresa      (TEXT)
+  origem.campo_z  → local.data_tarefa  (TEXT ISO-8601)
+  ...
+```
+
+---
+
+## 8. Considerações Para Migração Multi-Operador (MCM-42)
 
 Se o objetivo é sincronizar dados entre múltiplos operadores via Supabase:
 
