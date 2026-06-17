@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-06-17 [postgres, schema, discovery]
+**Rule:** Antes de rodar qualquer query no banco de origem (Antigravity/Meu Chapa), sempre confirmar o schema. As tabelas NÃO estão em `public` — estão em `core_api`. Usar prefixo `core_api."NomeTabela"` em todas as queries.
+**Why:** A primeira query com `"Profile"` sem schema retornou `ERROR: relation "Profile" does not exist`. O banco tem múltiplos schemas: `core_api`, `chapa_driver_api`, `finance_api`, `mc_ia`. `WorkHeader` existe em 3 deles.
+**How to apply:** Sempre prefixar com `core_api.` ao construir queries para sync. Ex: `SELECT * FROM core_api."WorkHeader"`. Validar tabelas com `SELECT table_name FROM information_schema.tables WHERE table_schema = 'core_api'` antes de implementar qualquer comando Rust.
+
+---
+
+## 2026-06-17 [postgres, implementation, sequence]
+**Rule:** Não iniciar implementação Rust/React do sync com banco de origem sem antes validar as 3 queries pendentes: (1) lista de tabelas em core_api, (2) valores de WorkStatus, (3) valores de Profile.
+**Why:** O usuário interrompeu a implementação porque as queries ainda estavam com erros. Implementar com queries erradas gera retrabalho na camada Rust.
+**How to apply:** Sequência obrigatória: validar queries no banco → confirmar mapeamento de status/perfis → só então adicionar dependências Cargo.toml e escrever comandos Rust.
+
+---
+
 ## 2026-06-17 [jira, permissions, external-write]
 **Rule:** Never close a pre-existing Jira ticket (not created in this session) without explicit user authorization.
 **Why:** The auto-mode classifier blocks writes to external systems for tickets it didn't create. Silently retrying fails and wastes time. Asking the user ("posso fechar?") and waiting for "sim" is the correct path.

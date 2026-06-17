@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-06-17 — Planejamento migração banco + arquitetura sync direto PG
+**Actor:** Jeremiah | **Agent:** claude
+**Tickets:** (planejamento — sem ticket Jira)
+**Summary:** Levantamento completo do banco de dados de origem (PostgreSQL — plataforma Antigravity/Meu Chapa). Criado `docs/planejamento_migracao_banco.md` com: schema completo das 25 tabelas SQLite locais, prioridades de migração P0-P3, arquitetura de sync direto (Rust command + Windows Credential Manager + throttle 3min/2x semana), mapeamento campo a campo WorkHeader→tarefas / WorkItem→chapas / User→chapa_registry / User→bid_chapas, confirmação de status e perfis de usuário. Descoberto que as tabelas do banco de origem estão no schema `core_api` (não `public`). Queries da seção 7 precisam ser validadas com o schema correto antes de implementar — **implementação NÃO iniciada**, aguardando validação das queries no banco.
+**Files changed:** `docs/planejamento_migracao_banco.md`
+**Next:** Usuário precisa rodar as 3 queries de validação (WorkStatus, Profile, tabelas em core_api) e colar resultados. Após confirmação, implementar: `keyring` + `tokio-postgres` no Cargo.toml, comandos Rust de sync, seção de DB credentials em Integrações, throttle no botão Atualizar.
+
+---
+
 ## 2026-06-17 — Lead Protocol v2.0.4 scaffold installed
 **Actor:** Jeremiah | **Agent:** claude
 **Tickets:** (infra — no Jira ticket)
