@@ -1,0 +1,11 @@
+# active_sessions.md — Concurrent Session Awareness
+# Update on session start (add row) and session end (set status → completed).
+
+| Session ID | Actor | Agent | Started | Status | Focus |
+|---|---|---|---|---|---|
+| 09c351a9 | jeremiah | claude | 2026-06-17 | completed | Firebase migration + MCM-53/54/55/56 + Carteira + v0.9.91 + Lead Protocol install |
+
+## Notes
+
+- Only one actor (Jeremiah) currently operates MCM — concurrency conflicts are unlikely.
+- If a second agent is ever onboarded, both agents must read this table at boot and check for active overlapping sessions before writing to shared project files.

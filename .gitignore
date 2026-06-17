@@ -34,6 +34,9 @@ src-tauri/*.zip
 # Claude Code memory (local apenas)
 .claude/
 
+# Lead Protocol — estado volátil por sessão (não compartilhado entre agentes)
+.agents/local/
+
 # Variáveis de ambiente (tokens, chaves de API — nunca commitar)
 .env
 .env.local
