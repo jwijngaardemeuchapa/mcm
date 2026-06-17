@@ -15,12 +15,14 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Webhook,
-  Copy,
+  Cloud,
   Lock,
   KeyRound,
+  Wifi,
 } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
+import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
+import { extractPhone, extractBody, classifyResponse, type RespostaCode } from "@/lib/firestoreQueue";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,21 +42,30 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
-import { sendUmblerFup } from "@/lib/umbler";
+import { sendUmblerFup, startUmblerBot } from "@/lib/umbler";
 import { errMsg } from "@/lib/db";
 import { toast } from "sonner";
 
-const LISTENER_TIMEOUT_SECS = 120;
+const LISTENER_TIMEOUT_SECS = 180;
 const SENHA_INTEGRACOES = "ch@p@Meu";
 
 type ListenerStep = "input" | "waiting" | "done";
-type ListenerResult = "sim" | "nao" | "timeout" | null;
+type ListenerResult = RespostaCode | "timeout" | null;
+type ListenerBotType = "fup" | "bid";
 
-interface NotificationMatch {
-  chapa_nome: string;
-  resposta: "sim" | "nao";
-  arrival_time_secs: number;
-}
+const RESPOSTA_LABEL: Record<string, string> = {
+  confirmado: "Confirmado",
+  cancelado: "Cancelado",
+  interesse_sim: "Interesse (SIM)",
+  interesse_nao: "Sem interesse (NÃO)",
+  aceita_app: "Aceita app",
+  nao_aceita_app: "Não aceita app",
+  precisa_ajuda: "Precisa de ajuda",
+};
+
+const RESPOSTA_POSITIVO: Record<string, boolean> = {
+  confirmado: true, interesse_sim: true, aceita_app: true,
+};
 
 type BotEntry = { label: string; botId: string };
 
@@ -143,8 +154,7 @@ export default function Integracoes() {
   const [showSenha, setShowSenha] = useState(false);
   const [umblerSettings, setUmblerSettings] = useState(() => readSettings().umblerSettings);
   const [fupAgendarMinAntes, setFupAgendarMinAntes] = useState(() => readSettings().fupAgendarMinAntes ?? 0);
-  const [webhookHost, setWebhookHost] = useState("127.0.0.1");
-  const [webhookPort, setWebhookPort] = useState(() => readSettings().umblerSettings.webhookPort ?? 9988);
+  const [firestoreEnabled, setFirestoreEnabled] = useState(() => readSettings().firestoreEnabled);
   const [showToken, setShowToken] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testMode, setTestMode] = useState<"cancel" | "taskCancel">("cancel");
@@ -155,20 +165,18 @@ export default function Integracoes() {
   const [listenerOpen, setListenerOpen] = useState(false);
   const [listenerStep, setListenerStep] = useState<ListenerStep>("input");
   const [listenerPhone, setListenerPhone] = useState("");
+  const [listenerBotType, setListenerBotType] = useState<ListenerBotType>("fup");
   const [listenerSending, setListenerSending] = useState(false);
   const [listenerResult, setListenerResult] = useState<ListenerResult>(null);
   const [listenerCountdown, setListenerCountdown] = useState(LISTENER_TIMEOUT_SECS);
-  const listenerPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const listenerUnsubRef = useRef<Unsubscribe | null>(null);
   const listenerCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const listenerSinceRef = useRef<number>(0);
 
-  /* cleanup intervals when dialog closes */
+  /* cleanup when dialog closes */
   useEffect(() => {
     if (!listenerOpen) {
-      if (listenerPollRef.current) clearInterval(listenerPollRef.current);
-      if (listenerCountdownRef.current) clearInterval(listenerCountdownRef.current);
-      listenerPollRef.current = null;
-      listenerCountdownRef.current = null;
+      if (listenerUnsubRef.current) { listenerUnsubRef.current(); listenerUnsubRef.current = null; }
+      if (listenerCountdownRef.current) { clearInterval(listenerCountdownRef.current); listenerCountdownRef.current = null; }
     }
   }, [listenerOpen]);
 
@@ -176,6 +184,7 @@ export default function Integracoes() {
     setListenerOpen(false);
     setListenerStep("input");
     setListenerPhone("");
+    setListenerBotType("fup");
     setListenerResult(null);
     setListenerCountdown(LISTENER_TIMEOUT_SECS);
   }
@@ -186,9 +195,11 @@ export default function Integracoes() {
     writeSettings({ umblerSettings: next });
   }
 
-  function saveWebhookPort(port: number) {
-    setWebhookPort(port);
-    updateUmblerSetting({ webhookPort: port });
+  function toggleFirestore() {
+    const next = !firestoreEnabled;
+    setFirestoreEnabled(next);
+    writeSettings({ firestoreEnabled: next });
+    toast.success(next ? "Recebimento via Firebase ativado — reinicie o app para conectar." : "Recebimento via Firebase desativado.");
   }
 
   function tentarSenha() {
@@ -201,7 +212,6 @@ export default function Integracoes() {
     }
   }
 
-  const webhookUrl = `http://${webhookHost}:${webhookPort}/webhook/umbler`;
 
   async function sendTest() {
     setTestSending(true);
@@ -236,58 +246,89 @@ export default function Integracoes() {
 
   async function startListenerTest() {
     setListenerSending(true);
+
+    /* 1. Disparo */
     try {
-      await sendUmblerFup({
-        chapaNome: "Verificação MCM",
-        chapaTelefone: listenerPhone,
-        dataTarefa: new Date().toISOString(),
-        empresa: "MCM",
-        settings: umblerSettings,
-        overrideParams: ["teste", "teste"],
-      });
+      if (listenerBotType === "fup") {
+        await startUmblerBot({
+          chapaTelefone: listenerPhone,
+          settings: umblerSettings,
+          initialData: { Data: "Hoje às 08:00", Cidade: "Teste MCM" },
+          botIdOverride: umblerSettings.fupBotId,
+          triggerNameOverride: umblerSettings.fupBotTriggerName,
+        });
+      } else {
+        await startUmblerBot({
+          chapaTelefone: listenerPhone,
+          settings: umblerSettings,
+          initialData: { Data: "Hoje às 08:00", Local: "Teste", Atividades: "Verificação MCM", "Diária": "Teste" },
+          botIdOverride: umblerSettings.bidBotId,
+          triggerNameOverride: umblerSettings.bidBotTriggerName,
+        });
+      }
     } catch (e) {
       toast.error(`Falha no envio: ${errMsg(e)}`);
       setListenerSending(false);
       return;
     }
 
-    listenerSinceRef.current = Math.floor(Date.now() / 1000);
+    /* 2. Conectar Firebase */
+    try {
+      await ensureAnonAuth();
+    } catch (e) {
+      toast.error(`Firebase: erro de autenticação — ${errMsg(e)}`);
+      setListenerSending(false);
+      return;
+    }
+
+    const testSuffix = listenerPhone.replace(/\D/g, "").slice(-11);
+
+    const db = getFirestoreDb();
+    const q = query(
+      collection(db, FIRESTORE_MESSAGES_COLLECTION),
+      where("status", "==", "pending"),
+    );
+
     setListenerStep("waiting");
     setListenerCountdown(LISTENER_TIMEOUT_SECS);
     setListenerSending(false);
 
-    /* poll every 3 s */
-    listenerPollRef.current = setInterval(async () => {
-      try {
-        const matches: NotificationMatch[] = await invoke("check_notification_responses", {
-          chapaNames: [],
-          sinceEpochSecs: listenerSinceRef.current,
-        });
-        if (matches.length > 0) {
-          stopListenerPolling();
-          setListenerResult(matches[0].resposta);
-          setListenerStep("done");
-        }
-      } catch {
-        /* dormant if DB inaccessible */
-      }
-    }, 3_000);
+    /* 3. Escutar Firestore */
+    listenerUnsubRef.current = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type !== "added") return;
+        const data = change.doc.data();
+        const payload = data?.payload ?? data;
+        const phone = extractPhone(payload);
+        if (!phone) return;
+        if (phone.replace(/\D/g, "").slice(-11) !== testSuffix) return;
 
-    /* countdown */
+        /* match encontrado */
+        const body = extractBody(payload) ?? "";
+        const code = classifyResponse(body);
+        stopListenerTest();
+        setListenerResult(code ?? "timeout");
+        setListenerStep("done");
+      });
+    }, (err) => {
+      console.error("Firebase listener erro:", err);
+    });
+
+    /* 4. Countdown */
     let remaining = LISTENER_TIMEOUT_SECS;
     listenerCountdownRef.current = setInterval(() => {
       remaining -= 1;
       setListenerCountdown(remaining);
       if (remaining <= 0) {
-        stopListenerPolling();
+        stopListenerTest();
         setListenerResult("timeout");
         setListenerStep("done");
       }
     }, 1_000);
   }
 
-  function stopListenerPolling() {
-    if (listenerPollRef.current) { clearInterval(listenerPollRef.current); listenerPollRef.current = null; }
+  function stopListenerTest() {
+    if (listenerUnsubRef.current) { listenerUnsubRef.current(); listenerUnsubRef.current = null; }
     if (listenerCountdownRef.current) { clearInterval(listenerCountdownRef.current); listenerCountdownRef.current = null; }
   }
 
@@ -734,12 +775,12 @@ export default function Integracoes() {
 
           <Separator />
 
-          {/* Listener test */}
+          {/* Firebase listener test */}
           <div className="space-y-3">
             <div>
-              <p className="text-sm font-semibold text-foreground">Teste do listener de respostas</p>
+              <p className="text-sm font-semibold text-foreground">Teste de disparo + escuta Firebase</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Envia um FUP de teste e aguarda que o destinatário responda <strong className="text-foreground">SIM, tô nessa!</strong> ou <strong className="text-foreground">NÃO, quero cancelar!</strong> — confirma que o mecanismo de leitura de notificações do Windows está funcionando.
+                Dispara um bot (FUP ou BID) para o número informado e aguarda a resposta chegar via fila Firebase — valida o ciclo completo de ponta a ponta.
               </p>
             </div>
             <Button
@@ -747,11 +788,14 @@ export default function Integracoes() {
               variant="outline"
               className="gap-1.5"
               onClick={() => { setListenerOpen(true); setListenerStep("input"); setListenerResult(null); setListenerCountdown(LISTENER_TIMEOUT_SECS); }}
-              disabled={!coreReady}
+              disabled={!coreReady || !firebaseConfigPresent()}
             >
-              <Smartphone className="h-3.5 w-3.5" />
-              Testar listener de respostas
+              <Wifi className="h-3.5 w-3.5" />
+              Testar disparo + Firebase
             </Button>
+            {!firebaseConfigPresent() && (
+              <p className="text-[11px] text-destructive">Firebase não configurado — preencha as variáveis VITE_FIREBASE_* no .env.</p>
+            )}
           </div>
 
           <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
@@ -764,65 +808,44 @@ export default function Integracoes() {
         </CardContent>
       </Card>
 
-      {/* ── Webhook de Respostas ── */}
+      {/* ── Recebimento de Respostas via Firebase ── */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Webhook className="h-5 w-5 text-muted-foreground" />
-            Captura de Respostas via Webhook
+            <Cloud className="h-5 w-5 text-muted-foreground" />
+            Recebimento de Respostas (Firebase)
           </CardTitle>
           <CardDescription>
-            Configure o Umbler Talk para enviar as respostas dos chapas em tempo real para o MCM — sem depender do WhatsApp Desktop.
+            As respostas dos chapas chegam por uma fila na nuvem (Umbler → Vercel → Firebase) e são consumidas pelo MCM em tempo real, sem depender do WhatsApp Desktop nem de abrir portas.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              URL do Webhook (para configurar no Umbler Talk)
-            </label>
-            <div className="flex gap-2">
-              <Input
-                value={webhookHost}
-                onChange={(e) => setWebhookHost(e.target.value)}
-                placeholder="127.0.0.1 ou seu IP local"
-                className="font-mono text-xs flex-1"
-              />
-              <Input
-                type="number"
-                value={webhookPort}
-                onChange={(e) => saveWebhookPort(Number(e.target.value))}
-                className="font-mono text-xs w-28"
-                min={1024}
-                max={65535}
-              />
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Fila na nuvem</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {firestoreEnabled ? "Ativado — escutando a fila Firebase." : "Desativado."}
+              </p>
             </div>
-            <div className="flex items-center gap-2 mt-1">
-              <code className="flex-1 text-xs font-mono bg-muted/50 border border-border rounded px-3 py-2 text-foreground truncate">
-                {webhookUrl}
-              </code>
-              <Button
-                size="sm"
-                variant="outline"
-                className="shrink-0 gap-1.5"
-                onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("URL copiada!"); }}
-              >
-                <Copy className="h-3.5 w-3.5" />
-                Copiar
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant={firestoreEnabled ? "default" : "outline"}
+              className="gap-1.5"
+              onClick={toggleFirestore}
+            >
+              {firestoreEnabled ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Cloud className="h-3.5 w-3.5" />}
+              {firestoreEnabled ? "Ativado" : "Ativar"}
+            </Button>
           </div>
 
           <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
             <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <div className="text-xs text-muted-foreground space-y-1.5">
               <p>
-                <strong className="text-foreground">Como configurar:</strong> No painel do Umbler Talk, acesse <strong className="text-foreground">Configurações → Integrações → Webhook</strong> e cole a URL acima.
+                <strong className="text-foreground">Como funciona:</strong> o MCM escuta todas as respostas pendentes da fila Firebase e correlaciona cada uma ao disparo correspondente pelo telefone do chapa — sem filtro por bot.
               </p>
               <p>
-                <strong className="text-foreground">IP:</strong> Use o IP local desta máquina (ex.: <code className="font-mono">192.168.1.x</code>) para que o Umbler Talk (nuvem) alcance o MCM.
-              </p>
-              <p>
-                <strong className="text-foreground">Porta padrão:</strong> 9988. O servidor webhook inicia automaticamente com o MCM.
+                <strong className="text-foreground">Reinício:</strong> ao ativar/desativar, reinicie o MCM para (re)conectar a escuta.
               </p>
               <p>
                 <strong className="text-foreground">Respostas detectadas:</strong> SIM / NÃO / 1 / 2 / 3 / Preciso de ajuda / Aceito app. Histórico completo em <strong className="text-foreground">Operacional → Respostas</strong>.
@@ -886,23 +909,49 @@ export default function Integracoes() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog de teste do listener ── */}
+      {/* ── Dialog de teste disparo + Firebase ── */}
       <Dialog open={listenerOpen} onOpenChange={(open) => { if (!open) closeListenerDialog(); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Smartphone className="h-4 w-4 text-muted-foreground" />
-              Teste do listener de respostas
+              <Wifi className="h-4 w-4 text-muted-foreground" />
+              Teste de disparo + escuta Firebase
             </DialogTitle>
           </DialogHeader>
 
           {listenerStep === "input" && (
             <div className="space-y-4 py-2">
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Informe um número WhatsApp para receber o FUP de teste. Após o envio, o sistema ficará aguardando a resposta — responda{" "}
-                <strong className="text-foreground">SIM, tô nessa!</strong> ou{" "}
-                <strong className="text-foreground">NÃO, quero cancelar!</strong> no WhatsApp para validar o mecanismo.
+                Selecione o tipo de bot, informe o número WhatsApp e clique em enviar. O MCM disparará o bot e ficará aguardando a resposta chegar via Firebase.
               </p>
+
+              {/* Tipo de bot */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Tipo de disparo</label>
+                <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium">
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 transition-colors ${listenerBotType === "fup" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted/50"}`}
+                    onClick={() => setListenerBotType("fup")}
+                  >
+                    FUP — Follow-up
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex-1 py-2 transition-colors border-l border-border ${listenerBotType === "bid" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted/50"}`}
+                    onClick={() => setListenerBotType("bid")}
+                  >
+                    BID — Convite
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {listenerBotType === "fup"
+                    ? `Bot: ${umblerSettings.fupBotTriggerName || "não configurado"}`
+                    : `Bot: ${umblerSettings.bidBotTriggerName || "não configurado"}`}
+                </p>
+              </div>
+
+              {/* Número */}
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Número de destino</label>
                 <Input
@@ -913,8 +962,9 @@ export default function Integracoes() {
                   onKeyDown={(e) => { if (e.key === "Enter" && listenerPhone.trim() && !listenerSending) startListenerTest(); }}
                 />
               </div>
+
               <div className="rounded-md bg-muted/40 border border-border px-3 py-2.5 text-xs text-muted-foreground">
-                O listener monitorará notificações do Windows por <strong className="text-foreground">{LISTENER_TIMEOUT_SECS} segundos</strong>.
+                O MCM escutará o Firebase por <strong className="text-foreground">{LISTENER_TIMEOUT_SECS} segundos</strong> após o envio.
               </div>
             </div>
           )}
@@ -924,27 +974,43 @@ export default function Integracoes() {
               <div className="flex flex-col items-center gap-3 text-center">
                 <div className="relative h-14 w-14">
                   <Loader2 className="h-14 w-14 text-primary/20 animate-spin" />
-                  <Smartphone className="absolute inset-0 m-auto h-6 w-6 text-primary" />
+                  <Wifi className="absolute inset-0 m-auto h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium text-foreground text-sm">Aguardando resposta…</p>
+                  <p className="font-medium text-foreground text-sm">Aguardando resposta via Firebase…</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    FUP enviado para <strong className="text-foreground">{listenerPhone}</strong>
+                    {listenerBotType === "fup" ? "FUP" : "BID"} enviado para <strong className="text-foreground">{listenerPhone}</strong>
                   </p>
                 </div>
               </div>
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-center space-y-2">
-                <p className="text-xs text-muted-foreground">No WhatsApp, responda com exatamente:</p>
+                <p className="text-xs text-muted-foreground">Responda no WhatsApp. Exemplos aceitos:</p>
                 <div className="flex flex-col gap-1.5">
-                  <span className="inline-flex items-center justify-center gap-1.5 rounded-md bg-success/10 border border-success/30 px-3 py-1.5 text-xs font-semibold text-success">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    SIM, tô nessa!
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">ou</span>
-                  <span className="inline-flex items-center justify-center gap-1.5 rounded-md bg-destructive/10 border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive">
-                    <XCircle className="h-3.5 w-3.5" />
-                    NÃO, quero cancelar!
-                  </span>
+                  {listenerBotType === "fup" ? (
+                    <>
+                      <span className="inline-flex items-center justify-center gap-1.5 rounded-md bg-success/10 border border-success/30 px-3 py-1.5 text-xs font-semibold text-success">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        SIM, estou nessa!
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">ou</span>
+                      <span className="inline-flex items-center justify-center gap-1.5 rounded-md bg-destructive/10 border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive">
+                        <XCircle className="h-3.5 w-3.5" />
+                        NÃO, quero cancelar!
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center justify-center gap-1.5 rounded-md bg-success/10 border border-success/30 px-3 py-1.5 text-xs font-semibold text-success">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        SIM (interesse) / Sim (aceita app)
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">ou</span>
+                      <span className="inline-flex items-center justify-center gap-1.5 rounded-md bg-destructive/10 border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive">
+                        <XCircle className="h-3.5 w-3.5" />
+                        NÃO / 2 / Preciso de ajuda
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
@@ -961,34 +1027,23 @@ export default function Integracoes() {
 
           {listenerStep === "done" && (
             <div className="py-4 space-y-4">
-              {listenerResult === "sim" && (
+              {listenerResult !== null && listenerResult !== "timeout" ? (
                 <div className="flex flex-col items-center gap-3 text-center">
-                  <div className="h-14 w-14 rounded-full bg-success/10 border border-success/30 flex items-center justify-center">
-                    <CheckCircle2 className="h-7 w-7 text-success" />
+                  <div className={`h-14 w-14 rounded-full flex items-center justify-center ${RESPOSTA_POSITIVO[listenerResult] ? "bg-success/10 border border-success/30" : "bg-warning/10 border border-warning/30"}`}>
+                    {RESPOSTA_POSITIVO[listenerResult]
+                      ? <CheckCircle2 className="h-7 w-7 text-success" />
+                      : <AlertCircle className="h-7 w-7 text-warning" />}
                   </div>
                   <div>
-                    <p className="font-semibold text-success text-sm">Resposta SIM detectada!</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      O listener leu a notificação corretamente. Chapas que responderem{" "}
-                      <strong className="text-foreground">SIM, tô nessa!</strong> serão confirmados automaticamente no dashboard.
+                    <p className={`font-semibold text-sm ${RESPOSTA_POSITIVO[listenerResult] ? "text-success" : "text-warning"}`}>
+                      {RESPOSTA_LABEL[listenerResult] ?? listenerResult}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      Resposta recebida e classificada pelo Firebase. O ciclo ponta a ponta está funcionando corretamente.
                     </p>
                   </div>
                 </div>
-              )}
-              {listenerResult === "nao" && (
-                <div className="flex flex-col items-center gap-3 text-center">
-                  <div className="h-14 w-14 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center">
-                    <XCircle className="h-7 w-7 text-destructive" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-destructive text-sm">Resposta NÃO detectada!</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      O listener leu a notificação corretamente.
-                    </p>
-                  </div>
-                </div>
-              )}
-              {listenerResult === "timeout" && (
+              ) : (
                 <div className="flex flex-col items-center gap-3 text-center">
                   <div className="h-14 w-14 rounded-full bg-warning/10 border border-warning/30 flex items-center justify-center">
                     <AlertCircle className="h-7 w-7 text-warning" />
@@ -996,7 +1051,7 @@ export default function Integracoes() {
                   <div>
                     <p className="font-semibold text-warning text-sm">Nenhuma resposta detectada</p>
                     <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      O tempo de {LISTENER_TIMEOUT_SECS} segundos expirou sem que o listener encontrasse a resposta.
+                      O tempo de {LISTENER_TIMEOUT_SECS}s expirou. Verifique se o bot foi disparado corretamente e se a resposta chegou à fila Firestore.
                     </p>
                   </div>
                 </div>

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { MessagesSquare, Download, RefreshCw, Filter } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -48,6 +47,7 @@ const RESPOSTA_COLOR: Record<string, string> = {
 
 const FONTE_LABEL: Record<string, string> = {
   webhook: "Webhook",
+  firestore: "Firebase",
   manual: "Manual",
   notificacao_windows: "Notificação Win",
 };
@@ -96,9 +96,9 @@ export default function RespostaLog() {
   }, [load]);
 
   useEffect(() => {
-    if (!isTauri) return;
-    const p = listen("webhook:response", () => { load(); });
-    return () => { p.then((fn) => fn()); };
+    const onRefresh = () => { load(); };
+    window.addEventListener("fup:refresh", onRefresh);
+    return () => { window.removeEventListener("fup:refresh", onRefresh); };
   }, [load]);
 
   function exportXlsx() {

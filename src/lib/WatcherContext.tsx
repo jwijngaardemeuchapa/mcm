@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { getDb } from "./db";
 import { todayDateISO_SP } from "./datetime";
 import { useNotificationWatcher, type WatcherActivity } from "./useNotificationWatcher";
-import { useWebhookListener, type WebhookResponseEvent } from "./useWebhookListener";
+import { useFirestoreQueue } from "./useFirestoreQueue";
+import { type RespostaEvent } from "./firestoreQueue";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /* ─── context ── */
@@ -123,7 +124,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
 
   useNotificationWatcher(tasks, handleRefresh, handleFlashTask, handleActivity, handleRemoveRequest);
 
-  const handleWebhookEvent = useCallback((ev: WebhookResponseEvent) => {
+  const handleWebhookEvent = useCallback((ev: RespostaEvent) => {
     const actionMap: Record<string, WatcherActivity["action"]> = {
       confirmado: "confirmado",
       interesse_sim: "confirmado",
@@ -145,7 +146,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
     window.dispatchEvent(new CustomEvent("fup:refresh"));
   }, []);
 
-  useWebhookListener(handleWebhookEvent);
+  useFirestoreQueue(handleWebhookEvent);
 
   const clearLog = useCallback(() => setNotifLog([]), []);
 
