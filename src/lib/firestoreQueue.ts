@@ -223,21 +223,72 @@ type FupRow = {
   empresa: string;
 };
 
+function extractMotivoNao(payload: unknown): string | null {
+  return pick(payload, [["motivo_nao"]]);
+}
+
+const MOTIVOS_VALIDOS = [
+  "Em cima da hora",
+  "Localização da Tarefa",
+  "Valor da Tarefa",
+  "Não uso mais o App",
+  "Outro",
+];
+
 /** Processa uma mensagem da fila: classifica, correlaciona por telefone e grava
  *  no SQLite (atualiza disparo/chapa + resposta_log). Retorna se foi tratada —
  *  o chamador só apaga o documento do Firestore quando `handled === true`. */
 export async function processFirestoreMessage(payload: unknown): Promise<ProcessResult> {
   const phoneDigits = extractPhone(payload);
-  const body = extractBody(payload);
   if (!phoneDigits) return { handled: false, reason: "sem telefone no payload" };
+
+  const pattern = phonePattern(phoneDigits);
+  const db = await getDb();
+  const now = new Date().toISOString();
+
+  // Etapa 3 BID: motivo_nao (por que não aceitou no app)
+  const motivo = extractMotivoNao(payload);
+  if (motivo && MOTIVOS_VALIDOS.includes(motivo)) {
+    const bidRows = await db.select<BidRow[]>(
+      `SELECT id, chapa_nome, chapa_telefone, id_tarefa, empresa, data_tarefa, status
+       FROM bid_disparos
+       WHERE REPLACE(REPLACE(chapa_telefone,'-',''),' ','') LIKE ?
+         AND status = 'nao_aceita_app'
+         AND data_disparo >= datetime('now','-7 days')
+       ORDER BY data_disparo DESC LIMIT 1`,
+      [pattern],
+    );
+    const bid = bidRows[0];
+    if (bid) {
+      await db.execute("UPDATE bid_disparos SET motivo_nao = ? WHERE id = ?", [motivo, bid.id]);
+      await db.execute(
+        `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,data_tarefa,disparo_id,fonte,message_body,received_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, `motivo_nao:${motivo}`, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, "firestore", motivo, now],
+      );
+      return {
+        handled: true,
+        event: {
+          tipo: "bid",
+          chapa_nome: bid.chapa_nome,
+          chapa_telefone: bid.chapa_telefone,
+          resposta: `motivo_nao:${motivo}`,
+          id_tarefa: bid.id_tarefa,
+          empresa: bid.empresa,
+          disparo_id: bid.id,
+          message_body: motivo,
+          received_at: now,
+        },
+      };
+    }
+    return { handled: false, reason: `motivo_nao recebido mas sem disparo nao_aceita_app para o telefone` };
+  }
+
+  const body = extractBody(payload);
   if (!body) return { handled: false, reason: "sem corpo no payload" };
 
   const code = classifyResponse(body);
   if (!code) return { handled: false, reason: `resposta não classificada: "${body}"` };
-
-  const db = await getDb();
-  const now = new Date().toISOString();
-  const pattern = phonePattern(phoneDigits);
 
   // 1. BID primeiro — disparo aguardando (etapa 1) ou interesse_sim (etapa 2)
   const bidRows = await db.select<BidRow[]>(

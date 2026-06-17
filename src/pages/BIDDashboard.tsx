@@ -109,6 +109,7 @@ export type BidChapa = {
 export type BidDisparo = {
   id: string;
   chapa_nome: string;
+  motivo_nao?: string | null;
   chapa_telefone: string;
   id_tarefa: number | null;
   empresa: string | null;
@@ -1619,7 +1620,14 @@ function BidTaskCard({
                         <div>Disparo: {fmtDateTime(d.data_disparo)}</div>
                         {d.data_resposta1 && <div>Resp.: {fmtDateTime(d.data_resposta1)}</div>}
                       </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${sc.cls} shrink-0`}>{sc.label}</span>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0">
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${sc.cls}`}>{sc.label}</span>
+                        {d.motivo_nao && (
+                          <span className="text-[10px] text-orange-500 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">
+                            {d.motivo_nao}
+                          </span>
+                        )}
+                      </div>
                       {editingDisparoId === d.id ? (
                         <Select
                           value={d.status}
@@ -1729,6 +1737,7 @@ export default function BIDDashboard() {
         importado_em TEXT NOT NULL, id_tarefa INTEGER
       )`);
       try { await db.execute("ALTER TABLE bid_chapas ADD COLUMN id_tarefa INTEGER"); } catch { /* exists */ }
+      try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN motivo_nao TEXT"); } catch { /* exists */ }
       try { await db.execute("ALTER TABLE cliente_book ADD COLUMN enderecos TEXT"); } catch { /* exists */ }
 
       const [cntRows, extrasRows, tasks, disp, carteira] = await Promise.all([
