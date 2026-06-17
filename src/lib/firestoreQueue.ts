@@ -105,8 +105,9 @@ export function extractPhone(payload: unknown): string | null {
 }
 
 export function extractBody(payload: unknown): string | null {
-  return pick(payload, [
-    ["data", "Data"],   // Umbler Talk: resposta de botão
+  // Tenta caminhos nomeados primeiro
+  const named = pick(payload, [
+    ["data", "Data"],
     ["data", "body"],
     ["data", "text"],
     ["body"],
@@ -115,6 +116,20 @@ export function extractBody(payload: unknown): string | null {
     ["message", "text"],
     ["payload", "Data"],
   ]);
+  if (named) return named;
+
+  // Fallback: varre todos os valores string em payload.data e retorna
+  // o primeiro que classifyResponse conseguir classificar.
+  // Necessário porque o nome da variável no fluxo Umbler é configurável.
+  const dataObj = (payload as Record<string, unknown>)?.data;
+  if (dataObj && typeof dataObj === "object") {
+    for (const val of Object.values(dataObj as Record<string, unknown>)) {
+      if (typeof val === "string" && val.trim() && classifyResponse(val) !== null) {
+        return val;
+      }
+    }
+  }
+  return null;
 }
 
 export function extractName(payload: unknown): string | null {
