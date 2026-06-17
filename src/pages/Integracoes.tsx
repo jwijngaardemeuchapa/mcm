@@ -263,8 +263,8 @@ export default function Integracoes() {
           chapaTelefone: listenerPhone,
           settings: umblerSettings,
           initialData: { Data: "Hoje às 08:00", Local: "Teste", Atividades: "Verificação MCM", "Diária": "Teste" },
-          botIdOverride: umblerSettings.bidBotId,
-          triggerNameOverride: umblerSettings.bidBotTriggerName,
+          botIdOverride: "abrvT7tO-13jbq-Z",      // BID_JEREMIAH | D0
+          triggerNameOverride: "BID_JEREMIAH | D0",
         });
       }
     } catch (e) {
