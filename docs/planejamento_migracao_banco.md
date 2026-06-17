@@ -742,16 +742,107 @@ ORDER BY "FantasyName"
 
 ---
 
-### 7.6 Pontos a Confirmar
+### 7.6 Mapeamento de Status — `WorkStatus` → `status_tarefa`
 
-| Item | Pergunta |
-|---|---|
-| `User.Profile` | Qual o valor numérico do perfil "chapa" (trabalhador)? |
-| `WorkHeader.IdWorkStatus` | Quais os IDs e descrições de cada status? |
-| `WorkItem.IdWorkStatus` | Mesma tabela de status ou outra? |
-| Latitude/Longitude | Estão em `Address` ou em outra tabela? (o schema mostra ambas) |
-| Filtro de datas | Quantos dias de histórico sincronizar em `WorkHeader`? |
-| Acesso de rede | O banco PostgreSQL é acessível via IP público ou só via VPN/rede local? |
+Os status confirmados do sistema de origem e seus equivalentes no app:
+
+| Status (PG) | `status_tarefa` (SQLite) | Comportamento no app |
+|---|---|---|
+| `Aberto` | `Em Aberto` | Tarefa aberta, precisa fazer BID para captar chapas |
+| `Aguardando Início` | `Aguardando Início` | Tarefa cheia, chapas confirmados, aguarda início — FUP ativo |
+| `Em Andamento` | `Em Andamento` | Tarefa validada e em execução |
+| `Finalizado` | `Finalizado` | Tarefa concluída |
+| `Cancelado` | `Cancelado` | Tarefa cancelada |
+| `Aguardando Aprovação` | `Aguardando Aprovação` | Lançada mas não aprovada para captação — **novo status, adicionar ao app** |
+
+> ⚠️ `Aguardando Aprovação` não existe no app ainda. Precisará ser adicionado como status válido em `tarefas` e tratado nos filtros do Dashboard.
+
+**Query para confirmar os IDs numéricos:**
+```sql
+SELECT "id", "Status" FROM "WorkStatus" ORDER BY "id";
+```
+
+---
+
+### 7.7 Perfis de Usuário — `Profile` → filtro nas queries
+
+Os perfis existentes no sistema: **Admin, Usuario, Empresa, Motorista, Agente, Integration, App, Super**
+
+- **`App`** = chapa/trabalhador que usa o app mobile — este é o perfil a filtrar nas queries de `User` para `chapa_registry` e `bid_chapas`
+- `Motorista` = motorista (Driver) — tabela separada, não usar
+- Demais perfis = usuários internos/empresa — excluir do sync
+
+**Query para confirmar o inteiro do perfil `App`:**
+```sql
+SELECT "IdProfile", "Description" FROM "Profile" ORDER BY "IdProfile";
+```
+
+Substituir o `AND u."Profile" = 3` nas queries da seção 7.3 e 7.4 pelo valor correto de `App`.
+
+---
+
+### 7.8 Acesso de Rede
+
+- **VPN obrigatória**: o banco PostgreSQL não é acessível via IP público
+- **Todos os computadores dos analistas já têm acesso à VPN**
+- O comando Tauri `sync_from_source` deve tentar conexão e retornar erro amigável se a VPN não estiver ativa (`"Não foi possível conectar ao banco. Verifique se a VPN está ativa."`)
+- A string de conexão fica em `%APPDATA%\com.fupmanager.app\sync_config.json` (ver seção 6)
+
+---
+
+### 7.9 Dados para o Consultor
+
+A página **Consultor** (`src/pages/Consultor.tsx`) é uma ferramenta de busca avançada com filtros e IA. Atualmente recebe dados via CSV importado. Com o sync direto, ela pode consultar o SQLite local — mas também se beneficiaria de buscas com parâmetros específicos direto no PG para dados além do janela local.
+
+**Campos que o Consultor usa (via `src/utils/consultorFields.ts`):**
+
+| Campo no Consultor | Fonte no PG | Tabela(s) |
+|---|---|---|
+| `ID Tarefa` | `WorkHeader.Id` | WorkHeader |
+| `Data da Tarefa` | `WorkHeader.TaskDate` | WorkHeader |
+| `Empresa` | `Business.FantasyName` | Business |
+| `Cidade/UF` | `Address.City + State` | Address |
+| `Status da Tarefa` | `WorkStatus.Status` | WorkStatus |
+| `Nome do Chapa` | `User.FirstName + LastName` | User |
+| `Telefone Chapa` | `User.Phone` | User |
+| `Quantidade de Chapas` | `WorkHeader.WorkersQty` | WorkHeader |
+| `Status Contato` | `WorkItem.IdWorkStatus` | WorkItem |
+| `Validação Presença` | `WorkItem.TaskAcceptance` | WorkItem |
+| `CPF` | `User.DocumentNumber` | User |
+
+**Query consolidada para o Consultor** (JOIN completo para pesquisa com parâmetros):
+```sql
+SELECT
+  wh."Id"                                    AS "id_tarefa",
+  wh."TaskDate"                              AS "data_tarefa",
+  b."FantasyName"                            AS "empresa",
+  CONCAT(a."City", '/', a."State")           AS "cidade_uf",
+  ws."Status"                                AS "status_tarefa",
+  wh."WorkersQty"                            AS "quantidade_chapas",
+  CONCAT(u."FirstName", ' ', u."LastName")   AS "nome_chapa",
+  u."Phone"                                  AS "telefone_chapa",
+  u."DocumentNumber"                         AS "cpf",
+  wi."IdWorkStatus"::text                    AS "status_contato",
+  wi."TaskAcceptance"                        AS "validacao_presenca"
+FROM "WorkHeader" wh
+JOIN "Business" b ON b."Id" = wh."IdBusiness"
+LEFT JOIN "Address" a ON a."Id" = wh."IdTaskAddress"
+LEFT JOIN "WorkStatus" ws ON ws."id" = wh."IdWorkStatus"
+LEFT JOIN "WorkItem" wi ON wi."IdWorkHeader" = wh."Id"
+LEFT JOIN "User" u ON u."Id" = wi."IdUser"
+WHERE
+  -- Parâmetros de filtro passados pelo Consultor:
+  ($empresa IS NULL OR b."FantasyName" ILIKE '%' || $empresa || '%')
+  AND ($data_inicio IS NULL OR wh."TaskDate" >= $data_inicio)
+  AND ($data_fim IS NULL OR wh."TaskDate" <= $data_fim)
+  AND ($status IS NULL OR ws."Status" = $status)
+  AND ($nome_chapa IS NULL OR CONCAT(u."FirstName", ' ', u."LastName") ILIKE '%' || $nome_chapa || '%')
+  AND ($cpf IS NULL OR u."DocumentNumber" = $cpf)
+ORDER BY wh."TaskDate" DESC
+LIMIT 500
+```
+
+> **Próximos passos para o Consultor**: adicionar um botão "Buscar no banco" além do CSV atual, que abre um painel de filtros e chama um novo comando Tauri `query_consultor(params)` que executa esta query no PG e retorna os resultados direto na tela.
 
 ---
 
