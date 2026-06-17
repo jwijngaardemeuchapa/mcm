@@ -89,14 +89,16 @@ function stripNonDigits(s: string): string {
 }
 
 export function extractPhone(payload: unknown): string | null {
-  // Tenta string primeiro via pick
+  // Caminhos diretos (string)
   const raw = pick(payload, [
+    ["Chat", "PhoneNumber"],   // Vercel mapeia Contact → Chat (PascalCase)
+    ["Chat", "phone"],
+    ["Chat", "number"],
+    ["Contact", "PhoneNumber"],
     ["chat"],
     ["from"],
     ["data", "from"],
     ["contact", "phone"],
-    ["Contact", "PhoneNumber"],  // formato PascalCase do webhook Umbler
-    ["data", "contact", "phone"],
     ["sender"],
     ["phone"],
     ["telefone"],
@@ -106,10 +108,17 @@ export function extractPhone(payload: unknown): string | null {
     if (d.length >= 10) return d;
   }
 
-  // Fallback: campo "chat" pode vir como número no Firestore
+  // Fallback: Chat pode ser objeto ou número
   const p = payload as Record<string, unknown>;
-  const chatVal = p?.chat ?? p?.Chat;
-  if (chatVal !== undefined && chatVal !== null) {
+  const chatVal = p?.Chat ?? p?.chat;
+  if (chatVal != null && typeof chatVal === "object") {
+    const chatObj = chatVal as Record<string, unknown>;
+    const phoneVal = chatObj.PhoneNumber ?? chatObj.phone ?? chatObj.Phone ?? chatObj.number;
+    if (phoneVal != null) {
+      const d = stripNonDigits(String(phoneVal));
+      if (d.length >= 10) return d;
+    }
+  } else if (chatVal != null) {
     const d = stripNonDigits(String(chatVal));
     if (d.length >= 10) return d;
   }
@@ -118,8 +127,8 @@ export function extractPhone(payload: unknown): string | null {
 }
 
 export function extractBody(payload: unknown): string | null {
-  // Tenta caminhos nomeados primeiro
   const named = pick(payload, [
+    ["Data", "Data"],   // top-level Data object, variável "Data" do fluxo
     ["data", "Data"],
     ["data", "body"],
     ["data", "text"],
@@ -131,14 +140,16 @@ export function extractBody(payload: unknown): string | null {
   ]);
   if (named) return named;
 
-  // Fallback: varre todos os valores string em payload.data e retorna
-  // o primeiro que classifyResponse conseguir classificar.
-  // Necessário porque o nome da variável no fluxo Umbler é configurável.
-  const dataObj = (payload as Record<string, unknown>)?.data;
-  if (dataObj && typeof dataObj === "object") {
-    for (const val of Object.values(dataObj as Record<string, unknown>)) {
-      if (typeof val === "string" && val.trim() && classifyResponse(val) !== null) {
-        return val;
+  // Varre Data (PascalCase, top-level) e data (lowercase) procurando
+  // qualquer valor string que classifyResponse consiga classificar.
+  const p = payload as Record<string, unknown>;
+  for (const key of ["Data", "data"]) {
+    const dataObj = p?.[key];
+    if (dataObj && typeof dataObj === "object") {
+      for (const val of Object.values(dataObj as Record<string, unknown>)) {
+        if (typeof val === "string" && val.trim() && classifyResponse(val) !== null) {
+          return val;
+        }
       }
     }
   }

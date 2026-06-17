@@ -319,8 +319,9 @@ export default function Integracoes() {
 
         if (!phone) {
           const p = payload as Record<string, unknown>;
-          const chatRaw = p?.chat ?? p?.Chat;
-          setListenerDebug(`Doc recebido — telefone não encontrado. Campos: ${Object.keys(p ?? {}).join(", ")} | chat="${chatRaw}" (tipo: ${typeof chatRaw})`);
+          const chatRaw = p?.Chat ?? p?.chat;
+          const chatStr = chatRaw && typeof chatRaw === "object" ? JSON.stringify(chatRaw) : String(chatRaw);
+          setListenerDebug(`Doc recebido — telefone não encontrado. Campos: ${Object.keys(p ?? {}).join(", ")} | Chat=${chatStr}`);
           return;
         }
         if (phoneSuffix !== testSuffix) {
