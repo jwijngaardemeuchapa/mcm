@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Upload, Trash2, Search, Plus, Eye, EyeOff } from "lucide-react";
+import { Upload, Trash2, Search, Plus, Eye, EyeOff, Info } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
 
@@ -367,12 +367,20 @@ export default function Carteira() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-1">
+            <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 flex items-start gap-2">
+              <Info className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Use <strong className="text-foreground">exatamente o mesmo nome</strong> que aparece no dashboard do{" "}
+                <strong className="text-foreground">Meu Chapa</strong> (coluna Empresa). Os dashboards de FUP e BID
+                filtram as tarefas por esse nome — qualquer diferença faz a empresa não aparecer.
+              </p>
+            </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Nome Fantasia <span className="text-destructive">*</span></label>
               <Input
                 value={addNome}
                 onChange={(e) => setAddNome(e.target.value)}
-                placeholder="Ex: Meuchapa Serviços"
+                placeholder="Igual ao exibido no Meu Chapa"
                 autoFocus
                 onKeyDown={(e) => { if (e.key === "Enter" && addNome.trim() && !addSaving) addManual(); }}
               />
