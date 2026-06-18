@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-06-20 — Bug fixes pós-Firebase (outra máquina) + levantamento estado atual
+**Actor:** Jeremiah | **Agent:** claude
+**Tickets:** (sem ticket dedicado)
+**Summary:** Sincronização entre máquinas (W Design ↔ Jeremiah). A outra máquina (Jeremiah) havia feito 2 commits em cima do v0.9.91 sem push — agora integrados via git pull. Bug 1: FUP negativas não apareciam em Confirmações Automáticas — phone match no firestoreQueue.ts não removia parênteses/+. Bug 2: BID Dashboard não atualizava após resposta Firestore — faltava listener fup:refresh. Bug 3: Ocupados incompletos no BID — query byName filtrava só chapas sem CPF. Todos corrigidos. Levantamento também identificou novos tickets Jira criados desde última sessão: MCM-59, MCM-64, MCM-67 (Epic autopilot), MCM-68 (In Progress), MCM-69, MCM-70, MCM-71.
+**Files changed:** `src/components/ApproachingAlert.tsx`, `src/lib/WatcherContext.tsx`, `src/lib/firestoreQueue.ts`, `src/pages/BIDDashboard.tsx`
+**Next:** Usuário iniciou projeto v2.0 em repositório separado no GitHub (será trabalhado em outra conversa). Pendentes neste repo: validar 3 queries PG antes de implementar sync direto; MCM-68 (Tela Foco) em progresso.
+
+---
+
 ## 2026-06-17 — Planejamento migração banco + arquitetura sync direto PG
 **Actor:** Jeremiah | **Agent:** claude
 **Tickets:** (planejamento — sem ticket Jira)
