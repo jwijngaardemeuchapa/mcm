@@ -24,6 +24,7 @@ import {
   Send,
   Bell,
   MessagesSquare,
+  Database,
 } from "lucide-react";
 import { TrocaDeTurno } from "@/components/TrocaDeTurno";
 import logo from "@/assets/logo-meuchapa.png";
@@ -60,6 +61,7 @@ const navOperacional = [
   { title: "Histórico", url: "/historico", icon: History, shortcut: "h" },
   { title: "Consultor", url: "/consultor", icon: Search, shortcut: "s" },
   { title: "Disparos Umbler", url: "/disparos", icon: Send, shortcut: "d" },
+  { title: "Fonte de Dados", url: "/metabase", icon: Database, shortcut: "g" },
 ];
 
 const navAnalise = [

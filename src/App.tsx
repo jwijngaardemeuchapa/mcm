@@ -25,6 +25,7 @@ import Agenda from "./pages/Agenda";
 import Lembretes from "./pages/Lembretes";
 import DisparosUmbler from "./pages/DisparosUmbler";
 import RespostaLog from "./pages/RespostaLog";
+import MetabaseSetup from "./pages/MetabaseSetup";
 import NotFound from "./pages/NotFound";
 import { UndoProvider } from "./lib/undo";
 import { WatcherProvider } from "./lib/WatcherContext";
@@ -98,6 +99,7 @@ const App = () => {
               <Route path="/lembretes" element={<Lembretes />} />
               <Route path="/disparos" element={<DisparosUmbler />} />
               <Route path="/respostas" element={<RespostaLog />} />
+              <Route path="/metabase" element={<MetabaseSetup />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

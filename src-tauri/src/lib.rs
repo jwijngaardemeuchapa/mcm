@@ -516,6 +516,115 @@ async fn ollama_pull(model: String, app: tauri::AppHandle) -> Result<(), String>
 }
 
 
+// ── Metabase API (fonte de dados — substitui importação por CSV) ───────────────
+// A API key vive APENAS no backend, em metabase_config.json no app_data.
+// O frontend nunca recebe a chave; só dispara comandos e recebe os dados prontos.
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+struct MetabaseConfig {
+    base_url: String,
+    api_key: String,
+}
+
+fn metabase_config_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("metabase_config.json"))
+}
+
+fn read_metabase_config(app: &tauri::AppHandle) -> Result<MetabaseConfig, String> {
+    let path = metabase_config_path(app)?;
+    let data = std::fs::read_to_string(&path)
+        .map_err(|_| "Metabase não configurado. Informe a URL e a API key.".to_string())?;
+    serde_json::from_str(&data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_metabase_config(app: tauri::AppHandle, base_url: String, api_key: String) -> Result<(), String> {
+    let cfg = MetabaseConfig {
+        base_url: base_url.trim().trim_end_matches('/').to_string(),
+        api_key: api_key.trim().to_string(),
+    };
+    let path = metabase_config_path(&app)?;
+    let json = serde_json::to_string_pretty(&cfg).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct MetabaseStatus {
+    configured: bool,
+    base_url: String,
+}
+
+/// Status para a UI — NUNCA devolve a api_key, só se está configurado e a URL.
+#[tauri::command]
+fn metabase_status(app: tauri::AppHandle) -> MetabaseStatus {
+    match read_metabase_config(&app) {
+        Ok(c) => MetabaseStatus {
+            configured: !c.api_key.is_empty() && !c.base_url.is_empty(),
+            base_url: c.base_url,
+        },
+        Err(_) => MetabaseStatus { configured: false, base_url: String::new() },
+    }
+}
+
+/// Lista as Questions (perguntas salvas) — só id, nome e coleção, para mapeamento.
+#[tauri::command]
+async fn metabase_listar_perguntas(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let cfg = read_metabase_config(&app)?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let res = client
+        .get(format!("{}/api/card", cfg.base_url))
+        .header("x-api-key", &cfg.api_key)
+        .send()
+        .await
+        .map_err(|e| format!("Erro ao conectar ao Metabase: {}", e))?;
+    if !res.status().is_success() {
+        return Err(format!("Metabase retornou {} ao listar perguntas", res.status()));
+    }
+    let cards: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    let slim: Vec<serde_json::Value> = cards
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|c| {
+                    serde_json::json!({
+                        "id": c.get("id"),
+                        "name": c.get("name"),
+                        "collection_id": c.get("collection_id"),
+                        "collection": c.get("collection").and_then(|co| co.get("name")),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(serde_json::json!(slim))
+}
+
+/// Executa uma Question e devolve as linhas em JSON (mesmo shape do CSV exportado).
+#[tauri::command]
+async fn metabase_query_card(app: tauri::AppHandle, card_id: i64) -> Result<serde_json::Value, String> {
+    let cfg = read_metabase_config(&app)?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(180))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let res = client
+        .post(format!("{}/api/card/{}/query/json", cfg.base_url, card_id))
+        .header("x-api-key", &cfg.api_key)
+        .send()
+        .await
+        .map_err(|e| format!("Erro ao consultar o Metabase: {}", e))?;
+    if !res.status().is_success() {
+        return Err(format!("Metabase retornou {} ao consultar a pergunta {}", res.status(), card_id));
+    }
+    res.json().await.map_err(|e| e.to_string())
+}
+
 // ── New Tauri commands ────────────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]
@@ -1010,7 +1119,7 @@ CREATE INDEX IF NOT EXISTS idx_resposta_log_tarefa ON resposta_log(id_tarefa);
   ];
 
   tauri::Builder::default()
-    .invoke_handler(tauri::generate_handler![check_notification_responses, backup_database, export_db_base64, import_db_base64, check_bid_responses, start_ollama, stop_ollama, check_ollama, ollama_generate, ollama_pull, get_resposta_log])
+    .invoke_handler(tauri::generate_handler![check_notification_responses, backup_database, export_db_base64, import_db_base64, check_bid_responses, start_ollama, stop_ollama, check_ollama, ollama_generate, ollama_pull, get_resposta_log, save_metabase_config, metabase_status, metabase_listar_perguntas, metabase_query_card])
     .plugin(
       tauri_plugin_sql::Builder::default()
         .add_migrations("sqlite:fupmanager.db", migrations)
