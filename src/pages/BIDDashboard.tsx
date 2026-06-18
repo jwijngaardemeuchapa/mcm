@@ -1707,6 +1707,7 @@ export default function BIDDashboard() {
   const [extrasCount, setExtrasCount] = useState(0);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [openTasks, setOpenTasks] = useState<OpenTask[]>([]);
+  const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
   const [disparos, setDisparos] = useState<BidDisparo[]>([]);
   const [selectedDay, setSelectedDay] = useState<"today" | "tomorrow">("today");
   const [search, setSearch] = useState("");
@@ -1769,10 +1770,33 @@ export default function BIDDashboard() {
           ORDER BY t.data_tarefa ASC
         `),
         db.select<BidDisparo[]>("SELECT * FROM bid_disparos WHERE DATE(data_disparo) >= date('now', '-1 day') ORDER BY data_disparo DESC"),
-        db.select<{ nome_fantasia: string }[]>("SELECT nome_fantasia FROM carteira"),
+        db.select<{ nome_fantasia: string; grupo: string | null }[]>(
+          "SELECT nome_fantasia, grupo FROM carteira"
+        ).catch(() => [] as { nome_fantasia: string; grupo: string | null }[]),
       ]);
 
-      const carteiraNames = carteira.map((c) => c.nome_fantasia);
+      const fixarSet = await db.select<{ nome_fantasia: string }[]>(
+        "SELECT nome_fantasia FROM empresa_config WHERE fixar_visivel = 1"
+      ).then((r) => new Set(r.map((x) => x.nome_fantasia))).catch(() => new Set<string>());
+
+      const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
+      const carteiraRows = carteira ?? [];
+      const allCarteiraNames = carteiraRows.map((r) => r.nome_fantasia);
+      let carteiraNames: string[];
+      let carteiraFilterActive = false;
+      let namesByFilter: string[] = [];
+      if (gruposAtivos.length > 0) {
+        namesByFilter = carteiraRows
+          .filter((r) => fixarSet.has(r.nome_fantasia) || (r.grupo !== null && gruposAtivos.includes(r.grupo)))
+          .map((r) => r.nome_fantasia);
+        carteiraNames = namesByFilter.length > 0 ? namesByFilter : allCarteiraNames;
+        carteiraFilterActive = true;
+      } else {
+        carteiraNames = allCarteiraNames;
+      }
+      setCarteiraFilterInfo(carteiraFilterActive
+        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allCarteiraNames.length, fallback: namesByFilter.length === 0 }
+        : null);
       const withVagas = tasks.filter((t) => {
         if (carteiraNames.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
         return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;
@@ -1957,6 +1981,20 @@ export default function BIDDashboard() {
           </button>
         ))}
       </div>
+
+      {/* ── Indicador de filtro de carteira ── */}
+      {carteiraFilterInfo && (
+        <div className={`flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg border text-xs ${carteiraFilterInfo.fallback ? "bg-warning/10 border-warning/30 text-warning" : "bg-primary/5 border-primary/20 text-muted-foreground"}`}>
+          <span className="font-semibold text-foreground">Filtro de carteira:</span>
+          {carteiraFilterInfo.gruposAtivos.map((g) => (
+            <span key={g} className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">{g}</span>
+          ))}
+          {carteiraFilterInfo.fallback
+            ? <span className="text-warning font-medium">· Nenhuma empresa com esses grupos — mostrando todas</span>
+            : <span>· {carteiraFilterInfo.activeCount} de {carteiraFilterInfo.totalCount} empresas ativas</span>
+          }
+        </div>
+      )}
 
       {/* Day selector + search + filters */}
       {registryCount > 0 && activeTab === "tarefas" && (

@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import Papa from "papaparse";
 import { getDb, uuid, errMsg } from "@/lib/db";
+import { readSettings, writeSettings } from "@/lib/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Upload, Trash2, Search, Plus, Eye, EyeOff, Info } from "lucide-react";
+import { Upload, Trash2, Search, Plus, Eye, EyeOff, Info, Pin, PinOff } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
 
@@ -16,13 +17,15 @@ const GRUPOS = ["G1", "G2", "G3", "G4", "G5"];
 
 export default function Carteira() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [preview, setPreview] = useState<Array<{ nome_fantasia: string; cnpj: string | null }>>([]);
+  const [preview, setPreview] = useState<Array<{ nome_fantasia: string; cnpj: string | null; grupo: string | null }>>([]);
   const [removeTarget, setRemoveTarget] = useState<Row | null>(null);
   const [dupCount, setDupCount] = useState(0);
   const [filter, setFilter] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [showOnlyHidden, setShowOnlyHidden] = useState(false);
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
+  const [fixarVisivelSet, setFixarVisivelSet] = useState<Set<string>>(new Set());
+  const [gruposAtivos, setGruposAtivos] = useState<string[]>(() => readSettings().carteiraGruposAtivos ?? []);
   const [addOpen, setAddOpen] = useState(false);
   const [addNome, setAddNome] = useState("");
   const [addCnpj, setAddCnpj] = useState("");
@@ -48,17 +51,35 @@ export default function Carteira() {
       toast.error("Erro ao atualizar grupo: " + errMsg(e));
     }
   }
+
   async function loadHidden() {
     try {
       const db = await getDb();
-      const rows = await db.select<{ nome_fantasia: string }[]>(
+      const hidden = await db.select<{ nome_fantasia: string }[]>(
         "SELECT nome_fantasia FROM empresa_config WHERE oculta_dashboard = 1",
       );
-      setHiddenCompanies(rows.map((r) => r.nome_fantasia));
+      setHiddenCompanies(hidden.map((r) => r.nome_fantasia));
+      const fixar = await db.select<{ nome_fantasia: string }[]>(
+        "SELECT nome_fantasia FROM empresa_config WHERE fixar_visivel = 1",
+      );
+      setFixarVisivelSet(new Set(fixar.map((r) => r.nome_fantasia)));
     } catch { /* noop */ }
   }
 
   useEffect(() => { load(); loadHidden(); }, []);
+
+  function toggleGrupo(g: string) {
+    const next = gruposAtivos.includes(g)
+      ? gruposAtivos.filter((x) => x !== g)
+      : [...gruposAtivos, g];
+    setGruposAtivos(next);
+    writeSettings({ carteiraGruposAtivos: next });
+  }
+
+  function clearGrupos() {
+    setGruposAtivos([]);
+    writeSettings({ carteiraGruposAtivos: [] });
+  }
 
   function onFile(file: File) {
     const reader = new FileReader();
@@ -71,10 +92,11 @@ export default function Carteira() {
       const colKeys = Object.keys(data[0] ?? {});
       const nameKey = colKeys.find((k) => /nome\s*fantasia|empresa|raz.o\s*social|company|nome/i.test(k));
       const cnpjKey = colKeys.find((k) => /cnpj/i.test(k));
+      const grupoKey = colKeys.find((k) => /^carteira$/i.test(k));
       if (!nameKey) { toast.error("Coluna de nome não encontrada"); return; }
 
       const seen = new Set<string>();
-      const uniq: Array<{ nome_fantasia: string; cnpj: string | null }> = [];
+      const uniq: Array<{ nome_fantasia: string; cnpj: string | null; grupo: string | null }> = [];
       let dup = 0;
       for (const row of data) {
         const name = (row[nameKey] ?? "").trim().replace(/\s+/g, " ");
@@ -82,7 +104,9 @@ export default function Carteira() {
         const key = name.toLowerCase();
         if (seen.has(key)) { dup++; continue; }
         seen.add(key);
-        uniq.push({ nome_fantasia: name, cnpj: cnpjKey ? (row[cnpjKey] ?? null) || null : null });
+        const grupoRaw = grupoKey ? (row[grupoKey] ?? "").trim() : "";
+        const grupo = GRUPOS.includes(grupoRaw) ? grupoRaw : null;
+        uniq.push({ nome_fantasia: name, cnpj: cnpjKey ? (row[cnpjKey] ?? null) || null : null, grupo });
       }
       setPreview(uniq);
       setDupCount(dup);
@@ -101,9 +125,9 @@ export default function Carteira() {
       // Upsert first — data is never lost if anything fails later
       for (const p of preview) {
         await db.execute(
-          `INSERT INTO carteira (id, nome_fantasia, cnpj, created_at) VALUES (?, ?, ?, ?)
-           ON CONFLICT(nome_fantasia) DO UPDATE SET cnpj = excluded.cnpj`,
-          [uuid(), p.nome_fantasia, p.cnpj ?? null, now],
+          `INSERT INTO carteira (id, nome_fantasia, cnpj, grupo, created_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(nome_fantasia) DO UPDATE SET cnpj = excluded.cnpj, grupo = COALESCE(excluded.grupo, carteira.grupo)`,
+          [uuid(), p.nome_fantasia, p.cnpj ?? null, p.grupo ?? null, now],
         );
       }
       // Remove records not in the new set
@@ -127,8 +151,8 @@ export default function Carteira() {
       const now = new Date().toISOString();
       for (const p of preview) {
         await db.execute(
-          "INSERT OR IGNORE INTO carteira (id, nome_fantasia, cnpj, created_at) VALUES (?, ?, ?, ?)",
-          [uuid(), p.nome_fantasia, p.cnpj ?? null, now],
+          "INSERT OR IGNORE INTO carteira (id, nome_fantasia, cnpj, grupo, created_at) VALUES (?, ?, ?, ?, ?)",
+          [uuid(), p.nome_fantasia, p.cnpj ?? null, p.grupo ?? null, now],
         );
       }
       setPreview([]); setDupCount(0);
@@ -194,6 +218,30 @@ export default function Carteira() {
     }
   }
 
+  async function toggleFixar(nome: string) {
+    const isFixed = fixarVisivelSet.has(nome);
+    try {
+      const db = await getDb();
+      if (isFixed) {
+        await db.execute(
+          "UPDATE empresa_config SET fixar_visivel = 0 WHERE nome_fantasia = ?",
+          [nome],
+        );
+        setFixarVisivelSet((prev) => { const s = new Set(prev); s.delete(nome); return s; });
+      } else {
+        await db.execute(
+          "INSERT INTO empresa_config (nome_fantasia, oculta_dashboard, fixar_visivel) VALUES (?, 0, 1) ON CONFLICT(nome_fantasia) DO UPDATE SET fixar_visivel = 1",
+          [nome],
+        );
+        setFixarVisivelSet((prev) => new Set([...prev, nome]));
+      }
+    } catch (e) {
+      toast.error("Erro ao atualizar: " + errMsg(e));
+    }
+  }
+
+  const grupoFiltroAtivo = gruposAtivos.length > 0;
+
   const filtered = rows.filter((r) => {
     if (showOnlyHidden && !hiddenCompanies.includes(r.nome_fantasia)) return false;
     return r.nome_fantasia.toLowerCase().includes(filter.toLowerCase());
@@ -210,6 +258,52 @@ export default function Carteira() {
               · {hiddenCompanies.length} oculta{hiddenCompanies.length !== 1 ? "s" : ""} do dashboard
             </span>
           )}
+        </p>
+      </div>
+
+      {/* ── Filtro por grupo ── */}
+      <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="text-sm font-semibold">Filtrar dashboards por grupo</div>
+          {grupoFiltroAtivo && (
+            <button
+              type="button"
+              onClick={clearGrupos}
+              className="text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              Limpar filtro
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {GRUPOS.map((g) => {
+            const active = gruposAtivos.includes(g);
+            const count = rows.filter((r) => r.grupo === g).length;
+            return (
+              <button
+                key={g}
+                type="button"
+                onClick={() => toggleGrupo(g)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/60 text-muted-foreground border-border hover:border-primary/60 hover:text-foreground"
+                }`}
+              >
+                {g}
+                {count > 0 && (
+                  <span className={`text-[10px] tabular-nums ${active ? "opacity-75" : "opacity-50"}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {grupoFiltroAtivo
+            ? <>Dashboards mostram apenas <strong>{gruposAtivos.join(", ")}</strong>. Empresas fixadas individualmente aparecem mesmo fora do grupo.</>
+            : "Todos os grupos ativos — sem filtro por grupo."}
         </p>
       </div>
 
@@ -293,15 +387,49 @@ export default function Carteira() {
                 <th className="text-left px-4 py-2 font-semibold">Nome Fantasia</th>
                 <th className="text-left px-4 py-2 font-semibold w-28">Grupo</th>
                 <th className="text-left px-4 py-2 font-semibold">Adicionado</th>
-                <th className="text-center px-4 py-2 font-semibold w-24">Dashboard</th>
+                <th className="text-center px-4 py-2 font-semibold w-28">Dashboard</th>
                 <th className="w-12"></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => {
                 const isHidden = hiddenCompanies.includes(r.nome_fantasia);
+                const isFixed = fixarVisivelSet.has(r.nome_fantasia);
+                const isGroupedOut = grupoFiltroAtivo && r.grupo !== null && !gruposAtivos.includes(r.grupo);
+                const isDimmed = isHidden || (isGroupedOut && !isFixed);
+
+                let dashIcon: React.ReactNode;
+                let dashLabel: string;
+                let dashAction: () => void;
+                let dashColor: string;
+
+                if (isHidden) {
+                  dashIcon = <EyeOff className="h-4 w-4" />;
+                  dashLabel = "Oculta do dashboard — clique para mostrar";
+                  dashAction = () => toggleHidden(r.nome_fantasia);
+                  dashColor = "text-warning hover:text-warning/80 hover:bg-warning/10";
+                } else if (isGroupedOut && isFixed) {
+                  dashIcon = <Pin className="h-4 w-4" />;
+                  dashLabel = "Fixada individualmente (fora do grupo ativo) — clique para remover";
+                  dashAction = () => toggleFixar(r.nome_fantasia);
+                  dashColor = "text-primary hover:text-primary/80 hover:bg-primary/10";
+                } else if (isGroupedOut && !isFixed) {
+                  dashIcon = <PinOff className="h-4 w-4" />;
+                  dashLabel = "Fora do grupo ativo, não aparece nos dashboards — clique para fixar";
+                  dashAction = () => toggleFixar(r.nome_fantasia);
+                  dashColor = "text-muted-foreground/40 hover:text-primary hover:bg-primary/10";
+                } else {
+                  dashIcon = <Eye className="h-4 w-4" />;
+                  dashLabel = "Visível nos dashboards — clique para ocultar";
+                  dashAction = () => toggleHidden(r.nome_fantasia);
+                  dashColor = "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted";
+                }
+
                 return (
-                  <tr key={r.id} className={`border-t border-border hover:bg-muted/30 transition-opacity ${isHidden ? "opacity-50" : ""}`}>
+                  <tr
+                    key={r.id}
+                    className={`border-t border-border hover:bg-muted/30 transition-opacity ${isDimmed ? "opacity-50" : ""} ${isFixed && isGroupedOut ? "bg-primary/5" : ""}`}
+                  >
                     <td className="px-4 py-2 font-medium capitalize">{r.nome_fantasia.toLowerCase()}</td>
                     <td className="px-4 py-1.5">
                       <Select
@@ -325,20 +453,14 @@ export default function Carteira() {
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            onClick={() => toggleHidden(r.nome_fantasia)}
-                            className={`h-7 w-7 inline-flex items-center justify-center rounded transition-colors ${
-                              isHidden
-                                ? "text-warning hover:text-warning/80 hover:bg-warning/10"
-                                : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted"
-                            }`}
-                            aria-label={isHidden ? "Oculta do dashboard" : "Visível no dashboard"}
+                            onClick={dashAction}
+                            className={`h-7 w-7 inline-flex items-center justify-center rounded transition-colors ${dashColor}`}
+                            aria-label={dashLabel}
                           >
-                            {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            {dashIcon}
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent>
-                          {isHidden ? "Oculta do dashboard — clique para mostrar" : "Visível no dashboard — clique para ocultar"}
-                        </TooltipContent>
+                        <TooltipContent>{dashLabel}</TooltipContent>
                       </Tooltip>
                     </td>
                     <td className="px-4 py-2">

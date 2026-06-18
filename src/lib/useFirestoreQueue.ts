@@ -30,19 +30,16 @@ const RESPOSTA_LABEL: Record<string, string> = {
  */
 export function useFirestoreQueue(onEvent?: (ev: RespostaEvent) => void) {
   const processedRef = useRef<Set<string>>(new Set());
+  const unsubRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
-    const settings = readSettings();
-    if (!settings.firestoreEnabled) return;
+  function startListener(cb?: (ev: RespostaEvent) => void) {
+    if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
+    if (!readSettings().firestoreEnabled) return;
     if (!firebaseConfigPresent()) return;
 
-    let unsub: (() => void) | null = null;
     let cancelled = false;
-
     (async () => {
-      try {
-        await ensureAnonAuth();
-      } catch (e) {
+      try { await ensureAnonAuth(); } catch (e) {
         console.error("Firestore: falha na autenticação anônima", e);
         return;
       }
@@ -54,7 +51,7 @@ export function useFirestoreQueue(onEvent?: (ev: RespostaEvent) => void) {
         where("status", "==", "pending"),
       );
 
-      unsub = onSnapshot(
+      unsubRef.current = onSnapshot(
         q,
         (snapshot) => {
           snapshot.docChanges().forEach(async (change) => {
@@ -73,10 +70,9 @@ export function useFirestoreQueue(onEvent?: (ev: RespostaEvent) => void) {
                 const ev = result.event;
                 const tipoLabel = ev.tipo === "bid" ? "BID" : "FUP";
                 toast.success(`${tipoLabel} — ${ev.chapa_nome}: ${RESPOSTA_LABEL[ev.resposta] ?? ev.resposta}`);
-                onEvent?.(ev);
+                cb?.(ev);
                 window.dispatchEvent(new CustomEvent("fup:refresh"));
               } else {
-                // Não classificada / sem match: marca como erro para análise (não apaga).
                 processedRef.current.delete(id);
                 await updateDoc(docRef(db, FIRESTORE_MESSAGES_COLLECTION, id), { status: "error" }).catch(() => {});
               }
@@ -86,15 +82,25 @@ export function useFirestoreQueue(onEvent?: (ev: RespostaEvent) => void) {
             }
           });
         },
-        (error) => {
-          console.error("Firestore: erro na conexão da fila", error);
-        },
+        (error) => { console.error("Firestore: erro na conexão da fila", error); },
       );
+
+      // cancelled flag for the async startup path
+      if (cancelled && unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
     })();
 
+    return () => { cancelled = true; };
+  }
+
+  useEffect(() => {
+    const stop = startListener(onEvent);
+    const onStorage = () => { startListener(onEvent); };
+    window.addEventListener("storage", onStorage);
     return () => {
-      cancelled = true;
-      if (unsub) unsub();
+      stop?.();
+      unsubRef.current?.();
+      unsubRef.current = null;
+      window.removeEventListener("storage", onStorage);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

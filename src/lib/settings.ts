@@ -46,6 +46,7 @@ export type AppSettings = {
   customMsgTemplates: string[];
   fupAgendarMinAntes: number;
   firestoreEnabled: boolean;
+  carteiraGruposAtivos: string[];
 };
 
 const STORAGE_KEY = "fup_settings";
@@ -69,7 +70,8 @@ export const SETTING_DEFAULTS: AppSettings = {
     "Obrigado pela confirmação, qualquer problema me avise aqui",
   ],
   fupAgendarMinAntes: 0,
-  firestoreEnabled: false,
+  firestoreEnabled: true,
+  carteiraGruposAtivos: [],
 };
 
 export function readSettings(): AppSettings {

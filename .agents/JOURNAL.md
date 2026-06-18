@@ -3,12 +3,34 @@
 
 ---
 
-## 2026-06-20 — Bug fixes pós-Firebase (outra máquina) + levantamento estado atual
-**Actor:** Jeremiah | **Agent:** claude
-**Tickets:** (sem ticket dedicado)
-**Summary:** Sincronização entre máquinas (W Design ↔ Jeremiah). A outra máquina (Jeremiah) havia feito 2 commits em cima do v0.9.91 sem push — agora integrados via git pull. Bug 1: FUP negativas não apareciam em Confirmações Automáticas — phone match no firestoreQueue.ts não removia parênteses/+. Bug 2: BID Dashboard não atualizava após resposta Firestore — faltava listener fup:refresh. Bug 3: Ocupados incompletos no BID — query byName filtrava só chapas sem CPF. Todos corrigidos. Levantamento também identificou novos tickets Jira criados desde última sessão: MCM-59, MCM-64, MCM-67 (Epic autopilot), MCM-68 (In Progress), MCM-69, MCM-70, MCM-71.
-**Files changed:** `src/components/ApproachingAlert.tsx`, `src/lib/WatcherContext.tsx`, `src/lib/firestoreQueue.ts`, `src/pages/BIDDashboard.tsx`
-**Next:** Usuário iniciou projeto v2.0 em repositório separado no GitHub (será trabalhado em outra conversa). Pendentes neste repo: validar 3 queries PG antes de implementar sync direto; MCM-68 (Tela Foco) em progresso.
+## 2026-06-20 — MCM-64: Carteira multi-seleção de grupos + build
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-64 ✅
+**Summary:**
+- **Migration v14:** `ALTER TABLE empresa_config ADD COLUMN fixar_visivel INTEGER DEFAULT 0`
+- **settings.ts:** novo campo `carteiraGruposAtivos: string[]` ([] = todos ativos, backwards compat)
+- **Carteira.tsx:** seção de chips G1-G5 no topo (toggleáveis, salvos em settings); ícone contextual por empresa: Eye/EyeOff (grupo ativo), PinOff/Pin (grupo inativo = fixar empresa avulsa)
+- **Dashboard.tsx + BIDDashboard.tsx:** query carteira atualizada com LEFT JOIN empresa_config; filtro grupo + fixar_visivel em TS; BIDDashboard agora também respeita oculta_dashboard
+- **Lógica:** gruposAtivos=[] → sem filtro (todos visíveis); gruposAtivos=[G1,G2] → só G1+G2 aparecem; fixar_visivel=1 → empresa sempre aparece mesmo com grupo inativo
+- **Build:** v0.9.91 buildado (MCM-64 incluso)
+**Files changed:** `src-tauri/src/lib.rs`, `src/lib/settings.ts`, `src/pages/Carteira.tsx`, `src/pages/Dashboard.tsx`, `src/pages/BIDDashboard.tsx`
+**Next:** Distribuir instalador. MCM-58 aguarda validação de queries PG.
+
+---
+
+## 2026-06-20 — Bug fixes Firebase + ApproachingAlert bot + Jira + planejamento Carteira
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-61 ✅, MCM-62 ✅, MCM-63 ✅, MCM-64 (backlog)
+**Summary:**
+- **MCM-61 (fix):** Queries SQL em `firestoreQueue.ts` não normalizavam `(` e `)` no telefone — números `(11) 99999-9999` falhavam no LIKE. REPLACE chain estendido para remover `(`, `)`, `+` nas 3 queries (BID etapa 3, BID etapas 1/2, FUP). Também adicionado `precisa_ajuda → "recusou"` no actionMap do WatcherContext.
+- **MCM-62 (fix):** BIDDashboard não escutava `fup:refresh` após resposta Firestore — adicionado `useEffect` com listener → `loadAll()`.
+- **MCM-63 (fix):** `byName` query em BIDDashboard tinha `AND c.cpf IS NULL` causando blind spot; removido. Adicionado estado `allOccupiedChapas` + query completa + UI no "Ver ocupados" com nome + empresa.
+- **ApproachingAlert (fix):** `fireUmblerFup()` usava `sendUmblerFup` (template) em vez de `startUmblerBot` (bot). Corrigido com lógica D0/D1 igual ao dispatchQueue.
+- **MCM-64 (planejamento):** Carteira — múltipla seleção de grupos + empresas avulsas + ocultar/mostrar. Arquitetura: campo `selecionada` na tabela + `grupos_ativos` em settings. Ainda não implementado.
+- **Git:** confirmado que o outro computador tinha mudanças locais não commitadas. Regra criada: sempre commitar ao término de cada implementação aprovada.
+- **Build:** v0.9.91 compilado e testado. Pushs feitos para `jwijngaardemeuchapa/mcm.git`.
+**Files changed:** `src/lib/firestoreQueue.ts`, `src/lib/WatcherContext.tsx`, `src/pages/BIDDashboard.tsx`, `src/components/ApproachingAlert.tsx`
+**Next:** Novo build v0.9.91 com todos os fixes (push feito). Implementar MCM-64 (Carteira multi-seleção). Validar queries PG antes de iniciar sync (MCM-58 em andamento).
 
 ---
 
