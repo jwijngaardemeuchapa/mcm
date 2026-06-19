@@ -11,7 +11,7 @@
 - **Stack:** Tauri 2 + React 18 + TypeScript + SQLite (WAL mode)
 - **Backend:** Rust in `src-tauri/src/lib.rs` — SQLite init, migrations, Tauri commands
 - **Repository:** https://github.com/jwijngaardemeuchapa/mcm.git
-- **Current version:** v0.9.91 (as of 2026-06-17)
+- **Current version:** v0.9.92 (as of 2026-06-20)
 - **Jira project:** MCM — wijngaardedesign.atlassian.net
 
 ---
@@ -90,7 +90,15 @@ If there is a conflict, escalate to the user rather than silently picking one.
 
 ---
 
-## §J8 — Session Protocol (MANDATORY — run at session start)
+## §J8 — Session Protocol (MANDATORY — run at session start and end)
+
+**Step 0 — Sync check (BEFORE any work):**
+```bash
+git fetch origin
+git log --oneline origin/main -3
+git log --oneline -3
+```
+If origin is ahead of local: `git pull` before touching any file. GitHub is always the source of truth — never assume local is current.
 
 **Step 1 — Jira status:**
 ```bash
@@ -112,13 +120,16 @@ The auto-mode classifier blocks closing tickets not created in the current sessi
 **Step 4 — One change at a time rule:**
 Never make more than one change without consulting the user. Pattern: present plan → wait for approval → execute → report → ask about next step.
 
-**Step 5 — Git/GitHub after each build:**
+**Step 5 — Git/GitHub after each change:**
 ```bash
 git add <specific files>
 git commit -m "feat: ..."
 git push origin main
 ```
-Remote (https://github.com/jwijngaardemeuchapa/mcm.git) must always reflect the last compiled version.
+Push happens after **every commit** — not just builds. Remote is always the source of truth.
+
+**Step 6 — Lead Protocol after each push:**
+Update `.agents/JOURNAL.md` and `.agents/local/jeremiah/claude/handoff.md` immediately after every push. Never leave a session without updating these files and pushing them.
 
 ---
 
