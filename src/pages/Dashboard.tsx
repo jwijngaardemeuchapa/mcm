@@ -70,7 +70,7 @@ import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarMetabase30h } from "@/lib/metabaseSync";
+import { sincronizarMetabase, sincronizarMetabase30h } from "@/lib/metabaseSync";
 import * as XLSX from "xlsx";
 import { useSidebar } from "@/components/ui/sidebar";
 import { toast } from "sonner";
@@ -85,6 +85,7 @@ export default function Dashboard() {
   const [overnightContinuing, setOvernightContinuing] = useState<TaskWithChapas[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [metaSyncing, setMetaSyncing] = useState(false);
   const [refreshDone, setRefreshDone] = useState(false);
   const [hourFilter, setHourFilter] = useState<string>(() => localStorage.getItem("dash_hour_filter") ?? "");
   const [search, setSearch] = useState(() => {
@@ -884,6 +885,13 @@ export default function Dashboard() {
     setSyncing30h(false);
   }
 
+  async function handleSyncMetabase() {
+    setMetaSyncing(true);
+    await sincronizarMetabase(false);
+    await load(false);
+    setMetaSyncing(false);
+  }
+
   function abrirXlsxDialog() {
     setXlsxSelected(new Set(allCards.map((t) => t.id_tarefa)));
     setXlsxDialogOpen(true);
@@ -1214,10 +1222,10 @@ export default function Dashboard() {
               <Button
                 size="sm"
                 className="h-9 gap-1.5 min-w-[120px] justify-center"
-                onClick={() => load(true)}
-                disabled={refreshing}
+                onClick={handleSyncMetabase}
+                disabled={metaSyncing || refreshing}
               >
-                {refreshing ? (
+                {metaSyncing || refreshing ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
                     <span>Atualizando...</span>
