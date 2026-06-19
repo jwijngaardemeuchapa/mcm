@@ -5,6 +5,7 @@ import { useNotificationWatcher, type WatcherActivity } from "./useNotificationW
 import { useFirestoreQueue } from "./useFirestoreQueue";
 import { type RespostaEvent } from "./firestoreQueue";
 import { useAutoCancelFup } from "./useAutoCancelFup";
+import { logActivity, pruneActivityLog } from "./activityLog";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /* ─── context ── */
@@ -101,6 +102,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    pruneActivityLog(); // TTL 30 dias — roda silenciosamente no startup
     loadTasks();
     const t = setInterval(loadTasks, 60_000);
     return () => clearInterval(t);
@@ -117,6 +119,14 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
 
   const handleActivity = useCallback((entry: WatcherActivity) => {
     setNotifLog((prev) => [entry, ...prev].slice(0, 50));
+    logActivity({
+      tipo: entry.action === "confirmado" ? "confirmado" : entry.action === "removido" ? "removido" : "recusou",
+      descricao: entry.action === "confirmado" ? "Confirmou FUP" : entry.action === "removido" ? "Removido" : "Recusou FUP",
+      chapa_nome: entry.chapa_nome,
+      empresa: entry.empresa,
+      id_tarefa: entry.task_id,
+      timestamp: entry.timestamp,
+    });
   }, []);
 
   const handleRemoveRequest = useCallback((taskId: number, chapaName: string) => {
@@ -146,6 +156,14 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
       timestamp: Date.now(),
     };
     setNotifLog((prev) => [entry, ...prev].slice(0, 50));
+    logActivity({
+      tipo: entry.action === "confirmado" ? "confirmado" : "recusou",
+      descricao: entry.action === "confirmado" ? "Confirmou via Firebase" : "Recusou via Firebase",
+      chapa_nome: ev.chapa_nome,
+      empresa: ev.empresa ?? null,
+      id_tarefa: ev.id_tarefa ?? null,
+      timestamp: Date.now(),
+    });
     window.dispatchEvent(new CustomEvent("fup:refresh"));
 
     // Recusa via Firebase → sinalizar remoção (mesmo comportamento do watcher de notificações)

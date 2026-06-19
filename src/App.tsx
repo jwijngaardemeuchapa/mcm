@@ -29,6 +29,7 @@ import MetabaseSetup from "./pages/MetabaseSetup";
 import NotFound from "./pages/NotFound";
 import { UndoProvider } from "./lib/undo";
 import { WatcherProvider } from "./lib/WatcherContext";
+import { AppStartup } from "./components/AppStartup";
 import { IntroScreen } from "./components/IntroScreen";
 import { shouldShowIntro } from "./lib/introLogic";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -60,6 +61,7 @@ function useExternalLinks() {
 const App = () => {
   useExternalLinks();
   const [showIntro, setShowIntro] = useState(() => shouldShowIntro());
+  const [startupDone, setStartupDone] = useState(false);
 
   useEffect(() => {
     const handler = () => setShowIntro(true);
@@ -71,6 +73,7 @@ const App = () => {
   <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     {showIntro && <IntroScreen onDone={() => setShowIntro(false)} />}
+    {!startupDone && <AppStartup onDone={() => setStartupDone(true)} />}
     <TooltipProvider>
       <UndoProvider>
         <WatcherProvider>

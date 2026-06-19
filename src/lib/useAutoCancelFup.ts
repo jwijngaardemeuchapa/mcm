@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { getDb, uuid } from "./db";
 import { readSettings } from "./settings";
 import { sendUmblerFup } from "./umbler";
+import { logActivity } from "./activityLog";
 import { toast } from "sonner";
 
 type PendingChapa = {
@@ -99,6 +100,16 @@ export function useAutoCancelFup(onFired: () => void) {
           }
         }
 
+        for (const chapa of toFire) {
+          logActivity({
+            tipo: "auto_cancel",
+            descricao: "Cancelamento automático por falta de resposta",
+            chapa_nome: chapa.nome_chapa,
+            empresa: chapa.empresa,
+            id_tarefa: chapa.id_tarefa,
+            timestamp: Date.now(),
+          });
+        }
         toast.info(`Template de cancelamento enviado para ${toFire.length} chapa(s) sem resposta`);
         onFired();
       }

@@ -7,6 +7,7 @@ import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
 import { TaskPanorama } from "@/components/TaskPanorama";
 import { TaskTimeline } from "@/components/TaskTimeline";
 import { ApproachingAlert } from "@/components/ApproachingAlert";
+import { ActivityBell } from "@/components/ActivityBell";
 import { AlertBanner, type AlertItem } from "@/components/AlertBanner";
 import { PriorityPanel, type LembreteAlertItem } from "@/components/PriorityPanel";
 import { RefreshDiff, computeRefreshDiff, chapKey, type DiffResult } from "@/components/RefreshDiff";
@@ -70,6 +71,7 @@ import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
+import { sincronizarMetabase30h } from "@/lib/metabaseSync";
 import * as XLSX from "xlsx";
 import { useSidebar } from "@/components/ui/sidebar";
 import { toast } from "sonner";
@@ -135,8 +137,10 @@ export default function Dashboard() {
   );
   const [agendaAlerts, setAgendaAlerts] = useState<AlertItem[]>([]);
   const [trocaTurnoOpen, setTrocaTurnoOpen] = useState(false);
+  const [syncing30h, setSyncing30h] = useState(false);
   const [xlsxDialogOpen, setXlsxDialogOpen] = useState(false);
   const [xlsxSelected, setXlsxSelected] = useState<Set<number>>(new Set());
+  const [syncClock, setSyncClock] = useState<{ lastSync: Date | null; nextSync: Date | null }>({ lastSync: null, nextSync: null });
   const [timelineOverlayTaskId, setTimelineOverlayTaskId] = useState<number | null>(null);
   const [lembreteAlerts, setLembreteAlerts] = useState<LembreteAlertItem[]>([]);
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
@@ -470,7 +474,17 @@ export default function Dashboard() {
 
     syncMetabase();
     const tMeta = setInterval(syncMetabase, 5 * 60 * 1000);
-    return () => { clearInterval(t); clearInterval(tMeta); };
+
+    function updateSyncClock() {
+      const last = localStorage.getItem("metabase_last_sync");
+      const lastDate = last ? new Date(last) : null;
+      const nextDate = lastDate ? new Date(lastDate.getTime() + 5 * 60 * 1000) : null;
+      setSyncClock({ lastSync: lastDate, nextSync: nextDate });
+    }
+    updateSyncClock();
+    const tClock = setInterval(updateSyncClock, 30_000);
+
+    return () => { clearInterval(t); clearInterval(tMeta); clearInterval(tClock); };
   }, [load]);
 
   // Apply pending flash from URL param once tasks finish loading
@@ -825,6 +839,28 @@ export default function Dashboard() {
     }
   }
 
+  function formatSyncClockLabel() {
+    const { lastSync, nextSync } = syncClock;
+    if (!lastSync) return null;
+    const now = Date.now();
+    const agoMs = now - lastSync.getTime();
+    const agoMin = Math.floor(agoMs / 60_000);
+    const agoLabel = agoMin < 1 ? "agora" : agoMin === 1 ? "1 min atrás" : `${agoMin} min atrás`;
+    if (!nextSync) return `Atualizado ${agoLabel}`;
+    const inMs = nextSync.getTime() - now;
+    if (inMs <= 0) return `Atualizado ${agoLabel} · sync em breve`;
+    const inMin = Math.ceil(inMs / 60_000);
+    const inLabel = inMin <= 1 ? "1 min" : `${inMin} min`;
+    return `Atualizado ${agoLabel} · próximo em ${inLabel}`;
+  }
+
+  async function handleSync30h() {
+    setSyncing30h(true);
+    const ok = await sincronizarMetabase30h(false);
+    if (ok) load(false);
+    setSyncing30h(false);
+  }
+
   function abrirXlsxDialog() {
     setXlsxSelected(new Set(allCards.map((t) => t.id_tarefa)));
     setXlsxDialogOpen(true);
@@ -1114,6 +1150,22 @@ export default function Dashboard() {
                 variant="outline"
                 size="sm"
                 className="h-9 gap-1.5"
+                onClick={handleSync30h}
+                disabled={syncing30h}
+              >
+                <RefreshCw className={`h-4 w-4 ${syncing30h ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline">Sync amanhã</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Sincronizar tarefas das próximas 30h</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5"
                 onClick={abrirXlsxDialog}
               >
                 <FileSpreadsheet className="h-4 w-4" />
@@ -1122,6 +1174,14 @@ export default function Dashboard() {
             </TooltipTrigger>
             <TooltipContent>Exportar XLSX</TooltipContent>
           </Tooltip>
+
+          {formatSyncClockLabel() && (
+            <span className="hidden lg:flex items-center text-[11px] text-muted-foreground whitespace-nowrap px-1">
+              {formatSyncClockLabel()}
+            </span>
+          )}
+
+          <ActivityBell />
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -1212,14 +1272,7 @@ export default function Dashboard() {
           })()}
         </div>
 
-        {/* ── Listener Log ── */}
-        {notifLog.length > 0 && (
-          <WatcherLogPanel
-            entries={notifLog}
-            onClear={clearLog}
-            onFlashTask={flashTask}
-          />
-        )}
+        {/* Listener Log removido — substituído pelo ActivityBell na toolbar */}
 
         {/* Stats — exactly 3 in one row */}
         <div className="grid grid-cols-3 gap-3">

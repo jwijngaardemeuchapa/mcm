@@ -4,6 +4,9 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { getDb, uuid, errMsg } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
+import { invoke } from "@tauri-apps/api/core";
+import { ingestTarefas } from "@/lib/ingestTarefas";
+import { sincronizarMetabase30h } from "@/lib/metabaseSync";
 import { startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
 import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
@@ -1718,7 +1721,36 @@ export default function BIDDashboard() {
   const [leoCache, setLeoCache] = useState<Map<string, LeoMetrics>>(new Map());
   const [leoLastSync, setLeoLastSync] = useState<string | null>(null);
   const [leoSyncing, setLeoSyncing] = useState(false);
+  const [metaSyncing, setMetaSyncing] = useState(false);
+  const [syncing30h, setSyncing30h] = useState(false);
   const bidCsvRef = useRef<HTMLInputElement>(null);
+
+  async function handleSync30h() {
+    setSyncing30h(true);
+    const ok = await sincronizarMetabase30h(false);
+    if (ok) loadAll();
+    setSyncing30h(false);
+  }
+
+  async function handleSyncMetabase() {
+    const s = readSettings();
+    const cardId = s.metabaseTarefasCardId;
+    if (!cardId) { toast.error("Configure o ID da pergunta do Metabase em Integrações"); return; }
+    setMetaSyncing(true);
+    try {
+      const status = await invoke<{ configured: boolean }>("metabase_status");
+      if (!status.configured) { toast.error("Metabase não configurado em Integrações"); return; }
+      const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+      const result = await ingestTarefas(rows);
+      localStorage.setItem("metabase_last_sync", new Date().toISOString());
+      toast.success(`Sync concluído — ${result.tarefas} tarefas, ${result.chapas} chapas`);
+      loadAll();
+    } catch (e) {
+      toast.error("Erro ao sincronizar com Metabase");
+    } finally {
+      setMetaSyncing(false);
+    }
+  }
 
   const [activeBatches, setActiveBatches] = useState<Map<number, NonNullable<BidBatchState>>>(() => bidDispatchQueue.getActiveBatches());
   useEffect(() => bidDispatchQueue.subscribeAnyBatch(() => setActiveBatches(bidDispatchQueue.getActiveBatches())), []);
@@ -1942,8 +1974,11 @@ export default function BIDDashboard() {
           )}
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={loadAll} className="gap-1.5 h-8">
-            <RefreshCw className="h-3.5 w-3.5" /> Atualizar
+          <Button variant="outline" size="sm" onClick={handleSyncMetabase} disabled={metaSyncing} className="gap-1.5 h-8">
+            <RefreshCw className={`h-3.5 w-3.5 ${metaSyncing ? "animate-spin" : ""}`} /> Atualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleSync30h} disabled={syncing30h} className="gap-1.5 h-8">
+            <RefreshCw className={`h-3.5 w-3.5 ${syncing30h ? "animate-spin" : ""}`} /> Sync amanhã
           </Button>
           <Button variant="outline" size="sm" onClick={() => bidCsvRef.current?.click()} className="gap-1.5 h-8">
             <Upload className="h-3.5 w-3.5" /> Importar CSV BID

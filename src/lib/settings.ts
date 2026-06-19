@@ -48,6 +48,8 @@ export type AppSettings = {
   firestoreEnabled: boolean;
   carteiraGruposAtivos: string[];
   metabaseTarefasCardId?: number;
+  metabaseTarefas30hCardId?: number;
+  metabaseCarteiraCardId?: number;
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
 };

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
+import { sincronizarCarteira } from "@/lib/metabaseSync";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
 import { extractPhone, extractBody, classifyResponse, type RespostaCode } from "@/lib/firestoreQueue";
@@ -150,6 +151,21 @@ const BID_BOTS: BotEntry[] = [
   { label: "BID_ANA V. | D0",        botId: "aUQnpmY0VXoPj5TU" },
   { label: "BID_GEOVANA C. | D0",    botId: "aUQn3TIB26TfOTN8" },
 ];
+
+function SincronizarCarteiraBtn() {
+  const [syncing, setSyncing] = useState(false);
+  async function handle() {
+    setSyncing(true);
+    await sincronizarCarteira(false);
+    setSyncing(false);
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={handle} disabled={syncing} className="gap-1.5">
+      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+      Sincronizar agora
+    </Button>
+  );
+}
 
 export default function Integracoes() {
   const [unlocked, setUnlocked] = useState(false);
@@ -1015,6 +1031,46 @@ export default function Integracoes() {
               </p>
             )}
           </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta — Próximas 30 horas
+              <span className="ml-1 text-muted-foreground/60">(usado no botão "Sync amanhã" dos dashboards)</span>
+            </label>
+            <Input
+              placeholder="ex: 43"
+              value={readSettings().metabaseTarefas30hCardId ? String(readSettings().metabaseTarefas30hCardId) : ""}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "");
+                writeSettings({ metabaseTarefas30hCardId: v ? parseInt(v, 10) : undefined });
+              }}
+              className="max-w-[120px]"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta — Carteira
+              <span className="ml-1 text-muted-foreground/60">(sync semanal automático às segundas)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="ex: 44"
+                value={readSettings().metabaseCarteiraCardId ? String(readSettings().metabaseCarteiraCardId) : ""}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  writeSettings({ metabaseCarteiraCardId: v ? parseInt(v, 10) : undefined });
+                }}
+                className="max-w-[120px]"
+              />
+              <SincronizarCarteiraBtn />
+            </div>
+            {localStorage.getItem("carteira_last_sync") && (
+              <p className="text-xs text-muted-foreground">
+                Última sync: {new Date(localStorage.getItem("carteira_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+
           <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
             <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
             <p className="text-xs text-muted-foreground">

@@ -55,13 +55,10 @@ import { getDb } from "@/lib/db";
 const navOperacional = [
   { title: "BID Dashboard", url: "/bid", icon: Target, shortcut: "b" },
   { title: "FUP Dashboard", url: "/dashboard", icon: LayoutDashboard, shortcut: "f" },
-  { title: "Respostas", url: "/respostas", icon: MessagesSquare, shortcut: "e" },
   { title: "Carteira", url: "/carteira", icon: Users, shortcut: "c" },
-  { title: "Importar", url: "/importar", icon: Upload, shortcut: "i" },
   { title: "Histórico", url: "/historico", icon: History, shortcut: "h" },
   { title: "Consultor", url: "/consultor", icon: Search, shortcut: "s" },
   { title: "Disparos Umbler", url: "/disparos", icon: Send, shortcut: "d" },
-  { title: "Fonte de Dados", url: "/metabase", icon: Database, shortcut: "g" },
 ];
 
 const navAnalise = [
