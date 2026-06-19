@@ -113,9 +113,6 @@ export function useNotificationWatcher(
             data_tarefa: parentTask?.data_tarefa ?? null,
             timestamp: Date.now(),
           });
-          toast.success(`${found.nome_chapa} confirmado(a)`, {
-            description: "Respondeu SIM, tô nessa! via WhatsApp",
-          });
           onRefreshRef.current();
         } else {
           const foundSnapshot = found;

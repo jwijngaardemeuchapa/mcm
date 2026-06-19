@@ -66,7 +66,6 @@ import {
 } from "@/components/ui/select";
 import { useNotifications } from "@/lib/useNotifications";
 import { type WatcherActivity } from "@/lib/useNotificationWatcher";
-import { useWatcherLog } from "@/lib/WatcherContext";
 import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { invoke } from "@tauri-apps/api/core";
@@ -146,8 +145,6 @@ export default function Dashboard() {
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
   const [confiabilidade, setConfiabilidade] = useState<Map<string, ConfiabilidadeStats>>(() => new Map());
   const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
-  const { notifLog, clearLog } = useWatcherLog();
-
   const load = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
