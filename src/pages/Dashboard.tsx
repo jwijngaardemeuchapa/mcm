@@ -128,6 +128,7 @@ export default function Dashboard() {
   const [showCompanyBreakdown, setShowCompanyBreakdown] = useState(false);
   const overnightNotifiedRef = useRef<Set<number>>(new Set());
   const prevTasksRef = useRef<TaskWithChapas[] | null>(null);
+  const skipDiffRef = useRef(false); // true durante syncs explícitos — evita diff falso
   const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
   const [diffOpen, setDiffOpen] = useState(false);
   const [newChapaKeys, setNewChapaKeys] = useState<Set<string>>(new Set());
@@ -312,7 +313,7 @@ export default function Dashboard() {
         .sort((a, b) => new Date(a.data_tarefa).getTime() - new Date(b.data_tarefa).getTime());
 
       const allNext = [...overnightCards, ...todayCards];
-      if (prevTasksRef.current !== null) {
+      if (prevTasksRef.current !== null && !skipDiffRef.current) {
         const diff = computeRefreshDiff(prevTasksRef.current, allNext);
         const nowMs = Date.now();
         const TWENTY_MIN = 20 * 60 * 1000;
@@ -873,15 +874,19 @@ export default function Dashboard() {
 
   async function handleSync30h() {
     setSyncing30h(true);
+    skipDiffRef.current = true;
     const ok = await sincronizarMetabase30h(false);
-    if (ok) load(false);
+    if (ok) await load(false);
+    skipDiffRef.current = false;
     setSyncing30h(false);
   }
 
   async function handleSyncMetabase() {
     setMetaSyncing(true);
+    skipDiffRef.current = true;
     await sincronizarMetabase(false);
     await load(false);
+    skipDiffRef.current = false;
     setMetaSyncing(false);
   }
 

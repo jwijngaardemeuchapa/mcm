@@ -226,34 +226,42 @@ export async function ingestTarefas(
     return true;
   });
 
-  for (let i = 0; i < ids.length; i += 900) {
-    const chunk = ids.slice(i, i + 900);
-    const ph = placeholders(chunk.length);
-    await db.execute(`DELETE FROM chapas WHERE id_tarefa IN (${ph})`, chunk);
-  }
+  // Transação única: elimina a janela de inconsistência entre DELETE e INSERT
+  await db.execute("BEGIN");
+  try {
+    for (let i = 0; i < ids.length; i += 900) {
+      const chunk = ids.slice(i, i + 900);
+      const ph = placeholders(chunk.length);
+      await db.execute(`DELETE FROM chapas WHERE id_tarefa IN (${ph})`, chunk);
+    }
 
-  for (const t of tarefasMap.values()) {
-    await db.execute(
-      "INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
-        t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
-        t.observacoes ?? null, t.observacoes_updated_at ?? null,
-        t.validacao_status, t.data_validacao_recebida ?? null,
-        t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
-      ],
-    );
-  }
+    for (const t of tarefasMap.values()) {
+      await db.execute(
+        "INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
+          t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
+          t.observacoes ?? null, t.observacoes_updated_at ?? null,
+          t.validacao_status, t.data_validacao_recebida ?? null,
+          t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
+        ],
+      );
+    }
 
-  for (const c of chapasFinais) {
-    await db.execute(
-      "INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        c.id, c.id_tarefa, c.nome_chapa ?? null, c.telefone_chapa ?? null, c.cpf ?? null,
-        c.status_contato, c.validacao_presenca ?? null, c.data_validacao ?? null,
-        c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
-      ],
-    );
+    for (const c of chapasFinais) {
+      await db.execute(
+        "INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+          c.id, c.id_tarefa, c.nome_chapa ?? null, c.telefone_chapa ?? null, c.cpf ?? null,
+          c.status_contato, c.validacao_presenca ?? null, c.data_validacao ?? null,
+          c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
+        ],
+      );
+    }
+    await db.execute("COMMIT");
+  } catch (err) {
+    await db.execute("ROLLBACK").catch(() => {});
+    throw err;
   }
 
   try {
