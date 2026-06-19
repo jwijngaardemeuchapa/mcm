@@ -78,15 +78,25 @@ fn detect_bid_response(payload_norm: &str) -> Option<&'static str> {
     else { None }
 }
 
-/// Detecta resposta SIM/NÃO no payload normalizado. Tolerante a remoção
-/// de pontuação e variações ("tô" vs "estou") — exige só a frase distintiva.
+/// Detecta resposta SIM/NÃO no payload normalizado. Exige a frase completa
+/// do botão FUP para evitar falso-positivo com nomes que contêm "nessa"
+/// (ex: Vanessa, Odessa) ou histórico de conversa misturado.
 fn detect_response(payload_norm: &str) -> Option<&'static str> {
-    let has_sim = payload_norm.contains("to nessa") || payload_norm.contains("estou nessa");
-    let has_nao = payload_norm.contains("quero cancelar");
+    // Frases completas dos botões do FUP (após strip_accents + lowercase)
+    // "SIM, tô nessa!"  → "sim, to nessa!"
+    // "SIM, estou nessa!" → "sim, estou nessa!"
+    let has_sim = payload_norm.contains("sim, to nessa")
+        || payload_norm.contains("sim, estou nessa");
+    // "NÃO, quero cancelar!" → "nao, quero cancelar!"
+    let has_nao = payload_norm.contains("nao, quero cancelar")
+        || payload_norm.contains("quero cancelar");
 
     if has_sim && !has_nao {
         Some("sim")
     } else if has_nao && !has_sim {
+        Some("nao")
+    } else if has_nao && has_sim {
+        // Histórico misto (chapa disse SIM antes e NÃO agora) — prioriza NÃO
         Some("nao")
     } else {
         None
