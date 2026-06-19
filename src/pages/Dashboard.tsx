@@ -329,7 +329,33 @@ export default function Dashboard() {
         setNewChapaKeys(new Set(newChapaTimestampsRef.current.keys()));
         if (diff.added.length > 0 || diff.removed.length > 0) {
           setDiffResult(diff);
-          setDiffOpen(true);
+          // Persiste no ActivityBell em vez de abrir o Sheet automaticamente
+          diff.added.forEach((c) => {
+            import("@/lib/activityLog").then(({ logActivity }) => {
+              logActivity({
+                tipo: "sync_apareceu",
+                descricao: "Apareceu no sync",
+                chapa_nome: c.nome,
+                empresa: c.empresa,
+                id_tarefa: c.taskId,
+                timestamp: Date.now(),
+              });
+            });
+          });
+          diff.removed.forEach((c) => {
+            import("@/lib/activityLog").then(({ logActivity }) => {
+              logActivity({
+                tipo: "sync_sumiu",
+                descricao: "Sumiu no sync",
+                chapa_nome: c.nome,
+                empresa: c.empresa,
+                id_tarefa: c.taskId,
+                timestamp: Date.now(),
+              });
+            });
+          });
+          // Dispara evento para o ActivityBell recarregar
+          window.dispatchEvent(new CustomEvent("activity:new-diff"));
         }
       }
       prevTasksRef.current = allNext;
@@ -1178,7 +1204,10 @@ export default function Dashboard() {
             </span>
           )}
 
-          <ActivityBell />
+          <ActivityBell
+            diffResult={diffResult}
+            onOpenDiff={() => setDiffOpen(true)}
+          />
 
           <Tooltip>
             <TooltipTrigger asChild>

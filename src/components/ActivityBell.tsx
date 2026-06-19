@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, Check, X, UserMinus, RefreshCw, AlertTriangle } from "lucide-react";
+import { Bell, Check, X, UserMinus, RefreshCw, AlertTriangle, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { fetchActivityLog, clearActivityLog, type ActivityEntry } from "@/lib/activityLog";
 import { useWatcherLog } from "@/lib/WatcherContext";
 import { fmtSP } from "@/lib/datetime";
+import type { DiffResult } from "@/components/RefreshDiff";
 
 const TIPO_CONFIG: Record<ActivityEntry["tipo"], { icon: React.ElementType; label: string; color: string }> = {
   confirmado:    { icon: Check,         label: "Confirmou FUP",           color: "text-success" },
@@ -24,7 +25,12 @@ function formatRelative(ts: number): string {
   return fmtSP(new Date(ts).toISOString(), "dd/MM HH:mm");
 }
 
-export function ActivityBell() {
+type Props = {
+  diffResult?: DiffResult | null;
+  onOpenDiff?: () => void;
+};
+
+export function ActivityBell({ diffResult, onOpenDiff }: Props = {}) {
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [unread, setUnread] = useState(0);
@@ -51,6 +57,21 @@ export function ActivityBell() {
     });
   }, [reload, notifLog]);
 
+  // Recarrega quando o Dashboard detecta um diff novo
+  useEffect(() => {
+    const handler = () => {
+      reload().then((newUnread) => {
+        if (newUnread > prevUnreadRef.current) {
+          setRinging(true);
+          setTimeout(() => setRinging(false), 1200);
+        }
+        prevUnreadRef.current = newUnread;
+      });
+    };
+    window.addEventListener("activity:new-diff", handler);
+    return () => window.removeEventListener("activity:new-diff", handler);
+  }, [reload]);
+
   function handleOpen(v: boolean) {
     setOpen(v);
     if (v) {
@@ -66,6 +87,8 @@ export function ActivityBell() {
     setUnread(0);
     prevUnreadRef.current = 0;
   }
+
+  const hasDiff = diffResult && (diffResult.added.length > 0 || diffResult.removed.length > 0);
 
   return (
     <>
@@ -110,6 +133,24 @@ export function ActivityBell() {
               </Button>
             )}
           </div>
+
+          {/* Botão de acesso ao diff quando há mudanças detectadas */}
+          {hasDiff && onOpenDiff && (
+            <button
+              onClick={() => { setOpen(false); onOpenDiff(); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-border bg-primary/5 hover:bg-primary/10 transition-colors text-left"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="text-xs font-medium text-primary flex-1">
+                {diffResult.added.length > 0 && `${diffResult.added.length} novo${diffResult.added.length > 1 ? "s" : ""}`}
+                {diffResult.added.length > 0 && diffResult.removed.length > 0 && " · "}
+                {diffResult.removed.length > 0 && `${diffResult.removed.length} saiu${diffResult.removed.length > 1 ? "ram" : ""}`}
+                {" desde o último sync"}
+              </span>
+              <ArrowUpRight className="h-3.5 w-3.5 text-primary shrink-0" />
+            </button>
+          )}
+
           <div className="max-h-80 overflow-y-auto divide-y divide-border">
             {entries.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-6">Nenhuma atividade registrada</p>
