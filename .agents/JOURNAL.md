@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-06-19 — MCM v0.9.95 — Auto-cancel FUP + Lista Para Remover + XLSX (MV2-9/10/11)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MV2-9 ✅, MV2-10 ✅, MV2-11 ✅
+**Summary:**
+- `src/lib/useAutoCancelFup.ts` (novo): hook global que a cada 30s verifica chapas com FUP disparado sem resposta. Avisa (toast.warning) 5 min antes do limiar configurável. Ao atingir o limiar: envia `cancelTemplateId` via `sendUmblerFup`, atualiza `canal_contato='umbler_cancelamento'`, insere `fup_log canal='umbler_cancelamento_auto'`. `useRef<Set>` previne double-fire.
+- `src/lib/WatcherContext.tsx`: integra `useAutoCancelFup(handleRefresh)`.
+- `src/lib/settings.ts`: `autoCancelFupEnabled: boolean` (default false) + `autoCancelFupMinutes: number` (default 60).
+- `src/components/ApproachingAlert.tsx`: seção colapsável "Para remover (N)" em vermelho, acima das seções de tarefas. Query: `canal_contato='umbler_cancelamento'` + `status_contato NOT IN ('confirmado','removido')` + tarefa nas últimas 4h. Botão Remover por linha: `UPDATE chapas SET status_contato='removido', data_remocao=NOW`.
+- `src/pages/Configuracoes.tsx`: toggle "Cancelamento automático por falta de resposta" + Select de minutos (30/45/60/90/120), visível só quando toggle ON.
+- `src/pages/Dashboard.tsx`: botão "Exportar" na toolbar; Dialog com checkboxes por tarefa (Todos/Nenhum); "Exportar selecionadas (N)" gera `tarefas_YYYY-MM-DD.xlsx` via `xlsx` lib.
+- Build v0.9.95 pendente.
+**Files changed:** `src/lib/useAutoCancelFup.ts`, `src/lib/WatcherContext.tsx`, `src/lib/settings.ts`, `src/components/ApproachingAlert.tsx`, `src/pages/Configuracoes.tsx`, `src/pages/Dashboard.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
+**Next:** Build v0.9.95. Ativar e testar auto-cancel com threshold baixo (ex: 1 min) para validar fluxo.
+
+---
+
 ## 2026-06-19 — MCM v0.9.94 — Fix FUP/BID Firebase
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** (bug fix — sem ticket Jira)
