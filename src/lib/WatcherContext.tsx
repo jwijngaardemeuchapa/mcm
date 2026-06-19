@@ -4,6 +4,7 @@ import { todayDateISO_SP } from "./datetime";
 import { useNotificationWatcher, type WatcherActivity } from "./useNotificationWatcher";
 import { useFirestoreQueue } from "./useFirestoreQueue";
 import { type RespostaEvent } from "./firestoreQueue";
+import { useAutoCancelFup } from "./useAutoCancelFup";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /* ─── context ── */
@@ -156,6 +157,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useFirestoreQueue(handleWebhookEvent);
+  useAutoCancelFup(handleRefresh);
 
   const clearLog = useCallback(() => setNotifLog([]), []);
 

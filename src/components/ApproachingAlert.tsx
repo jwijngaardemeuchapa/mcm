@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Clock,
   ChevronDown,
@@ -12,6 +12,7 @@ import {
   Send,
   UserMinus,
   Minus,
+  Trash2,
 } from "lucide-react";
 import { useOverlaySlot } from "@/lib/overlayStack";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -49,6 +50,7 @@ async function clipboardCopy(text: string, msg = "Copiado") {
 /* ── types ── */
 
 type ChapaRow = { id: string; nome: string; telefone: string; dataTarefa: string; empresa: string };
+type ParaRemoverRow = { id: string; nome_chapa: string; empresa: string; id_tarefa: number };
 
 type TaskGroup = {
   task: TaskWithChapas;
@@ -411,15 +413,35 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
   const [localTasks, setLocalTasks] = useState<TaskWithChapas[]>(tasks);
   const [donePortaria, setDonePortaria] = useState<Set<string>>(() => new Set());
   const [, setTick] = useState(0);
+  const [paraRemover, setParaRemover] = useState<ParaRemoverRow[]>([]);
+  const [paraRemoverOpen, setParaRemoverOpen] = useState(true);
   const alertedIdsRef = useRef<Set<number>>(new Set());
   const isFirstRef = useRef(true);
   const rootRef = useRef<HTMLDivElement>(null);
 
+  const fetchParaRemover = useCallback(async () => {
+    try {
+      const db = await getDb();
+      const rows = await db.select<ParaRemoverRow[]>(
+        `SELECT c.id, c.nome_chapa, t.empresa, t.id_tarefa
+         FROM chapas c
+         JOIN tarefas t ON c.id_tarefa = t.id_tarefa
+         WHERE c.canal_contato = 'umbler_cancelamento'
+           AND c.status_contato NOT IN ('confirmado', 'removido')
+           AND t.ativo = 1
+           AND datetime(t.data_tarefa) > datetime('now', '-4 hours')
+         ORDER BY c.nome_chapa`,
+      );
+      setParaRemover(rows);
+    } catch { /* noop */ }
+  }, []);
+
   useEffect(() => { setLocalTasks(tasks); }, [tasks]);
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    fetchParaRemover();
+    const id = setInterval(() => { setTick((t) => t + 1); fetchParaRemover(); }, 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [fetchParaRemover]);
 
   // Sound alert: beep when new tasks enter the approaching window
   useEffect(() => {
@@ -449,7 +471,7 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
   }
 
   const totalChapas = groups.reduce((sum, g) => sum + g.chapas.length, 0);
-  const totalSections = (totalChapas > 0 ? 1 : 0) + (portariaAlerts.length > 0 ? 1 : 0);
+  const totalSections = (totalChapas > 0 ? 1 : 0) + (portariaAlerts.length > 0 ? 1 : 0) + (paraRemover.length > 0 ? 1 : 0);
 
   const offset = useOverlaySlot("approaching", rootRef, totalSections > 0, minimized);
 
@@ -465,6 +487,20 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
       ),
     );
     onRefresh();
+  }
+
+  async function removerChapa(chapaId: string) {
+    try {
+      const db = await getDb();
+      await db.execute(
+        "UPDATE chapas SET status_contato = 'removido', data_remocao = ? WHERE id = ?",
+        [new Date().toISOString(), chapaId],
+      );
+      setParaRemover((prev) => prev.filter((r) => r.id !== chapaId));
+      onRefresh();
+    } catch {
+      toast.error("Erro ao remover chapa");
+    }
   }
 
   function setMin(v: boolean) {
@@ -532,6 +568,8 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
             {totalChapas > 0 && `${totalChapas} chapa${totalChapas !== 1 ? "s" : ""} a confirmar`}
             {totalChapas > 0 && portariaAlerts.length > 0 && " · "}
             {portariaAlerts.length > 0 && `${portariaAlerts.length} portaria${portariaAlerts.length !== 1 ? "s" : ""}`}
+            {(totalChapas > 0 || portariaAlerts.length > 0) && paraRemover.length > 0 && " · "}
+            {paraRemover.length > 0 && <span className="text-destructive">{paraRemover.length} p/ remover</span>}
           </span>
           <span
             role="button"
@@ -551,6 +589,47 @@ export function ApproachingAlert({ tasks, onRefresh }: Props) {
 
         {open && (
           <div className="divide-y divide-border max-h-[65vh] overflow-y-auto">
+
+            {/* ── Para remover ── */}
+            {paraRemover.length > 0 && (
+              <div className="px-4 py-2.5 space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setParaRemoverOpen((v) => !v)}
+                  className="w-full flex items-center gap-1.5 text-left"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-destructive shrink-0" />
+                  <span className="text-xs font-semibold text-destructive flex-1">
+                    Para remover ({paraRemover.length})
+                  </span>
+                  {paraRemoverOpen
+                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    : <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />}
+                </button>
+                {paraRemoverOpen && (
+                  <ul className="space-y-1.5 pt-0.5">
+                    {paraRemover.map((r) => (
+                      <li key={r.id} className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm text-foreground truncate flex-1 capitalize">
+                          {r.nome_chapa.toLowerCase()}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground truncate shrink-0 max-w-[80px]">
+                          {r.empresa.toLowerCase()}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removerChapa(r.id)}
+                          title="Confirmar remoção"
+                          className="h-6 w-6 inline-flex items-center justify-center rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* ── Portaria alerts ── */}
             {portariaAlerts.map(({ task, rule, minutesLeft, nomes }) => (

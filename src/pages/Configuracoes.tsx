@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Upload,
   GanttChart,
+  UserMinus,
 } from "lucide-react";
 import { getLeoConfig, saveLeoConfig, syncLeo, extractSpreadsheetId, parseRespostasBidCsv } from "@/pages/AnaliseBase/modules/M_leo";
 import { Input } from "@/components/ui/input";
@@ -570,6 +571,49 @@ export default function Configuracoes() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* Auto-cancel FUP */}
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-2.5">
+                  <UserMinus className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Cancelamento automático por falta de resposta</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Envia o template "sem resposta" automaticamente após o tempo configurado, se a tarefa ainda não tiver começado.
+                      Avisa 5 minutos antes do disparo.
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={settings.autoCancelFupEnabled}
+                  onCheckedChange={(v) => setSettings(writeSettings({ autoCancelFupEnabled: v }))}
+                />
+              </div>
+
+              {settings.autoCancelFupEnabled && (
+                <div className="flex items-center gap-3 pl-6">
+                  <Select
+                    value={String(settings.autoCancelFupMinutes)}
+                    onValueChange={(v) => setSettings(writeSettings({ autoCancelFupMinutes: Number(v) }))}
+                  >
+                    <SelectTrigger className="w-52">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 minutos</SelectItem>
+                      <SelectItem value="45">45 minutos</SelectItem>
+                      <SelectItem value="60">1 hora (recomendado)</SelectItem>
+                      <SelectItem value="90">1h 30min</SelectItem>
+                      <SelectItem value="120">2 horas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">após o FUP</span>
+                </div>
+              )}
             </div>
 
             <Separator />

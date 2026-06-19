@@ -48,6 +48,8 @@ export type AppSettings = {
   firestoreEnabled: boolean;
   carteiraGruposAtivos: string[];
   metabaseTarefasCardId?: number;
+  autoCancelFupEnabled: boolean;
+  autoCancelFupMinutes: number;
 };
 
 const STORAGE_KEY = "fup_settings";
@@ -73,6 +75,8 @@ export const SETTING_DEFAULTS: AppSettings = {
   fupAgendarMinAntes: 0,
   firestoreEnabled: true,
   carteiraGruposAtivos: [],
+  autoCancelFupEnabled: false,
+  autoCancelFupMinutes: 60,
 };
 
 export function readSettings(): AppSettings {

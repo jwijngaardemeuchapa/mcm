@@ -42,6 +42,7 @@ import {
   UserX,
   Trash2,
   Send,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -51,7 +52,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
@@ -67,6 +70,7 @@ import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
+import * as XLSX from "xlsx";
 import { useSidebar } from "@/components/ui/sidebar";
 import { toast } from "sonner";
 import { TrocaDeTurno } from "@/components/TrocaDeTurno";
@@ -131,6 +135,8 @@ export default function Dashboard() {
   );
   const [agendaAlerts, setAgendaAlerts] = useState<AlertItem[]>([]);
   const [trocaTurnoOpen, setTrocaTurnoOpen] = useState(false);
+  const [xlsxDialogOpen, setXlsxDialogOpen] = useState(false);
+  const [xlsxSelected, setXlsxSelected] = useState<Set<number>>(new Set());
   const [timelineOverlayTaskId, setTimelineOverlayTaskId] = useState<number | null>(null);
   const [lembreteAlerts, setLembreteAlerts] = useState<LembreteAlertItem[]>([]);
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
@@ -819,6 +825,34 @@ export default function Dashboard() {
     }
   }
 
+  function abrirXlsxDialog() {
+    setXlsxSelected(new Set(allCards.map((t) => t.id_tarefa)));
+    setXlsxDialogOpen(true);
+  }
+
+  function exportarXlsx() {
+    const selecionadas = allCards.filter((t) => xlsxSelected.has(t.id_tarefa));
+    const rows = selecionadas.flatMap((task) =>
+      task.chapas.map((c) => ({
+        "ID Tarefa": task.id_tarefa,
+        "Data Tarefa": task.data_tarefa ? fmtSP(task.data_tarefa, "dd/MM/yyyy HH:mm") : "",
+        "Empresa": task.empresa,
+        "Cidade/UF": task.cidade_uf ?? "",
+        "Status Tarefa": task.status_tarefa,
+        "Nome Chapa": c.nome_chapa ?? "",
+        "Telefone": c.telefone_chapa ?? "",
+        "CPF": ("cpf" in c ? (c as { cpf?: string }).cpf : undefined) ?? "",
+        "Status": c.status_contato,
+        "Confirmado": c.status_contato === "confirmado" ? "SIM" : "NÃO",
+      })),
+    );
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tarefas");
+    XLSX.writeFile(wb, `tarefas_${todayDateISO_SP()}.xlsx`);
+    setXlsxDialogOpen(false);
+  }
+
   const { state: sidebarState, isMobile } = useSidebar();
   const toolbarLeft = isMobile
     ? "1rem"
@@ -1072,6 +1106,21 @@ export default function Dashboard() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Gerar mensagem de Troca de Turno para o Teams</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5"
+                onClick={abrirXlsxDialog}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                <span className="hidden sm:inline">Exportar</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Exportar XLSX</TooltipContent>
           </Tooltip>
 
           <Tooltip>
@@ -1540,6 +1589,69 @@ export default function Dashboard() {
         />
       )}
       <TrocaDeTurno open={trocaTurnoOpen} onClose={() => setTrocaTurnoOpen(false)} />
+
+      {/* ── Dialog Exportar XLSX ── */}
+      <Dialog open={xlsxDialogOpen} onOpenChange={setXlsxDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar XLSX
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setXlsxSelected(new Set(allCards.map((t) => t.id_tarefa)))}
+              >
+                Todos
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setXlsxSelected(new Set())}
+              >
+                Nenhum
+              </Button>
+            </div>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {allCards.map((task) => (
+                <label
+                  key={task.id_tarefa}
+                  className="flex items-center gap-2.5 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={xlsxSelected.has(task.id_tarefa)}
+                    onCheckedChange={(checked) =>
+                      setXlsxSelected((prev) => {
+                        const next = new Set(prev);
+                        if (checked) next.add(task.id_tarefa);
+                        else next.delete(task.id_tarefa);
+                        return next;
+                      })
+                    }
+                  />
+                  <span className="text-sm text-foreground flex-1 truncate">{task.empresa}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {task.chapas.length} chapa{task.chapas.length !== 1 ? "s" : ""}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setXlsxDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={exportarXlsx} disabled={xlsxSelected.size === 0} className="gap-1.5">
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar selecionadas ({xlsxSelected.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Overlay da Timeline: abre tarefa sem sair da visualização ── */}
       {timelineOverlayTaskId !== null && (() => {
