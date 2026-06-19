@@ -216,16 +216,23 @@ export function TrocaDeTurno({
   // Dados carregados — para derivar lista de empresas
   const [allTarefas, setAllTarefas] = useState<TarefaRow[]>([]);
   const [allChapas, setAllChapas] = useState<ChapaRow[]>([]);
+  const [carteiraBd, setCarteiraBd] = useState<CarteiraRow[]>([]);
 
   // Seleção de empresas (por sessão — reseta ao fechar)
   const [excludedEmpresas, setExcludedEmpresas] = useState<Set<string>>(new Set());
   const [empresasPopoverOpen, setEmpresasPopoverOpen] = useState(false);
 
-  // Lista única de empresas nas tarefas carregadas
-  const empresasDisponiveis = useMemo(
-    () => [...new Set(allTarefas.map((t) => t.empresa))].sort(),
-    [allTarefas],
-  );
+  // Lista única de empresas para o grupo atual
+  const empresasDisponiveis = useMemo(() => {
+    let base = allTarefas;
+    if (grupoLabel !== "Geral" && carteiraBd.length > 0) {
+      const namesDoGrupo = carteiraBd
+        .filter((c) => c.grupo === grupoLabel)
+        .map((c) => c.nome_fantasia);
+      base = allTarefas.filter((t) => companyMatches(t.empresa, namesDoGrupo));
+    }
+    return [...new Set(base.map((t) => t.empresa))].sort();
+  }, [allTarefas, grupoLabel, carteiraBd]);
 
   // Reset por sessão
   useEffect(() => {
@@ -277,7 +284,7 @@ export function TrocaDeTurno({
         ),
       ]);
 
-      // Filtrar apenas empresas da carteira
+      // Filtrar apenas empresas da carteira (todos os grupos)
       const carteiraNames = carteira.map((c) => c.nome_fantasia);
       const tarefasFiltradas = carteiraNames.length === 0
         ? tarefas
@@ -286,6 +293,7 @@ export function TrocaDeTurno({
       // Grupos disponíveis — dinâmicos da carteira
       const grupos = [...new Set(carteira.map((c) => c.grupo).filter(Boolean))] as string[];
       setGruposDisponiveis(grupos.sort());
+      setCarteiraBd(carteira);
 
       setAllTarefas(tarefasFiltradas);
       setAllChapas(chapas);
@@ -302,10 +310,20 @@ export function TrocaDeTurno({
       const agendaItem = selectedAgendaId !== "__none__"
         ? agendaItems.find((a) => a.id === selectedAgendaId) ?? null
         : null;
+
+      // Filtrar tarefas pelo grupo selecionado
+      let tarefasParaGerar = allTarefas;
+      if (grupoLabel !== "Geral" && carteiraBd.length > 0) {
+        const namesDoGrupo = carteiraBd
+          .filter((c) => c.grupo === grupoLabel)
+          .map((c) => c.nome_fantasia);
+        tarefasParaGerar = allTarefas.filter((t) => companyMatches(t.empresa, namesDoGrupo));
+      }
+
       setMessage(
         buildMessage(
           grupoLabel,
-          allTarefas,
+          tarefasParaGerar,
           allChapas,
           agendaItem,
           timeToMinutes(bidCorte),
