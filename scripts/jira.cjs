@@ -1,9 +1,11 @@
 /**
- * jira.cjs — CLI de integração Jira para o projeto MCM
+ * jira.cjs — CLI de integração Jira para os projetos MCM e MV2
  *
  * Uso:
- *   node scripts/jira.cjs list                          → lista tickets ativos (backlog da sessão)
- *   node scripts/jira.cjs create tarefa "Título"        → cria Tarefa
+ *   node scripts/jira.cjs list                          → lista tickets ativos (projeto MCM)
+ *   node scripts/jira.cjs list --project MV2            → lista tickets do projeto MV2
+ *   node scripts/jira.cjs create tarefa "Título"        → cria Tarefa (MCM)
+ *   node scripts/jira.cjs create tarefa "Título" --project MV2 → cria Tarefa no MV2
  *   node scripts/jira.cjs create bug "Título"           → cria Bug
  *   node scripts/jira.cjs create historia "Título"      → cria História
  *   node scripts/jira.cjs create epic "Título"          → cria Epic
@@ -12,8 +14,9 @@
  *   node scripts/jira.cjs done MCM-1 "comentário"       → move para "Feito" + comentário
  *   node scripts/jira.cjs comment MCM-1 "texto"         → adiciona comentário
  *   node scripts/jira.cjs get MCM-1                     → detalhes de um ticket
- *   node scripts/jira.cjs backlog                       → tickets "A fazer" por prioridade
- *   node scripts/jira.cjs session-start                 → resumo para início de sessão
+ *   node scripts/jira.cjs backlog                       → tickets "A fazer" (MCM)
+ *   node scripts/jira.cjs backlog --project MV2         → tickets "A fazer" (MV2)
+ *   node scripts/jira.cjs session-start                 → resumo de ambos os projetos
  */
 
 var https = require("https");
@@ -33,27 +36,43 @@ if (fs.existsSync(envPath)) {
 var BASE_URL = process.env.JIRA_BASE_URL || "https://wijngaardedesign.atlassian.net";
 var EMAIL    = process.env.JIRA_EMAIL    || "wijngaardedesign@gmail.com";
 var TOKEN    = process.env.JIRA_TOKEN    || "";
-var PROJECT     = process.env.JIRA_PROJECT    || "MCM";
-var PROJECT_ID  = process.env.JIRA_PROJECT_ID || "10001";
-var AUTH        = Buffer.from(EMAIL + ":" + TOKEN).toString("base64");
+var AUTH     = Buffer.from(EMAIL + ":" + TOKEN).toString("base64");
 
-// ── IDs fixos do projeto MCM ────────────────────────────────────────────────
-var STATUS = {
-  afazer:   "10005",  // A fazer
-  fazendo:  "10006",  // Fazendo
-  analise:  "10007",  // Em análise
-  feito:    "10008",  // Feito
-  lapso:    "10009",  // Lapso
+// ── Projetos suportados ──────────────────────────────────────────────────────
+var PROJECTS = {
+  MCM: {
+    key: "MCM", id: "10001", name: "MeuChapa Manager",
+    issueTypes: { epic:"10007", tarefa:"10009", historia:"10010", funcao:"10011", bug:"10012", inovacao:"10013" },
+  },
+  MV2: {
+    key: "MV2", id: "10034", name: "MCM-V2",
+    issueTypes: { epic:"10047", tarefa:"10049", historia:"10050", funcao:"10051", bug:"10052" },
+  },
 };
 
-var ISSUE_TYPES = {
-  epic:     "10007",
-  tarefa:   "10009",
-  historia: "10010",
-  funcao:   "10011",
-  bug:      "10012",
-  inovacao: "10013",
+// Detecta --project <KEY> nos args e remove do array
+var rawArgs = process.argv.slice(2);
+var projectFlag = "MCM";
+var projectFlagIdx = rawArgs.indexOf("--project");
+if (projectFlagIdx !== -1 && rawArgs[projectFlagIdx + 1]) {
+  projectFlag = rawArgs[projectFlagIdx + 1].toUpperCase();
+  rawArgs.splice(projectFlagIdx, 2);
+}
+process.argv = [process.argv[0], process.argv[1]].concat(rawArgs);
+
+var ACTIVE_PROJECT = PROJECTS[projectFlag] || PROJECTS.MCM;
+var PROJECT    = ACTIVE_PROJECT.key;
+var PROJECT_ID = ACTIVE_PROJECT.id;
+
+// ── IDs de status por projeto ────────────────────────────────────────────────
+var STATUS_MAP = {
+  MCM: { afazer:"10005", fazendo:"10006", analise:"10007", feito:"10008", lapso:"10009" },
+  MV2: { afazer:"10042", fazendo:"10043", analise:"10044", feito:"10045", lapso:"10045" },
 };
+var STATUS = STATUS_MAP[PROJECT] || STATUS_MAP.MCM;
+
+// ISSUE_TYPES é resolvido dinamicamente por ACTIVE_PROJECT.issueTypes
+var ISSUE_TYPES = ACTIVE_PROJECT.issueTypes;
 
 var STATUS_LABELS = {
   "10005": "📋 A fazer",
@@ -189,39 +208,50 @@ var COMMANDS = {
     console.log("");
   },
 
-  // Resumo de início de sessão: em andamento + pendentes
+  // Resumo de início de sessão: em andamento + pendentes (ambos projetos)
   "session-start": async function() {
-    var jqlFazendo = 'project=' + PROJECT + ' AND status="Fazendo" ORDER BY updated DESC';
-    var jqlPendente = 'project=' + PROJECT + ' AND status="A fazer" ORDER BY priority ASC, created ASC';
-    var [rFaz, rPend] = await Promise.all([
-      api("GET", "/search/jql?jql=" + encodeURIComponent(jqlFazendo) + "&maxResults=5&fields=summary,status,priority,issuetype"),
-      api("GET", "/search/jql?jql=" + encodeURIComponent(jqlPendente) + "&maxResults=10&fields=summary,priority,issuetype"),
-    ]);
-    var fazendo  = rFaz.body.issues  || [];
-    var pendente = rPend.body.issues || [];
+    var allKeys = Object.keys(PROJECTS);
+    var results = await Promise.all(allKeys.map(function(pKey) {
+      var p = PROJECTS[pKey];
+      var jqlFaz  = 'project=' + p.key + ' AND status="Fazendo" ORDER BY updated DESC';
+      var jqlPend = 'project=' + p.key + ' AND status="A fazer" ORDER BY priority ASC, created ASC';
+      return Promise.all([
+        api("GET", "/search/jql?jql=" + encodeURIComponent(jqlFaz)  + "&maxResults=5&fields=summary,status,priority,issuetype"),
+        api("GET", "/search/jql?jql=" + encodeURIComponent(jqlPend) + "&maxResults=8&fields=summary,priority,issuetype"),
+      ]).then(function(r) { return { project: p, fazendo: r[0].body.issues||[], pendente: r[1].body.issues||[] }; });
+    }));
 
     console.log("\n╔══════════════════════════════════════════════════╗");
     console.log("║  🚀 MCM — INÍCIO DE SESSÃO                       ║");
     console.log("╚══════════════════════════════════════════════════╝");
 
-    if (fazendo.length) {
-      console.log("\n  🔧 EM ANDAMENTO:");
-      fazendo.forEach(function(i) {
-        console.log("    • " + i.key + " — " + i.fields.summary);
-        console.log("      🔗 " + BASE_URL + "/browse/" + i.key);
-      });
-    }
+    results.forEach(function(r) {
+      var hasFaz  = r.fazendo.length  > 0;
+      var hasPend = r.pendente.length > 0;
+      if (!hasFaz && !hasPend) return;
 
-    if (pendente.length) {
-      console.log("\n  📋 PRÓXIMAS TAREFAS (por prioridade):");
-      pendente.forEach(function(i, idx) {
-        var prio = i.fields.priority ? i.fields.priority.name : "—";
-        console.log("    " + (idx + 1) + ". [" + prio + "] " + i.key + " — " + i.fields.summary);
-      });
-    }
+      console.log("\n  ── " + r.project.name + " (" + r.project.key + ") ──");
 
-    if (!fazendo.length && !pendente.length) {
-      console.log("\n  ✨ Nenhuma tarefa pendente. Diga o que quer fazer hoje!");
+      if (hasFaz) {
+        console.log("\n  🔧 EM ANDAMENTO:");
+        r.fazendo.forEach(function(i) {
+          console.log("    • " + i.key + " — " + i.fields.summary);
+          console.log("      🔗 " + BASE_URL + "/browse/" + i.key);
+        });
+      }
+      if (hasPend) {
+        console.log("\n  📋 PRÓXIMAS TAREFAS:");
+        r.pendente.forEach(function(i, idx) {
+          var prio = i.fields.priority ? i.fields.priority.name : "—";
+          console.log("    " + (idx + 1) + ". [" + prio + "] " + i.key + " — " + i.fields.summary);
+        });
+      }
+    });
+
+    var totalFaz  = results.reduce(function(s,r){ return s + r.fazendo.length; }, 0);
+    var totalPend = results.reduce(function(s,r){ return s + r.pendente.length; }, 0);
+    if (!totalFaz && !totalPend) {
+      console.log("\n  ✨ Nenhuma tarefa pendente em nenhum projeto. Diga o que quer fazer hoje!");
     }
     console.log("");
   },
