@@ -1645,15 +1645,15 @@ export default function Dashboard() {
 
       {/* ── Dialog Exportar XLSX ── */}
       <Dialog open={xlsxDialogOpen} onOpenChange={setXlsxDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-md w-full flex flex-col max-h-[80vh] overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Exportar XLSX
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-1">
-            <div className="flex gap-3">
+          <div className="flex flex-col gap-3 py-1 min-h-0 flex-1 overflow-hidden">
+            <div className="flex gap-3 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -1669,11 +1669,11 @@ export default function Dashboard() {
                 Nenhum
               </Button>
             </div>
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+            <div className="space-y-1.5 overflow-y-auto flex-1 pr-1">
               {allCards.map((task) => (
                 <label
                   key={task.id_tarefa}
-                  className="flex items-center gap-2.5 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                  className="flex items-center gap-2.5 p-2 rounded-md hover:bg-muted/50 cursor-pointer min-w-0"
                 >
                   <Checkbox
                     checked={xlsxSelected.has(task.id_tarefa)}
@@ -1686,7 +1686,7 @@ export default function Dashboard() {
                       })
                     }
                   />
-                  <span className="text-sm text-foreground flex-1 truncate">{task.empresa}</span>
+                  <span className="text-sm text-foreground flex-1 truncate min-w-0">{task.empresa}</span>
                   <span className="text-xs text-muted-foreground shrink-0">
                     {task.chapas.length} chapa{task.chapas.length !== 1 ? "s" : ""}
                   </span>
@@ -1694,7 +1694,7 @@ export default function Dashboard() {
               ))}
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setXlsxDialogOpen(false)}>
               Cancelar
             </Button>
