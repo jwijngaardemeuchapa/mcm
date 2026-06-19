@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-06-19 — MCM v0.9.96 — MCM-74/75/76/77: Feed atualizações + sync amanhã + carteira + startup loading
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-74 ✅, MCM-75 ✅, MCM-76 ✅, MCM-77 ✅ | MV2-12/13/14/15 criados
+**Summary:**
+- **MCM-75**: removidos Respostas/Importar/Fonte de Dados do menu; botão Atualizar em BIDDashboard e DisparosUmbler dispara sync Metabase; relógio de sync dinâmico na toolbar ("atualizado há X min · próximo em Y min")
+- **MCM-76**: `metabaseTarefas30hCardId` + `metabaseCarteiraCardId` em settings e Integrações (novos campos); botão "Sync amanhã" em Dashboard/BID/Disparos via `sincronizarMetabase30h()`; `metabaseSync.ts` centraliza todas as funções de sync
+- **MCM-74**: migration v15 — tabela `activity_log` com índice em timestamp; `activityLog.ts` com TTL 30 dias; WatcherContext e useAutoCancelFup persistem eventos no DB; `pruneActivityLog()` no startup do WatcherProvider; `ActivityBell` na toolbar — popover com feed cronológico, badge de não-lidos, botão Limpar; painel "Confirmações Automáticas" removido
+- **MCM-77**: `sincronizarCarteira()` — upsert sem DELETE (preserva entradas manuais); `devesSincronizarCarteira()` detecta se é segunda pós-último sync; `AppStartup` — overlay de loading com progresso (tarefas sempre + carteira às segundas); botão "Sincronizar agora" em Integrações com timestamp da última sync
+**Files changed:** `AppSidebar.tsx`, `Dashboard.tsx`, `BIDDashboard.tsx`, `DisparosUmbler.tsx`, `Integracoes.tsx`, `settings.ts`, `metabaseSync.ts` (novo), `activityLog.ts` (novo), `WatcherContext.tsx`, `useAutoCancelFup.ts`, `ActivityBell.tsx` (novo), `AppStartup.tsx` (novo), `App.tsx`, `lib.rs` (migration v15), `tauri.conf.json`, `Ajuda.tsx`
+**Next:** Build v0.9.96. Configurar IDs dos cards de 30h e Carteira em Integrações. Testar loading de startup.
+
+---
+
 ## 2026-06-19 — MCM v0.9.95 — Auto-cancel FUP + Lista Para Remover + XLSX (MV2-9/10/11)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MV2-9 ✅, MV2-10 ✅, MV2-11 ✅

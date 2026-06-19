@@ -11,7 +11,7 @@
 - **Stack:** Tauri 2 + React 18 + TypeScript + SQLite (WAL mode)
 - **Backend:** Rust in `src-tauri/src/lib.rs` — SQLite init, migrations, Tauri commands
 - **Repository:** https://github.com/jwijngaardemeuchapa/mcm.git
-- **Current version:** v0.9.95 (as of 2026-06-19)
+- **Current version:** v0.9.96 (as of 2026-06-19)
 - **Jira project:** MCM — wijngaardedesign.atlassian.net
 
 ---
