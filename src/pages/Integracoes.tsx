@@ -185,6 +185,14 @@ export default function Integracoes() {
     const s = readSettings();
     return s.metabaseTarefasCardId ? String(s.metabaseTarefasCardId) : "";
   });
+  const [metabase30hCardIdInput, setMetabase30hCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseTarefas30hCardId ? String(s.metabaseTarefas30hCardId) : "";
+  });
+  const [metabaseCarteiraCardIdInput, setMetabaseCarteiraCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseCarteiraCardId ? String(s.metabaseCarteiraCardId) : "";
+  });
   const [metabaseSyncing, setMetabaseSyncing] = useState(false);
   const [metabaseLastSync, setMetabaseLastSync] = useState<string | null>(() =>
     localStorage.getItem("metabase_last_sync"),
@@ -1038,9 +1046,10 @@ export default function Integracoes() {
             </label>
             <Input
               placeholder="ex: 43"
-              value={readSettings().metabaseTarefas30hCardId ? String(readSettings().metabaseTarefas30hCardId) : ""}
+              value={metabase30hCardIdInput}
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "");
+                setMetabase30hCardIdInput(v);
                 writeSettings({ metabaseTarefas30hCardId: v ? parseInt(v, 10) : undefined });
               }}
               className="max-w-[120px]"
@@ -1055,9 +1064,10 @@ export default function Integracoes() {
             <div className="flex gap-2 items-center">
               <Input
                 placeholder="ex: 44"
-                value={readSettings().metabaseCarteiraCardId ? String(readSettings().metabaseCarteiraCardId) : ""}
+                value={metabaseCarteiraCardIdInput}
                 onChange={(e) => {
                   const v = e.target.value.replace(/\D/g, "");
+                  setMetabaseCarteiraCardIdInput(v);
                   writeSettings({ metabaseCarteiraCardId: v ? parseInt(v, 10) : undefined });
                 }}
                 className="max-w-[120px]"

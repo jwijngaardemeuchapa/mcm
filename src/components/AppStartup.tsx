@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Check, Loader2 } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
+import { invoke } from "@tauri-apps/api/core";
 import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira } from "@/lib/metabaseSync";
 import { readSettings } from "@/lib/settings";
 
@@ -13,8 +14,18 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
   useEffect(() => {
     async function run() {
       const s = readSettings();
-      const hasMetabase = !!s.metabaseTarefasCardId;
-      const hasCarteira = !!s.metabaseCarteiraCardId;
+      const hasMetabaseCardId = !!s.metabaseTarefasCardId;
+      const hasCarteiraCardId = !!s.metabaseCarteiraCardId;
+
+      // Verifica se o backend tem conexão Metabase configurada (URL + API key)
+      let metabaseConfigured = false;
+      try {
+        const status = await invoke<{ configured: boolean }>("metabase_status");
+        metabaseConfigured = status.configured;
+      } catch { /* backend indisponível — pula sync */ }
+
+      const hasMetabase = hasMetabaseCardId && metabaseConfigured;
+      const hasCarteira = hasCarteiraCardId && metabaseConfigured;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
 
       if (!hasMetabase && !syncCarteira) { onDone(); return; }
