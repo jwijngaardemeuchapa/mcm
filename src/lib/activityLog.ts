@@ -2,7 +2,7 @@ import { getDb } from "./db";
 
 export type ActivityEntry = {
   id: string;
-  tipo: "confirmado" | "recusou" | "removido" | "sync_apareceu" | "sync_sumiu" | "auto_cancel";
+  tipo: "confirmado" | "recusou" | "removido" | "sync_apareceu" | "sync_sumiu" | "auto_cancel" | "bid_interesse" | "bid_aceite";
   descricao: string;
   chapa_nome: string | null;
   empresa: string | null;

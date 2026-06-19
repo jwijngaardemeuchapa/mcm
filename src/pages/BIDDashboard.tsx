@@ -7,6 +7,8 @@ import { readSettings } from "@/lib/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase30h } from "@/lib/metabaseSync";
+import { logActivity } from "@/lib/activityLog";
+import { ActivityBell } from "@/components/ActivityBell";
 import { startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
 import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
@@ -1712,6 +1714,7 @@ export default function BIDDashboard() {
   const [openTasks, setOpenTasks] = useState<OpenTask[]>([]);
   const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
   const [disparos, setDisparos] = useState<BidDisparo[]>([]);
+  const prevDisparosRef = useRef<Map<string, string>>(new Map());
   const [selectedDay, setSelectedDay] = useState<"today" | "tomorrow">("today");
   const [search, setSearch] = useState("");
   const [cidadeFilter, setCidadeFilter] = useState("__all__");
@@ -1837,6 +1840,40 @@ export default function BIDDashboard() {
       setExtrasCount(extrasRows[0]?.cnt ?? 0);
       setOpenTasks(withVagas);
       setDisparos(disp);
+
+      // Detecta mudanças positivas de status no BID e persiste no ActivityBell
+      if (prevDisparosRef.current.size > 0) {
+        const nowMs = Date.now();
+        const events: Promise<void>[] = [];
+        for (const d of disp) {
+          const prev = prevDisparosRef.current.get(d.id);
+          if (!prev || prev === d.status) continue;
+          if (d.status === "aceita_app" && prev !== "aceita_app") {
+            events.push(logActivity({
+              tipo: "bid_aceite",
+              descricao: "Aceitou via app",
+              chapa_nome: d.chapa_nome,
+              empresa: d.empresa,
+              id_tarefa: d.id_tarefa,
+              timestamp: nowMs,
+            }));
+          } else if (d.status === "interesse_sim" && prev === "aguardando") {
+            events.push(logActivity({
+              tipo: "bid_interesse",
+              descricao: "Confirmou interesse",
+              chapa_nome: d.chapa_nome,
+              empresa: d.empresa,
+              id_tarefa: d.id_tarefa,
+              timestamp: nowMs,
+            }));
+          }
+        }
+        if (events.length > 0) {
+          await Promise.all(events);
+          window.dispatchEvent(new CustomEvent("activity:new-diff"));
+        }
+      }
+      prevDisparosRef.current = new Map(disp.map((d) => [d.id, d.status]));
     } catch (e) { toast.error(errMsg(e)); }
   }, []);
 
@@ -1973,7 +2010,8 @@ export default function BIDDashboard() {
             </p>
           )}
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <ActivityBell />
           <Button variant="outline" size="sm" onClick={handleSyncMetabase} disabled={metaSyncing} className="gap-1.5 h-8">
             <RefreshCw className={`h-3.5 w-3.5 ${metaSyncing ? "animate-spin" : ""}`} /> Atualizar
           </Button>

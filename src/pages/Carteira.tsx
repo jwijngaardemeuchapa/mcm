@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Upload, Trash2, Search, Plus, Eye, EyeOff, Info, Pin, PinOff } from "lucide-react";
+import { Upload, Trash2, Search, Plus, Eye, EyeOff, Info, Pin, PinOff, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
+import { sincronizarCarteira } from "@/lib/metabaseSync";
 
 type Row = { id: string; nome_fantasia: string; cnpj: string | null; grupo: string | null; created_at: string };
 
@@ -30,6 +31,8 @@ export default function Carteira() {
   const [addNome, setAddNome] = useState("");
   const [addCnpj, setAddCnpj] = useState("");
   const [addSaving, setAddSaving] = useState(false);
+  const [carteirasSyncing, setCarteirasSyncing] = useState(false);
+  const [carteiraLastSync, setCarteiraLastSync] = useState<string | null>(() => localStorage.getItem("carteira_last_sync"));
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -40,6 +43,17 @@ export default function Carteira() {
     } catch (e) {
       toast.error("Erro ao carregar carteira");
     }
+  }
+
+  async function handleSyncCarteira() {
+    setCarteirasSyncing(true);
+    const ok = await sincronizarCarteira(false);
+    if (ok) {
+      await load();
+      const ts = localStorage.getItem("carteira_last_sync");
+      setCarteiraLastSync(ts);
+    }
+    setCarteirasSyncing(false);
   }
 
   async function updateGrupo(id: string, grupo: string | null) {
@@ -362,6 +376,21 @@ export default function Carteira() {
                 <EyeOff className="h-3.5 w-3.5" />
                 {showOnlyHidden ? "Mostrar todas" : `Ver ${hiddenCompanies.length} oculta${hiddenCompanies.length !== 1 ? "s" : ""}`}
               </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 h-9 text-xs"
+              onClick={handleSyncCarteira}
+              disabled={carteirasSyncing}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${carteirasSyncing ? "animate-spin" : ""}`} />
+              {carteirasSyncing ? "Sincronizando..." : "Sincronizar"}
+            </Button>
+            {carteiraLastSync && (
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                {fmtDateTime(carteiraLastSync)}
+              </span>
             )}
             <Button size="sm" variant="outline" className="gap-1.5 h-9 text-xs" onClick={() => setAddOpen(true)}>
               <Plus className="h-3.5 w-3.5" />

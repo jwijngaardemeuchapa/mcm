@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, Check, X, UserMinus, RefreshCw, AlertTriangle, ArrowUpRight } from "lucide-react";
+import { Bell, Check, X, UserMinus, RefreshCw, AlertTriangle, ArrowUpRight, ThumbsUp, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { fetchActivityLog, clearActivityLog, type ActivityEntry } from "@/lib/activityLog";
@@ -14,6 +14,8 @@ const TIPO_CONFIG: Record<ActivityEntry["tipo"], { icon: React.ElementType; labe
   sync_apareceu: { icon: RefreshCw,     label: "Apareceu no sync",        color: "text-primary" },
   sync_sumiu:    { icon: RefreshCw,     label: "Sumiu no sync",           color: "text-warning" },
   auto_cancel:   { icon: AlertTriangle, label: "Cancelamento automático", color: "text-destructive" },
+  bid_interesse: { icon: ThumbsUp,      label: "Interesse confirmado BID", color: "text-success" },
+  bid_aceite:    { icon: Star,          label: "Aceitou via app BID",     color: "text-success" },
 };
 
 function formatRelative(ts: number): string {
@@ -47,30 +49,23 @@ export function ActivityBell({ diffResult, onOpenDiff }: Props = {}) {
     return newUnread;
   }, []);
 
-  useEffect(() => {
-    reload().then((newUnread) => {
-      if (newUnread > prevUnreadRef.current) {
-        setRinging(true);
-        setTimeout(() => setRinging(false), 1200);
-      }
-      prevUnreadRef.current = newUnread;
-    });
-  }, [reload, notifLog]);
+  const ringBell = useCallback((newUnread: number) => {
+    if (newUnread > prevUnreadRef.current) {
+      setRinging(true);
+      setTimeout(() => setRinging(false), 1200);
+    }
+    prevUnreadRef.current = newUnread;
+  }, []);
 
-  // Recarrega quando o Dashboard detecta um diff novo
   useEffect(() => {
-    const handler = () => {
-      reload().then((newUnread) => {
-        if (newUnread > prevUnreadRef.current) {
-          setRinging(true);
-          setTimeout(() => setRinging(false), 1200);
-        }
-        prevUnreadRef.current = newUnread;
-      });
-    };
+    reload().then(ringBell);
+  }, [reload, notifLog, ringBell]);
+
+  useEffect(() => {
+    const handler = () => reload().then(ringBell);
     window.addEventListener("activity:new-diff", handler);
     return () => window.removeEventListener("activity:new-diff", handler);
-  }, [reload]);
+  }, [reload, ringBell]);
 
   function handleOpen(v: boolean) {
     setOpen(v);
@@ -134,7 +129,6 @@ export function ActivityBell({ diffResult, onOpenDiff }: Props = {}) {
             )}
           </div>
 
-          {/* Botão de acesso ao diff quando há mudanças detectadas */}
           {hasDiff && onOpenDiff && (
             <button
               onClick={() => { setOpen(false); onOpenDiff(); }}

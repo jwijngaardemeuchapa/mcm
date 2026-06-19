@@ -65,7 +65,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNotifications } from "@/lib/useNotifications";
-import { type WatcherActivity } from "@/lib/useNotificationWatcher";
+import { logActivity } from "@/lib/activityLog";
 import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { invoke } from "@tauri-apps/api/core";
@@ -330,32 +330,25 @@ export default function Dashboard() {
         setNewChapaKeys(new Set(newChapaTimestampsRef.current.keys()));
         if (diff.added.length > 0 || diff.removed.length > 0) {
           setDiffResult(diff);
-          // Persiste no ActivityBell em vez de abrir o Sheet automaticamente
-          diff.added.forEach((c) => {
-            import("@/lib/activityLog").then(({ logActivity }) => {
-              logActivity({
-                tipo: "sync_apareceu",
-                descricao: "Apareceu no sync",
-                chapa_nome: c.nome,
-                empresa: c.empresa,
-                id_tarefa: c.taskId,
-                timestamp: Date.now(),
-              });
-            });
-          });
-          diff.removed.forEach((c) => {
-            import("@/lib/activityLog").then(({ logActivity }) => {
-              logActivity({
-                tipo: "sync_sumiu",
-                descricao: "Sumiu no sync",
-                chapa_nome: c.nome,
-                empresa: c.empresa,
-                id_tarefa: c.taskId,
-                timestamp: Date.now(),
-              });
-            });
-          });
-          // Dispara evento para o ActivityBell recarregar
+          const nowMs = Date.now();
+          await Promise.all([
+            ...diff.added.map((c) => logActivity({
+              tipo: "sync_apareceu",
+              descricao: "Apareceu no sync",
+              chapa_nome: c.nome,
+              empresa: c.empresa,
+              id_tarefa: c.taskId,
+              timestamp: nowMs,
+            })),
+            ...diff.removed.map((c) => logActivity({
+              tipo: "sync_sumiu",
+              descricao: "Sumiu no sync",
+              chapa_nome: c.nome,
+              empresa: c.empresa,
+              id_tarefa: c.taskId,
+              timestamp: nowMs,
+            })),
+          ]);
           window.dispatchEvent(new CustomEvent("activity:new-diff"));
         }
       }
