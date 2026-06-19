@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.91</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.92</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,13 +767,12 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.91 — Firebase, BID completo, Timeline e UX:</strong>{" "}
-              <strong>Respostas via Firebase</strong>: recepção de respostas FUP e BID migrada para fila Firebase Firestore — sem depender de porta local ou WhatsApp Desktop.{" "}
-              <strong>BID — fluxo completo de 3 etapas</strong>: etapa 1 (interesse sim/não), etapa 2 (aceita app / precisa ajuda / não aceita), etapa 3 (motivo de não aceitar: em cima da hora, localização, valor, não uso mais o app, outro). Dashboard distingue "Interesse — Sem App" de "Sem Interesse" com badge laranja "manual".{" "}
-              <strong>Teste ponta a ponta</strong>: Integrações tem teste de disparo (FUP ou BID) com escuta Firebase em tempo real para validar o ciclo completo.{" "}
-              <strong>Timeline aprimorada</strong>: abre centralizada na hora atual; cards nunca cortam a contagem de confirmados.{" "}
-              <strong>Painéis colapsados por padrão</strong>: Prioridades de Ação e Confirmações Automáticas iniciam fechados.{" "}
-              <strong>Carteira manual</strong>: botão "Adicionar" na Carteira permite incluir clientes sem CSV.
+              <strong>v0.9.92 — Carteira por grupos, FUP cancelado e correções:</strong>{" "}
+              <strong>Carteira por grupos</strong>: chips G1-G5 filtráveis no topo da Carteira; empresas podem ser fixadas individualmente para aparecer mesmo com grupo inativo; CSV importa coluna Carteira automaticamente.{" "}
+              <strong>Badge "Negou FUP"</strong>: chapas com recusa via FUP automático (status cancelado) exibem badge vermelho e botão inline "Sinalizar remoção →".{" "}
+              <strong>Confirmações Automáticas</strong>: botão "Ver" abre o overlay de tarefa na timeline corretamente.{" "}
+              <strong>BID — webhook unificado</strong>: respostas BID processadas de uma vez em vez de por etapas separadas.{" "}
+              <strong>Correções de estabilidade</strong>: phone match corrigido para números com parênteses "(11) 99999-9999"; BID Dashboard atualiza após resposta Firestore; lista de ocupados exibe todos os alocados; ApproachingAlert dispara bot (não template); Firebase listener reativa ao reabrir toggle.
             </span>
           </div>
         )}
@@ -1009,7 +1008,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.91 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v0.9.92 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1044,7 +1043,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.91 · © 2026 Wijngaarde Design
+        MCM v0.9.92 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
