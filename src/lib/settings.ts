@@ -47,6 +47,7 @@ export type AppSettings = {
   fupAgendarMinAntes: number;
   firestoreEnabled: boolean;
   carteiraGruposAtivos: string[];
+  metabaseTarefasCardId?: number;
 };
 
 const STORAGE_KEY = "fup_settings";
