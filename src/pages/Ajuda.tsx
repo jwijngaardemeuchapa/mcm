@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.97</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.98</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,11 +767,10 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.97 — ActivityBell BID + Sincronizar Carteira + fixes:</strong>{" "}
-              <strong>ActivityBell no BID Dashboard</strong>: sino detecta mudanças de status em bid_disparos (interesse e aceite via app) e persiste no feed de atualizações.{" "}
-              <strong>Sincronizar Carteira</strong>: botão "Sincronizar" na página Carteira que puxa dados direto da API Metabase.{" "}
-              <strong>Fix async</strong>: correção de timing onde o sino recarregava antes das entradas serem escritas no SQLite.{" "}
-              <strong>Slide da direita removido</strong>: chapas descobertos no sync agora vão direto para o sino com opção "Ver detalhes" no popover.
+              <strong>v0.9.98 — Fixes de estabilidade pós v0.9.97:</strong>{" "}
+              <strong>Flicker de chapas corrigido</strong>: ingestTarefas agora usa transação SQLite (BEGIN/COMMIT/ROLLBACK) — chapas nunca ficam visíveis como vazio entre o DELETE e o INSERT.{" "}
+              <strong>Diff falso no sino corrigido</strong>: skipDiffRef impede que syncs explícitos gerem "apareceu/sumiu" espúrio no ActivityBell.{" "}
+              <strong>Filtro de carteira na Troca de Turno corrigido</strong>: selecionar um grupo agora filtra corretamente as tarefas e empresas exibidas.
             </span>
           </div>
         )}
@@ -1007,7 +1006,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.97 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v0.9.98 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1042,7 +1041,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.97 · © 2026 Wijngaarde Design
+        MCM v0.9.98 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

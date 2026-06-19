@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-06-19 — MCM v0.9.98 — Fixes de estabilidade pós v0.9.97
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-74 (comentário), MCM-77 (comentário)
+**Summary:**
+- **ingestTarefas — transação SQLite**: DELETE+INSERT de chapas agora em BEGIN/COMMIT/ROLLBACK. Elimina a janela de inconsistência onde leituras concorrentes (WatcherContext timer 60s) viam chapas zeradas entre o DELETE e o INSERT — causava flicker na UI e diff falso no ActivityBell.
+- **skipDiffRef em Dashboard**: `useRef(false)` ativado em `handleSyncMetabase()` e `handleSync30h()` durante o ciclo sync+load. O algoritmo de diff em `load()` ignora quando este flag está ativo — evita "tudo apareceu/sumiu" no sino após atualização manual.
+- **Troca de Turno — filtro de grupo corrigido**: `carteiraBd` salvo em state (antes era variável local descartada). `generate()` agora filtra `allTarefas` pelo grupo selecionado antes de passar para `buildMessage()`. `empresasDisponiveis` (useMemo) também respeita o grupo ativo.
+**Files changed:** `src/lib/ingestTarefas.ts`, `src/pages/Dashboard.tsx`, `src/components/TrocaDeTurno.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
+**Next:** Distribuir MCM_0.9.98_x64-setup.exe. Avaliar MCM-27 (Pool de Chapas).
+
+---
+
 ## 2026-06-19 — MCM v0.9.96 — MCM-74/75/76/77: Feed atualizações + sync amanhã + carteira + startup loading
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-74 ✅, MCM-75 ✅, MCM-76 ✅, MCM-77 ✅ | MV2-12/13/14/15 criados
