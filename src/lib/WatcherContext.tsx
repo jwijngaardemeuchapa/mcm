@@ -125,6 +125,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   useNotificationWatcher(tasks, handleRefresh, handleFlashTask, handleActivity, handleRemoveRequest);
 
   const handleWebhookEvent = useCallback((ev: RespostaEvent) => {
+    const isRecusa = ["cancelado", "interesse_nao", "nao_aceita_app", "precisa_ajuda"].includes(ev.resposta);
     const actionMap: Record<string, WatcherActivity["action"]> = {
       confirmado: "confirmado",
       interesse_sim: "confirmado",
@@ -145,6 +146,13 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
     };
     setNotifLog((prev) => [entry, ...prev].slice(0, 50));
     window.dispatchEvent(new CustomEvent("fup:refresh"));
+
+    // Recusa via Firebase → sinalizar remoção (mesmo comportamento do watcher de notificações)
+    if (isRecusa && ev.id_tarefa != null) {
+      window.dispatchEvent(new CustomEvent("fup:remove-chapa", {
+        detail: { taskId: ev.id_tarefa, chapaName: ev.chapa_nome },
+      }));
+    }
   }, []);
 
   useFirestoreQueue(handleWebhookEvent);

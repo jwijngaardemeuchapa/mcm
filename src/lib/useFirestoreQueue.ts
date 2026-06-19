@@ -69,7 +69,13 @@ export function useFirestoreQueue(onEvent?: (ev: RespostaEvent) => void) {
                 await deleteDoc(docRef(db, FIRESTORE_MESSAGES_COLLECTION, id));
                 const ev = result.event;
                 const tipoLabel = ev.tipo === "bid" ? "BID" : "FUP";
-                toast.success(`${tipoLabel} — ${ev.chapa_nome}: ${RESPOSTA_LABEL[ev.resposta] ?? ev.resposta}`);
+                const isRecusa = ["cancelado", "interesse_nao", "nao_aceita_app", "precisa_ajuda"].includes(ev.resposta);
+                const label = `${tipoLabel} — ${ev.chapa_nome}: ${RESPOSTA_LABEL[ev.resposta] ?? ev.resposta}`;
+                if (isRecusa) {
+                  toast.warning(label, { duration: 8_000 });
+                } else {
+                  toast.success(label);
+                }
                 cb?.(ev);
                 window.dispatchEvent(new CustomEvent("fup:refresh"));
               } else {
