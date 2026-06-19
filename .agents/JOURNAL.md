@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-06-19 — MCM v0.9.94 — Fix FUP/BID Firebase
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** (bug fix — sem ticket Jira)
+**Summary:**
+- `firestoreQueue.ts` / `classifyResponse`: NÃO verificado ANTES do SIM — elimina falso-positivo com histórico misto; SIM exige frase completa ("sim, to nessa" | "sim, estou nessa") espelhando fix já feito no Rust no commit 0eb8540.
+- `firestoreQueue.ts` / BID fallthrough: payload BID sem `resposta_interesse` retorna `handled:false` em vez de cair no fluxo FUP e atualizar chapa errado.
+- `WatcherContext.tsx`: default do actionMap corrigido de "confirmado" para "recusou"; recusa via Firebase agora dispara `fup:remove-chapa` (sugestão de remoção), igual ao comportamento da notificação Windows.
+- Build v0.9.94 gerado: `MCM_0.9.94_x64-setup.exe`
+**Files changed:** `src/lib/firestoreQueue.ts`, `src/lib/WatcherContext.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
+**Next:** Distribuir MCM_0.9.94_x64-setup.exe. Testar fluxo FUP NÃO → badge "Negou FUP" + sugestão de remoção via Firebase.
+
+---
+
 ## 2026-06-19 — MCM v0.9.93 — Importação direta Metabase (MCM-72)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-72 ✅
