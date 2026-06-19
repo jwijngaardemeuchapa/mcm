@@ -38,12 +38,15 @@ export type ProcessResult =
 export function classifyResponse(raw: string): RespostaCode | null {
   const norm = normalize(raw).trim();
 
-  // Botões do FUP: "SIM, tô nessa!" → confirmado / "NÃO, quero cancelar!" → cancelado
-  if (norm.includes("nessa")) {
-    return "confirmado";
-  }
-  if (norm.includes("quero cancelar") || norm.includes("nao quero")) {
+  // NÃO tem prioridade — verificar ANTES do SIM para tratar histórico misto
+  // (payload pode conter resposta SIM anterior + NÃO atual na mesma string)
+  if (norm.includes("nao, quero cancelar") || norm.includes("quero cancelar") || norm.includes("nao quero")) {
     return "cancelado";
+  }
+  // Botão SIM do FUP: exige frase completa para evitar falso-positivo com
+  // nomes que contêm "nessa" (Vanessa, Odessa) no histórico da conversa
+  if (norm.includes("sim, to nessa") || norm.includes("sim, estou nessa")) {
+    return "confirmado";
   }
   // BID / respostas genéricas
   if (norm.includes("preciso de ajuda") || norm.includes("preciso ajuda") || norm === "ajuda" || norm === "3") {
@@ -311,6 +314,9 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
         },
       };
     }
+    // BID encontrado mas payload sem resposta_interesse — não processar como FUP
+    // (evita confirmar chapa FUP quando o formato do webhook BID está incompleto)
+    return { handled: false, reason: `BID disparo encontrado (${bid.id}) mas payload sem resposta_interesse` };
   }
 
   // 2. FUP — chapa com canal umbler_talk ainda não resolvido

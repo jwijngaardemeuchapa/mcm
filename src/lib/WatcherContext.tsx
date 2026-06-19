@@ -138,7 +138,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
     const entry: WatcherActivity = {
       id: `wh-${Date.now()}`,
       chapa_nome: ev.chapa_nome,
-      action: actionMap[ev.resposta] ?? "confirmado",
+      action: actionMap[ev.resposta] ?? "recusou",
       task_id: ev.id_tarefa ?? null,
       empresa: ev.empresa ?? null,
       data_tarefa: null,
