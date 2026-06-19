@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-06-20 — MCM v0.9.92 — build release
+**Actor:** Jeremiah | **Agent:** claude
+**Tickets:** MCM-61 ✅, MCM-62 ✅, MCM-63 ✅, MCM-64 ✅
+**Summary:** Build v0.9.92 com todas as features e fixes desde v0.9.91: Carteira por grupos (G1-G5, fixar empresa, CSV importa coluna automaticamente), badge "Negou FUP" + botão Sinalizar Remoção para chapas cancelados, fix crash UserX não importado, botão Ver em Confirmações Automáticas, BID webhook unificado, phone match com parênteses, BID refresh Firestore, ocupados completos, ApproachingAlert dispara bot. Protocolo de sync codificado em PROJECT_RULES §J8.
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `.agents/PROJECT_RULES.md`
+**Next:** Distribuir MCM_0.9.92_x64-setup.exe. Pendente: validar queries PG (MCM-42), MCM-68 (Tela Foco) em progresso.
+
+---
+
 ## 2026-06-20 — MCM-64: Carteira multi-seleção de grupos + build
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-64 ✅
