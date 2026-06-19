@@ -65,6 +65,8 @@ import { type WatcherActivity } from "@/lib/useNotificationWatcher";
 import { useWatcherLog } from "@/lib/WatcherContext";
 import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
+import { invoke } from "@tauri-apps/api/core";
+import { ingestTarefas } from "@/lib/ingestTarefas";
 import { useSidebar } from "@/components/ui/sidebar";
 import { toast } from "sonner";
 import { TrocaDeTurno } from "@/components/TrocaDeTurno";
@@ -442,7 +444,27 @@ export default function Dashboard() {
   useEffect(() => {
     load();
     const t = setInterval(() => load(false), 30_000);
-    return () => clearInterval(t);
+
+    // Auto-sync Metabase a cada 5 min (silencioso — sem toast)
+    async function syncMetabase() {
+      const s = readSettings();
+      const cardId = s.metabaseTarefasCardId;
+      if (!cardId) return;
+      const last = localStorage.getItem("metabase_last_sync");
+      if (last && Date.now() - new Date(last).getTime() < 5 * 60 * 1000) return;
+      try {
+        const status = await invoke<{ configured: boolean }>("metabase_status");
+        if (!status.configured) return;
+        const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+        await ingestTarefas(rows);
+        localStorage.setItem("metabase_last_sync", new Date().toISOString());
+        load(false);
+      } catch { /* silencioso — não interrompe o usuário se Metabase estiver fora */ }
+    }
+
+    syncMetabase();
+    const tMeta = setInterval(syncMetabase, 5 * 60 * 1000);
+    return () => { clearInterval(t); clearInterval(tMeta); };
   }, [load]);
 
   // Apply pending flash from URL param once tasks finish loading

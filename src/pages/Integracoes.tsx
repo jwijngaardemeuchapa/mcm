@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Plug,
   MessageSquare,
@@ -19,7 +19,11 @@ import {
   Lock,
   KeyRound,
   Wifi,
+  Database,
+  RefreshCw,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { ingestTarefas } from "@/lib/ingestTarefas";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
 import { extractPhone, extractBody, classifyResponse, type RespostaCode } from "@/lib/firestoreQueue";
@@ -156,6 +160,20 @@ export default function Integracoes() {
   const [fupAgendarMinAntes, setFupAgendarMinAntes] = useState(() => readSettings().fupAgendarMinAntes ?? 0);
   const [firestoreEnabled, setFirestoreEnabled] = useState(() => readSettings().firestoreEnabled);
   const [showToken, setShowToken] = useState(false);
+
+  /* ── Metabase ── */
+  const [metabaseConfigured, setMetabaseConfigured] = useState(false);
+  const [metabaseUrl, setMetabaseUrl] = useState("");
+  const [metabaseApiKey, setMetabaseApiKey] = useState("");
+  const [metabaseCardIdInput, setMetabaseCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseTarefasCardId ? String(s.metabaseTarefasCardId) : "";
+  });
+  const [metabaseSyncing, setMetabaseSyncing] = useState(false);
+  const [metabaseLastSync, setMetabaseLastSync] = useState<string | null>(() =>
+    localStorage.getItem("metabase_last_sync"),
+  );
+
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testMode, setTestMode] = useState<"cancel" | "taskCancel">("cancel");
   const [testPhone, setTestPhone] = useState("");
@@ -201,6 +219,52 @@ export default function Integracoes() {
     setFirestoreEnabled(next);
     writeSettings({ firestoreEnabled: next });
     toast.success(next ? "Recebimento via Firebase ativado — reinicie o app para conectar." : "Recebimento via Firebase desativado.");
+  }
+
+  /* ── Metabase: carregar status na montagem ── */
+  const loadMetabaseStatus = useCallback(async () => {
+    try {
+      const s = await invoke<{ configured: boolean; base_url: string }>("metabase_status");
+      setMetabaseConfigured(s.configured);
+      if (s.base_url) setMetabaseUrl(s.base_url);
+    } catch { /* fora do Tauri ou não configurado */ }
+  }, []);
+
+  useEffect(() => { loadMetabaseStatus(); }, [loadMetabaseStatus]);
+
+  async function salvarMetabase() {
+    if (!metabaseUrl.trim() || !metabaseApiKey.trim()) {
+      toast.error("Informe a URL e a API key do Metabase");
+      return;
+    }
+    try {
+      await invoke("save_metabase_config", { baseUrl: metabaseUrl.trim(), apiKey: metabaseApiKey.trim() });
+      setMetabaseApiKey("");
+      toast.success("Conexão Metabase salva — chave guardada no backend");
+      await loadMetabaseStatus();
+      if (metabaseCardIdInput.trim()) {
+        writeSettings({ metabaseTarefasCardId: parseInt(metabaseCardIdInput.trim(), 10) });
+      }
+    } catch (e) { toast.error(`Erro ao salvar: ${errMsg(e)}`); }
+  }
+
+  async function sincronizarMetabase(silent = false) {
+    const cardId = parseInt(metabaseCardIdInput.trim(), 10);
+    if (!cardId) { if (!silent) toast.error("Informe o ID da pergunta no Metabase"); return; }
+    writeSettings({ metabaseTarefasCardId: cardId });
+    setMetabaseSyncing(true);
+    try {
+      const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+      const result = await ingestTarefas(rows);
+      const now = new Date().toISOString();
+      localStorage.setItem("metabase_last_sync", now);
+      setMetabaseLastSync(now);
+      if (!silent) toast.success(`✓ ${result.tarefas} tarefas · ${result.chapas} chapas sincronizados`);
+    } catch (e) {
+      if (!silent) toast.error(`Erro na sincronização: ${errMsg(e)}`);
+    } finally {
+      setMetabaseSyncing(false);
+    }
   }
 
   function tentarSenha() {
@@ -880,6 +944,83 @@ export default function Integracoes() {
                 <strong className="text-foreground">Respostas detectadas:</strong> SIM / NÃO / 1 / 2 / 3 / Preciso de ajuda / Aceito app. Histórico completo em <strong className="text-foreground">Operacional → Respostas</strong>.
               </p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Metabase — Fonte de Tarefas ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Database className="h-5 w-5 text-muted-foreground" />
+            Metabase — Fonte de Tarefas
+            {metabaseConfigured && (
+              <span className="ml-auto inline-flex items-center gap-1 text-xs font-normal text-success">
+                <CheckCircle2 className="h-3.5 w-3.5" /> conectado
+              </span>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Configure a conexão com o Metabase para importar tarefas diretamente via API. A chave fica
+            somente no backend — nunca no navegador ou em arquivos de configuração visíveis.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">URL do Metabase</label>
+              <Input
+                placeholder="https://metabase.suaempresa.com"
+                value={metabaseUrl}
+                onChange={(e) => setMetabaseUrl(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">API key (x-api-key)</label>
+              <Input
+                type="password"
+                placeholder={metabaseConfigured ? "•••••••• (deixe vazio p/ manter)" : "cole a chave aqui"}
+                value={metabaseApiKey}
+                onChange={(e) => setMetabaseApiKey(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta (Question) no Metabase
+              <span className="ml-1 text-muted-foreground/60">(número que aparece na URL: /question/42)</span>
+            </label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="ex: 42"
+                value={metabaseCardIdInput}
+                onChange={(e) => setMetabaseCardIdInput(e.target.value.replace(/\D/g, ""))}
+                className="max-w-[120px]"
+              />
+              <Button onClick={salvarMetabase} variant="outline">
+                Salvar conexão
+              </Button>
+              <Button
+                onClick={() => sincronizarMetabase(false)}
+                disabled={metabaseSyncing || !metabaseCardIdInput.trim()}
+              >
+                {metabaseSyncing
+                  ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Sincronizando...</>
+                  : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Sincronizar agora</>}
+              </Button>
+            </div>
+            {metabaseLastSync && (
+              <p className="text-xs text-muted-foreground">
+                Última sincronização: {new Date(metabaseLastSync).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+          <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
+            <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+            <p className="text-xs text-muted-foreground">
+              O Dashboard sincroniza automaticamente a cada 5 minutos enquanto o app está aberto.
+              O mesmo processamento do CSV é aplicado: estado dos chapas (confirmado, cancelado, observações) é preservado entre sincronizações.
+            </p>
           </div>
         </CardContent>
       </Card>
