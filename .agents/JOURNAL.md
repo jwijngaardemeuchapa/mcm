@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-06-19 — MCM v0.9.93 — Importação direta Metabase (MCM-72)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-72 ✅
+**Summary:**
+- `src/lib/ingestTarefas.ts` (novo): lógica de ingestão extraída de Importar.tsx como biblioteca compartilhada; suporte a datas ISO do Metabase via `parseDateForIngest`; CPF aceita coluna "CPF do Chapa"; callback opcional `confirmDateMismatch` (só fluxo CSV)
+- `src/pages/Importar.tsx`: refatorado para chamar `ingestTarefas()` — sem mudança visual
+- `src/lib/settings.ts`: campo `metabaseTarefasCardId?: number` adicionado
+- `src/pages/Integracoes.tsx`: novo Card "Metabase — Fonte de Tarefas" com campos URL, API key (write-only → backend Rust), ID da pergunta, botão "Sincronizar agora", timestamp última sync
+- `src/pages/Dashboard.tsx`: auto-sync silencioso a cada 5 min via `setInterval`; throttle por localStorage; recarga após sync bem-sucedido
+- `src/pages/MetabaseSetup.tsx`: página auxiliar mantida para listagem/amostra de Questions (agora secundária)
+- Build v0.9.93 gerado: `MCM_0.9.93_x64-setup.exe`
+**Files changed:** `src/lib/ingestTarefas.ts`, `src/pages/Importar.tsx`, `src/pages/MetabaseSetup.tsx`, `src/pages/Integracoes.tsx`, `src/pages/Dashboard.tsx`, `src/lib/settings.ts`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
+**Next:** Distribuir MCM_0.9.93_x64-setup.exe. Testar sync Metabase com VPN ativa.
+
+---
+
 ## 2026-06-20 — MCM v0.9.92 — build release
 **Actor:** Jeremiah | **Agent:** claude
 **Tickets:** MCM-61 ✅, MCM-62 ✅, MCM-63 ✅, MCM-64 ✅
