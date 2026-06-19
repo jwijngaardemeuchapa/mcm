@@ -170,7 +170,7 @@ export default function DisparosUmbler() {
   async function handleSync30h() {
     setSyncing30h(true);
     const ok = await sincronizarMetabase30h(false);
-    if (ok) load();
+    if (ok) { load(); window.dispatchEvent(new CustomEvent("fup:refresh")); }
     setSyncing30h(false);
   }
 
@@ -187,6 +187,7 @@ export default function DisparosUmbler() {
       localStorage.setItem("metabase_last_sync", new Date().toISOString());
       toast.success(`Sync concluído — ${result.tarefas} tarefas, ${result.chapas} chapas`);
       load();
+      window.dispatchEvent(new CustomEvent("fup:refresh"));
     } catch {
       toast.error("Erro ao sincronizar com Metabase");
     } finally {
