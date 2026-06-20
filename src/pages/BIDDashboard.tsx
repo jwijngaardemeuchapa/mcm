@@ -1707,6 +1707,7 @@ export default function BIDDashboard() {
   const [extrasCount, setExtrasCount] = useState(0);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [openTasks, setOpenTasks] = useState<OpenTask[]>([]);
+  const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
   const [disparos, setDisparos] = useState<BidDisparo[]>([]);
   const [selectedDay, setSelectedDay] = useState<"today" | "tomorrow">("today");
   const [search, setSearch] = useState("");
@@ -1782,14 +1783,19 @@ export default function BIDDashboard() {
 
       const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
       const carteiraRows = carteira ?? [];
-      const carteiraNames = carteiraRows
-        .filter((r) => r.oculta !== 1)
+      const allVisible = carteiraRows.filter((r) => r.oculta !== 1);
+      const namesByFilter = allVisible
         .filter((r) =>
-          gruposAtivos.length === 0 ||       // sem filtro de grupo → passa tudo
-          fixarSet.has(r.nome_fantasia) ||   // fixada individualmente → passa sempre
+          gruposAtivos.length === 0 ||
+          fixarSet.has(r.nome_fantasia) ||
           (r.grupo !== null && gruposAtivos.includes(r.grupo))
         )
         .map((r) => r.nome_fantasia);
+      const filterHasMatches = gruposAtivos.length === 0 || namesByFilter.length > 0;
+      const carteiraNames = filterHasMatches ? namesByFilter : allVisible.map((r) => r.nome_fantasia);
+      setCarteiraFilterInfo(gruposAtivos.length > 0
+        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allVisible.length, fallback: !filterHasMatches }
+        : null);
       const withVagas = tasks.filter((t) => {
         if (carteiraRows.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
         return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;
@@ -1974,6 +1980,20 @@ export default function BIDDashboard() {
           </button>
         ))}
       </div>
+
+      {/* ── Indicador de filtro de carteira ── */}
+      {carteiraFilterInfo && (
+        <div className={`flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg border text-xs ${carteiraFilterInfo.fallback ? "bg-warning/10 border-warning/30 text-warning" : "bg-primary/5 border-primary/20 text-muted-foreground"}`}>
+          <span className="font-semibold text-foreground">Filtro de carteira:</span>
+          {carteiraFilterInfo.gruposAtivos.map((g) => (
+            <span key={g} className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">{g}</span>
+          ))}
+          {carteiraFilterInfo.fallback
+            ? <span className="text-warning font-medium">· Nenhuma empresa com esses grupos — mostrando todas</span>
+            : <span>· {carteiraFilterInfo.activeCount} de {carteiraFilterInfo.totalCount} empresas ativas</span>
+          }
+        </div>
+      )}
 
       {/* Day selector + search + filters */}
       {registryCount > 0 && activeTab === "tarefas" && (

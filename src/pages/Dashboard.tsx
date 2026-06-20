@@ -133,6 +133,7 @@ export default function Dashboard() {
   const [lembreteAlerts, setLembreteAlerts] = useState<LembreteAlertItem[]>([]);
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
   const [confiabilidade, setConfiabilidade] = useState<Map<string, ConfiabilidadeStats>>(() => new Map());
+  const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
   const { notifLog, clearLog } = useWatcherLog();
 
   const load = useCallback(async (manual = false) => {
@@ -181,14 +182,19 @@ export default function Dashboard() {
 
       const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
       const carteiraRows = carteira ?? [];
-      const names = carteiraRows
-        .filter((r) => r.oculta !== 1)
+      const allVisible = carteiraRows.filter((r) => r.oculta !== 1);
+      const namesByFilter = allVisible
         .filter((r) =>
-          gruposAtivos.length === 0 ||       // sem filtro de grupo → passa tudo
-          fixarSet.has(r.nome_fantasia) ||   // fixada individualmente → passa sempre
+          gruposAtivos.length === 0 ||
+          fixarSet.has(r.nome_fantasia) ||
           (r.grupo !== null && gruposAtivos.includes(r.grupo))
         )
         .map((r) => r.nome_fantasia);
+      const filterHasMatches = gruposAtivos.length === 0 || namesByFilter.length > 0;
+      const names = filterHasMatches ? namesByFilter : allVisible.map((r) => r.nome_fantasia);
+      setCarteiraFilterInfo(gruposAtivos.length > 0
+        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allVisible.length, fallback: !filterHasMatches }
+        : null);
       const todayISO = todayDateISO_SP();
 
       const nowMs = Date.now();
@@ -1081,6 +1087,27 @@ export default function Dashboard() {
         className="px-4 md:px-6 pb-4 md:pb-6 space-y-6 max-w-[1400px] mx-auto"
         style={{ paddingTop: toolbarHeight + 24 }}
       >
+        {/* ── Indicador de filtro de carteira ── */}
+        {carteiraFilterInfo && (
+          <div className={`flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg border text-xs ${carteiraFilterInfo.fallback ? "bg-warning/10 border-warning/30 text-warning" : "bg-primary/5 border-primary/20 text-muted-foreground"}`}>
+            <span className="font-semibold text-foreground">Filtro de carteira:</span>
+            {carteiraFilterInfo.gruposAtivos.map((g) => (
+              <span key={g} className="inline-flex items-center px-2 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">{g}</span>
+            ))}
+            {carteiraFilterInfo.fallback
+              ? <span className="text-warning font-medium">· Nenhuma empresa com esses grupos — mostrando todas</span>
+              : <span>· {carteiraFilterInfo.activeCount} de {carteiraFilterInfo.totalCount} empresas ativas</span>
+            }
+            <button
+              type="button"
+              onClick={() => navigate("/carteira")}
+              className="ml-auto text-[11px] underline hover:text-foreground"
+            >
+              Editar na Carteira
+            </button>
+          </div>
+        )}
+
         {/* ── Central de Atenção: AlertBanner + PriorityPanel ── */}
         <div className="space-y-2">
           <AlertBanner
