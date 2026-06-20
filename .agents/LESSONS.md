@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-06-20 [git, workflow, commits]
+**Rule:** Commitar imediatamente após cada implementação aprovada, sem esperar o usuário pedir. Push só quando solicitado explicitamente.
+**Why:** Mudanças locais no outro computador nunca foram commitadas antes do build — entraram no instalador mas se perderam. Próxima sessão começou do código antigo.
+**How to apply:** `git add <arquivos> && git commit` logo após qualquer alteração aprovada. Sempre `git fetch origin` e checar divergência antes de começar a implementar.
+
+---
+
+## 2026-06-20 [firestore, phone, sql]
+**Rule:** Queries SQLite que fazem LIKE em telefone precisam normalizar `(`, `)`, `+` além de `-` e espaço.
+**Why:** Números importados no formato `(11) 99999-9999` falhavam silenciosamente no LIKE — BID funcionava (telefones limpos no CSV), FUP não (telefones com parênteses vindos do dashboard).
+**How to apply:** Template: `REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(col,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?`
+
+---
+
+## 2026-06-20 [dispatch, umbler, bots]
+**Rule:** Todo disparo de FUP para chapas deve usar `startUmblerBot`, nunca `sendUmblerFup`. `sendUmblerFup` (template) é reservado para notificações sem interação (sem-resposta, cancelamento de tarefa).
+**Why:** ApproachingAlert usava template silenciosamente — chapa recebia mensagem estática, não iniciava fluxo de bot interativo.
+**How to apply:** Ao adicionar qualquer novo ponto de disparo FUP, verificar que chama `startUmblerBot` com `botIdOverride` + `triggerNameOverride` e lógica D0/D1.
+
+---
+
 ## 2026-06-17 [postgres, schema, discovery]
 **Rule:** Antes de rodar qualquer query no banco de origem (Antigravity/Meu Chapa), sempre confirmar o schema. As tabelas NÃO estão em `public` — estão em `core_api`. Usar prefixo `core_api."NomeTabela"` em todas as queries.
 **Why:** A primeira query com `"Profile"` sem schema retornou `ERROR: relation "Profile" does not exist`. O banco tem múltiplos schemas: `core_api`, `chapa_driver_api`, `finance_api`, `mc_ia`. `WorkHeader` existe em 3 deles.
