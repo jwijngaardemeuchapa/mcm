@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-06-19 — MCM v0.9.99 — Correção crítica: regressão de ingestTarefas (pool SQLx + transação manual)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-74 (comentário)
+**Summary:**
+- **Root cause:** `db.execute("BEGIN")` via `@tauri-apps/plugin-sql` não funciona em pool de conexões (SQLx). BEGIN/COMMIT/ROLLBACK rodavam em conexões diferentes do pool → BEGIN ficava "órfão" com write lock aberto indefinidamente. Causava: "database is locked" (code 5), "transaction within a transaction" (code 1), e lentidão generalizada (cliques esperavam o lock, ~800 IPCs sequenciais).
+- **Fix em `src/lib/ingestTarefas.ts`:** removida toda a lógica de transação manual (BEGIN/COMMIT/ROLLBACK e DELETE-tudo de chapas). Substituído por: (1) upsert em lote multi-row `INSERT OR REPLACE INTO tarefas` em chunks de 50 (~800 binds); (2) upsert em lote multi-row `INSERT OR REPLACE INTO chapas` em chunks de 80 (~960 binds); (3) delete cirúrgico só de chapas com ids que não constam mais no novo ingest — usa `chapaPrev` (já carregado) como referência. Ids de chapas são determinísticos (reusados se chapa existe) então upsert nunca esvazia a tabela.
+- **LESSON aprendida:** `@tauri-apps/plugin-sql` usa pool SQLx — NUNCA usar BEGIN/COMMIT via `db.execute()`. Cada execute já é atômico. Para batches, usar multi-row VALUES. Ver M_leo.ts:236 para referência.
+**Files changed:** `src/lib/ingestTarefas.ts`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `.agents/`
+**Next:** Distribuir MCM_0.9.99_x64-setup.exe.
+
+---
+
 ## 2026-06-19 — MCM v0.9.98 — Fixes de estabilidade pós v0.9.97
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-74 (comentário), MCM-77 (comentário)

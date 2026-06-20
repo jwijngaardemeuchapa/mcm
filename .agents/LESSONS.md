@@ -3,6 +3,13 @@
 
 ---
 
+## 2026-06-19 [sqlite, tauri, plugin-sql, performance]
+**Rule:** NUNCA usar `db.execute("BEGIN")` / `COMMIT` / `ROLLBACK` com `@tauri-apps/plugin-sql`. O plugin usa pool de conexões SQLx — cada `db.execute/select` pega uma conexão aleatória do pool, então BEGIN e COMMIT rodam em conexões diferentes. O BEGIN fica "órfão" com write lock aberto → "database is locked" (code 5) + "transaction within a transaction" (code 1) + lentidão em todos os cliques.
+**Why:** Descoberto após regressão em v0.9.98: transação manual deixou o pool corrompido causando 3 sintomas distintos que pareciam problemas separados.
+**How to apply:** Para atomicidade em batch: usar `INSERT OR REPLACE` (upsert) com multi-row VALUES em chunks (tarefas: 50×16col=800 binds; chapas: 80×12col=960 binds; limite SQLite=999). Para "nunca esvaziar tabela durante sync": usar upsert + delete cirúrgico só dos ids que sumiram. Referência padrão correto: `src/pages/AnaliseBase/modules/M_leo.ts:236`.
+
+---
+
 ## 2026-06-20 [git, workflow, commits]
 **Rule:** Commitar E pushar para o GitHub imediatamente após cada implementação aprovada — sem esperar o usuário pedir. Isso inclui alterações na aplicação E atualizações do Lead Protocol (.agents/).
 **Why:** Usuário trabalha em múltiplos computadores; GitHub é a única fonte de verdade. Commit local sem push não protege o trabalho. Regra anterior (push só quando solicitado) foi revogada explicitamente.

@@ -1,41 +1,37 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-06-19
-**Versão atual:** v0.9.98 (build em andamento)
+**Versão atual:** v0.9.99 (build em andamento)
 **Branch:** main (limpo, em sincronia com origin)
 
 ---
 
-## O que foi feito nesta sessão (v0.9.98)
+## O que foi feito nesta sessão (v0.9.99)
 
-### Fix 1 — ingestTarefas: transação SQLite
-- `src/lib/ingestTarefas.ts`: bloco DELETE+INSERT envolvido em BEGIN/COMMIT/ROLLBACK
-- Eliminava flicker de chapas vazio na UI durante sync (WatcherContext lia o banco entre DELETE e INSERT)
-- Também eliminava diff falso no ActivityBell ("tudo apareceu") após sync
+### Correção crítica — ingestTarefas + pool SQLx
 
-### Fix 2 — Dashboard: skipDiffRef
-- `src/pages/Dashboard.tsx`: `skipDiffRef = useRef(false)`
-- Ativado em `handleSyncMetabase()` e `handleSync30h()` durante sync+load
-- O bloco de diff em `load()` verifica `!skipDiffRef.current` antes de processar
+**Problema:** `@tauri-apps/plugin-sql` usa pool de conexões SQLx. `BEGIN/COMMIT` manual (adicionado em v0.9.98) rodava em conexões diferentes do pool → BEGIN ficava órfão com write lock aberto. Causava 3 sintomas: "database is locked" (code 5), "transaction within a transaction" (code 1), lentidão em cliques (writers esperavam o lock por segundos).
 
-### Fix 3 — Troca de Turno: filtro de carteira/grupo
-- `src/components/TrocaDeTurno.tsx`: `carteiraBd` salvo em state (antes era variável local descartada)
-- `generate()` filtra `allTarefas` pelo grupo selecionado antes de `buildMessage()`
-- `empresasDisponiveis` (useMemo) também respeita o grupo ativo
-- Popover "Empresas" mostra apenas empresas do grupo atual
+**Fix em `src/lib/ingestTarefas.ts`:**
+- Removida toda a lógica de transação manual (BEGIN/COMMIT/ROLLBACK)
+- Removido DELETE-tudo de chapas por `id_tarefa`
+- Upsert tarefas: `INSERT OR REPLACE` multi-row, chunks de 50 (16 cols × 50 = 800 binds)
+- Upsert chapas: `INSERT OR REPLACE` multi-row, chunks de 80 (12 cols × 80 = 960 binds)
+- Delete cirúrgico: só deleta chapas cujo `id` não aparece mais em `chapasFinais` (usando `chapaPrev` como referência)
 
----
+**Sem flicker:** ids de chapas são determinísticos (reutilizados se chapa existe), então upsert nunca esvazia a tabela em nenhum instante.
 
-## Sessão anterior (v0.9.97) — mantido para contexto
-- ActivityBell com animação ring no BID Dashboard
-- bid_interesse / bid_aceite como novos tipos de atividade
-- Botão Sincronizar na Carteira
-- Fix timing async logActivity + dispatchEvent
+**LESSON salva em LESSONS.md:** nunca usar BEGIN/COMMIT com plugin-sql. Referência: `M_leo.ts:236`.
+
+### Fix mantidos de sessões anteriores
+- `skipDiffRef` em Dashboard (diff falso no sino durante syncs explícitos)
+- `PRAGMA busy_timeout=5000` em db.ts (rede de segurança)
+- Filtro de carteira/grupo em TrocaDeTurno
 
 ---
 
 ## Pendências próximas
-- Distribuir MCM_0.9.98_x64-setup.exe após build
-- MCM-27 — Pool de Chapas (planejamento feito, pendente confirmação sobre chapas sem histórico BID)
+- Distribuir MCM_0.9.99_x64-setup.exe após build
+- MCM-27 — Pool de Chapas (planejamento feito, pendente implementação)
 - MCM-58 — Firebase Analytics BID (aguarda validação de queries)
 - MCM-68 — Tela Foco
