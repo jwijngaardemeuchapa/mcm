@@ -16,12 +16,12 @@ import {
 import { useOverlaySlot } from "@/lib/overlayStack";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { TaskCard, type TaskWithChapas } from "./TaskCard";
-import { fmtTime, parseTaskDate } from "@/lib/datetime";
+import { fmtTime, parseTaskDate, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
 import { readSettings, type PortariaRule } from "@/lib/settings";
 import { playAlertBeep } from "@/lib/sound";
 import { getDb, uuid, errMsg } from "@/lib/db";
-import { sendUmblerFup, fmtTaskDateParam } from "@/lib/umbler";
+import { sendUmblerFup, startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
 import { toast } from "sonner";
 
 /* ── helpers ── */
@@ -174,13 +174,22 @@ function ChapaItem({
 
   async function fireUmblerFup() {
     if (!hasPhone) { toast.error("Chapa sem número cadastrado"); return; }
+    if (!umblerSettings.fupBotId || !umblerSettings.fupBotTriggerName) {
+      toast.error("Configure o Bot ID e Trigger Name do FUP em Integrações.");
+      return;
+    }
+    const taskDateStr = chapa.dataTarefa.slice(0, 10);
+    const isD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.fupBotD1Id && umblerSettings.fupBotD1TriggerName);
     try {
-      await sendUmblerFup({
-        chapaNome: chapa.nome,
+      await startUmblerBot({
         chapaTelefone: chapa.telefone,
-        dataTarefa: chapa.dataTarefa,
-        empresa: chapa.empresa,
         settings: umblerSettings,
+        initialData: {
+          Data: fmtTaskDateParam(chapa.dataTarefa),
+          Cidade: chapa.empresa,
+        },
+        botIdOverride: isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId,
+        triggerNameOverride: isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName,
       });
     } catch (e) {
       toast.error(`Falha ao enviar FUP: ${errMsg(e)}`);
