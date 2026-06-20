@@ -4,9 +4,9 @@
 ---
 
 ## 2026-06-20 [git, workflow, commits]
-**Rule:** Commitar imediatamente após cada implementação aprovada, sem esperar o usuário pedir. Push só quando solicitado explicitamente.
-**Why:** Mudanças locais no outro computador nunca foram commitadas antes do build — entraram no instalador mas se perderam. Próxima sessão começou do código antigo.
-**How to apply:** `git add <arquivos> && git commit` logo após qualquer alteração aprovada. Sempre `git fetch origin` e checar divergência antes de começar a implementar.
+**Rule:** Commitar E pushar para o GitHub imediatamente após cada implementação aprovada — sem esperar o usuário pedir. Isso inclui alterações na aplicação E atualizações do Lead Protocol (.agents/).
+**Why:** Usuário trabalha em múltiplos computadores; GitHub é a única fonte de verdade. Commit local sem push não protege o trabalho. Regra anterior (push só quando solicitado) foi revogada explicitamente.
+**How to apply:** `git add <arquivos> && git commit && git push origin main` logo após qualquer alteração aprovada. Sempre `git fetch origin` e checar divergência antes de começar a implementar.
 
 ---
 
