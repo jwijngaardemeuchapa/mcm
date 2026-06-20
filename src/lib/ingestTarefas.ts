@@ -248,8 +248,14 @@ export async function ingestTarefas(
     );
   }
 
-  // Upsert chapas em lote (80 linhas × 12 colunas = 960 binds por statement)
-  // INSERT OR REPLACE preserva o id estável → nunca esvazia a tabela, sem precisar de transação
+  // DELETE todas as chapas das tarefas afetadas — janela mínima antes dos INSERTs em lote
+  for (let i = 0; i < ids.length; i += 900) {
+    const chunk = ids.slice(i, i + 900);
+    await db.execute(`DELETE FROM chapas WHERE id_tarefa IN (${placeholders(chunk.length)})`, chunk);
+  }
+
+  // INSERT chapas em lote (80 linhas × 12 colunas = 960 binds por statement)
+  // Estado preservado via chapaPrev (lido antes do DELETE acima)
   for (let i = 0; i < chapasFinais.length; i += 80) {
     const chunk = chapasFinais.slice(i, i + 80);
     const params = chunk.flatMap((c) => [
@@ -258,19 +264,9 @@ export async function ingestTarefas(
       c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
     ]);
     await db.execute(
-      `INSERT OR REPLACE INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES ${rowGroup(12, chunk.length)}`,
+      `INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES ${rowGroup(12, chunk.length)}`,
       params,
     );
-  }
-
-  // Delete cirúrgico: remove apenas chapas que sumiram do Metabase (não todas)
-  const novosIds = new Set(chapasFinais.map((c) => c.id as string));
-  const staleIds = [...chapaPrev.values()]
-    .map((c) => c.id as string)
-    .filter((id) => !novosIds.has(id));
-  for (let i = 0; i < staleIds.length; i += 900) {
-    const chunk = staleIds.slice(i, i + 900);
-    await db.execute(`DELETE FROM chapas WHERE id IN (${placeholders(chunk.length)})`, chunk);
   }
 
   try {

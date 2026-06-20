@@ -484,9 +484,11 @@ export default function Dashboard() {
         const status = await invoke<{ configured: boolean }>("metabase_status");
         if (!status.configured) return;
         const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+        skipDiffRef.current = true;
         await ingestTarefas(rows);
         localStorage.setItem("metabase_last_sync", new Date().toISOString());
-        load(false);
+        await load(false);
+        skipDiffRef.current = false;
       } catch { /* silencioso — não interrompe o usuário se Metabase estiver fora */ }
     }
 
