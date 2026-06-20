@@ -132,6 +132,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
       cancelado: "recusou",
       interesse_nao: "recusou",
       nao_aceita_app: "recusou",
+      precisa_ajuda: "recusou",
     };
     const entry: WatcherActivity = {
       id: `wh-${Date.now()}`,

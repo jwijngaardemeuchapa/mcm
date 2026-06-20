@@ -350,6 +350,7 @@ function BidTaskCard({
   const [rawCandidates, setRawCandidates] = useState<BidChapa[]>([]);
   const [occupiedCpfSet, setOccupiedCpfSet] = useState<Set<string>>(new Set());
   const [occupiedNameSet, setOccupiedNameSet] = useState<Set<string>>(new Set());
+  const [allOccupiedChapas, setAllOccupiedChapas] = useState<{ nome_norm: string; empresa: string }[]>([]);
   const [blockedTipoFilter, setBlockedTipoFilter] = useState("__all__");
   const [blockedTipos, setBlockedTipos] = useState<string[]>([]);
   const [blockedMotivoFilter, setBlockedMotivoFilter] = useState("__all__");
@@ -413,7 +414,7 @@ function BidTaskCard({
 
   // Load candidates from chapa_registry when card is expanded
   useEffect(() => {
-    if (!expanded) { setRawCandidates([]); setOccupiedCpfSet(new Set()); setOccupiedNameSet(new Set()); setCandidatesLoading(false); return; }
+    if (!expanded) { setRawCandidates([]); setOccupiedCpfSet(new Set()); setOccupiedNameSet(new Set()); setAllOccupiedChapas([]); setCandidatesLoading(false); return; }
     const cityUf = parseCidadeUf(task.cidade_uf);
     setCandidatesLoading(true);
     (async () => {
@@ -421,7 +422,7 @@ function BidTaskCard({
         const db = await getDb();
         const taskDate = fmtSP(task.data_tarefa, "yyyy-MM-dd");
 
-        const [byCpf, byName] = await Promise.all([
+        const [byCpf, byName, allOccupied] = await Promise.all([
           db.select<{ cpf: string }[]>(`
             SELECT DISTINCT c.cpf FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
@@ -432,11 +433,20 @@ function BidTaskCard({
             SELECT DISTINCT LOWER(TRIM(c.nome_chapa)) as nome_norm FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
             WHERE DATE(t.data_tarefa) = ? AND c.status_contato != 'removido'
-            AND c.cpf IS NULL AND c.nome_chapa IS NOT NULL AND t.id_tarefa != ?
+            AND c.nome_chapa IS NOT NULL AND t.id_tarefa != ?
+          `, [taskDate, task.id_tarefa]),
+          db.select<{ nome_norm: string; empresa: string }[]>(`
+            SELECT LOWER(TRIM(c.nome_chapa)) as nome_norm, t.empresa
+            FROM chapas c
+            JOIN tarefas t ON c.id_tarefa = t.id_tarefa
+            WHERE DATE(t.data_tarefa) = ? AND c.status_contato != 'removido'
+            AND c.nome_chapa IS NOT NULL AND t.id_tarefa != ?
+            ORDER BY c.nome_chapa ASC
           `, [taskDate, task.id_tarefa]),
         ]);
         setOccupiedCpfSet(new Set(byCpf.map((r) => r.cpf.replace(/\D/g, ""))));
         setOccupiedNameSet(new Set(byName.map((r) => normalize(r.nome_norm))));
+        setAllOccupiedChapas(allOccupied);
 
         if (!cityUf) { setRawCandidates([]); return; }
 
@@ -1317,7 +1327,7 @@ function BidTaskCard({
                   onClick={() => setShowOccupied((v) => !v)}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showOccupied ? "Ocultar" : "Ver"} ocupados ({candidates.filter((c) => c.is_occupied).length})
+                  {showOccupied ? "Ocultar" : "Ver"} ocupados ({allOccupiedChapas.length})
                 </button>
               )}
               {candidateView === "disponiveis" && leoCache && leoCache.size > 0 && (
@@ -1537,18 +1547,20 @@ function BidTaskCard({
                   );
                 })}
 
-                {showOccupied && candidates.filter((c) => c.is_occupied).map((c) => (
-                  <div key={c._key} className="grid items-center px-4 py-2 gap-2 opacity-30 bg-muted/5"
-                    style={{ gridTemplateColumns: "28px 24px 1fr 80px 60px 100px 100px 100px" }}>
-                    <div /><div />
-                    <div className="text-sm text-muted-foreground truncate">{c.nome}</div>
-                    <div className="text-xs text-muted-foreground">{c.distance_km !== null ? `${c.distance_km.toFixed(1)} km` : "—"}</div>
-                    <div className="text-xs text-center">{c.tarefas}</div>
-                    <div />
-                    <div className="text-[10px] text-muted-foreground italic">Ocupado</div>
-                    <div />
+                {showOccupied && allOccupiedChapas.length > 0 && (
+                  <div className="border-t border-border/40 bg-muted/5 px-4 py-2">
+                    <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1.5">
+                      Alocados em outras tarefas ({allOccupiedChapas.length})
+                    </p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      {allOccupiedChapas.map((c, i) => (
+                        <span key={i} className="text-xs text-muted-foreground opacity-60 capitalize">
+                          {c.nome_norm} <span className="text-[10px] opacity-70">· {c.empresa}</span>
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
@@ -1774,6 +1786,11 @@ export default function BIDDashboard() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  useEffect(() => {
+    const handle = () => { loadAll(); };
+    window.addEventListener("fup:refresh", handle);
+    return () => window.removeEventListener("fup:refresh", handle);
+  }, [loadAll]);
 
   useEffect(() => {
     return bidDispatchQueue.subscribeDispatched((record) => {

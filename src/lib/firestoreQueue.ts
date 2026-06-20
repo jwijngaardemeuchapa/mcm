@@ -252,7 +252,7 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
     const bidRows = await db.select<BidRow[]>(
       `SELECT id, chapa_nome, chapa_telefone, id_tarefa, empresa, data_tarefa, status
        FROM bid_disparos
-       WHERE REPLACE(REPLACE(chapa_telefone,'-',''),' ','') LIKE ?
+       WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(chapa_telefone,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
          AND status = 'nao_aceita_app'
          AND data_disparo >= datetime('now','-7 days')
        ORDER BY data_disparo DESC LIMIT 1`,
@@ -294,7 +294,7 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
   const bidRows = await db.select<BidRow[]>(
     `SELECT id, chapa_nome, chapa_telefone, id_tarefa, empresa, data_tarefa, status
      FROM bid_disparos
-     WHERE REPLACE(REPLACE(chapa_telefone,'-',''),' ','') LIKE ?
+     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(chapa_telefone,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
        AND status IN ('aguardando','interesse_sim')
        AND data_disparo >= datetime('now','-7 days')
      ORDER BY data_disparo DESC LIMIT 1`,
@@ -336,7 +336,7 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
     `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.id_tarefa, t.empresa
      FROM chapas c
      JOIN tarefas t ON c.id_tarefa = t.id_tarefa
-     WHERE REPLACE(REPLACE(COALESCE(c.telefone_chapa,''),'-',''),' ','') LIKE ?
+     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(c.telefone_chapa,''),'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
        AND t.ativo = 1
        AND c.canal_contato = 'umbler_talk'
        AND c.status_contato NOT IN ('confirmado','removido')
