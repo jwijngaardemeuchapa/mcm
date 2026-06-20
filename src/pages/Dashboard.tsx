@@ -143,13 +143,15 @@ export default function Dashboard() {
         fetchAllRows<Record<string, unknown>>("tarefas", "*"),
         fetchAllRows<Record<string, unknown>>("chapas", "*"),
         fetchAllRows<Record<string, unknown>>("fup_log", "*"),
-        carteiraDb.select<{ nome_fantasia: string; grupo: string | null; oculta: number; fixar: number }[]>(`
+        carteiraDb.select<{ nome_fantasia: string; grupo: string | null; oculta: number }[]>(`
           SELECT c.nome_fantasia, c.grupo,
-            COALESCE(ec.oculta_dashboard, 0) as oculta,
-            COALESCE(ec.fixar_visivel, 0) as fixar
+            COALESCE(ec.oculta_dashboard, 0) as oculta
           FROM carteira c LEFT JOIN empresa_config ec ON c.nome_fantasia = ec.nome_fantasia
-        `).catch(() => [] as { nome_fantasia: string; grupo: string | null; oculta: number; fixar: number }[]),
+        `).catch(() => [] as { nome_fantasia: string; grupo: string | null; oculta: number }[]),
       ]);
+      const fixarSet = await carteiraDb.select<{ nome_fantasia: string }[]>(
+        "SELECT nome_fantasia FROM empresa_config WHERE fixar_visivel = 1"
+      ).then((r) => new Set(r.map((x) => x.nome_fantasia))).catch(() => new Set<string>());
 
       // Score de confiabilidade — janela de 15 dias sobre o histórico completo já carregado
       try {
@@ -181,9 +183,10 @@ export default function Dashboard() {
       const names = (carteira ?? [])
         .filter((r) => r.oculta !== 1)
         .filter((r) =>
-          gruposAtivos.length === 0 ||
-          r.fixar === 1 ||
-          (r.grupo !== null && gruposAtivos.includes(r.grupo))
+          gruposAtivos.length === 0 ||        // sem filtro de grupo → passa tudo
+          r.grupo === null ||                  // sem grupo atribuído → passa sempre
+          fixarSet.has(r.nome_fantasia) ||     // fixada individualmente → passa sempre
+          gruposAtivos.includes(r.grupo)
         )
         .map((r) => r.nome_fantasia);
       const todayISO = todayDateISO_SP();
