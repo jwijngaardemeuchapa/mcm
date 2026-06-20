@@ -142,7 +142,7 @@ export function useNotificationWatcher(
       }
     };
 
-    const interval = setInterval(poll, 5_000);
+    const interval = setInterval(poll, 10_000);
     poll();
     return () => clearInterval(interval);
   }, []); // stable — uses refs for live data

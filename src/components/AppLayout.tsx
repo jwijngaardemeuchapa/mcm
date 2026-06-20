@@ -57,8 +57,13 @@ export default function AppLayout() {
     }
     fetchStats();
     const iv = setInterval(fetchStats, 60_000);
-    window.addEventListener("fup:refresh", fetchStats);
-    return () => { clearInterval(iv); window.removeEventListener("fup:refresh", fetchStats); };
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const onRefresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(fetchStats, 400);
+    };
+    window.addEventListener("fup:refresh", onRefresh);
+    return () => { clearInterval(iv); if (debounce) clearTimeout(debounce); window.removeEventListener("fup:refresh", onRefresh); };
   }, []);
 
   useEffect(() => {

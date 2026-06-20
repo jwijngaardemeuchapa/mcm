@@ -96,8 +96,13 @@ export function AppSidebar() {
     }
     load();
     const t = setInterval(load, 60_000);
-    window.addEventListener("fup:refresh", load);
-    return () => { clearInterval(t); window.removeEventListener("fup:refresh", load); };
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const onRefresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(load, 400);
+    };
+    window.addEventListener("fup:refresh", onRefresh);
+    return () => { clearInterval(t); if (debounce) clearTimeout(debounce); window.removeEventListener("fup:refresh", onRefresh); };
   }, []);
   const [trocaTurnoOpen, setTrocaTurnoOpen] = useState(false);
   const [newName, setNewName] = useState("");

@@ -678,7 +678,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   // so they are intentionally not cleaned up here — they survive navigation.
 
   useEffect(() => {
-    const id = setInterval(() => setNowTs(Date.now()), 30_000);
+    const id = setInterval(() => setNowTs(Date.now()), 120_000);
     return () => clearInterval(id);
   }, []);
 
