@@ -144,11 +144,9 @@ export default function Dashboard() {
         fetchAllRows<Record<string, unknown>>("tarefas", "*"),
         fetchAllRows<Record<string, unknown>>("chapas", "*"),
         fetchAllRows<Record<string, unknown>>("fup_log", "*"),
-        carteiraDb.select<{ nome_fantasia: string; grupo: string | null; oculta: number }[]>(`
-          SELECT c.nome_fantasia, c.grupo,
-            COALESCE(ec.oculta_dashboard, 0) as oculta
-          FROM carteira c LEFT JOIN empresa_config ec ON c.nome_fantasia = ec.nome_fantasia
-        `).catch(() => [] as { nome_fantasia: string; grupo: string | null; oculta: number }[]),
+        carteiraDb.select<{ nome_fantasia: string; grupo: string | null }[]>(
+          "SELECT nome_fantasia, grupo FROM carteira"
+        ).catch(() => [] as { nome_fantasia: string; grupo: string | null }[]),
       ]);
       const fixarSet = await carteiraDb.select<{ nome_fantasia: string }[]>(
         "SELECT nome_fantasia FROM empresa_config WHERE fixar_visivel = 1"
@@ -182,18 +180,21 @@ export default function Dashboard() {
 
       const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
       const carteiraRows = carteira ?? [];
-      const allVisible = carteiraRows.filter((r) => r.oculta !== 1);
-      const namesByFilter = allVisible
-        .filter((r) =>
-          gruposAtivos.length === 0 ||
-          fixarSet.has(r.nome_fantasia) ||
-          (r.grupo !== null && gruposAtivos.includes(r.grupo))
-        )
-        .map((r) => r.nome_fantasia);
-      const filterHasMatches = gruposAtivos.length === 0 || namesByFilter.length > 0;
-      const names = filterHasMatches ? namesByFilter : allVisible.map((r) => r.nome_fantasia);
-      setCarteiraFilterInfo(gruposAtivos.length > 0
-        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allVisible.length, fallback: !filterHasMatches }
+      const allCarteiraNames = carteiraRows.map((r) => r.nome_fantasia);
+      let names: string[];
+      let carteiraFilterActive = false;
+      let namesByFilter: string[] = [];
+      if (gruposAtivos.length > 0) {
+        namesByFilter = carteiraRows
+          .filter((r) => fixarSet.has(r.nome_fantasia) || (r.grupo !== null && gruposAtivos.includes(r.grupo)))
+          .map((r) => r.nome_fantasia);
+        names = namesByFilter.length > 0 ? namesByFilter : allCarteiraNames;
+        carteiraFilterActive = true;
+      } else {
+        names = allCarteiraNames;
+      }
+      setCarteiraFilterInfo(carteiraFilterActive
+        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allCarteiraNames.length, fallback: namesByFilter.length === 0 }
         : null);
       const todayISO = todayDateISO_SP();
 
@@ -216,7 +217,7 @@ export default function Dashboard() {
         });
       }
 
-      const inCarteira = (empresa: string) => carteiraRows.length === 0 || companyMatches(empresa, names);
+      const inCarteira = (empresa: string) => names.length === 0 || companyMatches(empresa, names);
 
       const todaysTasks = activeTarefas.filter((t) => {
         const tt = t as { data_tarefa: string; status_tarefa: string; empresa: string };

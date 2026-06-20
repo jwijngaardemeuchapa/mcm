@@ -1770,11 +1770,9 @@ export default function BIDDashboard() {
           ORDER BY t.data_tarefa ASC
         `),
         db.select<BidDisparo[]>("SELECT * FROM bid_disparos WHERE DATE(data_disparo) >= date('now', '-1 day') ORDER BY data_disparo DESC"),
-        db.select<{ nome_fantasia: string; grupo: string | null; oculta: number }[]>(`
-          SELECT c.nome_fantasia, c.grupo,
-            COALESCE(ec.oculta_dashboard, 0) as oculta
-          FROM carteira c LEFT JOIN empresa_config ec ON c.nome_fantasia = ec.nome_fantasia
-        `).catch(() => [] as { nome_fantasia: string; grupo: string | null; oculta: number }[]),
+        db.select<{ nome_fantasia: string; grupo: string | null }[]>(
+          "SELECT nome_fantasia, grupo FROM carteira"
+        ).catch(() => [] as { nome_fantasia: string; grupo: string | null }[]),
       ]);
 
       const fixarSet = await db.select<{ nome_fantasia: string }[]>(
@@ -1783,21 +1781,24 @@ export default function BIDDashboard() {
 
       const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
       const carteiraRows = carteira ?? [];
-      const allVisible = carteiraRows.filter((r) => r.oculta !== 1);
-      const namesByFilter = allVisible
-        .filter((r) =>
-          gruposAtivos.length === 0 ||
-          fixarSet.has(r.nome_fantasia) ||
-          (r.grupo !== null && gruposAtivos.includes(r.grupo))
-        )
-        .map((r) => r.nome_fantasia);
-      const filterHasMatches = gruposAtivos.length === 0 || namesByFilter.length > 0;
-      const carteiraNames = filterHasMatches ? namesByFilter : allVisible.map((r) => r.nome_fantasia);
-      setCarteiraFilterInfo(gruposAtivos.length > 0
-        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allVisible.length, fallback: !filterHasMatches }
+      const allCarteiraNames = carteiraRows.map((r) => r.nome_fantasia);
+      let carteiraNames: string[];
+      let carteiraFilterActive = false;
+      let namesByFilter: string[] = [];
+      if (gruposAtivos.length > 0) {
+        namesByFilter = carteiraRows
+          .filter((r) => fixarSet.has(r.nome_fantasia) || (r.grupo !== null && gruposAtivos.includes(r.grupo)))
+          .map((r) => r.nome_fantasia);
+        carteiraNames = namesByFilter.length > 0 ? namesByFilter : allCarteiraNames;
+        carteiraFilterActive = true;
+      } else {
+        carteiraNames = allCarteiraNames;
+      }
+      setCarteiraFilterInfo(carteiraFilterActive
+        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allCarteiraNames.length, fallback: namesByFilter.length === 0 }
         : null);
       const withVagas = tasks.filter((t) => {
-        if (carteiraRows.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
+        if (carteiraNames.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
         return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;
       });
       setRegistryCount(cntRows[0]?.cnt ?? 0);
