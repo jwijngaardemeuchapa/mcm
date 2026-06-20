@@ -1781,17 +1781,17 @@ export default function BIDDashboard() {
       ).then((r) => new Set(r.map((x) => x.nome_fantasia))).catch(() => new Set<string>());
 
       const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
-      const carteiraNames = (carteira ?? [])
+      const carteiraRows = carteira ?? [];
+      const carteiraNames = carteiraRows
         .filter((r) => r.oculta !== 1)
         .filter((r) =>
-          gruposAtivos.length === 0 ||        // sem filtro de grupo → passa tudo
-          r.grupo === null ||                  // sem grupo atribuído → passa sempre
-          fixarSet.has(r.nome_fantasia) ||     // fixada individualmente → passa sempre
-          gruposAtivos.includes(r.grupo)
+          gruposAtivos.length === 0 ||       // sem filtro de grupo → passa tudo
+          fixarSet.has(r.nome_fantasia) ||   // fixada individualmente → passa sempre
+          (r.grupo !== null && gruposAtivos.includes(r.grupo))
         )
         .map((r) => r.nome_fantasia);
       const withVagas = tasks.filter((t) => {
-        if (carteiraNames.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
+        if (carteiraRows.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
         return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;
       });
       setRegistryCount(cntRows[0]?.cnt ?? 0);

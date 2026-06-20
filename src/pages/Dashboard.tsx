@@ -180,13 +180,13 @@ export default function Dashboard() {
       );
 
       const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
-      const names = (carteira ?? [])
+      const carteiraRows = carteira ?? [];
+      const names = carteiraRows
         .filter((r) => r.oculta !== 1)
         .filter((r) =>
-          gruposAtivos.length === 0 ||        // sem filtro de grupo → passa tudo
-          r.grupo === null ||                  // sem grupo atribuído → passa sempre
-          fixarSet.has(r.nome_fantasia) ||     // fixada individualmente → passa sempre
-          gruposAtivos.includes(r.grupo)
+          gruposAtivos.length === 0 ||       // sem filtro de grupo → passa tudo
+          fixarSet.has(r.nome_fantasia) ||   // fixada individualmente → passa sempre
+          (r.grupo !== null && gruposAtivos.includes(r.grupo))
         )
         .map((r) => r.nome_fantasia);
       const todayISO = todayDateISO_SP();
@@ -210,7 +210,7 @@ export default function Dashboard() {
         });
       }
 
-      const inCarteira = (empresa: string) => names.length === 0 || companyMatches(empresa, names);
+      const inCarteira = (empresa: string) => carteiraRows.length === 0 || companyMatches(empresa, names);
 
       const todaysTasks = activeTarefas.filter((t) => {
         const tt = t as { data_tarefa: string; status_tarefa: string; empresa: string };
