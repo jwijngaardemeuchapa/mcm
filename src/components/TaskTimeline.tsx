@@ -1,8 +1,8 @@
-import React, { useMemo, useRef, useEffect, useState } from "react";
+import React, { useMemo, useRef, useEffect, useCallback } from "react";
 import { type TaskWithChapas } from "./TaskCard";
 import { fmtSP, todayDateISO_SP, nowSP } from "@/lib/datetime";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { Building2, Clock, Users, CheckCircle2, BadgeCheck } from "lucide-react";
+import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed } from "lucide-react";
 
 interface TaskTimelineProps {
   tasks: TaskWithChapas[];
@@ -80,19 +80,30 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
     return { startHour: minH, endHour: maxH, processedTasks: withLanes };
   }, [tasks]);
 
-  // Scroll para a linha do "Agora" ao montar ou quando as tarefas mudam
-  useEffect(() => {
-    if (!scrollRef.current || tasks.length === 0) return;
-    const today = todayDateISO_SP();
-    const firstTaskDay = fmtSP(tasks[0].data_tarefa, "yyyy-MM-dd");
-    if (today !== firstTaskDay) return;
+  // É hoje? (linha do "Agora" só faz sentido quando a timeline mostra o dia atual)
+  const today = todayDateISO_SP();
+  const firstTaskDay = tasks[0] ? fmtSP(tasks[0].data_tarefa, "yyyy-MM-dd") : today;
+  const isToday = today === firstTaskDay;
+
+  // Centraliza o scroll na linha do "Agora"
+  const centerOnNow = useCallback(() => {
+    if (!scrollRef.current) return;
     const now = nowSP();
     const currentFloat = now.getHours() + now.getMinutes() / 60;
     if (currentFloat < startHour || currentFloat > endHour) return;
     const nowX = (currentFloat - startHour) * HOUR_WIDTH;
     const half = scrollRef.current.clientWidth / 2;
     scrollRef.current.scrollLeft = Math.max(0, nowX - half);
-  }, [startHour, endHour, tasks]);
+  }, [startHour, endHour]);
+
+  // Auto-centraliza UMA vez (ao entrar na página / primeira carga de dados).
+  // Não re-centraliza nos refreshes seguintes — preserva a posição do usuário.
+  const didCenterRef = useRef(false);
+  useEffect(() => {
+    if (didCenterRef.current || tasks.length === 0 || !isToday) return;
+    centerOnNow();
+    didCenterRef.current = true;
+  }, [tasks.length, isToday, centerOnNow]);
 
   const hoursArray = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
   const totalWidth = hoursArray.length * HOUR_WIDTH;
@@ -104,7 +115,18 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
   const containerHeight = Math.max(120, numLanes * 50 + 60);
 
   return (
-    <div ref={scrollRef} className="w-full overflow-x-auto rounded-xl border border-border bg-card p-4">
+    <div className="relative">
+      {isToday && (
+        <button
+          onClick={centerOnNow}
+          className="absolute right-3 top-3 z-30 flex items-center gap-1.5 rounded-full border border-border bg-card/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted"
+          title="Centralizar na hora atual"
+        >
+          <LocateFixed className="h-3.5 w-3.5 text-primary" />
+          Agora
+        </button>
+      )}
+      <div ref={scrollRef} className="w-full overflow-x-auto rounded-xl border border-border bg-card p-4">
       <div className="relative min-w-max" style={{ width: totalWidth, height: containerHeight }}>
 
         {/* Linhas de grade verticais — altura total do container */}
@@ -176,26 +198,23 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
         
         {/* Current Time Indicator (if within range and today) */}
         {(() => {
+          if (!isToday) return null;
           const now = nowSP();
-          const today = todayDateISO_SP();
-          const firstTaskDay = tasks[0] ? fmtSP(tasks[0].data_tarefa, "yyyy-MM-dd") : today;
-
-          if (today === firstTaskDay) {
-            const currentFloat = now.getHours() + now.getMinutes() / 60;
-            if (currentFloat >= startHour && currentFloat <= endHour) {
-              return (
-                <div 
-                  className="absolute top-0 bottom-0 w-px bg-primary z-10"
-                  style={{ left: (currentFloat - startHour) * HOUR_WIDTH, height: "100%" }}
-                >
-                  <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] px-1 rounded">Agora</div>
-                </div>
-              );
-            }
+          const currentFloat = now.getHours() + now.getMinutes() / 60;
+          if (currentFloat >= startHour && currentFloat <= endHour) {
+            return (
+              <div
+                className="absolute top-0 bottom-0 w-px bg-primary z-10"
+                style={{ left: (currentFloat - startHour) * HOUR_WIDTH, height: "100%" }}
+              >
+                <div className="absolute top-1 left-1 bg-primary text-primary-foreground text-[10px] px-1 rounded">Agora</div>
+              </div>
+            );
           }
           return null;
         })()}
 
+      </div>
       </div>
     </div>
   );
