@@ -1668,12 +1668,15 @@ function ChapaRowView({
   const isConfirmed = status === "confirmado";
   const isNoResponse = status === "nao_respondeu";
   const isRemoved = status === "removido";
+  const isCancelado = status === "cancelado";
 
   // Light tint based on outcome
   const bg = isConfirmed
     ? "bg-[color-mix(in_srgb,hsl(var(--success))_6%,transparent)]"
     : isNoResponse
     ? "bg-[color-mix(in_srgb,hsl(var(--warning))_6%,transparent)]"
+    : isCancelado
+    ? "bg-[color-mix(in_srgb,hsl(var(--destructive))_5%,transparent)]"
     : isRemoved
     ? "bg-destructive/5"
     : "";
@@ -1791,6 +1794,21 @@ function ChapaRowView({
           <div className="flex flex-col items-end gap-0.5">
             <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-md bg-warning/15 text-warning border border-warning/30 min-h-[28px]">
               <AlertTriangle className="h-3.5 w-3.5" /> Não respondeu
+            </span>
+            <button
+              onClick={onRemove}
+              className="text-[12px] text-destructive hover:underline font-medium"
+            >
+              Sinalizar remoção →
+            </button>
+          </div>
+          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} onContact3C={() => onContact(chapa, "ligacao_3c")} />
+        </>
+      ) : isCancelado ? (
+        <>
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-md bg-destructive/10 text-destructive border border-destructive/30 min-h-[28px]">
+              <UserX className="h-3.5 w-3.5" /> Negou FUP
             </span>
             <button
               onClick={onRemove}
