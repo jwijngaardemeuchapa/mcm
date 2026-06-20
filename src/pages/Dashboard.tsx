@@ -138,11 +138,17 @@ export default function Dashboard() {
   const load = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
+      const carteiraDb = await getDb();
       const [tarefas, chapas, fup, carteira] = await Promise.all([
         fetchAllRows<Record<string, unknown>>("tarefas", "*"),
         fetchAllRows<Record<string, unknown>>("chapas", "*"),
         fetchAllRows<Record<string, unknown>>("fup_log", "*"),
-        fetchAllRows<{ nome_fantasia: string }>("carteira", "nome_fantasia"),
+        carteiraDb.select<{ nome_fantasia: string; grupo: string | null; oculta: number; fixar: number }[]>(`
+          SELECT c.nome_fantasia, c.grupo,
+            COALESCE(ec.oculta_dashboard, 0) as oculta,
+            COALESCE(ec.fixar_visivel, 0) as fixar
+          FROM carteira c LEFT JOIN empresa_config ec ON c.nome_fantasia = ec.nome_fantasia
+        `).catch(() => [] as { nome_fantasia: string; grupo: string | null; oculta: number; fixar: number }[]),
       ]);
 
       // Score de confiabilidade — janela de 15 dias sobre o histórico completo já carregado
@@ -171,7 +177,15 @@ export default function Dashboard() {
           new Date((a as { data_disparo: string }).data_disparo).getTime(),
       );
 
-      const names = (carteira ?? []).map((c) => c.nome_fantasia);
+      const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
+      const names = (carteira ?? [])
+        .filter((r) => r.oculta !== 1)
+        .filter((r) =>
+          gruposAtivos.length === 0 ||
+          r.fixar === 1 ||
+          (r.grupo !== null && gruposAtivos.includes(r.grupo))
+        )
+        .map((r) => r.nome_fantasia);
       const todayISO = todayDateISO_SP();
 
       const nowMs = Date.now();

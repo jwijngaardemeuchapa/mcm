@@ -1769,10 +1769,23 @@ export default function BIDDashboard() {
           ORDER BY t.data_tarefa ASC
         `),
         db.select<BidDisparo[]>("SELECT * FROM bid_disparos WHERE DATE(data_disparo) >= date('now', '-1 day') ORDER BY data_disparo DESC"),
-        db.select<{ nome_fantasia: string }[]>("SELECT nome_fantasia FROM carteira"),
+        db.select<{ nome_fantasia: string; grupo: string | null; oculta: number; fixar: number }[]>(`
+          SELECT c.nome_fantasia, c.grupo,
+            COALESCE(ec.oculta_dashboard, 0) as oculta,
+            COALESCE(ec.fixar_visivel, 0) as fixar
+          FROM carteira c LEFT JOIN empresa_config ec ON c.nome_fantasia = ec.nome_fantasia
+        `).catch(() => [] as { nome_fantasia: string; grupo: string | null; oculta: number; fixar: number }[]),
       ]);
 
-      const carteiraNames = carteira.map((c) => c.nome_fantasia);
+      const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
+      const carteiraNames = (carteira ?? [])
+        .filter((r) => r.oculta !== 1)
+        .filter((r) =>
+          gruposAtivos.length === 0 ||
+          r.fixar === 1 ||
+          (r.grupo !== null && gruposAtivos.includes(r.grupo))
+        )
+        .map((r) => r.nome_fantasia);
       const withVagas = tasks.filter((t) => {
         if (carteiraNames.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
         return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;

@@ -1001,6 +1001,12 @@ CREATE INDEX IF NOT EXISTS idx_resposta_log_tarefa ON resposta_log(id_tarefa);
 ",
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 14,
+      description: "empresa_config_fixar_visivel",
+      sql: "ALTER TABLE empresa_config ADD COLUMN fixar_visivel INTEGER DEFAULT 0;",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()
