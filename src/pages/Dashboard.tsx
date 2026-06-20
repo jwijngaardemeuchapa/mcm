@@ -700,6 +700,7 @@ export default function Dashboard() {
   }
 
   function flashTask(id: number) {
+    if (viewMode === "timeline") { setTimelineOverlayTaskId(id); return; }
     const el = document.querySelector(`[data-task-card="${id}"]`) as HTMLElement | null;
     if (el) { doFlash(id); return; }
 
