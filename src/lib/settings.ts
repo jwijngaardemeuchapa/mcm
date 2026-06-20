@@ -70,7 +70,7 @@ export const SETTING_DEFAULTS: AppSettings = {
     "Obrigado pela confirmação, qualquer problema me avise aqui",
   ],
   fupAgendarMinAntes: 0,
-  firestoreEnabled: false,
+  firestoreEnabled: true,
   carteiraGruposAtivos: [],
 };
 
