@@ -17,7 +17,7 @@ const GRUPOS = ["G1", "G2", "G3", "G4", "G5"];
 
 export default function Carteira() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [preview, setPreview] = useState<Array<{ nome_fantasia: string; cnpj: string | null }>>([]);
+  const [preview, setPreview] = useState<Array<{ nome_fantasia: string; cnpj: string | null; grupo: string | null }>>([]);
   const [removeTarget, setRemoveTarget] = useState<Row | null>(null);
   const [dupCount, setDupCount] = useState(0);
   const [filter, setFilter] = useState("");
@@ -92,10 +92,11 @@ export default function Carteira() {
       const colKeys = Object.keys(data[0] ?? {});
       const nameKey = colKeys.find((k) => /nome\s*fantasia|empresa|raz.o\s*social|company|nome/i.test(k));
       const cnpjKey = colKeys.find((k) => /cnpj/i.test(k));
+      const grupoKey = colKeys.find((k) => /^carteira$/i.test(k));
       if (!nameKey) { toast.error("Coluna de nome não encontrada"); return; }
 
       const seen = new Set<string>();
-      const uniq: Array<{ nome_fantasia: string; cnpj: string | null }> = [];
+      const uniq: Array<{ nome_fantasia: string; cnpj: string | null; grupo: string | null }> = [];
       let dup = 0;
       for (const row of data) {
         const name = (row[nameKey] ?? "").trim().replace(/\s+/g, " ");
@@ -103,7 +104,9 @@ export default function Carteira() {
         const key = name.toLowerCase();
         if (seen.has(key)) { dup++; continue; }
         seen.add(key);
-        uniq.push({ nome_fantasia: name, cnpj: cnpjKey ? (row[cnpjKey] ?? null) || null : null });
+        const grupoRaw = grupoKey ? (row[grupoKey] ?? "").trim() : "";
+        const grupo = GRUPOS.includes(grupoRaw) ? grupoRaw : null;
+        uniq.push({ nome_fantasia: name, cnpj: cnpjKey ? (row[cnpjKey] ?? null) || null : null, grupo });
       }
       setPreview(uniq);
       setDupCount(dup);
@@ -122,9 +125,9 @@ export default function Carteira() {
       // Upsert first — data is never lost if anything fails later
       for (const p of preview) {
         await db.execute(
-          `INSERT INTO carteira (id, nome_fantasia, cnpj, created_at) VALUES (?, ?, ?, ?)
-           ON CONFLICT(nome_fantasia) DO UPDATE SET cnpj = excluded.cnpj`,
-          [uuid(), p.nome_fantasia, p.cnpj ?? null, now],
+          `INSERT INTO carteira (id, nome_fantasia, cnpj, grupo, created_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(nome_fantasia) DO UPDATE SET cnpj = excluded.cnpj, grupo = COALESCE(excluded.grupo, carteira.grupo)`,
+          [uuid(), p.nome_fantasia, p.cnpj ?? null, p.grupo ?? null, now],
         );
       }
       // Remove records not in the new set
@@ -148,8 +151,8 @@ export default function Carteira() {
       const now = new Date().toISOString();
       for (const p of preview) {
         await db.execute(
-          "INSERT OR IGNORE INTO carteira (id, nome_fantasia, cnpj, created_at) VALUES (?, ?, ?, ?)",
-          [uuid(), p.nome_fantasia, p.cnpj ?? null, now],
+          "INSERT OR IGNORE INTO carteira (id, nome_fantasia, cnpj, grupo, created_at) VALUES (?, ?, ?, ?, ?)",
+          [uuid(), p.nome_fantasia, p.cnpj ?? null, p.grupo ?? null, now],
         );
       }
       setPreview([]); setDupCount(0);
