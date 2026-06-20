@@ -179,29 +179,56 @@ function phonePattern(digits: string): string {
   return `%${digits.slice(Math.max(0, digits.length - 11))}`;
 }
 
-/** Mapeia o código classificado para o status do BID conforme a etapa atual
- *  do disparo (aguardando = etapa 1 / interesse_sim = etapa 2). */
-function mapBidStatus(
-  code: RespostaCode,
-  currentStatus: string,
-): { status: string; step: 1 | 2 } | null {
-  const positive = code === "interesse_sim" || code === "confirmado" || code === "aceita_app";
-  const negative = code === "interesse_nao" || code === "cancelado" || code === "nao_aceita_app";
+function extractRespostaInteresse(payload: unknown): string | null {
+  return pick(payload, [["resposta_interesse"]]);
+}
 
-  if (currentStatus === "aguardando") {
-    // Etapa 1 — há interesse?
-    if (positive) return { status: "interesse_sim", step: 1 };
-    if (negative) return { status: "interesse_nao", step: 1 };
-    if (code === "precisa_ajuda") return { status: "precisa_ajuda", step: 1 };
-    return null;
+function extractRespostaAceite(payload: unknown): string | null {
+  return pick(payload, [["resposta_aceite"]]);
+}
+
+type BidResolvido = {
+  status: string;
+  data_resposta2: string | null;
+  motivo_nao: string | null;
+  bodyLog: string;
+};
+
+/** Resolve o status final do BID a partir do payload completo (webhook chega
+ *  ao final do fluxo do bot, com todas as respostas de uma vez). */
+function resolveBidStatus(payload: unknown): BidResolvido | null {
+  const interesse = extractRespostaInteresse(payload);
+  if (!interesse) return null;
+  const codeInteresse = classifyResponse(interesse);
+  if (!codeInteresse) return null;
+
+  const isPositive = codeInteresse === "interesse_sim" || codeInteresse === "confirmado";
+  const isNegative = codeInteresse === "interesse_nao" || codeInteresse === "cancelado";
+
+  if (isNegative) {
+    return { status: "interesse_nao", data_resposta2: null, motivo_nao: null, bodyLog: interesse };
   }
-  if (currentStatus === "interesse_sim") {
-    // Etapa 2 — consegue aceitar no app?
-    if (code === "precisa_ajuda") return { status: "precisa_ajuda", step: 2 };
-    if (positive) return { status: "aceita_app", step: 2 };
-    if (negative) return { status: "nao_aceita_app", step: 2 };
-    return null;
+
+  if (isPositive) {
+    const aceite = extractRespostaAceite(payload);
+    const codeAceite = aceite ? classifyResponse(aceite) : null;
+
+    if (codeAceite === "precisa_ajuda") {
+      return { status: "precisa_ajuda", data_resposta2: new Date().toISOString(), motivo_nao: null, bodyLog: aceite! };
+    }
+    if (codeAceite === "interesse_nao" || codeAceite === "cancelado" || codeAceite === "nao_aceita_app") {
+      const motivo = extractMotivoNao(payload);
+      return {
+        status: "nao_aceita_app",
+        data_resposta2: new Date().toISOString(),
+        motivo_nao: motivo && MOTIVOS_VALIDOS.includes(motivo) ? motivo : null,
+        bodyLog: aceite ?? interesse,
+      };
+    }
+    // aceite = Sim / aceita_app / sem campo (fluxo curto sem etapa 2)
+    return { status: "aceita_app", data_resposta2: new Date().toISOString(), motivo_nao: null, bodyLog: aceite ?? interesse };
   }
+
   return null;
 }
 
@@ -246,73 +273,28 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
   const db = await getDb();
   const now = new Date().toISOString();
 
-  // Etapa 3 BID: motivo_nao (por que não aceitou no app)
-  const motivo = extractMotivoNao(payload);
-  if (motivo && MOTIVOS_VALIDOS.includes(motivo)) {
-    const bidRows = await db.select<BidRow[]>(
-      `SELECT id, chapa_nome, chapa_telefone, id_tarefa, empresa, data_tarefa, status
-       FROM bid_disparos
-       WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(chapa_telefone,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
-         AND status = 'nao_aceita_app'
-         AND data_disparo >= datetime('now','-7 days')
-       ORDER BY data_disparo DESC LIMIT 1`,
-      [pattern],
-    );
-    const bid = bidRows[0];
-    if (bid) {
-      await db.execute("UPDATE bid_disparos SET motivo_nao = ? WHERE id = ?", [motivo, bid.id]);
-      await db.execute(
-        `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,data_tarefa,disparo_id,fonte,message_body,received_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, `motivo_nao:${motivo}`, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, "firestore", motivo, now],
-      );
-      return {
-        handled: true,
-        event: {
-          tipo: "bid",
-          chapa_nome: bid.chapa_nome,
-          chapa_telefone: bid.chapa_telefone,
-          resposta: `motivo_nao:${motivo}`,
-          id_tarefa: bid.id_tarefa,
-          empresa: bid.empresa,
-          disparo_id: bid.id,
-          message_body: motivo,
-          received_at: now,
-        },
-      };
-    }
-    return { handled: false, reason: `motivo_nao recebido mas sem disparo nao_aceita_app para o telefone` };
-  }
-
-  const body = extractBody(payload);
-  if (!body) return { handled: false, reason: "sem corpo no payload" };
-
-  const code = classifyResponse(body);
-  if (!code) return { handled: false, reason: `resposta não classificada: "${body}"` };
-
-  // 1. BID primeiro — disparo aguardando (etapa 1) ou interesse_sim (etapa 2)
+  // 1. BID — webhook chega ao final do fluxo do bot, com todas as respostas de uma vez
   const bidRows = await db.select<BidRow[]>(
     `SELECT id, chapa_nome, chapa_telefone, id_tarefa, empresa, data_tarefa, status
      FROM bid_disparos
      WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(chapa_telefone,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
-       AND status IN ('aguardando','interesse_sim')
+       AND status = 'aguardando'
        AND data_disparo >= datetime('now','-7 days')
      ORDER BY data_disparo DESC LIMIT 1`,
     [pattern],
   );
   const bid = bidRows[0];
   if (bid) {
-    const mapped = mapBidStatus(code, bid.status);
-    if (mapped) {
-      if (mapped.step === 1) {
-        await db.execute("UPDATE bid_disparos SET status=?, data_resposta1=? WHERE id=?", [mapped.status, now, bid.id]);
-      } else {
-        await db.execute("UPDATE bid_disparos SET status=?, data_resposta2=? WHERE id=?", [mapped.status, now, bid.id]);
-      }
+    const resolved = resolveBidStatus(payload);
+    if (resolved) {
+      await db.execute(
+        "UPDATE bid_disparos SET status=?, data_resposta1=?, data_resposta2=?, motivo_nao=? WHERE id=?",
+        [resolved.status, now, resolved.data_resposta2, resolved.motivo_nao, bid.id],
+      );
       await db.execute(
         `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,data_tarefa,disparo_id,fonte,message_body,received_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, mapped.status, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, "firestore", body, now],
+        [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, resolved.status, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, "firestore", resolved.bodyLog, now],
       );
       return {
         handled: true,
@@ -320,11 +302,11 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
           tipo: "bid",
           chapa_nome: bid.chapa_nome,
           chapa_telefone: bid.chapa_telefone,
-          resposta: mapped.status,
+          resposta: resolved.status,
           id_tarefa: bid.id_tarefa,
           empresa: bid.empresa,
           disparo_id: bid.id,
-          message_body: body,
+          message_body: resolved.bodyLog,
           received_at: now,
         },
       };
@@ -332,6 +314,11 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
   }
 
   // 2. FUP — chapa com canal umbler_talk ainda não resolvido
+  const body = extractBody(payload);
+  if (!body) return { handled: false, reason: "sem corpo no payload" };
+  const code = classifyResponse(body);
+  if (!code) return { handled: false, reason: `resposta não classificada: "${body}"` };
+
   const fupRows = await db.select<FupRow[]>(
     `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.id_tarefa, t.empresa
      FROM chapas c
