@@ -1,37 +1,51 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-19
-**Versão atual:** v0.9.99 (build em andamento)
+**Data:** 2026-06-21
+**Versão atual:** v1.0.0 (build pendente de distribuição)
 **Branch:** main (limpo, em sincronia com origin)
 
 ---
 
-## O que foi feito nesta sessão (v0.9.99)
+## O que foi feito nesta sessão (v1.0.0)
 
-### Correção crítica — ingestTarefas + pool SQLx
+### Fixes críticos de Firestore — confirmações automáticas perdidas
 
-**Problema:** `@tauri-apps/plugin-sql` usa pool de conexões SQLx. `BEGIN/COMMIT` manual (adicionado em v0.9.98) rodava em conexões diferentes do pool → BEGIN ficava órfão com write lock aberto. Causava 3 sintomas: "database is locked" (code 5), "transaction within a transaction" (code 1), lentidão em cliques (writers esperavam o lock por segundos).
+**Problema raiz:** ~100% das mensagens Firestore viravam `error`. Diagnóstico com `scripts/firestore-diag.mjs` revelou 104/104 docs em `error`. Três bugs independentes causavam isso.
 
-**Fix em `src/lib/ingestTarefas.ts`:**
-- Removida toda a lógica de transação manual (BEGIN/COMMIT/ROLLBACK)
-- Removido DELETE-tudo de chapas por `id_tarefa`
-- Upsert tarefas: `INSERT OR REPLACE` multi-row, chunks de 50 (16 cols × 50 = 800 binds)
-- Upsert chapas: `INSERT OR REPLACE` multi-row, chunks de 80 (12 cols × 80 = 960 binds)
-- Delete cirúrgico: só deleta chapas cujo `id` não aparece mais em `chapasFinais` (usando `chapaPrev` como referência)
+**Bug 3.1 — `dispatchQueue.ts` — race condition canal_contato:**
+- `_executeMassFup` gravava `canal_contato='umbler_talk'` para todas as chapas só no final do lote.
+- Com 57 chapas, chapas rápidas respondiam antes da gravação → sem match FUP → `error`.
+- Fix: `_markCanalContato(chapa.id)` chamado por chapa dentro do loop, imediatamente após `startUmblerBot`.
 
-**Sem flicker:** ids de chapas são determinísticos (reutilizados se chapa existe), então upsert nunca esvazia a tabela em nenhum instante.
+**Bug 3.2 — `useFirestoreQueue.ts` — miss transiente vira error permanente:**
+- Qualquer miss → `updateDoc(status:'error')` imediato.
+- Fix: misses `transient: true` reprocessam com backoff (10s/30s/60s/120s, até 4×). Doc segue `pending`. Só marca `error` após esgotar tentativas.
 
-**LESSON salva em LESSONS.md:** nunca usar BEGIN/COMMIT com plugin-sql. Referência: `M_leo.ts:236`.
+**Bug 3.3 — `firestoreQueue.ts` — guard BID engolia FUP:**
+- Qualquer `bid_disparos aguardando` do mesmo número nos últimos 7 dias bloqueava o fluxo FUP inteiro.
+- Fix: guard só bloqueia quando payload tem `resposta_interesse`/`resposta_aceite`. Payload FUP (`resposta_opcao`) cai no fluxo FUP normalmente.
 
-### Fix mantidos de sessões anteriores
-- `skipDiffRef` em Dashboard (diff falso no sino durante syncs explícitos)
-- `PRAGMA busy_timeout=5000` em db.ts (rede de segurança)
-- Filtro de carteira/grupo em TrocaDeTurno
+### Fix de performance — render storm com 57 disparos
+
+**Bug 2 — `ActiveDispatchesOverlay.tsx`:**
+- 57 intervalos × 1 notificação/seg = 57 re-renders/seg → lentidão visível em toda a UI.
+- Fix: `requestAnimationFrame` coalescing — só 1 `refresh()` por frame (~16ms).
+
+### Fix de UI — Timeline mostra tarefas de amanhã como hoje
+
+**Bug 1 — `Dashboard.tsx`:**
+- Timeline plota por hora sem consciência de data. Sync 30h trazia tarefas do dia seguinte sobrepostas.
+- Fix: filtro `fmtSP(t.data_tarefa, "yyyy-MM-dd") === selectedDate` no render da TaskTimeline.
+
+### Ferramenta de manutenção
+- `scripts/firestore-diag.mjs --clean-errors`: apaga docs `error` históricos em lotes de 500.
+- Os 104 docs `error` existentes NÃO foram resetados (histórico). Rodar manualmente quando conveniente.
 
 ---
 
 ## Pendências próximas
-- Distribuir MCM_0.9.99_x64-setup.exe após build
-- MCM-27 — Pool de Chapas (planejamento feito, pendente implementação)
-- MCM-58 — Firebase Analytics BID (aguarda validação de queries)
-- MCM-68 — Tela Foco
+- Distribuir `MCM_1.0.0_x64-setup.exe` após build
+- Limpar Firestore: `node scripts/firestore-diag.mjs --clean-errors`
+- MCM-27 — Caderno de Clientes / pool de chapas pré-aprovados
+- MCM-11 — Estudo agendamento de mensagens Umbler
+- 2C (global dispatch queue) — rate limit Umbler entre tarefas (adiado; rAF resolveu sintoma)

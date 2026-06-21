@@ -14,17 +14,32 @@ export function ActiveDispatchesOverlay() {
   const [minimized, setMinimized] = useState(() => sessionStorage.getItem(MIN_KEY) === "1");
   const rootRef = useRef<HTMLDivElement>(null);
 
+  const rafRef = useRef<number | null>(null);
+
   const refresh = useCallback(() => {
     setJobs(dispatchQueue.getActiveJobs());
     setBatches(bidDispatchQueue.getActiveBatchList());
   }, []);
 
+  // Coalesce: com N disparos ativos, cada countdown emite 1 notificação/seg → N×.
+  // Agrupa todas num único refresh por frame, eliminando a tempestade de renders.
+  const scheduleRefresh = useCallback(() => {
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      refresh();
+    });
+  }, [refresh]);
+
   useEffect(() => {
     refresh();
-    const un1 = dispatchQueue.subscribeAnyJob(refresh);
-    const un2 = bidDispatchQueue.subscribeAnyBatch(refresh);
-    return () => { un1(); un2(); };
-  }, [refresh]);
+    const un1 = dispatchQueue.subscribeAnyJob(scheduleRefresh);
+    const un2 = bidDispatchQueue.subscribeAnyBatch(scheduleRefresh);
+    return () => {
+      un1(); un2();
+      if (rafRef.current != null) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    };
+  }, [refresh, scheduleRefresh]);
 
   const total = jobs.length + batches.length;
   const offset = useOverlaySlot("dispatches", rootRef, total > 0, minimized);

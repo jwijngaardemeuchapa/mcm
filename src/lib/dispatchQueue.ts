@@ -400,6 +400,19 @@ class DispatchQueue {
     if (t !== undefined) { clearTimeout(t); this.massFupTimers.delete(taskId); }
   }
 
+  // Marca o canal do chapa IMEDIATAMENTE após o envio. Crítico: a query de match
+  // do Firestore exige canal_contato='umbler_talk'; gravar só no fim do lote criava
+  // uma janela de minutos em que respostas rápidas não casavam e eram descartadas.
+  private async _markCanalContato(chapaId: string) {
+    try {
+      const db = await getDb();
+      await db.execute(
+        "UPDATE chapas SET canal_contato = ?, data_contato = ? WHERE id = ?",
+        ["umbler_talk", new Date().toISOString(), chapaId],
+      );
+    } catch { /* mensagem já enviada — ignora erro de marcação */ }
+  }
+
   private async _executeMassFup(taskId: number, chapas: ChapaSnap[], task: TaskSnap) {
     const { umblerSettings, operadorNome } = readSettings();
     if (!umblerSettings.fupBotId || !umblerSettings.fupBotTriggerName) {
@@ -446,6 +459,7 @@ class DispatchQueue {
         });
         sent++;
         sentIds.push(chapa.id);
+        await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
       } catch {
         firstPassFailed.push(chapa);
       }
@@ -484,6 +498,7 @@ class DispatchQueue {
             });
             sent++;
             sentIds.push(chapa.id);
+            await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
           } catch {
             permanentFailed++;
           }
@@ -499,13 +514,11 @@ class DispatchQueue {
     this.massFupStates.delete(taskId);
     this.massFupAborts.delete(taskId);
 
+    // canal_contato já foi marcado por chapa no loop acima; aqui só o resumo no log.
     try {
-      const db = await getDb();
-      const now = new Date().toISOString();
-      for (const id of sentIds) {
-        await db.execute("UPDATE chapas SET canal_contato = ?, data_contato = ? WHERE id = ?", ["umbler_talk", now, id]);
-      }
       if (sent > 0) {
+        const db = await getDb();
+        const now = new Date().toISOString();
         const operador = operadorNome ? ` · ${operadorNome}` : "";
         const retryNote = firstPassFailed.length > 0 && !aborted ? ` · ${firstPassFailed.length - permanentFailed} via reenvio` : "";
         await db.execute(

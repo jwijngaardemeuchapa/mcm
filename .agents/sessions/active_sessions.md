@@ -8,6 +8,7 @@
 | 2026-06-20-a | jeremiah | claude | 2026-06-20 | completed | MCM-61/62/63 bug fixes Firebase + ApproachingAlert bot + planejamento MCM-64 Carteira |
 | 2026-06-20-b | jeremiah | claude | 2026-06-20 | completed | MCM-64 Carteira multi-seleção grupos + build |
 | 2026-06-20-c | jeremiah | claude | 2026-06-20 | completed | Sync entre máquinas, levantamento estado atual, handoff atualizado |
+| 2026-06-21-a | jeremiah | claude | 2026-06-21 | completed | Fixes críticos Firestore (canal_contato race, retry transiente, BID guard) + rAF coalescing + Timeline date filter + v1.0.0 |
 
 ## Notes
 

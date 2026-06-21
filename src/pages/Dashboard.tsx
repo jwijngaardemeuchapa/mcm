@@ -1543,9 +1543,13 @@ export default function Dashboard() {
         </div>
       ) : viewMode === "timeline" ? (
         <div className="px-4 pb-4">
-          <TaskTimeline 
+          <TaskTimeline
             tasks={tasksForDisplay.filter(
-              (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
+              (t) => passesExtraFilters(t)
+                && (!searchMatchIds || searchMatchIds.has(t.id_tarefa))
+                // Timeline plota por hora do dia (ignora a data); restringe ao dia
+                // selecionado para não sobrepor tarefas de amanhã sobre as de hoje.
+                && fmtSP(t.data_tarefa, "yyyy-MM-dd") === selectedDate,
             )}
             onTaskClick={(id) => setTimelineOverlayTaskId(id)}
           />

@@ -3,6 +3,34 @@
 
 ---
 
+## 2026-06-21 [firestore, fup, dispatchQueue, canal_contato, race-condition]
+**Rule:** Gravar `canal_contato='umbler_talk'` POR CHAPA, imediatamente após cada `startUmblerBot` bem-sucedido — nunca em lote no final do loop.
+**Why:** Com 57 chapas no lote, o delay entre o primeiro envio e o `UPDATE` final era de vários minutos. Chapas rápidas respondiam nessa janela; `processFirestoreMessage` não achava `canal_contato='umbler_talk'` no SQLite e descartava a mensagem como `error`.
+**How to apply:** Em qualquer loop de disparo em massa, chamar `_markCanalContato(chapa.id)` imediatamente após confirmar que o envio foi bem-sucedido. Nunca acumular ids para gravar depois.
+
+---
+
+## 2026-06-21 [firestore, useFirestoreQueue, retry, transient]
+**Rule:** Miss de FUP no Firestore é TRANSIENTE por default — não marcar `error` imediatamente. Reprocessar com backoff antes de desistir.
+**Why:** O caso mais comum de miss é a corrida com `canal_contato` (chapa respondeu antes do write). Marcar `error` imediatamente jogava fora confirmações reais — 100% das mensagens viraram `error` em produção.
+**How to apply:** `processFirestoreMessage` retorna `{ handled: false, transient: true }` para misses FUP. O listener tenta novamente em 10s/30s/60s/120s (4× MAX_RETRIES), mantendo doc `pending`. Só marca `error` após esgotar tentativas ou se a miss for permanente (payload sem telefone, sem body, etc.).
+
+---
+
+## 2026-06-21 [firestore, bid, fup, guard, payload-type]
+**Rule:** O guard do BID em `processFirestoreMessage` deve checar o TIPO do payload antes de bloquear o fluxo FUP.
+**Why:** A lógica original bloqueava qualquer mensagem quando havia `bid_disparos aguardando` do mesmo número, mesmo que o payload fosse de FUP. Um único BID histórico em `aguardando` cortava todas as confirmações FUP futuras daquele número.
+**How to apply:** Só bloquear com `return { handled: false }` quando `extractRespostaInteresse(payload) != null || extractRespostaAceite(payload) != null`. Payloads FUP (`resposta_opcao`) não têm esses campos e devem cair no fluxo FUP normalmente.
+
+---
+
+## 2026-06-21 [react, performance, requestAnimationFrame, dispatchQueue]
+**Rule:** Quando N fontes de eventos notificam o mesmo subscriber ao mesmo tempo, usar `requestAnimationFrame` coalescing — nunca `setState` por notificação.
+**Why:** 57 disparos ativos × 1 notificação/seg = 57 re-renders/seg no `ActiveDispatchesOverlay`, causando lentidão visível em todos os cliques durante disparos em massa.
+**How to apply:** `rafRef = useRef<number|null>(null)`. `scheduleRefresh`: se `rafRef.current != null`, return. Caso contrário, `rafRef.current = requestAnimationFrame(() => { rafRef.current = null; refresh(); })`. Cancela no cleanup do useEffect.
+
+---
+
 ## 2026-06-19 [sqlite, tauri, plugin-sql, performance]
 **Rule:** NUNCA usar `db.execute("BEGIN")` / `COMMIT` / `ROLLBACK` com `@tauri-apps/plugin-sql`. O plugin usa pool de conexões SQLx — cada `db.execute/select` pega uma conexão aleatória do pool, então BEGIN e COMMIT rodam em conexões diferentes. O BEGIN fica "órfão" com write lock aberto → "database is locked" (code 5) + "transaction within a transaction" (code 1) + lentidão em todos os cliques.
 **Why:** Descoberto após regressão em v0.9.98: transação manual deixou o pool corrompido causando 3 sintomas distintos que pareciam problemas separados.

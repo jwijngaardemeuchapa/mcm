@@ -30,7 +30,9 @@ export type RespostaEvent = {
 };
 
 export type ProcessResult =
-  | { handled: false; reason: string }
+  // `transient`: o miss pode se resolver em segundos (corrida de canal_contato,
+  // sync em andamento, chapa ainda não inserido) → vale reprocessar antes de desistir.
+  | { handled: false; reason: string; transient?: boolean }
   | { handled: true; event: RespostaEvent };
 
 /** Classifica um texto de resposta cru num código canônico. Porta fiel de
@@ -314,9 +316,14 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
         },
       };
     }
-    // BID encontrado mas payload sem resposta_interesse — não processar como FUP
-    // (evita confirmar chapa FUP quando o formato do webhook BID está incompleto)
-    return { handled: false, reason: `BID disparo encontrado (${bid.id}) mas payload sem resposta_interesse` };
+    // BID encontrado mas resolveBidStatus null. Só bloquear o FUP quando o payload
+    // for DE FATO um BID (tem resposta_interesse/aceite) — aí é um BID malformado.
+    // Se for uma resposta de FUP (resposta_opcao), NÃO bloquear: um BID antigo
+    // 'aguardando' do mesmo telefone estava engolindo as confirmações de FUP.
+    if (extractRespostaInteresse(payload) != null || extractRespostaAceite(payload) != null) {
+      return { handled: false, reason: `BID disparo (${bid.id}) com payload BID incompleto` };
+    }
+    // não é payload de BID — segue para o fluxo FUP abaixo
   }
 
   // 2. FUP — chapa com canal umbler_talk ainda não resolvido
@@ -365,5 +372,8 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
     };
   }
 
-  return { handled: false, reason: `sem disparo pendente para o telefone ${phoneDigits}` };
+  // Miss de FUP é TRANSIENTE: o disparo em massa pode ainda não ter gravado
+  // canal_contato='umbler_talk' (chapa respondeu rápido), ou um sync está em
+  // andamento. Sinaliza para o listener reprocessar antes de marcar erro.
+  return { handled: false, reason: `sem disparo pendente para o telefone ${phoneDigits}`, transient: true };
 }

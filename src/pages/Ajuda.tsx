@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v0.9.99</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.0</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,10 +767,10 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v0.9.99 — Correção crítica de sync Metabase:</strong>{" "}
-              <strong>Erros "database is locked" e "transaction within a transaction" eliminados</strong>: o plugin-sql usa pool de conexões — BEGIN/COMMIT manual vazava no pool. Solução: upsert em lote (multi-row INSERT OR REPLACE, ~20 IPCs em vez de ~800) + delete cirúrgico só de chapas que sumiram. Tabela nunca fica vazia.{" "}
-              <strong>Lentidão durante sync resolvida</strong>: write lock era segurado por segundos, bloqueando todos os cliques. Agora é liberado em milissegundos.{" "}
-              <strong>Filtro de carteira na Troca de Turno corrigido</strong>: selecionar um grupo filtra corretamente as tarefas e o popover de Empresas.
+              <strong>v1.0.0 — Correções críticas de Firestore e desempenho de disparos:</strong>{" "}
+              <strong>Confirmações automáticas perdidas resolvidas</strong>: 3 bugs corrigidos — (1) canal_contato gravado por chapa imediatamente após envio (antes: só no fim do lote, abrindo janela de minutos); (2) BID antigo aguardando não bloqueia mais confirmação de FUP do mesmo número; (3) misses transientes agora reprocessam com backoff (10s/30s/60s/120s) antes de desistir.{" "}
+              <strong>Lentidão com 57 disparos resolvida</strong>: coalescing via requestAnimationFrame — N notificações/seg agrupadas em 1 render por frame.{" "}
+              <strong>Timeline corrigida</strong>: tarefas de amanhã não aparecem mais sobrepostas às de hoje quando sincronizando 30h à frente.
             </span>
           </div>
         )}
@@ -1006,7 +1006,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v0.9.99 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.0 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1041,7 +1041,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v0.9.99 · © 2026 Wijngaarde Design
+        MCM v1.0.0 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-06-21 — MCM v1.0.0 — Correções críticas Firestore + desempenho de disparos em massa
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-74 (comentário)
+**Summary:**
+- **Bug 3.1 — canal_contato race condition:** `_executeMassFup` gravava `canal_contato='umbler_talk'` para todas as chapas só no final do lote. Para 57 chapas isso demorava vários minutos. Chapas rápidas respondiam antes da gravação → `processFirestoreMessage` não achava match FUP → `error`. Fix: `_markCanalContato()` chamado por chapa imediatamente após cada `startUmblerBot` bem-sucedido, dentro do loop. UPDATE em massa no final removido.
+- **Bug 3.2 — misses transientes viram error permanente imediatamente:** `useFirestoreQueue` chamava `updateDoc(status:'error')` em qualquer miss. Fix: misses `transient: true` agora reprocessam com backoff (10s/30s/60s/120s, até 4 tentativas) mantendo doc `pending`. Só após esgotar as tentativas (ou miss permanente) marca `error`.
+- **Bug 3.3 — BID aguardando engolia confirmações FUP:** Guard do BID bloqueava o fluxo FUP inteiro quando havia qualquer `bid_disparos aguardando` do mesmo número nos últimos 7 dias. Fix: guard só bloqueia quando o payload tem campos BID (`resposta_interesse`/`resposta_aceite`); payloads FUP (`resposta_opcao`) continuam para o fluxo FUP.
+- **Bug 2 — 57 setIntervals = render storm:** `ActiveDispatchesOverlay` recebia N notificações/seg (uma por tarefa ativa). Fix: `requestAnimationFrame` coalescing — só 1 `setState` por frame de animação (~16ms).
+- **Bug 1 — Timeline mostra tarefas de amanhã como hoje:** Timeline plota por hora do dia, sem consciência de data. Ao sincronizar 30h, tarefas do dia seguinte apareciam sobrepostas. Fix: filtro adicional `fmtSP(t.data_tarefa, "yyyy-MM-dd") === selectedDate` no render da TaskTimeline.
+- **Ferramenta de diagnóstico/limpeza Firestore:** `scripts/firestore-diag.mjs --clean-errors` apaga docs `error` históricos em lotes de 500.
+- **LESSON:** miss FUP no Firestore é quase sempre transiente (race com canal_contato), não erro permanente. Marcar `error` imediatamente descarta confirmações reais.
+**Files changed:** `src/lib/dispatchQueue.ts`, `src/lib/firestoreQueue.ts`, `src/lib/useFirestoreQueue.ts`, `src/components/ActiveDispatchesOverlay.tsx`, `src/pages/Dashboard.tsx`, `scripts/firestore-diag.mjs`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `.agents/`
+**Next:** Distribuir MCM_1.0.0_x64-setup.exe.
+
+---
+
 ## 2026-06-19 — MCM v0.9.99 — Correção crítica: regressão de ingestTarefas (pool SQLx + transação manual)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-74 (comentário)
