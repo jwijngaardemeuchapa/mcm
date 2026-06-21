@@ -166,8 +166,10 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
     });
     window.dispatchEvent(new CustomEvent("fup:refresh"));
 
-    // Recusa via Firebase → sinalizar remoção (mesmo comportamento do watcher de notificações)
-    if (isRecusa && ev.id_tarefa != null) {
+    // Só sinaliza remoção do FUP quando o evento for FUP e o chapa cancelou.
+    // Eventos BID nunca devem acionar remoção do FUP: o chapa BID não está na tabela
+    // chapas ainda, e "nao_aceita_app"/"precisa_ajuda" significam interesse (não recusa).
+    if (ev.tipo === "fup" && isRecusa && ev.id_tarefa != null) {
       window.dispatchEvent(new CustomEvent("fup:remove-chapa", {
         detail: { taskId: ev.id_tarefa, chapaName: ev.chapa_nome },
       }));
