@@ -9,6 +9,7 @@
 | 2026-06-20-b | jeremiah | claude | 2026-06-20 | completed | MCM-64 Carteira multi-seleção grupos + build |
 | 2026-06-20-c | jeremiah | claude | 2026-06-20 | completed | Sync entre máquinas, levantamento estado atual, handoff atualizado |
 | 2026-06-21-a | jeremiah | claude | 2026-06-21 | completed | Fixes críticos Firestore (canal_contato race, retry transiente, BID guard) + rAF coalescing + Timeline date filter + v1.0.0 |
+| 2026-06-21-b | jeremiah | claude | 2026-06-21 | completed | Tela startup premium (sync + boas-vindas + métricas) + scroll mouse Select (Radix fix) + planejamento MV2 (MV2-17/18 criados) |
 
 ## Notes
 

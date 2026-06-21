@@ -24,6 +24,13 @@
 
 ---
 
+## 2026-06-21 [radix-ui, select, scroll, wheel, mouse]
+**Rule:** Radix UI `<Select>` bloqueia scroll nativo do mouse — corrigir no componente base, não em cada uso.
+**Why:** O `SelectContent` tem `overflow-hidden` e usa botões virtuais ▲▼ em vez de scroll nativo. O `wheel` event nunca chega ao `SelectPrimitive.Viewport`. Afeta todos os Selects do app (16 arquivos).
+**How to apply:** Em `src/components/ui/select.tsx`, adicionar `onWheel` no `SelectContent` que faz `querySelector('[data-radix-select-viewport]')` e incrementa `scrollTop += e.deltaY`. Um fix no componente base conserta todos os usos automaticamente.
+
+---
+
 ## 2026-06-21 [react, performance, requestAnimationFrame, dispatchQueue]
 **Rule:** Quando N fontes de eventos notificam o mesmo subscriber ao mesmo tempo, usar `requestAnimationFrame` coalescing — nunca `setState` por notificação.
 **Why:** 57 disparos ativos × 1 notificação/seg = 57 re-renders/seg no `ActiveDispatchesOverlay`, causando lentidão visível em todos os cliques durante disparos em massa.
