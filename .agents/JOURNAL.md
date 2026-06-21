@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-06-21 — MCM — Tela de startup premium (sync + boas-vindas) + planejamento MV2
+**Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
+**Tickets:** MV2-17 criado, MV2-18 criado, MV2-4 (comentário), MV2-6 (comentário)
+**Summary:**
+- **Tela de startup redesenhada (`AppStartup.tsx`):** substitui o spinner mínimo + botão "importar" por um fluxo premium em duas fases sobre fundo escuro (`hsl(225 25% 6%)`, mesma referência da IntroScreen).
+  - **Fase sync:** só roda se Metabase estiver configurado (`metabase_status` + cardIds). Logo com anel SVG girando + pulso de brilho azul, lista de steps com stagger (`startup-step-in`), spinner na linha ativa, ✓ verde nos concluídos, barra de progresso com gradiente/glow, texto de status dinâmico. Sincroniza tarefas e, se devido, carteira.
+  - **Fase boas-vindas:** crossfade após o sync. Ícone Sun/Sunset/Moon por hora do dia, saudação com `operadorNome`, data por extenso (fuso SP), 3 cards de métricas do dia (tarefas hoje / a contatar / confirmados) com count-up animado e `startup-metric-pop` staggerado, botão "Entrar no painel" + auto-advance de 6s.
+  - **Sem Metabase configurado:** `onDone()` imediato, nenhuma tela é exibida.
+  - Métricas vêm de 3 queries SQLite parametrizadas por `DATE(data_tarefa)` no fuso SP.
+- **CSS (`index.css`):** 5 keyframes novos no `@layer utilities` — `startup-glow-pulse`, `startup-step-in`, `startup-metric-pop`, `startup-countdown`, `startup-spin`.
+- **Planejamento MV2:** análise de quais correções da v1.0.0 viram capacidade arquitetural na MV2. Bugs pontuais (toast / timeline / BID guard) ficam fechados sem ticket. Criados como pré-requisitos do Autopilot (MV2-7): **MV2-17** (observabilidade & health da esteira Firestore — diagnóstico achou 104/104 docs em `error` silenciosos) e **MV2-18** (fila global de disparo + rate-limit Umbler "2C" — rAF foi patch de sintoma, falta a orquestração global). Comentários em MV2-4 (Foco) e MV2-6 (Desempenho) apontando a agregação diária já pronta em `AppStartup.tsx` como embrião dessas telas.
+**Files changed:** `src/components/AppStartup.tsx`, `src/index.css`, `.agents/`
+**Next:** Concluir build, distribuir. Avaliar MV2-16 (protótipo navegável das 3 telas-núcleo).
+
+---
+
 ## 2026-06-21 — MCM v1.0.0 — Correções críticas Firestore + desempenho de disparos em massa
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-74 (comentário)

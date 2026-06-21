@@ -237,6 +237,42 @@
     animation: intro-bar-grow 600ms var(--ease-delight) both;
     animation-delay: 250ms;
   }
+
+  /* AppStartup — sync + welcome screen */
+  @keyframes startup-glow-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 hsl(213 94% 68% / 0); }
+    50%       { box-shadow: 0 0 0 14px hsl(213 94% 68% / 0.08), 0 0 32px hsl(213 94% 68% / 0.05); }
+  }
+  @keyframes startup-step-in {
+    from { opacity: 0; transform: translateX(-14px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes startup-metric-pop {
+    from { opacity: 0; transform: translateY(18px) scale(0.94); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes startup-countdown {
+    from { width: 100%; }
+    to   { width: 0%; }
+  }
+  @keyframes startup-spin {
+    to { transform: rotate(360deg); }
+  }
+  .animate-startup-glow-pulse {
+    animation: startup-glow-pulse 2.4s ease-in-out infinite;
+  }
+  .animate-startup-step-in {
+    animation: startup-step-in 380ms var(--ease-spring) both;
+  }
+  .animate-startup-metric-pop {
+    animation: startup-metric-pop 480ms var(--ease-spring) both;
+  }
+  .animate-startup-countdown {
+    animation: startup-countdown 6s linear forwards;
+  }
+  .animate-startup-spin {
+    animation: startup-spin 0.75s linear infinite;
+  }
 }
 
 /* Acessibilidade: zeramos durações e desligamos animações decorativas */
