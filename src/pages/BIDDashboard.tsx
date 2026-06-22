@@ -295,6 +295,23 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
 
 // Chapas com interesse real mas que precisam de ação manual (sem app ou precisam de ajuda)
 const STATUS_MANUAL = ["nao_aceita_app", "precisa_ajuda"] as const;
+const STATUS_POSITIVO = ["interesse_sim", "aceita_app"] as const;
+
+// Prioridade de exibição na lista de respostas: o que exige ação fica no topo.
+// 0 = interesse/aceite · 1 = manual · 2 = negativo · 3 = aguardando
+function statusPriority(status: string): number {
+  if ((STATUS_POSITIVO as readonly string[]).includes(status)) return 0;
+  if ((STATUS_MANUAL as readonly string[]).includes(status)) return 1;
+  if (status === "interesse_nao") return 2;
+  return 3; // aguardando / desconhecido
+}
+
+// Momento da resposta (ou do disparo, se ainda não respondeu) para ordenação cronológica
+function disparoRespTime(d: BidDisparo): number {
+  const t = d.data_resposta1 || d.data_disparo;
+  const ms = new Date(t).getTime();
+  return isNaN(ms) ? 0 : ms;
+}
 
 const EMPTY_PARAMS: DispatchParams = {
   local: "",
@@ -317,6 +334,8 @@ function BidTaskCard({
   initialExpanded,
   leoCache,
   focusExtras,
+  forceExpand,
+  onDidExpand,
 }: {
   task: OpenTask;
   disparos: BidDisparo[];
@@ -324,6 +343,8 @@ function BidTaskCard({
   initialExpanded: boolean;
   leoCache?: Map<string, LeoMetrics>;
   focusExtras?: boolean;
+  forceExpand?: boolean;
+  onDidExpand?: () => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [dispatchParams, setDispatchParams] = useState<DispatchParams>(() => {
@@ -364,14 +385,33 @@ function BidTaskCard({
   const [filterPositiveOnly, setFilterPositiveOnly] = useState(false);
   const [leoTierFilter, setLeoTierFilter] = useState<"alta" | "media" | "baixa" | null>(null);
   const [onlyExtras, setOnlyExtras] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (focusExtras) { setOnlyExtras(true); setExpanded(true); }
   }, [focusExtras]);
 
+  useEffect(() => {
+    if (forceExpand) {
+      setExpanded(true);
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      onDidExpand?.();
+    }
+  }, [forceExpand, onDidExpand]);
+
   const taskDisparos = useMemo(
     () => disparos.filter((d) => d.id_tarefa === task.id_tarefa),
     [disparos, task.id_tarefa],
+  );
+  // Respostas ordenadas por prioridade de ação (interesse/aceite no topo → aguardando no fim),
+  // e dentro de cada grupo pela resposta mais recente primeiro.
+  const sortedTaskDisparos = useMemo(
+    () => [...taskDisparos].sort((a, b) => {
+      const pa = statusPriority(a.status), pb = statusPriority(b.status);
+      if (pa !== pb) return pa - pb;
+      return disparoRespTime(b) - disparoRespTime(a);
+    }),
+    [taskDisparos],
   );
 
   useEffect(() => {
@@ -807,7 +847,7 @@ function BidTaskCard({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div ref={cardRef} className="rounded-xl border border-border bg-card overflow-hidden scroll-mt-4">
       {/* Card header */}
       <button
         type="button"
@@ -1647,7 +1687,7 @@ function BidTaskCard({
                 </div>
               </div>
               <div className="divide-y divide-border/50">
-                {taskDisparos.map((d) => {
+                {sortedTaskDisparos.map((d) => {
                   const sc = STATUS_CFG[d.status] ?? STATUS_CFG.aguardando;
                   return (
                     <div key={d.id} className="flex items-center gap-3 px-4 py-2.5 flex-wrap hover:bg-muted/10 transition-colors">
@@ -1740,6 +1780,11 @@ export default function BIDDashboard() {
   const [extrasCount, setExtrasCount] = useState(0);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extrasActivatedForTask, setExtrasActivatedForTask] = useState<number | null>(null);
+  const [expandTaskId, setExpandTaskId] = useState<number | null>(null);
+  const [respostasClearedAt, setRespostasClearedAt] = useState<number>(() => {
+    const v = localStorage.getItem("bid_respostas_cleared_at");
+    return v ? Number(v) : 0;
+  });
   const [openTasks, setOpenTasks] = useState<OpenTask[]>([]);
   const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
   const [disparos, setDisparos] = useState<BidDisparo[]>([]);
@@ -2008,6 +2053,31 @@ export default function BIDDashboard() {
     if (cidadeFilter !== "__all__" && t.cidade_uf !== cidadeFilter) return false;
     return true;
   }), [filteredTasks, search, cidadeFilter]);
+
+  // Digest de respostas do BID: disparos que já responderam (não-aguardando), desde a última limpeza.
+  const bidRespostas = useMemo(
+    () => disparos
+      .filter((d) => d.id_tarefa != null && d.status !== "aguardando" && disparoRespTime(d) > respostasClearedAt)
+      .sort((a, b) => disparoRespTime(b) - disparoRespTime(a)),
+    [disparos, respostasClearedAt],
+  );
+
+  function clearRespostas() {
+    const now = Date.now();
+    localStorage.setItem("bid_respostas_cleared_at", String(now));
+    setRespostasClearedAt(now);
+  }
+
+  function handleVerResposta(d: BidDisparo) {
+    if (d.id_tarefa == null) return;
+    const dStr = d.data_tarefa ? fmtSP(d.data_tarefa, "yyyy-MM-dd") : null;
+    if (dStr === tomorrowStr) setSelectedDay("tomorrow");
+    else setSelectedDay("today");
+    setSearch("");
+    setCidadeFilter("__all__");
+    setActiveTab("tarefas");
+    setExpandTaskId(d.id_tarefa);
+  }
   const taskGroups = displayedTasks.reduce<Record<string, OpenTask[]>>((acc, t) => {
     const key = fmtSP(t.data_tarefa, "yyyy-MM-dd");
     if (!acc[key]) acc[key] = [];
@@ -2096,6 +2166,15 @@ export default function BIDDashboard() {
             : <span>· {carteiraFilterInfo.activeCount} de {carteiraFilterInfo.totalCount} empresas ativas</span>
           }
         </div>
+      )}
+
+      {/* ── Digest de respostas do BID ── */}
+      {activeTab === "tarefas" && bidRespostas.length > 0 && (
+        <BidRespostasDigest
+          respostas={bidRespostas}
+          onClear={clearRespostas}
+          onVer={handleVerResposta}
+        />
       )}
 
       {/* Day selector + search + filters */}
@@ -2260,6 +2339,8 @@ export default function BIDDashboard() {
                       initialExpanded={t.id_tarefa === autoExpandId}
                       leoCache={leoCache.size > 0 ? leoCache : undefined}
                       focusExtras={extrasActivatedForTask === t.id_tarefa}
+                      forceExpand={expandTaskId === t.id_tarefa}
+                      onDidExpand={() => setExpandTaskId(null)}
                     />
                   ))}
                 </div>
@@ -2287,6 +2368,83 @@ export default function BIDDashboard() {
         onDone={(taskId?: number) => { loadAll(); if (taskId != null) setExtrasActivatedForTask(taskId); }}
         openTasks={openTasks}
       />
+    </div>
+  );
+}
+
+/* ── BID Respostas Digest ───────────────────────────────────────── */
+
+function BidRespostasDigest({ respostas, onClear, onVer }: {
+  respostas: BidDisparo[];
+  onClear: () => void;
+  onVer: (d: BidDisparo) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  const positivo = respostas.filter((d) => (STATUS_POSITIVO as readonly string[]).includes(d.status)).length;
+  const manual = respostas.filter((d) => (STATUS_MANUAL as readonly string[]).includes(d.status)).length;
+  const negativo = respostas.filter((d) => d.status === "interesse_nao").length;
+
+  return (
+    <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2.5 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+      >
+        <MessageCircle className="h-4 w-4 shrink-0 text-primary" />
+        <span className="text-sm font-semibold text-foreground">Respostas do BID</span>
+        <span className="text-[11px] text-muted-foreground tabular-nums">{respostas.length}</span>
+        <div className="flex items-center gap-2.5 ml-1 text-[11px] font-bold">
+          {positivo > 0 && <span className="flex items-center gap-1 text-success tabular-nums">{positivo} interesse <CheckCircle2 className="h-3 w-3" /></span>}
+          {manual > 0 && <span className="flex items-center gap-1 text-orange-500 tabular-nums">{manual} manual <PhoneCall className="h-3 w-3" /></span>}
+          {negativo > 0 && <span className="flex items-center gap-1 text-destructive tabular-nums">{negativo} negativo <XCircle className="h-3 w-3" /></span>}
+        </div>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onClear(); }}
+          className="ml-auto mr-2 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+          aria-label="Limpar respostas"
+        >
+          Limpar
+        </button>
+        <span className="text-muted-foreground">
+          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border divide-y divide-border max-h-[320px] overflow-y-auto">
+          {respostas.map((d) => {
+            const sc = STATUS_CFG[d.status] ?? STATUS_CFG.aguardando;
+            return (
+              <div key={d.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/20 transition-colors">
+                <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${sc.cls}`}>{sc.label}</span>
+                <span className="text-sm font-medium text-foreground capitalize truncate flex-1 min-w-[120px]">
+                  {d.chapa_nome.toLowerCase()}
+                </span>
+                {d.empresa && (
+                  <span className="text-xs text-muted-foreground truncate max-w-[200px] shrink-0 capitalize">
+                    {d.empresa.toLowerCase()}
+                    {d.data_tarefa && ` · ${fmtSP(d.data_tarefa, "HH:mm")}`}
+                  </span>
+                )}
+                <span className="text-[11px] text-muted-foreground tabular-nums shrink-0 hidden sm:block">
+                  {fmtDateTime(d.data_resposta1 || d.data_disparo)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs shrink-0 gap-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => onVer(d)}
+                >
+                  Ver
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
