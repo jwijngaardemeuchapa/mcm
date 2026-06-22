@@ -9,6 +9,7 @@ export type AutoFupPending = {
   empresa: string;
   data_tarefa: string;
   dispatchAt: Date;
+  hasPriorFup?: boolean; // FUP anterior existia mas foi enviado cedo — este é o lembrete de aproximação
 };
 
 // Confirmation window: show dialog this many minutes before the scheduled dispatch
@@ -84,31 +85,49 @@ export function useScheduledFup() {
           if (minUntilDispatch > CONFIRM_WINDOW_MIN) continue;
           if (minUntilDispatch < -(fupAgendarMinAntes)) continue;
 
-          // Check if FUP was already sent in the last 12h
-          const rows = await db.select<{ c: number }[]>(
-            `SELECT COUNT(*) as c FROM fup_log
+          // Verifica se já houve FUP manual.
+          // Se sim, só bloqueia o auto-disparo se o FUP foi enviado a MENOS de
+          // fupAutoDispatchBloqueioHoras antes da tarefa — ou seja, próximo o suficiente
+          // para não precisar de reforço. Se o FUP foi cedo (ex: 8h antes para tarefa às 18h)
+          // o auto-disparo de aproximação ainda deve acontecer.
+          const { fupAutoDispatchBloqueioHoras } = readSettings();
+          const bloqueioMs = fupAutoDispatchBloqueioHoras * 60 * 60 * 1000;
+          const taskMs = new Date(t.data_tarefa).getTime();
+
+          const fupRows = await db.select<{ data_disparo: string }[]>(
+            `SELECT data_disparo FROM fup_log
              WHERE id_tarefa = ? AND canal = 'umbler_talk'
-             AND data_disparo > datetime('now', '-12 hours')`,
+             ORDER BY data_disparo DESC LIMIT 1`,
             [taskId],
           );
-          if ((rows[0]?.c ?? 0) > 0) {
-            trySet(`fup_auto_done_${taskId}`, "1");
-            continue;
-          }
 
-          // Also skip if manually dispatched this session (localStorage flag set by _executeMassFup)
-          if (tryGetLocal(`umbler_fup_all_${taskId}`)) {
-            trySet(`fup_auto_done_${taskId}`, "1");
-            continue;
+          if (fupRows.length > 0) {
+            const lastFupMs = new Date(fupRows[0].data_disparo).getTime();
+            const deltaMs = taskMs - lastFupMs; // ms entre o FUP e o início da tarefa
+            if (deltaMs <= bloqueioMs) {
+              // FUP foi enviado perto da tarefa — já está coberto, não precisa do auto-disparo
+              trySet(`fup_auto_done_${taskId}`, "1");
+              continue;
+            }
+            // FUP foi cedo demais — permite o auto-disparo de aproximação (não marca done)
+          } else if (tryGetLocal(`umbler_fup_all_${taskId}`)) {
+            // Disparo manual nesta sessão mas sem registro no fup_log ainda:
+            // aplica a mesma regra pela hora atual como proxy do fup
+            const deltaMs = taskMs - Date.now();
+            if (deltaMs <= bloqueioMs) {
+              trySet(`fup_auto_done_${taskId}`, "1");
+              continue;
+            }
           }
 
           // Store task snap for when user confirms
+          const hasPriorFup = fupRows.length > 0 || !!tryGetLocal(`umbler_fup_all_${taskId}`);
           const task: TaskSnap = { id_tarefa: taskId, data_tarefa: t.data_tarefa, empresa: t.empresa };
           confirmedRef.current.set(taskId, { dispatchAt, task });
 
           // Show confirmation dialog (only if not already showing for this task)
           if (pendingTaskIdRef.current !== taskId) {
-            setPending({ taskId, empresa: t.empresa, data_tarefa: t.data_tarefa, dispatchAt });
+            setPending({ taskId, empresa: t.empresa, data_tarefa: t.data_tarefa, dispatchAt, hasPriorFup });
           }
           break;
         }

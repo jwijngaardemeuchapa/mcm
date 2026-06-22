@@ -52,6 +52,7 @@ export type AppSettings = {
   metabaseCarteiraCardId?: number;
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
+  fupAutoDispatchBloqueioHoras: number;
 };
 
 const STORAGE_KEY = "fup_settings";
@@ -79,6 +80,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   carteiraGruposAtivos: [],
   autoCancelFupEnabled: false,
   autoCancelFupMinutes: 60,
+  fupAutoDispatchBloqueioHoras: 4,
 };
 
 export function readSettings(): AppSettings {

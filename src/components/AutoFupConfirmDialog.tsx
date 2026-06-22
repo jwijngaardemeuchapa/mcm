@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Bell, X } from "lucide-react";
+import { Bell, X, RefreshCw } from "lucide-react";
 import { fmtSP } from "@/lib/datetime";
 import type { AutoFupPending } from "@/lib/useScheduledFup";
 
@@ -66,6 +66,15 @@ export function AutoFupConfirmDialog({ pending, onConfirm, onSkip }: Props) {
               às {hora} · {data} · FUP previsto para {dispatchHora}
             </p>
           </div>
+
+          {pending.hasPriorFup && (
+            <div className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/5 px-3 py-2.5">
+              <RefreshCw className="h-3.5 w-3.5 text-info shrink-0 mt-0.5" />
+              <p className="text-xs text-info leading-relaxed">
+                FUP já enviado anteriormente — este é o <strong>lembrete de aproximação</strong>, disparado porque o primeiro FUP foi feito cedo.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">Janela de confirmação expira em</p>

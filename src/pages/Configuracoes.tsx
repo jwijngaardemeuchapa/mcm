@@ -618,6 +618,46 @@ export default function Configuracoes() {
 
             <Separator />
 
+            {/* FUP automático — bloqueio por proximidade */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-2.5">
+                <RefreshCw className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Lembrete de aproximação do FUP automático</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Se um FUP manual foi enviado mais de X horas antes da tarefa, o disparo automático de aproximação ainda ocorre como reforço.
+                      Abaixo desse limite, o auto-disparo é bloqueado (FUP recente já cobre).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Select
+                      value={String(settings.fupAutoDispatchBloqueioHoras)}
+                      onValueChange={(v) => setSettings(writeSettings({ fupAutoDispatchBloqueioHoras: Number(v) }))}
+                    >
+                      <SelectTrigger className="w-52">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 hora</SelectItem>
+                        <SelectItem value="2">2 horas</SelectItem>
+                        <SelectItem value="3">3 horas</SelectItem>
+                        <SelectItem value="4">4 horas (recomendado)</SelectItem>
+                        <SelectItem value="6">6 horas</SelectItem>
+                        <SelectItem value="8">8 horas</SelectItem>
+                        <SelectItem value="12">12 horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      FUP enviado há mais de {settings.fupAutoDispatchBloqueioHoras}h da tarefa → reforço automático ativo
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Portaria rules */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
