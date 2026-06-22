@@ -329,10 +329,18 @@ export default function Dashboard() {
           if (nowMs - ts > TWENTY_MIN) newChapaTimestampsRef.current.delete(k);
         }
         setNewChapaKeys(new Set(newChapaTimestampsRef.current.keys()));
-        if (diff.added.length > 0 || diff.removed.length > 0) {
+        if (diff.added.length > 0 || diff.removed.length > 0 || diff.accepted.length > 0) {
           setDiffResult(diff);
           const nowMs = Date.now();
           await Promise.all([
+            ...diff.accepted.map((c) => logActivity({
+              tipo: "sync_aceite",
+              descricao: "Novo aceite detectado no sync",
+              chapa_nome: c.nome,
+              empresa: c.empresa,
+              id_tarefa: c.taskId,
+              timestamp: nowMs,
+            })),
             ...diff.added.map((c) => logActivity({
               tipo: "sync_apareceu",
               descricao: "Apareceu no sync",
