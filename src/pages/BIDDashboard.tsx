@@ -316,12 +316,14 @@ function BidTaskCard({
   onDisparoStatusUpdate,
   initialExpanded,
   leoCache,
+  focusExtras,
 }: {
   task: OpenTask;
   disparos: BidDisparo[];
   onDisparoStatusUpdate: (id: string, status: string, step: 1 | 2) => Promise<void>;
   initialExpanded: boolean;
   leoCache?: Map<string, LeoMetrics>;
+  focusExtras?: boolean;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [dispatchParams, setDispatchParams] = useState<DispatchParams>(() => {
@@ -361,6 +363,11 @@ function BidTaskCard({
   const [blockedMotivoFilter, setBlockedMotivoFilter] = useState("__all__");
   const [filterPositiveOnly, setFilterPositiveOnly] = useState(false);
   const [leoTierFilter, setLeoTierFilter] = useState<"alta" | "media" | "baixa" | null>(null);
+  const [onlyExtras, setOnlyExtras] = useState(false);
+
+  useEffect(() => {
+    if (focusExtras) { setOnlyExtras(true); setExpanded(true); }
+  }, [focusExtras]);
 
   const taskDisparos = useMemo(
     () => disparos.filter((d) => d.id_tarefa === task.id_tarefa),
@@ -757,8 +764,10 @@ function BidTaskCard({
     ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
     : null;
   const hasCepFilter = !!cepPrefixFilter && cepPrefixFilter.length >= 5;
+  const extrasCount = rawCandidates.filter((c) => c.cpf === null).length;
   const available = leoTierFilteredCandidates.filter((c) => {
     if (c.is_occupied) return false;
+    if (onlyExtras && c.cpf !== null) return false;
     if (filterPositiveOnly && leoCache && leoCache.size > 0 && c.telefone) {
       const leo = leoCache.get(normalizePhone(c.telefone));
       if (leo && leo.pct_sim < 0.3 && leo.total_ofertas >= 3) return false;
@@ -1335,6 +1344,19 @@ function BidTaskCard({
                   {showOccupied ? "Ocultar" : "Ver"} ocupados ({allOccupiedChapas.length})
                 </button>
               )}
+              {candidateView === "disponiveis" && extrasCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setOnlyExtras((v) => !v)}
+                  className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                    onlyExtras
+                      ? "bg-primary/10 border-primary/40 text-primary font-semibold"
+                      : "border-border text-muted-foreground hover:border-primary/30"
+                  }`}
+                >
+                  {onlyExtras ? `Extras (${extrasCount})` : `Só extras (${extrasCount})`}
+                </button>
+              )}
               {candidateView === "disponiveis" && leoCache && leoCache.size > 0 && (
                 <button
                   type="button"
@@ -1468,6 +1490,11 @@ function BidTaskCard({
                             className="text-sm font-medium hover:text-primary hover:underline truncate text-left max-w-[180px]">
                             {c.nome}
                           </button>
+                          {c.cpf === null && (
+                            <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-primary/10 text-primary border border-primary/25 leading-none">
+                              EXTRA
+                            </span>
+                          )}
                           <AsoBadge aso={c.aso} />
                           {leoCache && leoCache.size > 0 && c.telefone && (() => {
                             const leo = leoCache.get(normalizePhone(c.telefone));
@@ -1711,6 +1738,7 @@ export default function BIDDashboard() {
   const [registryCount, setRegistryCount] = useState(0);
   const [extrasCount, setExtrasCount] = useState(0);
   const [extrasOpen, setExtrasOpen] = useState(false);
+  const [extrasActivatedForTask, setExtrasActivatedForTask] = useState<number | null>(null);
   const [openTasks, setOpenTasks] = useState<OpenTask[]>([]);
   const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
   const [disparos, setDisparos] = useState<BidDisparo[]>([]);
@@ -2230,6 +2258,7 @@ export default function BIDDashboard() {
                       onDisparoStatusUpdate={updateDisparoStatus}
                       initialExpanded={t.id_tarefa === autoExpandId}
                       leoCache={leoCache.size > 0 ? leoCache : undefined}
+                      focusExtras={extrasActivatedForTask === t.id_tarefa}
                     />
                   ))}
                 </div>
@@ -2254,7 +2283,7 @@ export default function BIDDashboard() {
       <ImportExtrasDialog
         open={extrasOpen}
         onClose={() => setExtrasOpen(false)}
-        onDone={loadAll}
+        onDone={(taskId?: number) => { loadAll(); if (taskId != null) setExtrasActivatedForTask(taskId); }}
         openTasks={openTasks}
       />
     </div>
@@ -2358,7 +2387,7 @@ type ExtrasRow = {
 function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
   open: boolean;
   onClose: () => void;
-  onDone: () => void;
+  onDone: (taskId?: number) => void;
   openTasks: OpenTask[];
 }) {
   const [extRows, setExtRows] = useState<ExtrasRow[]>([]);
@@ -2467,7 +2496,7 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
         await new Promise<void>((r) => setTimeout(r, 0));
       }
       toast.success(`${extRows.length.toLocaleString("pt-BR")} chapas extras vinculados à tarefa #${selectedTaskId}.`);
-      onDone();
+      onDone(selectedTaskId ?? undefined);
       onClose();
       reset();
     } catch (e) {
