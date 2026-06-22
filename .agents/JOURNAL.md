@@ -3,6 +3,40 @@
 
 ---
 
+## 2026-06-22 — MCM — Startup rework (vídeo→loading + ações/lembretes) + BID melhorias + FUP sync aceites
+**Actor:** Jeremiah | **Agent:** claude (Opus 4.8 / Sonnet 4.6)
+**Tickets:** MCM (sem ticket específico — melhorias de UX)
+**Summary:**
+
+### Startup screen rework (`AppStartup.tsx`, `App.tsx`, `PriorityPanel.tsx`, `index.css`)
+- **Fix sobreposição vídeo × loading:** `AppStartup` agora só monta após `IntroScreen` finalizar — gate `!showIntro &&` em `App.tsx`. Quando intro já foi exibida hoje, `showIntro` nasce `false` e startup monta imediatamente (comportamento preservado).
+- **Fase boas-vindas redesenhada:** substituiu 3 cards de métricas (vaidade) por conteúdo acionável:
+  - `loadTodayTasks()` — query SQLite juntando tarefas + chapas do dia + overnight
+  - `loadLembretes(tasks)` — replica loop de lembretes do Dashboard
+  - `buildPriorities()` exportado de `PriorityPanel.tsx` — reutiliza lógica de exceções (emergente/urgente)
+  - Cada item clicável → `fup:flash-task` + `onDone()` — abre a tarefa no painel
+  - Estado vazio: mensagem calma "Tudo certo por aqui" + auto-advance 6s
+  - Com ações/lembretes: lista priorizada, sem auto-advance, botão "Entrar no painel"
+- CSS: adicionado `.startup-action-row` hover (translateX + border glow)
+
+### BID Dashboard melhorias
+- **Chapas extras didáticas:** badge "EXTRA" em cada chapa importada (cpf=null); filtro "Só extras (N)"; após importação, o card da tarefa abre automaticamente com filtro ativo
+- **Ocultar aguardando dos disponíveis:** chapas com `status="aguardando"` excluídos do filtro `available` — evita duplo disparo
+- **Respostas ordenadas por ação + painel digest no topo** (commit anterior desta sessão)
+- **FUP auto-disparo de aproximação:** novo setting `fupAutoDispatchBloqueioHoras` (default 4h) — se FUP manual foi enviado a mais de 4h da tarefa, o auto-disparo de aproximação ainda ocorre; diálogo indica "lembrete de aproximação"
+
+### FUP Dashboard — Novos aceites no sync
+- `computeRefreshDiff` passa a rastrear `prevStatus` por chapa
+- Transições → `confirmado` entre syncs viram `diff.accepted[]`
+- Seção "Novos aceites detectados" (verde) no topo do painel RefreshDiff
+- Logado como `sync_aceite` na ActivityBell
+- Painel abre automaticamente mesmo sem added/removed quando há aceites
+
+**Files changed:** `src/App.tsx`, `src/components/AppStartup.tsx`, `src/components/PriorityPanel.tsx`, `src/index.css`, `src/pages/BIDDashboard.tsx`, `src/lib/settings.ts`, `src/lib/useScheduledFup.ts`, `src/components/AutoFupConfirmDialog.tsx`, `src/pages/Configuracoes.tsx`, `src/components/RefreshDiff.tsx`, `src/pages/Dashboard.tsx`, `src/lib/activityLog.ts`
+**Next:** BID — sorting de respostas por ação + painel digest (confirmado). Fechar MCM-68 (Tela Foco) quando retomar.
+
+---
+
 ## 2026-06-21 — MCM — Tela de startup premium (sync + boas-vindas) + planejamento MV2
 **Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
 **Tickets:** MV2-17 criado, MV2-18 criado, MV2-4 (comentário), MV2-6 (comentário)

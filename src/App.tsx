@@ -73,7 +73,7 @@ const App = () => {
   <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     {showIntro && <IntroScreen onDone={() => setShowIntro(false)} />}
-    {!startupDone && <AppStartup onDone={() => setStartupDone(true)} />}
+    {!showIntro && !startupDone && <AppStartup onDone={() => setStartupDone(true)} />}
     <TooltipProvider>
       <UndoProvider>
         <WatcherProvider>

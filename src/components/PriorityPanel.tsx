@@ -13,9 +13,9 @@ export type LembreteAlertItem = {
   minutesUntil: number;
 };
 
-type Level = "emergente" | "urgente" | "monitorar";
+export type Level = "emergente" | "urgente" | "monitorar";
 
-type PriorityItem = {
+export type PriorityItem = {
   task: TaskWithChapas;
   level: Level;
   minutesUntil: number;
@@ -56,7 +56,7 @@ function fmtMinutes(min: number): string {
   return m > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
 }
 
-function buildPriorities(tasks: TaskWithChapas[], threshold: number): PriorityItem[] {
+export function buildPriorities(tasks: TaskWithChapas[], threshold: number): PriorityItem[] {
   const now = Date.now();
   const items: PriorityItem[] = [];
 

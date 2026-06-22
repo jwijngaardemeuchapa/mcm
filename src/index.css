@@ -273,6 +273,14 @@
   .animate-startup-spin {
     animation: startup-spin 0.75s linear infinite;
   }
+  .startup-action-row {
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+  }
+  .startup-action-row:hover {
+    border-color: hsl(0 0% 100% / 0.18) !important;
+    background: hsl(225 25% 13%) !important;
+    transform: translateX(2px);
+  }
 }
 
 /* Acessibilidade: zeramos durações e desligamos animações decorativas */
