@@ -767,6 +767,7 @@ function BidTaskCard({
   const extrasCount = rawCandidates.filter((c) => c.cpf === null).length;
   const available = leoTierFilteredCandidates.filter((c) => {
     if (c.is_occupied) return false;
+    if (c.disparo?.status === "aguardando") return false;
     if (onlyExtras && c.cpf !== null) return false;
     if (filterPositiveOnly && leoCache && leoCache.size > 0 && c.telefone) {
       const leo = leoCache.get(normalizePhone(c.telefone));
