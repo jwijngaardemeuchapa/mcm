@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,13 +49,26 @@ export function ValidationPanel({
   const [open, setOpen] = useState(false);
   const { push } = useUndo();
 
+  // Update otimista: o clique reflete na UI imediatamente, sem esperar o
+  // reload completo do Dashboard (que faz fetch de todo o banco). Quando os
+  // dados reais chegam pelas props, os overrides já refletidos são descartados.
+  const [overrides, setOverrides] = useState<Record<string, "presente" | "ausente">>({});
+
   const realChapas = chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
-  const presentes = realChapas.filter((c) => c.validacao_presenca === "presente").length;
-  const ausentes = realChapas.filter((c) => c.validacao_presenca === "ausente").length;
+
+  const presencaOf = (c: Chapa): string | null => overrides[c.id] ?? c.validacao_presenca ?? null;
+
+  // Quando a presença real (props) muda — após o reload ou undo — limpa os overrides
+  const presencaSig = realChapas.map((c) => `${c.id}:${c.validacao_presenca ?? ""}`).join("|");
+  useEffect(() => { setOverrides({}); }, [presencaSig]);
+
+  const presentes = realChapas.filter((c) => presencaOf(c) === "presente").length;
+  const ausentes = realChapas.filter((c) => presencaOf(c) === "ausente").length;
   const pendentes = realChapas.length - presentes - ausentes;
   const anyValidated = presentes + ausentes > 0;
 
   async function setPresenca(chapa: Chapa, value: "presente" | "ausente") {
+    setOverrides((o) => ({ ...o, [chapa.id]: value })); // feedback imediato
     const prevPresenca = chapa.validacao_presenca ?? null;
     const prevData = chapa.data_validacao ?? null;
     const prevStatus = chapa.status_contato;
@@ -74,6 +87,7 @@ export function ValidationPanel({
         );
       }
     } catch (e) {
+      setOverrides((o) => { const n = { ...o }; delete n[chapa.id]; return n; }); // reverte feedback
       toast.error(errMsg(e));
       return;
     }
@@ -98,8 +112,9 @@ export function ValidationPanel({
   }
 
   async function setAllPresent() {
-    const targets = realChapas.filter((c) => c.validacao_presenca !== "presente");
+    const targets = realChapas.filter((c) => presencaOf(c) !== "presente");
     if (targets.length === 0) return;
+    setOverrides((o) => { const n = { ...o }; targets.forEach((c) => { n[c.id] = "presente"; }); return n; });
     const prev = targets.map((c) => ({
       id: c.id,
       validacao_presenca: c.validacao_presenca ?? null,
@@ -124,6 +139,7 @@ export function ValidationPanel({
         );
       }
     } catch (e) {
+      setOverrides((o) => { const n = { ...o }; ids.forEach((id) => { delete n[id]; }); return n; });
       toast.error(errMsg(e));
       return;
     }
@@ -224,7 +240,7 @@ export function ValidationPanel({
         <div className="px-4 py-3 border-t border-border bg-accent/30 space-y-3">
           {realChapas.length > 0 && (
             <div className="space-y-1.5">
-              {realChapas.some((c) => c.validacao_presenca !== "presente") && (
+              {realChapas.some((c) => presencaOf(c) !== "presente") && (
                 <div className="flex justify-end">
                   <Button
                     size="sm"
@@ -237,7 +253,7 @@ export function ValidationPanel({
                 </div>
               )}
               {realChapas.map((c) => {
-                const v = c.validacao_presenca;
+                const v = presencaOf(c);
                 return (
                   <div
                     key={c.id}
