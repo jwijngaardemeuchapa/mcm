@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, Check, X, UserMinus, RefreshCw, AlertTriangle, ArrowUpRight, ThumbsUp, Star } from "lucide-react";
+import { Bell, Check, X, UserMinus, RefreshCw, AlertTriangle, ArrowUpRight, ThumbsUp, Star, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { fetchActivityLog, clearActivityLog, type ActivityEntry } from "@/lib/activityLog";
 import { useWatcherLog } from "@/lib/WatcherContext";
 import { fmtSP } from "@/lib/datetime";
 import type { DiffResult } from "@/components/RefreshDiff";
+import { useNavigate } from "react-router-dom";
 
 const TIPO_CONFIG: Record<ActivityEntry["tipo"], { icon: React.ElementType; label: string; color: string }> = {
   confirmado:    { icon: Check,         label: "Confirmou FUP",           color: "text-success" },
@@ -16,6 +17,7 @@ const TIPO_CONFIG: Record<ActivityEntry["tipo"], { icon: React.ElementType; labe
   auto_cancel:   { icon: AlertTriangle, label: "Cancelamento automático", color: "text-destructive" },
   bid_interesse: { icon: ThumbsUp,      label: "Interesse confirmado BID", color: "text-success" },
   bid_aceite:    { icon: Star,          label: "Aceitou via app BID",     color: "text-success" },
+  fup_auto:      { icon: Zap,           label: "Disparo automático FUP",  color: "text-primary" },
 };
 
 function formatRelative(ts: number): string {
@@ -39,6 +41,7 @@ export function ActivityBell({ diffResult, onOpenDiff }: Props = {}) {
   const [ringing, setRinging] = useState(false);
   const prevUnreadRef = useRef(0);
   const { notifLog } = useWatcherLog();
+  const navigate = useNavigate();
 
   const reload = useCallback(async () => {
     const data = await fetchActivityLog(100);
@@ -81,6 +84,14 @@ export function ActivityBell({ diffResult, onOpenDiff }: Props = {}) {
     setEntries([]);
     setUnread(0);
     prevUnreadRef.current = 0;
+  }
+
+  function goToTask(taskId: number) {
+    setOpen(false);
+    navigate("/dashboard");
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("fup:flash-task", { detail: taskId }));
+    }, 150);
   }
 
   const hasDiff = diffResult && (diffResult.added.length > 0 || diffResult.removed.length > 0);
@@ -152,8 +163,13 @@ export function ActivityBell({ diffResult, onOpenDiff }: Props = {}) {
               entries.map((e) => {
                 const cfg = TIPO_CONFIG[e.tipo] ?? TIPO_CONFIG.confirmado;
                 const Icon = cfg.icon;
+                const clickable = e.id_tarefa != null;
                 return (
-                  <div key={e.id} className="flex items-start gap-2.5 px-3 py-2 hover:bg-muted/40">
+                  <div
+                    key={e.id}
+                    className={`flex items-start gap-2.5 px-3 py-2 hover:bg-muted/40 ${clickable ? "cursor-pointer" : ""}`}
+                    onClick={clickable ? () => goToTask(e.id_tarefa!) : undefined}
+                  >
                     <Icon className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${cfg.color}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-foreground leading-snug">
@@ -166,7 +182,10 @@ export function ActivityBell({ diffResult, onOpenDiff }: Props = {}) {
                         <p className="text-[11px] text-muted-foreground truncate">{e.empresa}</p>
                       )}
                     </div>
-                    <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">{formatRelative(e.timestamp)}</span>
+                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                      <span className="text-[10px] text-muted-foreground">{formatRelative(e.timestamp)}</span>
+                      {clickable && <ArrowUpRight className="h-3 w-3 text-muted-foreground" />}
+                    </div>
                   </div>
                 );
               })

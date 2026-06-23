@@ -3,6 +3,7 @@ import { readSettings } from "./settings";
 import { getDb } from "./db";
 import { minutesUntil } from "./datetime";
 import { dispatchQueue, type TaskSnap } from "./dispatchQueue";
+import { logActivity } from "./activityLog";
 
 export type AutoFupPending = {
   taskId: number;
@@ -45,6 +46,14 @@ export function useScheduledFup() {
       scheduledRef.current.delete(taskId);
       await dispatchQueue.startAutoFup(entry.task);
       try { sessionStorage.setItem(`fup_auto_done_${taskId}`, "1"); } catch { /* noop */ }
+      logActivity({
+        tipo: "fup_auto",
+        descricao: `Disparo automático FUP iniciado`,
+        chapa_nome: null,
+        empresa: entry.task.empresa ?? null,
+        id_tarefa: taskId,
+        timestamp: Date.now(),
+      }).then(() => window.dispatchEvent(new CustomEvent("activity:new-diff")));
     }, delay);
     scheduledRef.current.set(taskId, timer);
     setPending(null);

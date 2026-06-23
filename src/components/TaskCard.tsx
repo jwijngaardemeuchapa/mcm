@@ -76,6 +76,12 @@ import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type Confiabili
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { Checkbox } from "@/components/ui/checkbox";
 
+function formatCpf(cpf: string): string {
+  const digits = cpf.replace(/\D/g, "");
+  if (digits.length !== 11) return cpf;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+}
+
 async function clipboardWrite(text: string, successMsg: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -445,7 +451,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       const cpf = c.cpf
         ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
         ?? "(não encontrado)";
-      return `${c.nome_chapa} — ${cpf}`;
+      return `${c.nome_chapa} — ${formatCpf(cpf)}`;
     });
     clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) de confirmados copiados`);
   }
@@ -473,7 +479,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       const cpf = c.cpf
         ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
         ?? "(sem CPF)";
-      return `${c.nome_chapa} - ${cpf}`;
+      return `${c.nome_chapa} - ${formatCpf(cpf)}`;
     });
     clipboardWrite("Nome - CPF\n" + lines.join("\n"), "Lista copiada (nome + CPF)");
   }
