@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-06-23 — MCM — Sininho: log disparo auto FUP + CPF formatado na cópia
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-80 (Feito)
+**Commit:** 862ede9
+
+### ActivityBell — disparo automático visível
+- Novo tipo `fup_auto` em `activityLog.ts` (union type expandido)
+- `useScheduledFup.ts`: após `startAutoFup` disparar, chama `logActivity(fup_auto)` + dispara `activity:new-diff` para tocar o sininho
+- `ActivityBell.tsx`: ícone Zap para `fup_auto`, label "Disparo automático FUP"
+- Itens com `id_tarefa` ficam clicáveis: ao clicar, navega para `/dashboard` + dispara `fup:flash-task` no card da tarefa
+
+### TaskCard — CPF formatado na cópia
+- Função `formatCpf(cpf)` adicionada: converte 11 dígitos → `000.000.000-00`; passa intacto se não tiver 11 dígitos
+- Aplicada em `copyCpfConfirmados` e `copyList`
+
+---
+
 ## 2026-06-22 — MCM — Startup rework (vídeo→loading + ações/lembretes) + BID melhorias + FUP sync aceites
 **Actor:** Jeremiah | **Agent:** claude (Opus 4.8 / Sonnet 4.6)
 **Tickets:** MCM (sem ticket específico — melhorias de UX)
