@@ -234,3 +234,13 @@
 **Summary:** (1) Criado MCM-73 / MV2-8: persistir resposta_log no Firebase para confiabilidade cross-device. (2) jira.cjs expandido para suportar dois projetos (MCM + MV2) via flag --project; session-start agora exibe ambos. IDs de issue type e status mapeados por projeto. Tickets MV2-1..7 criados (épico + marcos M0–M5); MV2-2 fechado (M0 feito), MV2-3 em andamento (M1). (3) fix(detect_response): has_sim exige frase completa "sim, to nessa" para evitar falso positivo com nomes contendo "nessa" (Vanessa, Odessa). (4) fix principal: handleWebhookEvent no WatcherContext não disparava fup:remove-chapa para recusas via Firebase — o caminho do watcher de notificações Windows tinha o comportamento correto mas o Firebase não. Corrigido: recusa via Firebase agora dispara fup:remove-chapa + toast.warning em vez de toast.success.
 **Files changed:** `scripts/jira.cjs`, `src-tauri/src/lib.rs`, `src/lib/WatcherContext.tsx`, `src/lib/useFirestoreQueue.ts`
 **Next:** Build v0.9.94 com fixes de hoje. Validar se payload Firestore tem campo de direção (bot vs chapa) para evitar que mensagem enviada pelo bot seja processada como resposta.
+
+---
+
+## 2026-06-23 — Fix BID: chapas alocados visíveis (fuso) + extras não recarregam
+
+**Actor:** Jeremiah | **Agent:** opus
+**Tickets:** MCM-78
+**Summary:** Dois bugs no BID Dashboard. (1) Detecção de "ocupado" usava DATE(t.data_tarefa); como data_tarefa é gravada com offset -03:00, o SQLite convertia p/ UTC e errava o dia em tarefas após 21h SP (noturnas) → conjunto de ocupados vazio → chapas alocados apareciam como disponíveis. Trocado por substr(t.data_tarefa,1,10) (data SP literal, bate com fmtSP). Além disso byCpf/byName passaram a INCLUIR a própria tarefa (chapa já alocado nela não deve receber novo BID); allOccupied mantém o != ? por ser a lista "outras tarefas". (2) Lista de candidatos só recarregava ao expandir o card (deps do efeito) — extras importados com card já aberto não apareciam. Adicionado estado candReloadKey + listener do evento bid:extras-imported (disparado no onDone do ImportExtrasDialog) que força reload. tsc --noEmit limpo.
+**Files changed:** `src/pages/BIDDashboard.tsx`
+**Next:** Build v0.9.94 com os fixes acumulados (detect_response, recusa Firebase, e estes dois do BID). Validar em produção com tarefa noturna real.

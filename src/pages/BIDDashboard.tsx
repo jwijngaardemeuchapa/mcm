@@ -385,11 +385,26 @@ function BidTaskCard({
   const [filterPositiveOnly, setFilterPositiveOnly] = useState(false);
   const [leoTierFilter, setLeoTierFilter] = useState<"alta" | "media" | "baixa" | null>(null);
   const [onlyExtras, setOnlyExtras] = useState(false);
+  const [candReloadKey, setCandReloadKey] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (focusExtras) { setOnlyExtras(true); setExpanded(true); }
   }, [focusExtras]);
+
+  // Recarrega candidatos quando extras são importados para esta tarefa — cobre o
+  // caso do card já estar expandido (em que o efeito de load não re-executa).
+  useEffect(() => {
+    const onExtrasImported = (e: Event) => {
+      const { taskId } = (e as CustomEvent<{ taskId: number }>).detail;
+      if (taskId !== task.id_tarefa) return;
+      setExpanded(true);
+      setOnlyExtras(true);
+      setCandReloadKey((k) => k + 1);
+    };
+    window.addEventListener("bid:extras-imported", onExtrasImported);
+    return () => window.removeEventListener("bid:extras-imported", onExtrasImported);
+  }, [task.id_tarefa]);
 
   useEffect(() => {
     if (forceExpand) {
@@ -474,24 +489,29 @@ function BidTaskCard({
         const db = await getDb();
         const taskDate = fmtSP(task.data_tarefa, "yyyy-MM-dd");
 
+        // data_tarefa é gravada com offset -03:00; DATE() converteria p/ UTC e
+        // erraria o dia em tarefas após 21h (noturnas). substr(...,1,10) pega a
+        // data local (SP) literal, batendo com fmtSP(task.data_tarefa).
+        // byCpf/byName INCLUEM a própria tarefa: chapa já alocado nela não deve
+        // ser oferecido em novo BID. allOccupied exclui (é a lista "outras tarefas").
         const [byCpf, byName, allOccupied] = await Promise.all([
           db.select<{ cpf: string }[]>(`
             SELECT DISTINCT c.cpf FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
-            WHERE DATE(t.data_tarefa) = ? AND c.status_contato != 'removido'
-            AND c.cpf IS NOT NULL AND t.id_tarefa != ?
-          `, [taskDate, task.id_tarefa]),
+            WHERE substr(t.data_tarefa, 1, 10) = ? AND c.status_contato != 'removido'
+            AND c.cpf IS NOT NULL
+          `, [taskDate]),
           db.select<{ nome_norm: string }[]>(`
             SELECT DISTINCT LOWER(TRIM(c.nome_chapa)) as nome_norm FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
-            WHERE DATE(t.data_tarefa) = ? AND c.status_contato != 'removido'
-            AND c.nome_chapa IS NOT NULL AND t.id_tarefa != ?
-          `, [taskDate, task.id_tarefa]),
+            WHERE substr(t.data_tarefa, 1, 10) = ? AND c.status_contato != 'removido'
+            AND c.nome_chapa IS NOT NULL
+          `, [taskDate]),
           db.select<{ nome_norm: string; empresa: string }[]>(`
             SELECT LOWER(TRIM(c.nome_chapa)) as nome_norm, t.empresa
             FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
-            WHERE DATE(t.data_tarefa) = ? AND c.status_contato != 'removido'
+            WHERE substr(t.data_tarefa, 1, 10) = ? AND c.status_contato != 'removido'
             AND c.nome_chapa IS NOT NULL AND t.id_tarefa != ?
             ORDER BY c.nome_chapa ASC
           `, [taskDate, task.id_tarefa]),
@@ -540,7 +560,7 @@ function BidTaskCard({
       } catch { /* silencioso */ }
       finally { setCandidatesLoading(false); }
     })();
-  }, [expanded, task.id_tarefa, task.cidade_uf, task.data_tarefa]); // eslint-disable-line
+  }, [expanded, task.id_tarefa, task.cidade_uf, task.data_tarefa, candReloadKey]); // eslint-disable-line
 
   // Load blocked chapas lazily when the "Bloqueados" tab is first opened
   useEffect(() => {
@@ -2365,7 +2385,13 @@ export default function BIDDashboard() {
       <ImportExtrasDialog
         open={extrasOpen}
         onClose={() => setExtrasOpen(false)}
-        onDone={(taskId?: number) => { loadAll(); if (taskId != null) setExtrasActivatedForTask(taskId); }}
+        onDone={(taskId?: number) => {
+          loadAll();
+          if (taskId != null) {
+            setExtrasActivatedForTask(taskId);
+            window.dispatchEvent(new CustomEvent("bid:extras-imported", { detail: { taskId } }));
+          }
+        }}
         openTasks={openTasks}
       />
     </div>
