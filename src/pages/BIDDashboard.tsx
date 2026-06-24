@@ -522,29 +522,36 @@ function BidTaskCard({
 
         if (!cityUf) { setRawCandidates([]); return; }
 
-        const chapas = await db.select<BidChapa[]>(`
-          SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
-                 REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
-                 r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
-                 r.motivo_bloqueio, r.aso, r.importado_em, cc.lat, cc.lng
-          FROM chapa_registry r
-          LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
-          WHERE (r.bloqueio IS NULL OR UPPER(r.bloqueio) LIKE '%DESBLOQUEADO%')
-          AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
-
-          UNION ALL
-
-          SELECT b.id as _key, NULL as cpf, b.nome, b.telefone, b.cidade, NULL as bairro, b.estado, NULL as rua,
-                 NULL as cep, NULL as numero, b.tarefas_finalizadas as tarefas,
-                 NULL as data_primeira_tarefa, NULL as data_ultima_tarefa, NULL as situacao,
-                 NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
-                 b.importado_em, b.lat, b.lng
-          FROM bid_chapas b
-          WHERE b.id_tarefa = ?
-
-          ORDER BY tarefas DESC
-          LIMIT 600
-        `, [cityUf.cidade, cityUf.estado, task.id_tarefa]);
+        // Cadastro geral (limitado) e extras (sem limite) são consultados
+        // separadamente: extras são poucos e SEMPRE devem aparecer. No UNION
+        // único com LIMIT, extras de baixa contagem de tarefas eram truncados
+        // pelo ORDER BY tarefas DESC quando a cidade tinha muitos cadastrados.
+        const [registry, extras] = await Promise.all([
+          db.select<BidChapa[]>(`
+            SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
+                   REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
+                   r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
+                   r.motivo_bloqueio, r.aso, r.importado_em, cc.lat, cc.lng
+            FROM chapa_registry r
+            LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
+            WHERE (r.bloqueio IS NULL OR UPPER(r.bloqueio) LIKE '%DESBLOQUEADO%')
+            AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
+            AND UPPER(COALESCE(r.situacao,'') || ' ' || COALESCE(r.nome,'')) NOT LIKE '%EXCLU%'
+            ORDER BY r.tarefas DESC
+            LIMIT 600
+          `, [cityUf.cidade, cityUf.estado]),
+          db.select<BidChapa[]>(`
+            SELECT b.id as _key, NULL as cpf, b.nome, b.telefone, b.cidade, NULL as bairro, b.estado, NULL as rua,
+                   NULL as cep, NULL as numero, b.tarefas_finalizadas as tarefas,
+                   NULL as data_primeira_tarefa, NULL as data_ultima_tarefa, NULL as situacao,
+                   NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
+                   b.importado_em, b.lat, b.lng
+            FROM bid_chapas b
+            WHERE b.id_tarefa = ?
+            ORDER BY b.tarefas_finalizadas DESC
+          `, [task.id_tarefa]),
+        ]);
+        const chapas = [...extras, ...registry];
 
         setRawCandidates(chapas);
 
@@ -581,6 +588,7 @@ function BidTaskCard({
             LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
             WHERE r.bloqueio IS NOT NULL AND UPPER(r.bloqueio) NOT LIKE '%DESBLOQUEADO%'
             AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
+            AND UPPER(COALESCE(r.situacao,'') || ' ' || COALESCE(r.nome,'')) NOT LIKE '%EXCLU%'
             ORDER BY tarefas DESC LIMIT 400
           `, [cityUf.cidade, cityUf.estado]),
           db.select<{ bloqueio: string }[]>(`
@@ -2631,10 +2639,14 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1 });
         const parsed: ExtrasRow[] = [];
+        let excluidos = 0;
         for (let i = 1; i < data.length; i++) {
           const r = data[i] as unknown[];
           const nome = [String(r[12] ?? "").trim(), String(r[10] ?? "").trim()].filter(Boolean).join(" ");
           if (!nome) continue;
+          // Contas deletadas no Busca Chapa vêm com nome "Usuário Excluído" —
+          // sem conta válida não há como contatar; ignora.
+          if (normalize(nome).includes("usuario excluido")) { excluidos++; continue; }
           const rawTel = r[5] ? String(r[5]).replace(/\D/g, "") : null;
           const lat = typeof r[0] === "number" ? r[0] : parseFloat(String(r[0] ?? ""));
           const lng = typeof r[1] === "number" ? r[1] : parseFloat(String(r[1] ?? ""));
@@ -2650,6 +2662,7 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
         }
         setExtRows(parsed);
         setPreview({ count: parsed.length, format: "xlsx" });
+        if (excluidos > 0) toast.info(`${excluidos} conta(s) excluída(s) ignorada(s).`);
       } catch {
         toast.error("Erro ao ler arquivo xlsx.");
       }
