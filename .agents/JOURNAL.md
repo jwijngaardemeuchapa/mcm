@@ -244,3 +244,13 @@
 **Summary:** Dois bugs no BID Dashboard. (1) Detecção de "ocupado" usava DATE(t.data_tarefa); como data_tarefa é gravada com offset -03:00, o SQLite convertia p/ UTC e errava o dia em tarefas após 21h SP (noturnas) → conjunto de ocupados vazio → chapas alocados apareciam como disponíveis. Trocado por substr(t.data_tarefa,1,10) (data SP literal, bate com fmtSP). Além disso byCpf/byName passaram a INCLUIR a própria tarefa (chapa já alocado nela não deve receber novo BID); allOccupied mantém o != ? por ser a lista "outras tarefas". (2) Lista de candidatos só recarregava ao expandir o card (deps do efeito) — extras importados com card já aberto não apareciam. Adicionado estado candReloadKey + listener do evento bid:extras-imported (disparado no onDone do ImportExtrasDialog) que força reload. tsc --noEmit limpo.
 **Files changed:** `src/pages/BIDDashboard.tsx`
 **Next:** Build v0.9.94 com os fixes acumulados (detect_response, recusa Firebase, e estes dois do BID). Validar em produção com tarefa noturna real.
+
+---
+
+## 2026-06-23 — Build v1.0.1 (bump + instalador)
+
+**Actor:** Jeremiah | **Agent:** opus
+**Tickets:** MCM-79
+**Summary:** Bump de versão 1.0.0 → 1.0.1 em tauri.conf.json e Ajuda.tsx (badge, changelog, rodapé, módulos). Esclarecido: o repo já estava em 1.0.0 desde a3b69e9 (21/06); o app mostrando "9.94" era build antigo instalado. Build NSIS gerado com sucesso: MCM_1.0.1_x64-setup.exe (216 MB) em src-tauri/target/release/bundle/nsis/. O 1.0.1 carrega os fixes acumulados desde o build 1.0.0 original: detect_response (frase completa, evita falso-positivo "nessa"), recusa via Firebase sinaliza remoção (fup:remove-chapa), e MCM-78 (chapas alocados fuso + extras reload). tsc limpo, build exit 0.
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
+**Next:** Distribuir MCM_1.0.1_x64-setup.exe e reinstalar nas máquinas para o app passar a exibir 1.0.1 com os fixes.
