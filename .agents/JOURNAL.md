@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-06-24 — MCM — BIDDashboard: extras truncados e Usuários Excluídos (MCM-81)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-81 (Feito)
+**Commit:** 54edc64
+
+### BIDDashboard — dois bugs corrigidos
+- **Bug 1 (86→25):** query UNION ALL com ORDER BY + LIMIT 600 cortava extras de baixo volume. Fix: split em duas queries paralelas — extras sem LIMIT, registry com LIMIT 600; extras colocados primeiro no array combinado
+- **Bug 2 (Usuários Excluídos):** contas deletadas no `chapa_registry` (situação/nome contendo "Excluído") passavam pelo filtro de bloqueio pois não tinham flag bloqueio. Fix: `AND UPPER(COALESCE(r.situacao,'') || ' ' || COALESCE(r.nome,'')) NOT LIKE '%EXCLU%'` nas queries de disponíveis e bloqueados
+- Parser defensivo em `parseXlsxFile`: pula linhas com nome "usuario excluido" e mostra toast com contagem
+
+---
+
 ## 2026-06-24 — MCM — Sync cadastro geral de chapas via Metabase (question 1296)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-81 (pendente criação)

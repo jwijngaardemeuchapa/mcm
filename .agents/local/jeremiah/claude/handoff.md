@@ -1,13 +1,19 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-06-24
-**Versão atual:** v1.0.1 (build em andamento)
+**Versão atual:** v1.0.1 (build pendente)
 **Branch:** main (limpo, em sincronia com origin)
-**Último commit:** d01dea8
+**Último commit:** 54edc64
 
 ---
 
 ## O que foi feito nesta sessão
+
+### BIDDashboard — extras truncados e Usuários Excluídos (commit 54edc64 / MCM-81)
+- Split UNION ALL → duas queries paralelas: extras sem LIMIT, registry com LIMIT 600
+- Extras sempre no topo do array combinado (`[...extras, ...registry]`)
+- Filtro `NOT LIKE '%EXCLU%'` sobre situação+nome em disponíveis e bloqueados
+- Parser defensivo no XLSX: pula "usuario excluido" e avisa via toast
 
 ### Sininho — disparo automático FUP (commits 862ede9)
 - Tipo `fup_auto` no activity_log com ícone Zap
