@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-06-24 — MCM — Sync cadastro geral de chapas via Metabase (question 1296)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-81 (pendente criação)
+**Commit:** d01dea8
+
+### Metabase — Cadastro Geral de Chapas
+- `settings.ts`: `metabaseRegistroCardId: 1296` em `SETTING_DEFAULTS` — pré-preenchido em qualquer máquina nova
+- `metabaseSync.ts`: nova função `sincronizarRegistro(silent)` — DELETE FROM chapa_registry + INSERT em chunks de 30, mapeamento de colunas por regex (nome, CPF, telefone, cidade, bairro, estado, rua, CEP, número, tarefas, datas, situação, bloqueio, motivo, ASO)
+- `Integracoes.tsx`: campo "ID da pergunta — Cadastro Geral de Chapas" pré-preenchido com 1296, botão "Sincronizar agora", timestamp da última sync
+- Substitui a importação manual do CSV de cadastro
+
+---
+
 ## 2026-06-23 — MCM — Sininho: log disparo auto FUP + CPF formatado na cópia
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-80 (Feito)
