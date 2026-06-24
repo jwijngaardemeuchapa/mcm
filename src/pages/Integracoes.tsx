@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarCarteira } from "@/lib/metabaseSync";
+import { sincronizarCarteira, sincronizarRegistro } from "@/lib/metabaseSync";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
 import { extractPhone, extractBody, classifyResponse, type RespostaCode } from "@/lib/firestoreQueue";
@@ -167,6 +167,21 @@ function SincronizarCarteiraBtn() {
   );
 }
 
+function SincronizarRegistroBtn() {
+  const [syncing, setSyncing] = useState(false);
+  async function handle() {
+    setSyncing(true);
+    await sincronizarRegistro(false);
+    setSyncing(false);
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={handle} disabled={syncing} className="gap-1.5">
+      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+      Sincronizar agora
+    </Button>
+  );
+}
+
 export default function Integracoes() {
   const [unlocked, setUnlocked] = useState(false);
   const [senhaInput, setSenhaInput] = useState("");
@@ -192,6 +207,10 @@ export default function Integracoes() {
   const [metabaseCarteiraCardIdInput, setMetabaseCarteiraCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseCarteiraCardId ? String(s.metabaseCarteiraCardId) : "";
+  });
+  const [metabaseRegistroCardIdInput, setMetabaseRegistroCardIdInput] = useState(() => {
+    const s = readSettings();
+    return String(s.metabaseRegistroCardId);
   });
   const [metabaseSyncing, setMetabaseSyncing] = useState(false);
   const [metabaseLastSync, setMetabaseLastSync] = useState<string | null>(() =>
@@ -1077,6 +1096,31 @@ export default function Integracoes() {
             {localStorage.getItem("carteira_last_sync") && (
               <p className="text-xs text-muted-foreground">
                 Última sync: {new Date(localStorage.getItem("carteira_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta — Cadastro Geral de Chapas
+              <span className="ml-1 text-muted-foreground/60">(substitui importação manual do CSV de cadastro)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="1296"
+                value={metabaseRegistroCardIdInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  setMetabaseRegistroCardIdInput(v);
+                  writeSettings({ metabaseRegistroCardId: v ? parseInt(v, 10) : 1296 });
+                }}
+                className="max-w-[120px]"
+              />
+              <SincronizarRegistroBtn />
+            </div>
+            {localStorage.getItem("chapa_registry_imported_at") && (
+              <p className="text-xs text-muted-foreground">
+                Última sync: {new Date(localStorage.getItem("chapa_registry_imported_at")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </p>
             )}
           </div>

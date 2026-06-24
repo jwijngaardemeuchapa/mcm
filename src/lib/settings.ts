@@ -50,6 +50,7 @@ export type AppSettings = {
   metabaseTarefasCardId?: number;
   metabaseTarefas30hCardId?: number;
   metabaseCarteiraCardId?: number;
+  metabaseRegistroCardId: number;
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
@@ -78,6 +79,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   fupAgendarMinAntes: 0,
   firestoreEnabled: true,
   carteiraGruposAtivos: [],
+  metabaseRegistroCardId: 1296,
   autoCancelFupEnabled: false,
   autoCancelFupMinutes: 60,
   fupAutoDispatchBloqueioHoras: 4,

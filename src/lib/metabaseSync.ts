@@ -97,6 +97,78 @@ export async function sincronizarCarteira(silent = false): Promise<boolean> {
   }
 }
 
+export async function sincronizarRegistro(silent = false): Promise<boolean> {
+  const s = readSettings();
+  const cardId = s.metabaseRegistroCardId;
+  if (!cardId) {
+    if (!silent) toast.error("Configure o ID da pergunta de Cadastro em Integrações");
+    return false;
+  }
+  try {
+    const status = await invoke<{ configured: boolean }>("metabase_status");
+    if (!status.configured) {
+      if (!silent) toast.error("Metabase não configurado em Integrações");
+      return false;
+    }
+    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    await db.execute("DELETE FROM chapa_registry");
+
+    const CHUNK = 30;
+    let count = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const vals: unknown[] = [];
+      const ph: string[] = [];
+      for (const row of chunk) {
+        const k = Object.keys(row);
+        const g = (pat: RegExp) => k.find((c) => pat.test(c));
+        const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
+        const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
+        const num = (key: string | undefined) => key ? parseInt(String(row[key] ?? "0")) || 0 : 0;
+        const nome = str(g(/^nome$/i)) ?? str(g(/nome/i)) ?? "";
+        if (!nome) continue;
+        vals.push(
+          dig(g(/^cpf$/i)),
+          nome,
+          dig(g(/telefone|celular|fone/i)),
+          str(g(/^cidade$/i)),
+          str(g(/bairro/i)),
+          str(g(/^estado$|^uf$/i)),
+          str(g(/^rua$|^endere/i)),
+          dig(g(/^cep$/i)),
+          str(g(/^n[uú]mero$|^num$/i)),
+          num(g(/tarefas|qtd/i)),
+          str(g(/primeira/i)),
+          str(g(/[uú]ltima/i)),
+          str(g(/situa/i)),
+          str(g(/bloqueio/i)),
+          str(g(/motivo/i)),
+          str(g(/^aso$/i)),
+          now,
+        );
+        ph.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+      }
+
+      if (ph.length === 0) continue;
+      await db.execute(
+        `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em) VALUES ${ph.join(",")}`,
+        vals,
+      );
+      count += ph.length;
+    }
+
+    localStorage.setItem("chapa_registry_imported_at", now);
+    if (!silent) toast.success(`Cadastro sincronizado — ${count} chapas`);
+    return true;
+  } catch {
+    if (!silent) toast.error("Erro ao sincronizar cadastro de chapas");
+    return false;
+  }
+}
+
 export function devesSincronizarCarteira(): boolean {
   const last = localStorage.getItem("carteira_last_sync");
   if (!last) return true;
