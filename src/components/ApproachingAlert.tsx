@@ -146,8 +146,7 @@ function ChapaItem({
   const umblerReady = !!(
     umblerSettings.bearerToken &&
     umblerSettings.fromPhone &&
-    umblerSettings.organizationId &&
-    umblerSettings.templateId
+    umblerSettings.organizationId
   );
   const cancelReady = umblerReady && !!umblerSettings.cancelTemplateId;
   const hasPhone = !!chapa.telefone;

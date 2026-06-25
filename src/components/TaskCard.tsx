@@ -545,8 +545,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   const umblerReady = !!(
     umblerSettings.bearerToken &&
     umblerSettings.fromPhone &&
-    umblerSettings.organizationId &&
-    umblerSettings.templateId
+    umblerSettings.organizationId
   );
   const cancelTemplateReady = umblerReady && !!umblerSettings.cancelTemplateId;
   const taskCancelTemplateReady = umblerReady && !!umblerSettings.taskCancelTemplateId;
