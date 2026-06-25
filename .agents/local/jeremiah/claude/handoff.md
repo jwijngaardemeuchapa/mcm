@@ -1,41 +1,27 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-24
-**Versão atual:** v1.0.1 (build pendente — nova abordagem a definir)
-**Branch:** main (limpo, em sincronia com origin)
-**Último commit:** c544bd3
+**Data:** 2026-06-25
+**Versão atual:** v1.0.1 (build pendente)
+**Branch:** main
 
 ---
 
 ## O que foi feito nesta sessão
 
-### umblerReady — templateId removido do pré-requisito (commit c544bd3 / MCM-82)
-- `umblerReady` agora requer só `bearerToken + fromPhone + organizationId`
-- Instalações novas com `templateId` vazio agora veem os botões Umbler normalmente
+### Integração Saac & Otimização do BID Dashboard (MCM-84)
+- **Integração Saac (Fase 1):** Configuração de ingestão de leads via webhook (`metabase-leads`), inclusão do campo `fonte` no DB (`chapa_registry`) e nova aba em `Integracoes.tsx` para configuração segura de API URL e API Key do Supabase/Lovable.
+- **Bônus de Cidade (+30pts):** Adicionado ao algoritmo do BID (`update_biddashboard.cjs`) para garantir que leads recém importados sem CEP válido ou preenchido não sejam excessivamente penalizados no ranking.
+- **Virtual Scroll (useVirtualizer):** Refatoração da tabela principal do `BIDDashboard.tsx` para usar o `@tanstack/react-virtual`, garantindo máxima performance e zero lag na UI mesmo com mais de 3.000 candidatos carregados.
+- **Ordenação em Tempo Real (Real Sorting):** Adicionada capacidade de clicar no cabeçalho da tabela do BID e ordenar instantaneamente a base por Nome, Distância, Tarefas e Situação (asc/desc).
+- **Badge 'LEAD SAAC':** Inclusão de um selo visual cor índigo nos candidatos com `fonte === "leads_saac"` para rápida distinção na operação.
 
-### BIDDashboard — extras truncados e Usuários Excluídos (commit 54edc64 / MCM-81)
-- Split UNION ALL → duas queries paralelas: extras sem LIMIT, registry com LIMIT 600
-- Extras sempre no topo do array combinado (`[...extras, ...registry]`)
-- Filtro `NOT LIKE '%EXCLU%'` sobre situação+nome em disponíveis e bloqueados
-- Parser defensivo no XLSX: pula "usuario excluido" e avisa via toast
-
-### Sininho — disparo automático FUP (commits 862ede9)
-- Tipo `fup_auto` no activity_log com ícone Zap
-- `useScheduledFup` loga após disparar + toca o sininho
-- Itens com `id_tarefa` clicáveis → navega para Dashboard + flash no card da tarefa
-- CPF formatado `000.000.000-00` nas funções `copyCpfConfirmados` e `copyList` do TaskCard
-
-### Sync cadastro geral de chapas via Metabase (commit d01dea8)
-- `settings.ts`: `metabaseRegistroCardId: 1296` em `SETTING_DEFAULTS` — pré-preenchido em qualquer máquina nova
-- `metabaseSync.ts`: `sincronizarRegistro()` — DELETE + INSERT em chunks, mapeamento por regex
-- `Integracoes.tsx`: campo "Cadastro Geral de Chapas" com botão + timestamp da última sync
+### Planejamento Autopilot (MCM-71)
+- **Implementação do Plano Técnico:** Levantamento de Requisitos e perguntas abertas detalhados.
+- **Jira Sync:** Especificações técnicas e decisões pendentes postadas automaticamente no ticket do Jira (MCM-71) via CLI. O arquivo de planejamento local `implementation_plan.md` também foi gerado para análise.
 
 ---
 
-## Pendências próximas
-- Distribuir `MCM_1.0.1_x64-setup.exe` (build desta sessão)
-- Limpar Firestore: `node scripts/firestore-diag.mjs --clean-errors`
-- MCM-73 / MV2-8 — Firebase: persistir resposta_log para confiabilidade cross-device
-- MCM-27 — Caderno de Clientes / pool de chapas pré-aprovados
-- MCM-11 — Estudo agendamento de mensagens Umbler
-- MV2 — M1 data layer em andamento (MV2-3)
+## Pendências Próximas
+- **MCM-71 — Autopilot (Fase 2):** Aguardando definições de negócio do operador no Jira/Chat (se o manager será Frontend-only ou CRON, regra de notificação de vagas, e tempo de cooldown do batch) para iniciarmos o desenvolvimento.
+- **Distribuição v1.0.1:** Gerar o executável atualizado assim que testarmos tudo em produção.
+- **MCM-27 — Caderno de Clientes:** Vinculação de chapas pré-aprovados aos pools (complementar à gestão do novo volume Saac).
