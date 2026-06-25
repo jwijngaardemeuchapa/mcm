@@ -1168,6 +1168,19 @@ CREATE INDEX IF NOT EXISTS idx_resposta_log_tarefa ON resposta_log(id_tarefa);
             if !has_col {
               let _ = conn.execute("ALTER TABLE cliente_book ADD COLUMN enderecos TEXT", []);
             }
+            // Garante a coluna 'fonte' em chapa_registry (origem do cadastro:
+            // metabase / leads_saac). O BID Dashboard consulta r.fonte; sem a
+            // coluna a query quebra em runtime numa instalação que ainda não
+            // sincronizou o cadastro. Idempotente: só altera se faltar.
+            let has_fonte: bool = conn.query_row(
+              "SELECT COUNT(*) FROM pragma_table_info('chapa_registry') WHERE name='fonte'",
+              [],
+              |row| row.get::<_, i64>(0),
+            ).map(|n| n > 0).unwrap_or(false);
+            if !has_fonte {
+              let _ = conn.execute("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'", []);
+              let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_registry_fonte ON chapa_registry(fonte)", []);
+            }
           }
         }
       }

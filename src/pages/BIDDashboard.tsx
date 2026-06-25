@@ -110,6 +110,10 @@ export type BidChapa = {
   importado_em: string;
   lat: number | null;
   lng: number | null;
+  // 1 = extra autorizado (vindo de bid_chapas); 0/undefined = cadastro geral.
+  // Discriminador confiável de "extra" — não usar cpf===null, pois leads Saac
+  // no cadastro geral também podem ter cpf nulo.
+  is_extra?: number;
 };
 
 export type BidDisparo = {
@@ -534,7 +538,7 @@ function BidTaskCard({
             SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
                    REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
                    r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
-                   r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, cc.lat, cc.lng
+                   r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, 0 as is_extra, cc.lat, cc.lng
             FROM chapa_registry r
             LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
             WHERE (r.bloqueio IS NULL OR UPPER(r.bloqueio) LIKE '%DESBLOQUEADO%')
@@ -548,7 +552,7 @@ function BidTaskCard({
                    NULL as cep, NULL as numero, b.tarefas_finalizadas as tarefas,
                    NULL as data_primeira_tarefa, NULL as data_ultima_tarefa, NULL as situacao,
                    NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
-                   b.importado_em, NULL as fonte, b.lat, b.lng
+                   b.importado_em, NULL as fonte, 1 as is_extra, b.lat, b.lng
             FROM bid_chapas b
             WHERE b.id_tarefa = ?
             ORDER BY b.tarefas_finalizadas DESC
@@ -586,7 +590,7 @@ function BidTaskCard({
             SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
                    REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
                    r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
-                   r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, cc.lat, cc.lng
+                   r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, 0 as is_extra, cc.lat, cc.lng
             FROM chapa_registry r
             LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
             WHERE r.bloqueio IS NOT NULL AND UPPER(r.bloqueio) NOT LIKE '%DESBLOQUEADO%'
@@ -624,9 +628,15 @@ function BidTaskCard({
       ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
       : null;
     return rawCandidates.map((c) => {
-      const isOccupied =
+      // Extras autorizados (is_extra === 1, vindos de bid_chapas) são liberados
+      // explicitamente pelo operador para esta tarefa — nunca marcados como
+      // ocupados, mesmo que o nome já apareça no roster da própria tarefa ou de
+      // outra (occupiedNameSet inclui a tarefa atual). Sem isso a lista de
+      // autorizados some inteira ao filtrar "só extras" (MCM-83).
+      const isOccupied = c.is_extra !== 1 && (
         (c.cpf != null && occupiedCpfSet.has(c.cpf.replace(/\D/g, ""))) ||
-        occupiedNameSet.has(normalize(c.nome));
+        occupiedNameSet.has(normalize(c.nome))
+      );
       let distKm: number | null = null;
       if (dispatchParams.localLat !== null && dispatchParams.localLng !== null && c.lat !== null && c.lng !== null)
         distKm = haversine(dispatchParams.localLat, dispatchParams.localLng, c.lat, c.lng);
@@ -877,6 +887,23 @@ function BidTaskCard({
       ? blockedCandidates.filter((c) => !c.cep || c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : blockedCandidates;
   const blockedVisible = blockedWithinDist;
+
+  // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
+  const activeList = candidateView === "disponiveis" ? visibleCandidates : blockedVisible;
+  const virtualizer = useVirtualizer({
+    count: activeList.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 56,
+    overscan: 8,
+  });
+
+  function toggleSort(key: string) {
+    setSortConfig((prev) =>
+      prev?.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
+    );
+  }
 
   function toggleSelectAll() {
     const pool = candidateView === "bloqueados"
@@ -1561,16 +1588,17 @@ function BidTaskCard({
                   return (
                     <div
                       key={c._key}
+                      data-index={virtualItem.index}
+                      ref={virtualizer.measureElement}
                       className={`grid items-center px-4 py-2 gap-2 transition-colors hover:bg-muted/20 ${c.is_occupied ? "opacity-35" : ""}`}
-                      style={{ 
-    gridTemplateColumns: "28px 24px 1fr 80px 60px 100px 100px 100px",
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: `${virtualItem.size}px`,
-    transform: `translateY(${virtualItem.start}px)`,
-  }}
+                      style={{
+                        gridTemplateColumns: "28px 24px 1fr 80px 60px 100px 100px 100px",
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
                     >
                       <div>
                         {!c.is_occupied && (
@@ -2874,6 +2902,13 @@ function SemCadastroAviso() {
 /* ── BloqueadosTab ──────────────────────────────────────────────── */
 
 type AdHocBidTarget = { nome: string; telefone: string };
+type AdHocBidParams = {
+  dataTarefa: string;
+  local: string;
+  atividades: string;
+  diaria: string;
+  taskId: number | null;
+};
 
 type BlockedRow = RegistryRow & {
   cep: string | null;
