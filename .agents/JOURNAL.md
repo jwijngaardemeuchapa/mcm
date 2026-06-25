@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-06-25 — MCM — Umbler bloqueado por templateId vazio (MCM-82)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-82 (Feito)
+**Commit:** c544bd3
+
+### umblerReady — pré-requisito desnecessário removido
+- `umblerReady` em `TaskCard.tsx` e `ApproachingAlert.tsx` exigia `templateId` preenchido
+- Em instalações novas o campo vem vazio (`""`) bloqueando todos os botões Umbler
+- Fix: remover `templateId` da guarda — `umblerReady` agora requer só `bearerToken + fromPhone + organizationId`
+- FUP usa `fupBotId`/`fupBotTriggerName` (verificado no disparo); cancel tem `cancelTemplateReady` próprio
+
+---
+
 ## 2026-06-24 — MCM — BIDDashboard: extras truncados e Usuários Excluídos (MCM-81)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-81 (Feito)

@@ -1,13 +1,17 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-06-24
-**Versão atual:** v1.0.1 (build pendente)
+**Versão atual:** v1.0.1 (build pendente — nova abordagem a definir)
 **Branch:** main (limpo, em sincronia com origin)
-**Último commit:** 54edc64
+**Último commit:** c544bd3
 
 ---
 
 ## O que foi feito nesta sessão
+
+### umblerReady — templateId removido do pré-requisito (commit c544bd3 / MCM-82)
+- `umblerReady` agora requer só `bearerToken + fromPhone + organizationId`
+- Instalações novas com `templateId` vazio agora veem os botões Umbler normalmente
 
 ### BIDDashboard — extras truncados e Usuários Excluídos (commit 54edc64 / MCM-81)
 - Split UNION ALL → duas queries paralelas: extras sem LIMIT, registry com LIMIT 600
