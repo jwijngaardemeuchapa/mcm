@@ -173,7 +173,8 @@ export default function Importar() {
         cidade TEXT, bairro TEXT, estado TEXT, rua TEXT, cep TEXT, numero TEXT,
         tarefas INTEGER NOT NULL DEFAULT 0, data_primeira_tarefa TEXT, data_ultima_tarefa TEXT,
         situacao TEXT, bloqueio TEXT, motivo_bloqueio TEXT, aso TEXT,
-        importado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+        importado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+        fonte TEXT DEFAULT 'metabase'
       )`);
       await db.execute(`CREATE TABLE IF NOT EXISTS cep_cache (
         cep TEXT PRIMARY KEY, lat REAL, lng REAL, geocodificado_em TEXT NOT NULL
@@ -208,7 +209,7 @@ export default function Importar() {
       const CHUNK = 30;
       for (let i = 0; i < regRows.length; i += CHUNK) {
         const chunk = regRows.slice(i, i + CHUNK);
-        const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
+        const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").join(",");
         const vals = chunk.flatMap((r) => [
           r[iCpf]?.toString().replace(/\D/g, "") || null,
           r[iNome]?.toString().trim() || "",
@@ -227,9 +228,10 @@ export default function Importar() {
           r[iMotivo]?.toString().trim() || null,
           r[iAso]?.toString().trim() || null,
           now,
+          "metabase"
         ]);
         await db.execute(
-          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em) VALUES ${ph}`,
+          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${ph}`,
           vals,
         );
         setRegProgress({ done: Math.min(i + CHUNK, total), total });

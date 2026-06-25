@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
@@ -385,6 +386,8 @@ function BidTaskCard({
   const [filterPositiveOnly, setFilterPositiveOnly] = useState(false);
   const [leoTierFilter, setLeoTierFilter] = useState<"alta" | "media" | "baixa" | null>(null);
   const [onlyExtras, setOnlyExtras] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: string, dir: "asc" | "desc" } | null>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
   const [candReloadKey, setCandReloadKey] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -531,7 +534,7 @@ function BidTaskCard({
             SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
                    REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
                    r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
-                   r.motivo_bloqueio, r.aso, r.importado_em, cc.lat, cc.lng
+                   r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, cc.lat, cc.lng
             FROM chapa_registry r
             LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
             WHERE (r.bloqueio IS NULL OR UPPER(r.bloqueio) LIKE '%DESBLOQUEADO%')
@@ -545,7 +548,7 @@ function BidTaskCard({
                    NULL as cep, NULL as numero, b.tarefas_finalizadas as tarefas,
                    NULL as data_primeira_tarefa, NULL as data_ultima_tarefa, NULL as situacao,
                    NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
-                   b.importado_em, b.lat, b.lng
+                   b.importado_em, NULL as fonte, b.lat, b.lng
             FROM bid_chapas b
             WHERE b.id_tarefa = ?
             ORDER BY b.tarefas_finalizadas DESC
@@ -583,7 +586,7 @@ function BidTaskCard({
             SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
                    REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
                    r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
-                   r.motivo_bloqueio, r.aso, r.importado_em, cc.lat, cc.lng
+                   r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, cc.lat, cc.lng
             FROM chapa_registry r
             LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
             WHERE r.bloqueio IS NOT NULL AND UPPER(r.bloqueio) NOT LIKE '%DESBLOQUEADO%'
@@ -635,8 +638,16 @@ function BidTaskCard({
         is_occupied: isOccupied,
         disparo,
       };
-    }).sort((a, b) => b.score - a.score);
-  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache]);
+    }).sort((a, b) => {
+      if (!sortConfig) return b.score - a.score;
+      const dir = sortConfig.dir === "asc" ? 1 : -1;
+      if (sortConfig.key === "nome") return dir * a.nome.localeCompare(b.nome);
+      if (sortConfig.key === "dist") return dir * ((a.distance_km ?? Infinity) - (b.distance_km ?? Infinity));
+      if (sortConfig.key === "tarefas") return dir * (a.tarefas - b.tarefas);
+      if (sortConfig.key === "situacao") return dir * (a.situacao || "").localeCompare(b.situacao || "");
+      return b.score - a.score;
+    });
+  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache, sortConfig]);
 
   const leoTierFilteredCandidates = useMemo(() => {
     if (!leoTierFilter || !leoCache || leoCache.size === 0) return candidates;
@@ -822,7 +833,8 @@ function BidTaskCard({
   function toggleSelect(key: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -864,7 +876,7 @@ function BidTaskCard({
     : hasCepFilter
       ? blockedCandidates.filter((c) => !c.cep || c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : blockedCandidates;
-  const blockedVisible = showAll ? blockedWithinDist : blockedWithinDist.slice(0, 40);
+  const blockedVisible = blockedWithinDist;
 
   function toggleSelectAll() {
     const pool = candidateView === "bloqueados"
@@ -1493,16 +1505,18 @@ function BidTaskCard({
                     onChange={toggleSelectAll}
                   />
                 </span>
-                <span>#</span><span>Nome</span><span>Distância</span>
+                                <span>#</span>
+                <span className="cursor-pointer hover:underline flex items-center gap-1" onClick={() => toggleSort("nome")}>Nome {sortConfig?.key === "nome" && (sortConfig.dir === "asc" ? "↑" : "↓")}</span>
+                <span className="cursor-pointer hover:underline flex items-center gap-1" onClick={() => toggleSort("dist")}>Distância {sortConfig?.key === "dist" && (sortConfig.dir === "asc" ? "↑" : "↓")}</span>
                 <Tooltip>
-                  <TooltipTrigger asChild><span className="cursor-help underline decoration-dotted">Tarefas</span></TooltipTrigger>
+                  <TooltipTrigger asChild><span className="cursor-pointer hover:underline decoration-dotted flex items-center gap-1" onClick={() => toggleSort("tarefas")}>Tarefas {sortConfig?.key === "tarefas" && (sortConfig.dir === "asc" ? "↑" : "↓")}</span></TooltipTrigger>
                   <TooltipContent>Total de tarefas realizadas</TooltipContent>
                 </Tooltip>
-                <span>Situação</span>
+                <span className="cursor-pointer hover:underline flex items-center gap-1" onClick={() => toggleSort("situacao")}>Situação {sortConfig?.key === "situacao" && (sortConfig.dir === "asc" ? "↑" : "↓")}</span>
                 <span>Status</span><span />
               </div>
 
-              <div className="divide-y divide-border/50">
+              <div ref={parentRef} className="max-h-[600px] overflow-auto divide-y divide-border/50">
                 {/* Loading states */}
                 {candidateView === "disponiveis" && candidatesLoading && rawCandidates.length === 0 && (
                   <div className="px-4 py-3 space-y-2">
@@ -1537,7 +1551,10 @@ function BidTaskCard({
                     Estes chapas estão bloqueados. O disparo será feito mesmo assim — use com critério.
                   </div>
                 )}
-                {(candidateView === "disponiveis" ? visibleCandidates : blockedVisible).map((c, idx) => {
+                <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
+                  {virtualizer.getVirtualItems().map((virtualItem) => {
+                    const c = activeList[virtualItem.index];
+                    const idx = virtualItem.index;
                   const sc = STATUS_CFG[c.disparo?.status ?? ""] ?? null;
                   const isDispatching = dispatchingIds.has(c._key);
                   const sit = sitLabel(c.situacao);
@@ -1545,7 +1562,15 @@ function BidTaskCard({
                     <div
                       key={c._key}
                       className={`grid items-center px-4 py-2 gap-2 transition-colors hover:bg-muted/20 ${c.is_occupied ? "opacity-35" : ""}`}
-                      style={{ gridTemplateColumns: "28px 24px 1fr 80px 60px 100px 100px 100px" }}
+                      style={{ 
+    gridTemplateColumns: "28px 24px 1fr 80px 60px 100px 100px 100px",
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: `${virtualItem.size}px`,
+    transform: `translateY(${virtualItem.start}px)`,
+  }}
                     >
                       <div>
                         {!c.is_occupied && (
@@ -1647,6 +1672,7 @@ function BidTaskCard({
                     </div>
                   );
                 })}
+                  </div>
 
                 {showOccupied && allOccupiedChapas.length > 0 && (
                   <div className="border-t border-border/40 bg-muted/5 px-4 py-2">

@@ -54,6 +54,8 @@ export type AppSettings = {
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
+  saacApiUrl?: string;
+  saacApiKey?: string;
 };
 
 const STORAGE_KEY = "fup_settings";

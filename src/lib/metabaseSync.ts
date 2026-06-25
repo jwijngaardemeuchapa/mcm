@@ -114,7 +114,12 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
     const db = await getDb();
     const now = new Date().toISOString();
 
-    await db.execute("DELETE FROM chapa_registry");
+    // Ensure 'fonte' column exists (safe alter)
+    try { await db.execute("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'"); } catch { /* already exists */ }
+    // Ensure index exists
+    try { await db.execute("CREATE INDEX IF NOT EXISTS idx_registry_fonte ON chapa_registry(fonte)"); } catch { /* exists */ }
+
+    await db.execute("DELETE FROM chapa_registry WHERE fonte IS NULL OR fonte = 'metabase'");
 
     const CHUNK = 30;
     let count = 0;
@@ -148,16 +153,81 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
           str(g(/motivo/i)),
           str(g(/^aso$/i)),
           now,
+          "metabase"
         );
-        ph.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        ph.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
       }
 
       if (ph.length === 0) continue;
       await db.execute(
-        `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em) VALUES ${ph.join(",")}`,
+        `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${ph.join(",")}`,
         vals,
       );
       count += ph.length;
+    }
+
+    // --- Integração Captação Saac (Lovable API) ---
+    if (s.saacApiUrl && s.saacApiKey) {
+      try {
+        await db.execute("DELETE FROM chapa_registry WHERE fonte = 'leads_saac'");
+        const res = await fetch(s.saacApiUrl, {
+          headers: { "x-api-key": s.saacApiKey },
+        });
+        if (res.ok) {
+          const leads = await res.json();
+          if (Array.isArray(leads)) {
+            let leadsCount = 0;
+            const CHUNK_L = 30;
+            for (let i = 0; i < leads.length; i += CHUNK_L) {
+              const chunk = leads.slice(i, i + CHUNK_L);
+              const valsL: unknown[] = [];
+              const phL: string[] = [];
+              for (const row of chunk) {
+                const nomeLead = row.client_name ? String(row.client_name).trim() : "";
+                if (!nomeLead) continue;
+                
+                const blocked = row.status === "cadastro_cancelado" || row.farol_status === "vermelho" ? "BLOQUEADO" : null;
+                const motivo = row.cancel_reason || row.block_reason || null;
+                
+                valsL.push(
+                  row.cpf ? String(row.cpf).replace(/\D/g, "") : null,
+                  nomeLead,
+                  row.phone ? String(row.phone).replace(/\D/g, "") : null,
+                  row.city ? String(row.city).trim() : null,
+                  null, // bairro
+                  row.state ? String(row.state).trim() : null,
+                  null, // rua
+                  null, // cep
+                  null, // numero
+                  0, // tarefas = 0 para leads
+                  null, // primeira
+                  null, // ultima
+                  row.status ? String(row.status).trim() : "triagem", // situacao
+                  blocked,
+                  motivo,
+                  null, // aso
+                  now,
+                  "leads_saac"
+                );
+                phL.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+              }
+              if (phL.length > 0) {
+                await db.execute(
+                  `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${phL.join(",")}`,
+                  valsL,
+                );
+                leadsCount += phL.length;
+              }
+            }
+            if (!silent) toast.success(`Leads Saac importados: ${leadsCount}`);
+            count += leadsCount;
+          }
+        } else {
+          console.error("Saac API HTTP Error", res.status);
+        }
+      } catch (e) {
+        console.error("Erro ao puxar Saac API", e);
+      }
     }
 
     localStorage.setItem("chapa_registry_imported_at", now);

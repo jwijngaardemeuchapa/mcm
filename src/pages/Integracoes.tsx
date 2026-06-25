@@ -217,6 +217,11 @@ export default function Integracoes() {
     localStorage.getItem("metabase_last_sync"),
   );
 
+  /* ── Saac API ── */
+  const [saacApiUrl, setSaacApiUrl] = useState(() => readSettings().saacApiUrl ?? "");
+  const [saacApiKey, setSaacApiKey] = useState(() => readSettings().saacApiKey ?? "");
+  const [showSaacKey, setShowSaacKey] = useState(false);
+
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testMode, setTestMode] = useState<"cancel" | "taskCancel">("cancel");
   const [testPhone, setTestPhone] = useState("");
@@ -1131,6 +1136,53 @@ export default function Integracoes() {
               O Dashboard sincroniza automaticamente a cada 5 minutos enquanto o app está aberto.
               O mesmo processamento do CSV é aplicado: estado dos chapas (confirmado, cancelado, observações) é preservado entre sincronizações.
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Captação Saac (Lovable API) ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Smartphone className="h-5 w-5 text-muted-foreground" />
+            Captação de Leads — Saac
+          </CardTitle>
+          <CardDescription>
+            Configure a URL e a chave da API (x-api-key) para consumir a base de chapas recém-captados ("Leads Saac"). Esses chapas entrarão no sistema de BIDs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">URL da API</label>
+              <Input
+                placeholder="https://fvvzqandckpdjidgfsjl.supabase.co/functions/v1/metabase-leads"
+                value={saacApiUrl}
+                onChange={(e) => setSaacApiUrl(e.target.value)}
+                onBlur={() => writeSettings({ saacApiUrl: saacApiUrl.trim() })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">API key (x-api-key)</label>
+              <div className="relative">
+                <Input
+                  type={showSaacKey ? "text" : "password"}
+                  placeholder="Sua chave secreta"
+                  value={saacApiKey}
+                  onChange={(e) => setSaacApiKey(e.target.value)}
+                  onBlur={() => writeSettings({ saacApiKey: saacApiKey.trim() })}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSaacKey((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={showSaacKey ? "Ocultar chave" : "Exibir chave"}
+                >
+                  {showSaacKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
