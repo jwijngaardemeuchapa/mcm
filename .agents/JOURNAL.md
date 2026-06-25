@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-06-25 — MCM — Conserto do BID quebrado (MCM-85) + autorizados (MCM-83)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-85 (Feito), MCM-83 (Feito)
+**Commit:** 8ab536a
+
+### Contexto — MCM-84 (Gemini) foi para a main quebrado
+- BIDDashboard.tsx usava `virtualizer`, `activeList`, `toggleSort` indefinidos e tipo `AdHocBidParams` inexistente → ReferenceError ao expandir card do BID.
+- **Por que passou:** `npx tsc --noEmit` não checa `src/` (tsconfig.json tem `files:[]` + project references). Check real é `tsc -p tsconfig.app.json`. Gemini e claude viram "verde" à toa.
+
+### Correções (MCM-85)
+- `useVirtualizer()` completo com medição dinâmica (`measureElement` + `data-index`), `activeList` (lista da aba ativa) e `toggleSort` implementados; tipo `AdHocBidParams` definido. `tsc -p tsconfig.app.json` limpo no arquivo.
+- **Recovery da coluna `fonte`** em `chapa_registry` no `setup()` do Rust (mesmo padrão idempotente do `enderecos`) — a query `r.fonte` do BID quebrava em instalação que ainda não sincronizou o cadastro. Não usei migration por causa do ALTER de runtime já existente (evita "duplicate column").
+- Script npm **`typecheck`** (`tsc -p tsconfig.app.json --noEmit`) adicionado para não repetir o check vazio.
+
+### MCM-83 — extras autorizados não somem
+- `is_occupied` agora ignora extras via flag **`is_extra === 1`** (vindo de `bid_chapas`), não mais `cpf === null` — leads Saac no cadastro também podem ter CPF nulo. Adicionado `is_extra` ao tipo `BidChapa` e às 3 queries (1 nos extras, 0 no cadastro/bloqueados).
+
+### Pendência herdada do MCM-84
+- 14 erros de tipo **pré-existentes** (ingestTarefas, Dashboard, ClienteBook, useNotificationWatcher etc.) revelados pelo `tsc -p tsconfig.app.json`. Vite ignora; fora do escopo desta sessão.
+
+---
+
 ## 2026-06-25 — MCM — Umbler bloqueado por templateId vazio (MCM-82)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-82 (Feito)

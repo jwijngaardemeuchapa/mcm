@@ -3,6 +3,7 @@
 **Data:** 2026-06-25
 **Versão atual:** v1.0.1 (build pendente)
 **Branch:** main
+**Último commit:** 8ab536a
 
 ---
 
@@ -14,6 +15,14 @@
 - **Virtual Scroll (useVirtualizer):** Refatoração da tabela principal do `BIDDashboard.tsx` para usar o `@tanstack/react-virtual`, garantindo máxima performance e zero lag na UI mesmo com mais de 3.000 candidatos carregados.
 - **Ordenação em Tempo Real (Real Sorting):** Adicionada capacidade de clicar no cabeçalho da tabela do BID e ordenar instantaneamente a base por Nome, Distância, Tarefas e Situação (asc/desc).
 - **Badge 'LEAD SAAC':** Inclusão de um selo visual cor índigo nos candidatos com `fonte === "leads_saac"` para rápida distinção na operação.
+
+### Conserto pós-revisão do MCM-84 (MCM-85 + MCM-83) — commit 8ab536a
+- **MCM-84 tinha ido para a main quebrado:** BIDDashboard usava `virtualizer`/`activeList`/`toggleSort` indefinidos + tipo `AdHocBidParams` inexistente → crash ao expandir card. Virtualização ficou pela metade.
+- **Causa de não ter sido pego:** `npx tsc --noEmit` não checa `src/` (tsconfig.json `files:[]` + references). Usar **`npm run typecheck`** (`tsc -p tsconfig.app.json`) — script adicionado nesta sessão.
+- Completei `useVirtualizer` (medição dinâmica), `activeList`, `toggleSort`, `AdHocBidParams`.
+- Recovery idempotente da coluna `fonte` em `chapa_registry` no `setup()` Rust (a query `r.fonte` do BID quebrava em instalação nova).
+- MCM-83: extras autorizados não somem mais (flag `is_extra` em vez de `cpf===null`, por causa de leads Saac sem CPF).
+- **Atenção:** restam **14 erros de tipo pré-existentes** (fora do BID) revelados pelo typecheck correto — vite ignora, mas valem revisão futura.
 
 ### Planejamento Autopilot (MCM-71)
 - **Implementação do Plano Técnico:** Levantamento de Requisitos e perguntas abertas detalhados.
