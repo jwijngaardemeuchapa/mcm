@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-06-26 — MCM — Build v1.0.12 + GitHub Release + senha de Integrações
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** —
+
+### Alterações
+- Senha de Integrações atualizada: `ch@p@Meu` → `meuCh@p@` (commit `27e504c`).
+- Versão bumped `1.0.11` → `1.0.12` em `tauri.conf.json` e `Ajuda.tsx`.
+- Build `MCM_1.0.12_x64-setup.exe` gerado com sucesso (exit 0).
+- `.exe` assinado com `tauri signer sign` → `MCM_1.0.12_x64-setup.exe.sig` gerado.
+- `latest.json` atualizado com assinatura real e URL v1.0.12.
+- GitHub Release `v1.0.12` criado via API; `.exe` + `.sig` publicados.
+- Commit `04f2ed3` (versão + latest.json assinado).
+- **Updater operacional:** instalar MCM_1.0.12 → abrir Integrações → desbloquear → Verificar → "versão mais recente".
+
+---
+
 ## 2026-06-26 — MCM — Atualização manual protegida por senha (updater)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** —
