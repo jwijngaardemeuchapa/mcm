@@ -14,6 +14,7 @@ const TIPO_CONFIG: Record<ActivityEntry["tipo"], { icon: React.ElementType; labe
   removido:      { icon: UserMinus,     label: "Removido",                color: "text-muted-foreground" },
   sync_apareceu: { icon: RefreshCw,     label: "Apareceu no sync",        color: "text-primary" },
   sync_sumiu:    { icon: RefreshCw,     label: "Sumiu no sync",           color: "text-warning" },
+  sync_aceite:   { icon: Check,         label: "Novo aceite no sync",     color: "text-success" },
   auto_cancel:   { icon: AlertTriangle, label: "Cancelamento automático", color: "text-destructive" },
   bid_interesse: { icon: ThumbsUp,      label: "Interesse confirmado BID", color: "text-success" },
   bid_aceite:    { icon: Star,          label: "Aceitou via app BID",     color: "text-success" },
