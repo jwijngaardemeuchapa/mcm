@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.1</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.11</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,11 +767,16 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.1 — Correções de BID e recusa via Firebase:</strong>{" "}
-              <strong>Chapas alocados não aparecem mais como disponíveis no BID</strong>: corrigido erro de fuso na detecção de ocupado (tarefas noturnas/após 21h não eram detectadas) + chapas já alocados na própria tarefa agora também são ocultados.{" "}
-              <strong>Extras importados aparecem na hora</strong>: a lista recarrega automaticamente após a importação, mesmo com o card já aberto.{" "}
-              <strong>Recusa via Firebase sinaliza remoção</strong>: chapa que responde "NÃO, quero cancelar" via Firebase agora abre a tarefa com o botão de remoção sugerido, em vez de ser tratado como confirmação.{" "}
-              <strong>Falso-positivo de confirmação corrigido</strong>: nomes contendo "nessa" (ex: Vanessa, Odessa) não disparam mais confirmação indevida.
+              <strong>v1.0.11 — Novidades desta versão:</strong>{" "}
+              <strong>FUP automático de proximidade</strong>: disparo automático ocorre mesmo se já houve FUP anterior, desde que tenha sido feito há mais de X horas antes da tarefa (configurável em Configurações, padrão 4h) — aviso diferenciado no diálogo de confirmação.{" "}
+              <strong>BID extras didáticos</strong>: extras importados recebem badge "EXTRA", filtro "Só extras (N)" e o filtro ativa automaticamente após a importação.{" "}
+              <strong>BID oculta aguardando</strong>: chapas com disparo em andamento não aparecem na lista de disponíveis.{" "}
+              <strong>Novos aceites detectados</strong>: o painel de diff mostra chapas que transitaram para "confirmado" entre syncs.{" "}
+              <strong>Confirmação de presença instantânea</strong>: botão "Presente" reflete imediatamente, sem aguardar recarregamento.{" "}
+              <strong>Sync automático de Leads Saac</strong>: leads sincronizam a cada abertura do app — botão manual disponível em Integrações com timestamp.{" "}
+              <strong>Cadastro geral 2×/semana</strong>: sincronização automática toda segunda e quinta.{" "}
+              <strong>Notificações filtradas pela carteira</strong>: respostas de empresas fora do filtro de grupos não geram notificação — atualiza em tempo real ao trocar o filtro.{" "}
+              <strong>Janela maximizada no boot</strong>: o app abre sempre em tela cheia.
             </span>
           </div>
         )}
@@ -1007,7 +1012,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.1 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.11 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1042,7 +1047,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.1 · © 2026 Wijngaarde Design
+        MCM v1.0.11 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

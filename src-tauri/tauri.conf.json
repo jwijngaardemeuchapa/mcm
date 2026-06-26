@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "MCM",
-  "version": "1.0.1",
+  "version": "1.0.11",
   "identifier": "com.fupmanager.app",
   "build": {
     "frontendDist": "../dist",
@@ -19,7 +19,8 @@
         "minWidth": 1024,
         "minHeight": 640,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "maximized": true
       }
     ],
     "security": {
