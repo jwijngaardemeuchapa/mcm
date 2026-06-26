@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-06-26 — MCM — Sync automático Leads Saac + notificações filtradas pela carteira
+**Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
+**Tickets:** — (melhorias de operação)
+
+### Parte A — Desacoplar e automatizar o sync dos Leads Saac
+- **`sincronizarLeadsSaac(silent)`** extraída de dentro de `sincronizarRegistro` (estava acoplada ao DELETE+INSERT pesado do cadastro geral). Função leve, autossuficiente: só `fonte='leads_saac'`. Grava `saac_last_sync`.
+- `sincronizarRegistro` **deixa de puxar Saac** (mudança intencional — agora é o botão dedicado).
+- **`devesSincronizarRegistro()`**: cadastro geral passa a auto-sincronizar **2x/semana** (âncoras seg/qui), espelhando `devesSincronizarCarteira`. Reusa o timestamp `chapa_registry_imported_at`.
+- **`AppStartup.tsx`**: boot refatorado para steps dinâmicos (`jobs[]`) com progresso distribuído. Adiciona Saac (sempre, se configurado) + cadastro (2x/sem se devido) além de tarefas/carteira.
+- **`Integracoes.tsx`**: botão `SincronizarLeadsSaacBtn` na seção Saac, com timestamp da última sync; desabilitado sem credenciais.
+
+### Parte B — Notificações filtradas pela carteira (tempo real)
+- **`src/lib/carteira.ts`** novo: `getActiveCarteiraNames()` — nomes visíveis pelo filtro de grupos (`[]` = sem filtro). Espelha a lógica do `Dashboard.load()`.
+- **`WatcherContext.tsx`**: cache `activeNamesRef` (atualizado no mount + tick 60s + evento `carteira:changed`); helper `empresaVisivel()`; gate na entrada de `handleActivity` e `handleWebhookEvent` — respostas de empresa fora do filtro não viram notificação (`notifLog` + `logActivity`).
+- **Importante:** só o lado de notificação é filtrado. Em `handleWebhookEvent`, `fup:refresh`/`fup:remove-chapa` (dados) ficam fora do gate — integridade das tarefas não depende do filtro de visualização.
+- **`Carteira.tsx`**: dispara `carteira:changed` ao trocar/limpar o filtro → tempo real.
+
+### Validação
+- `npm run typecheck` (comando correto — `npx tsc --noEmit` é vazio neste repo): **0 erros novos**; baseline pré-existente de 13 mantida (ingestTarefas, ClienteBook, useNotificationWatcher, Dashboard, AnaliseBase, etc.).
+- Custo do filtro: 1 `companyMatches` por resposta (eventos raros) sobre array em cache. Zero overhead de render.
+
+### Contexto de sessão
+- Sincronizado com 14 commits do outro PC (MCM-78→85, v1.0.1). Corrigida regressão própria: `sync_aceite` faltando no `TIPO_CONFIG` do ActivityBell (commit b31b39f).
+
+---
+
 ## 2026-06-25 — MCM — Conserto do BID quebrado (MCM-85) + autorizados (MCM-83)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-85 (Feito), MCM-83 (Feito)

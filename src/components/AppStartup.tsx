@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Sunset, CheckCircle2, ArrowRight, Bell, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import { invoke } from "@tauri-apps/api/core";
-import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira } from "@/lib/metabaseSync";
+import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro } from "@/lib/metabaseSync";
 import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
@@ -192,16 +192,25 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
 
       const hasMetabase = hasMetabaseCardId && metabaseConfigured;
       const hasCarteira = hasCarteiraCardId && metabaseConfigured;
+      const hasRegistro = !!s.metabaseRegistroCardId && metabaseConfigured;
+      const hasSaac = !!s.saacApiUrl && !!s.saacApiKey;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
+      const syncRegistro = hasRegistro && devesSincronizarRegistro();
 
-      // Sem Metabase configurado: pula direto pro app (decisão de produto).
-      if (!hasMetabase && !syncCarteira) { onDone(); return; }
+      // Tarefas a executar no boot, na ordem. Cada uma vira um step.
+      const jobs: { label: string; run: () => Promise<unknown> }[] = [];
+      if (hasMetabase) jobs.push({ label: "Sincronizando tarefas", run: () => sincronizarMetabase(true) });
+      if (syncCarteira) jobs.push({ label: "Sincronizando carteira", run: () => sincronizarCarteira(true) });
+      if (syncRegistro) jobs.push({ label: "Sincronizando cadastro", run: () => sincronizarRegistro(true) });
+      if (hasSaac) jobs.push({ label: "Sincronizando leads", run: () => sincronizarLeadsSaac(true) });
+
+      // Nada a sincronizar: pula direto pro app (decisão de produto).
+      if (jobs.length === 0) { onDone(); return; }
 
       const initialSteps: Step[] = [
         { label: "Conexão verificada", status: "done" },
-        hasMetabase ? { label: "Sincronizando tarefas", status: "pending" } : null,
-        syncCarteira ? { label: "Sincronizando carteira", status: "pending" } : null,
-      ].filter(Boolean) as Step[];
+        ...jobs.map((j) => ({ label: j.label, status: "pending" as StepStatus })),
+      ];
 
       setSteps(initialSteps);
       setVisible(true);
@@ -212,28 +221,18 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const update = (idx: number, status: StepStatus) =>
         setSteps((prev) => prev.map((st, i) => i === idx ? { ...st, status } : st));
 
-      let idx = 1;
-      if (hasMetabase) {
-        update(idx, "running");
-        setProgress(15);
+      // Progresso distribuído entre 8% e 92% pelos jobs.
+      for (let j = 0; j < jobs.length; j++) {
+        const stepIdx = j + 1; // step 0 é "Conexão verificada"
+        update(stepIdx, "running");
+        setProgress(Math.round(8 + ((j + 0.5) / jobs.length) * 84));
         try {
-          await sincronizarMetabase(true);
-          update(idx, "done");
-          setProgress(syncCarteira ? 60 : 92);
+          await jobs[j].run();
+          update(stepIdx, "done");
         } catch {
-          update(idx, "error");
+          update(stepIdx, "error");
         }
-        idx++;
-      }
-      if (syncCarteira) {
-        update(idx, "running");
-        try {
-          await sincronizarCarteira(true);
-          update(idx, "done");
-          setProgress(92);
-        } catch {
-          update(idx, "error");
-        }
+        setProgress(Math.round(8 + ((j + 1) / jobs.length) * 84));
       }
 
       setProgress(100);

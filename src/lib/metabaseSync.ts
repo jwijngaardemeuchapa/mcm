@@ -166,75 +166,97 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
       count += ph.length;
     }
 
-    // --- Integração Captação Saac (Lovable API) ---
-    if (s.saacApiUrl && s.saacApiKey) {
-      try {
-        await db.execute("DELETE FROM chapa_registry WHERE fonte = 'leads_saac'");
-        const res = await fetch(s.saacApiUrl, {
-          headers: { "x-api-key": s.saacApiKey },
-        });
-        if (res.ok) {
-          const leads = await res.json();
-          if (Array.isArray(leads)) {
-            let leadsCount = 0;
-            const CHUNK_L = 30;
-            for (let i = 0; i < leads.length; i += CHUNK_L) {
-              const chunk = leads.slice(i, i + CHUNK_L);
-              const valsL: unknown[] = [];
-              const phL: string[] = [];
-              for (const row of chunk) {
-                const nomeLead = row.client_name ? String(row.client_name).trim() : "";
-                if (!nomeLead) continue;
-                
-                const blocked = row.status === "cadastro_cancelado" || row.farol_status === "vermelho" ? "BLOQUEADO" : null;
-                const motivo = row.cancel_reason || row.block_reason || null;
-                
-                valsL.push(
-                  row.cpf ? String(row.cpf).replace(/\D/g, "") : null,
-                  nomeLead,
-                  row.phone ? String(row.phone).replace(/\D/g, "") : null,
-                  row.city ? String(row.city).trim() : null,
-                  null, // bairro
-                  row.state ? String(row.state).trim() : null,
-                  null, // rua
-                  null, // cep
-                  null, // numero
-                  0, // tarefas = 0 para leads
-                  null, // primeira
-                  null, // ultima
-                  row.status ? String(row.status).trim() : "triagem", // situacao
-                  blocked,
-                  motivo,
-                  null, // aso
-                  now,
-                  "leads_saac"
-                );
-                phL.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-              }
-              if (phL.length > 0) {
-                await db.execute(
-                  `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${phL.join(",")}`,
-                  valsL,
-                );
-                leadsCount += phL.length;
-              }
-            }
-            if (!silent) toast.success(`Leads Saac importados: ${leadsCount}`);
-            count += leadsCount;
-          }
-        } else {
-          console.error("Saac API HTTP Error", res.status);
-        }
-      } catch (e) {
-        console.error("Erro ao puxar Saac API", e);
-      }
-    }
-
     localStorage.setItem("chapa_registry_imported_at", now);
     if (!silent) toast.success(`Cadastro sincronizado — ${count} chapas`);
     return true;
   } catch {
     if (!silent) toast.error("Erro ao sincronizar cadastro de chapas");
+    return false;
+  }
+}
+
+/**
+ * Sincroniza apenas os Leads Saac (Captação via Lovable API) — leve e
+ * independente do cadastro geral. Faz DELETE+INSERT só de fonte='leads_saac'.
+ */
+export async function sincronizarLeadsSaac(silent = false): Promise<boolean> {
+  const s = readSettings();
+  if (!s.saacApiUrl || !s.saacApiKey) {
+    if (!silent) toast.error("Configure a URL e a chave da API Saac em Integrações");
+    return false;
+  }
+  try {
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    // Garante coluna/índice 'fonte' (mesmo padrão idempotente do cadastro)
+    try { await db.execute("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'"); } catch { /* já existe */ }
+    try { await db.execute("CREATE INDEX IF NOT EXISTS idx_registry_fonte ON chapa_registry(fonte)"); } catch { /* já existe */ }
+
+    const res = await fetch(s.saacApiUrl, { headers: { "x-api-key": s.saacApiKey } });
+    if (!res.ok) {
+      console.error("Saac API HTTP Error", res.status);
+      if (!silent) toast.error(`Erro na API Saac (HTTP ${res.status})`);
+      return false;
+    }
+    const leads = await res.json();
+    if (!Array.isArray(leads)) {
+      if (!silent) toast.error("Resposta inesperada da API Saac");
+      return false;
+    }
+
+    await db.execute("DELETE FROM chapa_registry WHERE fonte = 'leads_saac'");
+
+    let leadsCount = 0;
+    const CHUNK_L = 30;
+    for (let i = 0; i < leads.length; i += CHUNK_L) {
+      const chunk = leads.slice(i, i + CHUNK_L);
+      const valsL: unknown[] = [];
+      const phL: string[] = [];
+      for (const row of chunk) {
+        const nomeLead = row.client_name ? String(row.client_name).trim() : "";
+        if (!nomeLead) continue;
+
+        const blocked = row.status === "cadastro_cancelado" || row.farol_status === "vermelho" ? "BLOQUEADO" : null;
+        const motivo = row.cancel_reason || row.block_reason || null;
+
+        valsL.push(
+          row.cpf ? String(row.cpf).replace(/\D/g, "") : null,
+          nomeLead,
+          row.phone ? String(row.phone).replace(/\D/g, "") : null,
+          row.city ? String(row.city).trim() : null,
+          null, // bairro
+          row.state ? String(row.state).trim() : null,
+          null, // rua
+          null, // cep
+          null, // numero
+          0, // tarefas = 0 para leads
+          null, // primeira
+          null, // ultima
+          row.status ? String(row.status).trim() : "triagem", // situacao
+          blocked,
+          motivo,
+          null, // aso
+          now,
+          "leads_saac"
+        );
+        phL.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+      }
+      if (phL.length > 0) {
+        await db.execute(
+          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${phL.join(",")}`,
+          valsL,
+        );
+        leadsCount += phL.length;
+      }
+    }
+
+    localStorage.setItem("saac_last_sync", now);
+    if (!silent) toast.success(`Leads Saac importados: ${leadsCount}`);
+    return true;
+  } catch (e) {
+    console.error("Erro ao puxar Saac API", e);
+    if (!silent) toast.error("Erro ao sincronizar Leads Saac");
     return false;
   }
 }
@@ -251,4 +273,28 @@ export function devesSincronizarCarteira(): boolean {
   lastMonday.setDate(now.getDate() - daysSinceMonday);
   lastMonday.setHours(0, 0, 0, 0);
   return lastDate < lastMonday;
+}
+
+/**
+ * Cadastro geral: devido 2x por semana — âncoras segunda (1) e quinta (4) à 00h.
+ * Devido se a última sync foi antes da âncora mais recente <= agora.
+ */
+export function devesSincronizarRegistro(): boolean {
+  const last = localStorage.getItem("chapa_registry_imported_at");
+  if (!last) return true;
+  const lastDate = new Date(last);
+  const now = new Date();
+  const dow = now.getDay(); // 0=dom..6=sáb
+  // dias desde a âncora mais recente (seg=1 ou qui=4)
+  const anchorDays = [1, 4];
+  let minDiff = Infinity;
+  for (const a of anchorDays) {
+    let diff = dow - a;
+    if (diff < 0) diff += 7;
+    minDiff = Math.min(minDiff, diff);
+  }
+  const lastAnchor = new Date(now);
+  lastAnchor.setDate(now.getDate() - minDiff);
+  lastAnchor.setHours(0, 0, 0, 0);
+  return lastDate < lastAnchor;
 }

@@ -88,11 +88,13 @@ export default function Carteira() {
       : [...gruposAtivos, g];
     setGruposAtivos(next);
     writeSettings({ carteiraGruposAtivos: next });
+    window.dispatchEvent(new CustomEvent("carteira:changed"));
   }
 
   function clearGrupos() {
     setGruposAtivos([]);
     writeSettings({ carteiraGruposAtivos: [] });
+    window.dispatchEvent(new CustomEvent("carteira:changed"));
   }
 
   function onFile(file: File) {

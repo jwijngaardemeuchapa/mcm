@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarCarteira, sincronizarRegistro } from "@/lib/metabaseSync";
+import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac } from "@/lib/metabaseSync";
+import { fmtDateTime } from "@/lib/datetime";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
 import { extractPhone, extractBody, classifyResponse, type RespostaCode } from "@/lib/firestoreQueue";
@@ -179,6 +180,32 @@ function SincronizarRegistroBtn() {
       <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
       Sincronizar agora
     </Button>
+  );
+}
+
+function SincronizarLeadsSaacBtn() {
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem("saac_last_sync"));
+  const s = readSettings();
+  const configured = !!s.saacApiUrl && !!s.saacApiKey;
+  async function handle() {
+    setSyncing(true);
+    await sincronizarLeadsSaac(false);
+    setLastSync(localStorage.getItem("saac_last_sync"));
+    setSyncing(false);
+  }
+  return (
+    <div className="flex items-center gap-3">
+      <Button variant="outline" size="sm" onClick={handle} disabled={syncing || !configured} className="gap-1.5">
+        <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+        Sincronizar Leads Saac
+      </Button>
+      {lastSync && (
+        <span className="text-xs text-muted-foreground">
+          Última: {fmtDateTime(lastSync)}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -1183,6 +1210,12 @@ export default function Integracoes() {
                 </button>
               </div>
             </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <p className="text-[11px] text-muted-foreground">
+              Os leads sincronizam automaticamente toda vez que o app abre. Use o botão para atualizar agora.
+            </p>
+            <SincronizarLeadsSaacBtn />
           </div>
         </CardContent>
       </Card>

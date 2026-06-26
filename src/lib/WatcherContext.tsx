@@ -6,6 +6,8 @@ import { useFirestoreQueue } from "./useFirestoreQueue";
 import { type RespostaEvent } from "./firestoreQueue";
 import { useAutoCancelFup } from "./useAutoCancelFup";
 import { logActivity, pruneActivityLog } from "./activityLog";
+import { getActiveCarteiraNames } from "./carteira";
+import { companyMatches } from "./company";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /* ─── context ── */
@@ -26,6 +28,21 @@ export function useWatcherLog() {
 export function WatcherProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<TaskWithChapas[]>([]);
   const [notifLog, setNotifLog] = useState<WatcherActivity[]>([]);
+
+  // Conjunto de empresas visíveis na carteira (filtro de grupos). Cache em ref para
+  // ser lido dentro dos handlers sem stale closure. [] = sem filtro (tudo passa).
+  const activeNamesRef = useRef<string[]>([]);
+  const refreshActiveNames = useCallback(async () => {
+    activeNamesRef.current = await getActiveCarteiraNames();
+  }, []);
+
+  // Respostas de empresas fora da carteira filtrada não devem virar notificação.
+  const empresaVisivel = useCallback((empresa: string | null | undefined): boolean => {
+    const names = activeNamesRef.current;
+    if (names.length === 0) return true; // sem filtro ativo
+    if (!empresa) return true; // sem empresa identificada → não bloqueia
+    return companyMatches(empresa, names);
+  }, []);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -103,10 +120,16 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     pruneActivityLog(); // TTL 30 dias — roda silenciosamente no startup
+    refreshActiveNames();
     loadTasks();
-    const t = setInterval(loadTasks, 60_000);
-    return () => clearInterval(t);
-  }, [loadTasks]);
+    const t = setInterval(() => { refreshActiveNames(); loadTasks(); }, 60_000);
+    const onCarteiraChanged = () => refreshActiveNames();
+    window.addEventListener("carteira:changed", onCarteiraChanged);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener("carteira:changed", onCarteiraChanged);
+    };
+  }, [loadTasks, refreshActiveNames]);
 
   const handleRefresh = useCallback(() => {
     loadTasks();
@@ -118,6 +141,8 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const handleActivity = useCallback((entry: WatcherActivity) => {
+    // Filtro de carteira: ignora respostas de empresas fora do filtro ativo.
+    if (!empresaVisivel(entry.empresa)) return;
     setNotifLog((prev) => [entry, ...prev].slice(0, 50));
     logActivity({
       tipo: entry.action === "confirmado" ? "confirmado" : entry.action === "removido" ? "removido" : "recusou",
@@ -127,7 +152,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
       id_tarefa: entry.task_id,
       timestamp: entry.timestamp,
     });
-  }, []);
+  }, [empresaVisivel]);
 
   const handleRemoveRequest = useCallback((taskId: number, chapaName: string) => {
     window.dispatchEvent(new CustomEvent("fup:remove-chapa", { detail: { taskId, chapaName } }));
@@ -155,15 +180,20 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
       data_tarefa: null,
       timestamp: Date.now(),
     };
-    setNotifLog((prev) => [entry, ...prev].slice(0, 50));
-    logActivity({
-      tipo: entry.action === "confirmado" ? "confirmado" : "recusou",
-      descricao: entry.action === "confirmado" ? "Confirmou via Firebase" : "Recusou via Firebase",
-      chapa_nome: ev.chapa_nome,
-      empresa: ev.empresa ?? null,
-      id_tarefa: ev.id_tarefa ?? null,
-      timestamp: Date.now(),
-    });
+    // Filtro de carteira: só notifica/registra respostas de empresas visíveis.
+    // O lado de dados (fup:refresh / fup:remove-chapa) NÃO é filtrado — integridade
+    // das tarefas não pode depender do filtro de visualização.
+    if (empresaVisivel(ev.empresa ?? null)) {
+      setNotifLog((prev) => [entry, ...prev].slice(0, 50));
+      logActivity({
+        tipo: entry.action === "confirmado" ? "confirmado" : "recusou",
+        descricao: entry.action === "confirmado" ? "Confirmou via Firebase" : "Recusou via Firebase",
+        chapa_nome: ev.chapa_nome,
+        empresa: ev.empresa ?? null,
+        id_tarefa: ev.id_tarefa ?? null,
+        timestamp: Date.now(),
+      });
+    }
     window.dispatchEvent(new CustomEvent("fup:refresh"));
 
     // Só sinaliza remoção do FUP quando o evento for FUP e o chapa cancelou.
@@ -174,7 +204,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
         detail: { taskId: ev.id_tarefa, chapaName: ev.chapa_nome },
       }));
     }
-  }, []);
+  }, [empresaVisivel]);
 
   useFirestoreQueue(handleWebhookEvent);
   useAutoCancelFup(handleRefresh);

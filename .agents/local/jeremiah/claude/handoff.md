@@ -1,12 +1,34 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-25
-**Versão atual:** v1.0.1 (build pendente)
+**Data:** 2026-06-26
+**Versão atual:** v1.0.1
 **Branch:** main
-**Último commit:** 8ab536a
 
 ---
 
+## O que foi feito na sessão 2026-06-26 (Opus 4.8)
+
+### Parte A — Sync automático dos Leads Saac
+- `sincronizarLeadsSaac()` extraída/desacoplada do `sincronizarRegistro` pesado (só `fonte='leads_saac'`, grava `saac_last_sync`).
+- `devesSincronizarRegistro()`: cadastro geral auto 2x/semana (seg/qui).
+- `AppStartup` boot refatorado para steps dinâmicos: Saac (sempre) + cadastro (2x/sem) além de tarefas/carteira.
+- Botão "Sincronizar Leads Saac" em Integrações.
+
+### Parte B — Notificações filtradas pela carteira (tempo real)
+- `src/lib/carteira.ts` novo: `getActiveCarteiraNames()`.
+- `WatcherContext`: cache reativo + gate em `handleActivity`/`handleWebhookEvent` (só notificação; dados intactos).
+- `Carteira.tsx` dispara `carteira:changed`.
+
+### Validação / contexto
+- `npm run typecheck` (NÃO `npx tsc --noEmit` — vazio): 0 erros novos, baseline 13 mantida.
+- Sincronizado com os 14 commits do outro PC; corrigida regressão `sync_aceite` no ActivityBell (b31b39f).
+
+### Pendência aberta (planejada, não implementada)
+- Refactor do reload pesado do Dashboard (queries scopeadas + store incremental useReducer) — plano antigo, precisa revalidar contra BIDDashboard/TaskCard novos.
+
+---
+
+## [Sessões anteriores — outro PC]
 ## O que foi feito nesta sessão
 
 ### Integração Saac & Otimização do BID Dashboard (MCM-84)
