@@ -27,6 +27,15 @@
       "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' http://127.0.0.1:11434 https://*.supabase.co wss://*.supabase.co https:; img-src 'self' data: blob:; media-src 'self' blob: data:"
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg1NTVCRTk4N0MxNDM0N0YKUldSL05CUjhtTDVWaFFKYlBLY2g5bVBpQ3J0ejI4S1NhNjA1TTNxcnpXL0l4eDllUTM1dW80RGUK",
+      "endpoints": [
+        "https://raw.githubusercontent.com/jwijngaardemeuchapa/mcm/main/latest.json"
+      ],
+      "dialog": false
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],

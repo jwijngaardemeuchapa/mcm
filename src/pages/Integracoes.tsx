@@ -21,6 +21,8 @@ import {
   Wifi,
   Database,
   RefreshCw,
+  Download,
+  ArrowDownCircle,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
@@ -47,6 +49,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { sendUmblerFup, startUmblerBot } from "@/lib/umbler";
 import { errMsg } from "@/lib/db";
@@ -265,6 +269,49 @@ export default function Integracoes() {
   const [listenerCountdown, setListenerCountdown] = useState(LISTENER_TIMEOUT_SECS);
   const listenerUnsubRef = useRef<Unsubscribe | null>(null);
   const listenerCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* ── Updater ── */
+  type UpdateStatus = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "installing";
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
+  const [pendingUpdate, setPendingUpdate] = useState<Update | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  async function verificarAtualizacao() {
+    setUpdateStatus("checking");
+    try {
+      const update = await check();
+      if (update?.available) {
+        setPendingUpdate(update);
+        setUpdateStatus("available");
+      } else {
+        setUpdateStatus("up-to-date");
+      }
+    } catch {
+      setUpdateStatus("idle");
+      toast.error("Erro ao verificar atualização. Verifique a conexão.");
+    }
+  }
+
+  async function instalarAtualizacao() {
+    if (!pendingUpdate) return;
+    setUpdateStatus("downloading");
+    let downloaded = 0;
+    let total = 0;
+    try {
+      await pendingUpdate.downloadAndInstall((event) => {
+        if (event.event === "Started") total = event.data.contentLength ?? 0;
+        if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          setDownloadProgress(total > 0 ? Math.round((downloaded / total) * 100) : 0);
+        }
+        if (event.event === "Finished") setUpdateStatus("installing");
+      });
+      await relaunch();
+    } catch {
+      setUpdateStatus("available");
+      toast.error("Erro ao instalar atualização.");
+    }
+  }
 
   /* cleanup when dialog closes */
   useEffect(() => {
@@ -1217,6 +1264,88 @@ export default function Integracoes() {
             </p>
             <SincronizarLeadsSaacBtn />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Atualização do Sistema ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
+              <Download className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-sm">Atualização do Sistema</CardTitle>
+              <CardDescription className="text-xs">Verifique e instale novas versões do MCM manualmente.</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-xs text-muted-foreground">
+              {updateStatus === "idle" && "Clique para verificar se há uma versão mais recente disponível."}
+              {updateStatus === "checking" && "Verificando atualização..."}
+              {updateStatus === "up-to-date" && (
+                <span className="flex items-center gap-1.5 text-success">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Você já está na versão mais recente.
+                </span>
+              )}
+              {updateStatus === "available" && (
+                <span className="flex items-center gap-1.5 text-warning">
+                  <ArrowDownCircle className="h-3.5 w-3.5" />
+                  Nova versão disponível: <strong>{pendingUpdate?.version}</strong>
+                </span>
+              )}
+              {updateStatus === "downloading" && `Baixando... ${downloadProgress}%`}
+              {updateStatus === "installing" && "Instalando — o app será reiniciado em instantes..."}
+            </div>
+            <div className="flex gap-2 shrink-0">
+              {(updateStatus === "idle" || updateStatus === "up-to-date") && (
+                <Button size="sm" variant="outline" onClick={verificarAtualizacao} className="gap-1.5 text-xs">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Verificar
+                </Button>
+              )}
+              {updateStatus === "checking" && (
+                <Button size="sm" variant="outline" disabled className="gap-1.5 text-xs">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Verificando...
+                </Button>
+              )}
+              {updateStatus === "available" && (
+                <Button size="sm" onClick={instalarAtualizacao} className="gap-1.5 text-xs bg-warning text-warning-foreground hover:bg-warning/90">
+                  <Download className="h-3.5 w-3.5" />
+                  Instalar v{pendingUpdate?.version}
+                </Button>
+              )}
+              {updateStatus === "downloading" && (
+                <Button size="sm" variant="outline" disabled className="gap-1.5 text-xs min-w-[100px]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {downloadProgress}%
+                </Button>
+              )}
+              {updateStatus === "installing" && (
+                <Button size="sm" variant="outline" disabled className="gap-1.5 text-xs">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Reiniciando...
+                </Button>
+              )}
+            </div>
+          </div>
+          {updateStatus === "downloading" && (
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-300"
+                style={{ width: `${downloadProgress}%` }}
+              />
+            </div>
+          )}
+          {updateStatus === "available" && pendingUpdate?.body && (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              {pendingUpdate.body}
+            </div>
+          )}
         </CardContent>
       </Card>
 

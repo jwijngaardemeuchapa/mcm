@@ -1,0 +1,11 @@
+{
+  "version": "1.0.11",
+  "notes": "Ver página de Ajuda para novidades.",
+  "pub_date": "2026-06-26T00:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.11/MCM_1.0.11_x64-setup.exe"
+    }
+  }
+}
