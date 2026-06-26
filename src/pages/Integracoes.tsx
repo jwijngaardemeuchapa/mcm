@@ -57,7 +57,7 @@ import { errMsg } from "@/lib/db";
 import { toast } from "sonner";
 
 const LISTENER_TIMEOUT_SECS = 180;
-const SENHA_INTEGRACOES = "ch@p@Meu";
+const SENHA_INTEGRACOES = "meuCh@p@";
 
 type ListenerStep = "input" | "waiting" | "done";
 type ListenerResult = RespostaCode | "timeout" | null;
