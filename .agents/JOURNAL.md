@@ -3,6 +3,45 @@
 
 ---
 
+## 2026-06-26 — MCM — Atualização manual protegida por senha (updater)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** —
+
+### Alterações
+- `tauri-plugin-updater` + `tauri-plugin-process` adicionados ao `Cargo.toml` e registrados em `lib.rs`.
+- `tauri.conf.json`: bloco `plugins.updater` com pubkey, endpoint `raw.githubusercontent.com/jwijngaardemeuchapa/mcm/main/latest.json`, `dialog: false`.
+- `npm install @tauri-apps/plugin-updater @tauri-apps/plugin-process`.
+- Card "Atualização do Sistema" adicionado em `Integracoes.tsx` dentro do bloco `unlocked` — 6 estados (idle/checking/up-to-date/available/downloading/installing), barra de progresso, sem auto-notificação.
+- `latest.json` criado na raiz do repo (atualizar a cada release com `.exe.sig` e URL do GitHub Release).
+- `tauri_update_key.pub` adicionada ao repo; chave privada em `.gitignore`.
+- **Processo de release:** `$env:TAURI_SIGNING_PRIVATE_KEY` → `npm run tauri build` → upload `.exe` + `.exe.sig` → atualizar `latest.json` → push.
+- Typecheck: 0 erros novos (baseline 13 mantida).
+- Commit: `0da8cc9`.
+
+---
+
+## 2026-06-26 — MCM — Janela maximizada + versão 1.0.11 + mockup do instalador
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** —
+
+### Alterações
+- **`tauri.conf.json`**: `"maximized": true` adicionado à janela principal — app abre maximizado.
+- **`tauri.conf.json`**: versão bumped de `1.0.1` → `1.0.11`.
+- Build `MCM_1.0.11_x64-setup.exe` gerado com sucesso (exit 0).
+
+### Mockup do instalador customizado
+- Criado mockup interativo (3 telas: boas-vindas, progresso, conclusão) com identidade visual real do MCM.
+- Cores: laranja `#e85f00`, Montserrat 900 bold, logo real embutido em base64.
+- Autoria "por Wijngaarde Design" presente na sidebar.
+- Design **aprovado** pelo usuário — implementação NSIS pendente para próxima sessão.
+
+### Implementação NSIS pendente (planejada)
+- Exportar `sidebarImage` (164×314px) e `headerImage` (150×57px) com o design aprovado.
+- Configurar `bundle.windows.nsis` no `tauri.conf.json` com os assets.
+- Script NSIS customizado com cores e fontes MCM.
+
+---
+
 ## 2026-06-26 — MCM — Sync automático Leads Saac + notificações filtradas pela carteira
 **Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
 **Tickets:** — (melhorias de operação)
