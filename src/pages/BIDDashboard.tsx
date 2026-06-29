@@ -397,10 +397,15 @@ function BidTaskCard({
   const [showOccupied, setShowOccupied] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [maxDistKm, setMaxDistKm] = useState(30);
-  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados">("disponiveis");
+  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid">("disponiveis");
   const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
   const [blockedLoaded, setBlockedLoaded] = useState(false);
+  const [rawLeadsBid, setRawLeadsBid] = useState<BidChapa[]>([]);
+  const [leadsBidLoading, setLeadsBidLoading] = useState(false);
+  const [leadsBidLoaded, setLeadsBidLoaded] = useState(false);
+  const [basePhoneSet, setBasePhoneSet] = useState<Set<string>>(new Set());
+  const [leadsBidStatusFilter, setLeadsBidStatusFilter] = useState<string>("__all__");
   const [negOpen, setNegOpen] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [editingDisparoId, setEditingDisparoId] = useState<string | null>(null);
@@ -566,6 +571,7 @@ function BidTaskCard({
             FROM chapa_registry r
             LEFT JOIN cep_cache cc ON REPLACE(REPLACE(r.cep,' ',''),'-','') = cc.cep
             WHERE (r.bloqueio IS NULL OR UPPER(r.bloqueio) LIKE '%DESBLOQUEADO%')
+            AND (r.fonte IS NULL OR r.fonte = 'metabase')
             AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
             AND UPPER(COALESCE(r.situacao,'') || ' ' || COALESCE(r.nome,'')) NOT LIKE '%EXCLU%'
             ORDER BY r.tarefas DESC
@@ -666,6 +672,41 @@ function BidTaskCard({
       finally { setBlockedLoading(false); }
     })();
   }, [candidateView, blockedLoaded, expanded, task.cidade_uf]); // eslint-disable-line
+
+  // Carrega leads Saac para a aba "Leads" do BID (lazy — só quando a aba é aberta)
+  useEffect(() => {
+    if (candidateView !== "leads_bid" || leadsBidLoaded || !expanded) return;
+    const cityUf = parseCidadeUf(task.cidade_uf);
+    if (!cityUf) { setLeadsBidLoaded(true); return; }
+    setLeadsBidLoading(true);
+    (async () => {
+      try {
+        const db = await getDb();
+        const [leads, baseRows] = await Promise.all([
+          db.select<BidChapa[]>(`
+            SELECT 'reg_' || r.rowid as _key, r.cpf, r.nome, r.telefone,
+                   r.cidade, r.bairro, r.estado, r.rua,
+                   REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
+                   r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
+                   r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, 0 as is_extra,
+                   NULL as lat, NULL as lng
+            FROM chapa_registry r
+            WHERE r.fonte = 'leads_saac'
+            AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
+            ORDER BY r.tarefas DESC, r.situacao
+          `, [cityUf.cidade, cityUf.estado]),
+          db.select<{ phone: string }[]>(`
+            SELECT DISTINCT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(r.telefone,'(',''),')',''),'-',''),' ',''),'+','') as phone
+            FROM chapa_registry r
+            WHERE (r.fonte IS NULL OR r.fonte = 'metabase') AND r.telefone IS NOT NULL
+          `),
+        ]);
+        setRawLeadsBid(leads);
+        setBasePhoneSet(new Set(baseRows.map((r) => r.phone)));
+      } catch { /* silencioso */ }
+      finally { setLeadsBidLoading(false); setLeadsBidLoaded(true); }
+    })();
+  }, [candidateView, leadsBidLoaded, expanded, task.cidade_uf]); // eslint-disable-line
 
   // Derive ranked candidates whenever raw data, coords, occupied sets, or disparos change
   const candidates = useMemo<RankedCandidate[]>(() => {
@@ -860,7 +901,9 @@ function BidTaskCard({
   }
 
   function handleDispatchSelected() {
-    const pool = candidateView === "bloqueados" ? blockedCandidates : candidates;
+    const pool = candidateView === "bloqueados" ? blockedCandidates
+      : candidateView === "leads_bid" ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
+      : candidates;
     const toDispatch = pool.filter((c) => selectedIds.has(c._key) && c.telefone);
     if (toDispatch.length === 0) return;
     const us = readSettings().umblerSettings;
@@ -904,10 +947,6 @@ function BidTaskCard({
     if (c.is_occupied) return false;
     if (c.disparo?.status === "aguardando") return false;
     if (onlyExtras && c.is_extra !== 1) return false;
-    // Leads Saac só entram em Disponíveis se confirmados DENTRO do raio (distância
-    // pela cidade). Sem coords/cidade geocodificada → distance_km null → fora.
-    // (Leads não têm CEP, então escapariam pelo ramo `!c.cep` do filtro de proximidade.)
-    if (c.fonte === "leads_saac" && !(c.distance_km !== null && c.distance_km <= maxDistKm)) return false;
     if (filterPositiveOnly && leoCache && leoCache.size > 0 && c.telefone) {
       const leo = leoCache.get(normalizePhone(c.telefone));
       if (leo && leo.pct_sim < 0.3 && leo.total_ofertas >= 3) return false;
@@ -937,8 +976,21 @@ function BidTaskCard({
       : blockedCandidates;
   const blockedVisible = blockedWithinDist;
 
+  // Status distintos presentes nos leads carregados — alimenta o filtro da aba Leads.
+  const leadsBidStatuses = useMemo(() => {
+    const s = new Set<string>();
+    for (const c of rawLeadsBid) if (c.situacao) s.add(c.situacao);
+    return Array.from(s).sort();
+  }, [rawLeadsBid]);
+  const leadsBidVisible = leadsBidStatusFilter === "__all__"
+    ? rawLeadsBid
+    : rawLeadsBid.filter((c) => c.situacao === leadsBidStatusFilter);
+
   // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
-  const activeList = candidateView === "disponiveis" ? visibleCandidates : blockedVisible;
+  // leads_bid tem render próprio (lista simples, sem virtualizer).
+  const activeList = candidateView === "disponiveis" ? visibleCandidates
+    : candidateView === "bloqueados" ? blockedVisible
+    : [];
   const virtualizer = useVirtualizer({
     count: activeList.length,
     getScrollElement: () => parentRef.current,
@@ -957,7 +1009,9 @@ function BidTaskCard({
   function toggleSelectAll() {
     const pool = candidateView === "bloqueados"
       ? blockedVisible.filter((c) => c.telefone)
-      : available.filter((c) => c.telefone);
+      : candidateView === "leads_bid"
+        ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
+        : available.filter((c) => c.telefone);
     const allSel = pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
     setSelectedIds(allSel ? new Set() : new Set(pool.map((c) => c._key)));
   }
@@ -1411,6 +1465,11 @@ function BidTaskCard({
                   className={`px-2.5 py-1 transition-colors ${candidateView === "bloqueados" ? "bg-destructive text-destructive-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
                   Bloqueados{blockedLoaded && rawBlocked.length > 0 ? ` (${rawBlocked.length})` : ""}
                 </button>
+                <button type="button"
+                  onClick={() => { setCandidateView("leads_bid"); setShowAll(false); }}
+                  className={`px-2.5 py-1 transition-colors ${candidateView === "leads_bid" ? "bg-indigo-600 text-white" : "text-muted-foreground hover:bg-muted/50"}`}>
+                  Leads{leadsBidLoaded && rawLeadsBid.length > 0 ? ` (${rawLeadsBid.length})` : ""}
+                </button>
               </div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1 flex items-center flex-wrap gap-1.5">
                 {candidateView === "disponiveis" ? (
@@ -1432,6 +1491,12 @@ function BidTaskCard({
                       </button>
                     )}
                   </>
+                ) : candidateView === "leads_bid" ? (
+                  <span className="font-normal normal-case text-indigo-500/80">
+                    {leadsBidLoaded
+                      ? `${leadsBidVisible.filter((c) => !c.bloqueio && !basePhoneSet.has(normalizePhone(c.telefone ?? ""))).length} leads disponíveis · ${leadsBidVisible.filter((c) => basePhoneSet.has(normalizePhone(c.telefone ?? ""))).length} já na base`
+                      : "Carregando leads..."}
+                  </span>
                 ) : (
                   <>
                     {blockedLoaded && (
@@ -1451,6 +1516,19 @@ function BidTaskCard({
                   </>
                 )}
               </span>
+              {candidateView === "leads_bid" && leadsBidLoaded && leadsBidStatuses.length > 0 && (
+                <Select value={leadsBidStatusFilter} onValueChange={setLeadsBidStatusFilter}>
+                  <SelectTrigger className="h-6 w-[140px] text-[10px] border-border/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos status</SelectItem>
+                    {leadsBidStatuses.map((s) => (
+                      <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {hasCoords && (
                 <Select value={String(maxDistKm)} onValueChange={(v) => { setMaxDistKm(Number(v)); setShowAll(false); }}>
                   <SelectTrigger className="h-6 w-[80px] text-[10px] border-border/50">
@@ -1593,6 +1671,73 @@ function BidTaskCard({
               </div>
 
               <div ref={parentRef} className="max-h-[600px] overflow-auto divide-y divide-border/50">
+                {/* ── Leads BID ── */}
+                {candidateView === "leads_bid" && leadsBidLoading && (
+                  <div className="px-4 py-3 space-y-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="h-10 rounded-lg bg-indigo-500/10 animate-pulse" style={{ opacity: 1 - i * 0.2 }} />
+                    ))}
+                  </div>
+                )}
+                {candidateView === "leads_bid" && leadsBidLoaded && leadsBidVisible.length === 0 && (
+                  <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                    {rawLeadsBid.length === 0
+                      ? `Nenhum lead do SAAC para ${task.cidade_uf || "esta cidade"}.`
+                      : "Nenhum lead com esse status."}
+                  </div>
+                )}
+                {candidateView === "leads_bid" && leadsBidLoaded && leadsBidVisible.length > 0 && (
+                  <div className="divide-y divide-border/50">
+                    {leadsBidVisible.map((c) => {
+                      const phone = normalizePhone(c.telefone ?? "");
+                      const inBase = phone ? basePhoneSet.has(phone) : false;
+                      const isBlocked = !!c.bloqueio;
+                      const canDispatch = !inBase && !isBlocked && !!c.telefone;
+                      const isDispatching = dispatchingIds.has(c._key);
+                      return (
+                        <div key={c._key}
+                          className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2 text-xs transition-colors ${inBase ? "opacity-40" : isBlocked ? "opacity-50" : "hover:bg-muted/30"}`}>
+                          <span className="w-5 flex items-center justify-center">
+                            {!inBase && !isBlocked && (
+                              <input type="checkbox"
+                                className="h-3.5 w-3.5 accent-indigo-600 cursor-pointer"
+                                checked={selectedIds.has(c._key)}
+                                onChange={() => setSelectedIds((prev) => {
+                                  const s = new Set(prev);
+                                  s.has(c._key) ? s.delete(c._key) : s.add(c._key);
+                                  return s;
+                                })}
+                              />
+                            )}
+                          </span>
+                          <div className="min-w-0 flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium truncate">{c.nome}</span>
+                              <span className="px-1 py-0 rounded text-[9px] font-bold bg-indigo-500/15 text-indigo-600 shrink-0">LEAD</span>
+                              {inBase && <span className="px-1 py-0 rounded text-[9px] font-bold bg-muted text-muted-foreground shrink-0">NA BASE</span>}
+                              {isBlocked && !inBase && <span className="px-1 py-0 rounded text-[9px] font-bold bg-destructive/15 text-destructive shrink-0">BLOQUEADO</span>}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                              {c.telefone && <span>{c.telefone}</span>}
+                              {c.situacao && <span className="capitalize">{c.situacao.replace(/_/g, " ")}</span>}
+                              {c.motivo_bloqueio && <span className="text-destructive/70 truncate max-w-[160px]">{c.motivo_bloqueio}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {canDispatch && (
+                              <button type="button"
+                                disabled={isDispatching}
+                                onClick={(e) => { e.stopPropagation(); dispatchOne(c as unknown as RankedCandidate); }}
+                                className="h-6 px-2 rounded text-[10px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50">
+                                {isDispatching ? "..." : "Disparar"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {/* Loading states */}
                 {candidateView === "disponiveis" && candidatesLoading && rawCandidates.length === 0 && (
                   <div className="px-4 py-3 space-y-2">
