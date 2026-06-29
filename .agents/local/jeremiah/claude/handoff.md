@@ -6,6 +6,31 @@
 
 ---
 
+## O que foi feito na sessão 2026-06-29 parte 2 (Sonnet 4.6) — pós-release fixes
+
+### Correções pós-v1.0.13 (todos commits em main, build final pendente)
+
+**Updater capabilities** (`02ce714`)
+- `capabilities/default.json` precisava de `updater:allow-check`, `updater:allow-download-and-install`, `process:allow-restart` — sem elas Tauri v2 rejeita antes de qualquer conexão.
+
+**`_key` único no virtual scroll** (`b2f5414`)
+- Sintoma: "Angelita com número do Cleverson" — nome e telefone trocados na lista do BID.
+- Causa: migração removeu cpf PK → `_key = COALESCE(cpf, 'anon_'||rowid)` colide → virtualizer recicla nó DOM errado ao reordenar.
+- Fix: `'reg_'||rowid` / `'extra_'||id` — sempre único.
+
+**Filtro de status na aba Leads** (`6d552e5`)
+- Select: Todos / Disponíveis / Bloqueados / status cru específico.
+
+**Bloqueio falso por farol_status** (`aa2c8bf`)
+- Análise de 4169 leads reais revelou: `farol=vermelho` aparece em `candidato_apto` (388x) e `chapa_ativado` (216x) — é workflow, não bloqueio.
+- Bloqueio agora só por status `[cadastro_cancelado, chapa_bloqueado, reprovado_brk]` ou `block_reason`/`cancel_reason`.
+- `chapa_ativado → tarefas=1` → tier ativado no BID (prioridade máxima).
+
+### Processo de release (build em andamento)
+Após build: `tauri signer sign` → deletar assets antigos do release v1.0.13 → upload novo `.exe` + `.sig` → atualizar `latest.json` → commit + push.
+
+---
+
 ## O que foi feito na sessão 2026-06-29 (Sonnet 4.6) — BID bugs + aba Leads + v1.0.13
 
 ### BID Dashboard: 4 bugs corrigidos + aba Leads

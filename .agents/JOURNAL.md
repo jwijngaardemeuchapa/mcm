@@ -3,6 +3,43 @@
 
 ---
 
+## 2026-06-29 — MCM — Correções pós-v1.0.13: updater, _key virtual scroll, farol leads
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-84 (follow-up)
+
+### Problemas e correções
+
+**1. Updater retornava erro de conexão**
+- Causa 1: repo privado bloqueava `raw.githubusercontent.com` → resolvido tornando repo público.
+- Causa 2 (principal): `capabilities/default.json` não declarava `updater:allow-check`, `updater:allow-download-and-install`, `process:allow-restart` — em Tauri v2 o plugin rejeita sem permissão explícita. Commit `02ce714`.
+
+**2. Nome/telefone trocados no BID ("Angelita com número do Cleverson")**
+- Causa: `_key = COALESCE(r.cpf, 'anon_'||rowid)` dependia de CPF único, mas a migração removeu cpf de PK → mesmo CPF em `metabase` e `leads_saac` → `_key` duplicado → virtualizer (`@tanstack/react-virtual`) reciclava DOM errado ao reordenar async.
+- Fix: `_key = 'reg_'||rowid` / `'extra_'||id` — sempre único por linha. Commit `b2f5414`.
+
+**3. Bloqueio falso de candidato_apto e chapa_ativado**
+- Análise do payload real (4169 leads): `farol_status='vermelho'` aparece em `candidato_apto` (388x) e `chapa_ativado` (216x) — é indicador de workflow, não de bloqueio.
+- Fix: bloqueio apenas por `status ∈ [cadastro_cancelado, chapa_bloqueado, reprovado_brk]` ou `block_reason`/`cancel_reason` preenchidos. Remove `farol_status==='vermelho'` da condição.
+- Bônus: `chapa_ativado → tarefas=1` para entrar no tier ativado (prioridade máxima no BID). Commit `aa2c8bf`.
+
+**4. Filtro de status na aba Leads**
+- Select com três modos: Disponíveis (sem bloqueio), Bloqueados, ou status cru específico. Commit `6d552e5`.
+
+### Status dos leads no payload Saac
+- `novos` / `triagem` / `acolhimento` → em processo, sem bloqueio
+- `candidato_apto` → aprovado (tier aprovado no BID)
+- `chapa_ativado` → já trabalhou (tier ativado, `tarefas=1`)
+- `prazo_vencido` → prazo expirado (baixa prioridade, não bloqueado)
+- `cadastro_cancelado` + `cancel_reason` → BLOQUEADO
+- `chapa_bloqueado` + `block_reason` → BLOQUEADO
+- `reprovado_brk` → BLOQUEADO
+- `farol_status` → indicador de workflow, ignorado para bloqueio
+
+### Versão
+v1.0.13 (commits sequenciais `02ce714` → `b2f5414` → `6d552e5` → `aa2c8bf`)
+
+---
+
 ## 2026-06-29 — MCM — BID Dashboard: correção de bugs + aba Leads + v1.0.13
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-84 (follow-up), MCM-85

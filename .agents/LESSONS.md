@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-06-29 [leads, farol_status, bloqueio, payload-analysis]
+**Rule:** Nunca usar campos de workflow/operacional como proxy de bloqueio sem validar contra dados reais. `farol_status='vermelho'` na API Saac NÃO é bloqueio — aparece em `candidato_apto` e `chapa_ativado`. Bloquear apenas por campos semânticos explícitos: `status ∈ [cadastro_cancelado, chapa_bloqueado, reprovado_brk]` ou `block_reason`/`cancel_reason` preenchidos.
+**Why:** Análise de 4169 leads reais mostrou que 604 leads bons (388 `candidato_apto` + 216 `chapa_ativado`) tinham `farol=vermelho` e eram bloqueados erroneamente. O campo `farol_status` é um indicador de ação pendente no workflow, não impedimento de uso.
+**How to apply:** Ao integrar APIs externas, sempre pedir (ou analisar) um payload de exemplo antes de codificar heurísticas de bloqueio. Preferir lista explícita de status bloqueantes a regex/flag genérico. Documentar os status conhecidos (ver JOURNAL 2026-06-29).
+
+---
+
+## 2026-06-29 [bid, virtual-scroll, react-key, sqlite-pk, dados-trocados]
+**Rule:** A `key` de qualquer lista virtualizada (`@tanstack/react-virtual`) no BID DEVE ser globalmente única e estável por linha — usar `rowid`/`id` da tabela, NUNCA `cpf` ou outro campo que possa repetir.
+**Why:** O `_key` do BID era `COALESCE(r.cpf, 'anon_'||rowid)`. Enquanto `cpf` era PRIMARY KEY de `chapa_registry`, era único por acidente. Ao migrar para surrogate `id` (removendo a PK de cpf), a mesma pessoa passou a poder existir em `metabase` e `leads_saac` com o mesmo cpf → `_key` duplicado. Como a lista reordena async (geocode chega depois e muda `distance_km`→`score`→ordem), o React + virtualizer reciclavam o nó DOM errado e exibiam **nome de um registro com telefone de outro** ("Angelita com número do Cleverson"). Também corrompia `selectedIds` e o alvo do disparo.
+**How to apply:** Em qualquer `SELECT` que alimenta lista virtualizada, projetar `_key` a partir do `rowid`/`id` com prefixo por fonte (`'reg_'||rowid`, `'extra_'||id`) para garantir unicidade entre UNIONs/fontes. Ao remover uma PK/UNIQUE, auditar todo lugar que assumia aquela unicidade implícita (keys de UI, dedup, Sets).
+
+---
+
 ## 2026-06-21 [firestore, fup, dispatchQueue, canal_contato, race-condition]
 **Rule:** Gravar `canal_contato='umbler_talk'` POR CHAPA, imediatamente após cada `startUmblerBot` bem-sucedido — nunca em lote no final do loop.
 **Why:** Com 57 chapas no lote, o delay entre o primeiro envio e o `UPDATE` final era de vários minutos. Chapas rápidas respondiam nessa janela; `processFirestoreMessage` não achava `canal_contato='umbler_talk'` no SQLite e descartava a mensagem como `error`.
