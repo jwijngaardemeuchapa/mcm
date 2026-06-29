@@ -559,7 +559,7 @@ function BidTaskCard({
         // pelo ORDER BY tarefas DESC quando a cidade tinha muitos cadastrados.
         const [registry, extras] = await Promise.all([
           db.select<BidChapa[]>(`
-            SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
+            SELECT 'reg_' || r.rowid as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
                    REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
                    r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
                    r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, 0 as is_extra, cc.lat, cc.lng
@@ -572,7 +572,7 @@ function BidTaskCard({
             LIMIT 600
           `, [cityUf.cidade, cityUf.estado]),
           db.select<BidChapa[]>(`
-            SELECT b.id as _key, NULL as cpf, b.nome, b.telefone, b.cidade, NULL as bairro, b.estado, NULL as rua,
+            SELECT 'extra_' || b.id as _key, NULL as cpf, b.nome, b.telefone, b.cidade, NULL as bairro, b.estado, NULL as rua,
                    NULL as cep, NULL as numero, b.tarefas_finalizadas as tarefas,
                    NULL as data_primeira_tarefa, NULL as data_ultima_tarefa, NULL as situacao,
                    NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
@@ -628,7 +628,7 @@ function BidTaskCard({
         const db = await getDb();
         const [chapas, tiposRes] = await Promise.all([
           db.select<BidChapa[]>(`
-            SELECT COALESCE(r.cpf, 'anon_' || r.rowid) as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
+            SELECT 'reg_' || r.rowid as _key, r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua,
                    REPLACE(REPLACE(r.cep,' ',''),'-','') as cep, r.numero, r.tarefas,
                    r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao, r.bloqueio,
                    r.motivo_bloqueio, r.aso, r.importado_em, r.fonte, 0 as is_extra, cc.lat, cc.lng
