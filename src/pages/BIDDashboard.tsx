@@ -607,8 +607,12 @@ function BidTaskCard({
           cidadesVistas.add(dedup);
           cityGeocoder.enqueue(cidade, estado, (_key, coords) => {
             if (!coords) return;
+            const cidadeLow = cidade.toLowerCase();
+            const estadoUp = estado.toUpperCase();
             setRawCandidates((prev) => prev.map((p) =>
-              (!p.cep && p.lat === null && p.cidade === cidade && (p.estado ?? "") === estado)
+              (!p.cep && p.lat === null &&
+               (p.cidade ?? "").toLowerCase() === cidadeLow &&
+               (p.estado ?? "").toUpperCase() === estadoUp)
                 ? { ...p, lat: coords.lat, lng: coords.lng } : p));
           });
         }

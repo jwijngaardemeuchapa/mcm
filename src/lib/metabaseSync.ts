@@ -223,20 +223,26 @@ export async function sincronizarLeadsSaac(silent = false): Promise<boolean> {
       return false;
     }
 
-    await db.execute("DELETE FROM chapa_registry WHERE fonte = 'leads_saac'");
-
     // 1) Parse + dedup (por cpf, senão telefone, senão nome).
+    // DELETE só depois do parse: se o loop lançar exceção os dados antigos ficam intactos.
+    // Dedup usa "melhor status ganha" (não "primeiro ganha"): quando dois registros
+    // compartilham o mesmo telefone, mantemos o de status mais avançado.
+    // Isso evita que um lead feminino de status baixo sobreponha um chapa_ativado
+    // masculino que aparece depois no payload com o mesmo número.
+    const STATUS_PRIO: Record<string, number> = {
+      chapa_ativado: 100, candidato_apto: 80, acolhimento: 40,
+      novos: 30, triagem: 20, prazo_vencido: 5,
+      cadastro_cancelado: 0, chapa_bloqueado: 0, reprovado_brk: 0,
+    };
     const parsedL: unknown[][] = [];
-    const seenL = new Set<string>();
+    const seenL = new Map<string, { prio: number; idx: number }>();
     for (const row of leads) {
-      const nomeLead = row.client_name ? String(row.client_name).trim() : "";
+      const nomeLead = String(row.client_name || row.name || "").trim();
       if (!nomeLead) continue;
 
       const cpf = row.cpf ? String(row.cpf).replace(/\D/g, "") : null;
       const fone = row.phone ? String(row.phone).replace(/\D/g, "") : null;
       const dedupKey = cpf || (fone ? `tel:${fone}` : `nome:${nomeLead.toLowerCase().replace(/\s+/g, " ")}`);
-      if (seenL.has(dedupKey)) continue;
-      seenL.add(dedupKey);
 
       // Bloqueio baseado em dados concretos do payload — farol_status NÃO é
       // sinal de bloqueio: aparece "vermelho" em candidato_apto e chapa_ativado
@@ -256,29 +262,35 @@ export async function sincronizarLeadsSaac(silent = false): Promise<boolean> {
       const tarefas = statusRaw === "chapa_ativado" ? 1
         : parseInt(String(row.tasks_done ?? row.completed_tasks ?? row.tarefas ?? row.total_tarefas ?? 0)) || 0;
 
-      parsedL.push([
-        cpf,
-        nomeLead,
-        fone,
+      const prio = STATUS_PRIO[statusRaw] ?? 10;
+      const rowData: unknown[] = [
+        cpf, nomeLead, fone,
         row.city ? String(row.city).trim() : null,
         null, // bairro
         row.state ? String(row.state).trim() : null,
-        null, // rua
-        null, // cep — leads não têm; distância vem da cidade (cidade_cache)
-        null, // numero
-        tarefas,
-        null, // primeira
-        null, // ultima
-        statusRaw, // situacao (status cru — exibido na aba Leads)
-        blocked,
-        motivo,
-        null, // aso
-        now,
-        "leads_saac",
-      ]);
+        null, null, null, // rua, cep, numero
+        tarefas, null, null,
+        statusRaw, blocked, motivo, null, // aso
+        now, "leads_saac",
+      ];
+
+      const existing = seenL.get(dedupKey);
+      if (existing) {
+        if (prio > existing.prio) {
+          // Substituir pelo registro de status mais avançado
+          parsedL[existing.idx] = rowData;
+          seenL.set(dedupKey, { prio, idx: existing.idx });
+        }
+        // senão: manter o existente (prio igual ou superior)
+      } else {
+        seenL.set(dedupKey, { prio, idx: parsedL.length });
+        parsedL.push(rowData);
+      }
     }
 
-    // 2) Insert resiliente por chunk.
+    // 2) Delete → Insert resiliente por chunk (DELETE só agora: parsedL já está pronto,
+    //    então uma exceção no loop acima não apaga dados existentes).
+    await db.execute("DELETE FROM chapa_registry WHERE fonte = 'leads_saac'");
     let leadsCount = 0;
     let failedL = 0;
     const CHUNK_L = 30;

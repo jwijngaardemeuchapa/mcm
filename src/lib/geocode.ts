@@ -135,13 +135,17 @@ class CityGeocoder {
         }
       } catch { /* network */ }
 
-      try {
-        const db = await getDb();
-        await db.execute(
-          "INSERT OR REPLACE INTO cidade_cache (chave, cidade, estado, lat, lng, geocodificado_em) VALUES (?, ?, ?, ?, ?, ?)",
-          [key, cidade, estado, coords?.lat ?? null, coords?.lng ?? null, new Date().toISOString()],
-        );
-      } catch { /* noop */ }
+      // Só cacheia geocodes bem-sucedidos: cachear null "envenena" a cidade permanentemente
+      // (próximas chamadas lêem o cache e pulam o Nominatim sem nova tentativa).
+      if (coords) {
+        try {
+          const db = await getDb();
+          await db.execute(
+            "INSERT OR REPLACE INTO cidade_cache (chave, cidade, estado, lat, lng, geocodificado_em) VALUES (?, ?, ?, ?, ?, ?)",
+            [key, cidade, estado, coords.lat, coords.lng, new Date().toISOString()],
+          );
+        } catch { /* noop */ }
+      }
 
       callbacks.forEach((cb) => cb(key, coords));
     }
