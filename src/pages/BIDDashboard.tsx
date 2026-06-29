@@ -2991,6 +2991,7 @@ function LeadsTab() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState("");
   const [cidade, setCidade] = useState("__all__");
+  const [statusFiltro, setStatusFiltro] = useState("__all__");
   const [page, setPage] = useState(0);
   const [lastSync, setLastSync] = useState<string | null>(null);
 
@@ -3022,16 +3023,24 @@ function LeadsTab() {
     [rows],
   );
 
+  const statuses = useMemo(
+    () => [...new Set(rows.map((r) => r.situacao).filter((s): s is string => !!s))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [rows],
+  );
+
   const filtered = useMemo(() => {
     const q = normName(search);
     return rows.filter((r) => {
       if (cidade !== "__all__" && r.cidade !== cidade) return false;
+      if (statusFiltro === "__bloqueado__" && !r.bloqueio) return false;
+      if (statusFiltro === "__disponivel__" && r.bloqueio) return false;
+      if (statusFiltro !== "__all__" && statusFiltro !== "__bloqueado__" && statusFiltro !== "__disponivel__" && r.situacao !== statusFiltro) return false;
       if (!q) return true;
       return normName(r.nome).includes(q)
         || (r.telefone ?? "").replace(/\D/g, "").includes(search.replace(/\D/g, ""))
         || normName(r.cidade).includes(q);
     });
-  }, [rows, search, cidade]);
+  }, [rows, search, cidade, statusFiltro]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -3073,13 +3082,22 @@ function LeadsTab() {
         </div>
         {cidades.length > 0 && (
           <Select value={cidade} onValueChange={(v) => { setCidade(v); setPage(0); }}>
-            <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue placeholder="Cidade" /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[180px] text-xs"><SelectValue placeholder="Cidade" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Todas as cidades</SelectItem>
               {cidades.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
             </SelectContent>
           </Select>
         )}
+        <Select value={statusFiltro} onValueChange={(v) => { setStatusFiltro(v); setPage(0); }}>
+          <SelectTrigger className="h-9 w-[180px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">Todos os status</SelectItem>
+            <SelectItem value="__disponivel__">Disponíveis (sem bloqueio)</SelectItem>
+            <SelectItem value="__bloqueado__">Bloqueados</SelectItem>
+            {statuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Lista */}
