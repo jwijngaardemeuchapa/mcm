@@ -3,6 +3,38 @@
 
 ---
 
+## 2026-06-29 — MCM v1.0.14 — Aba Leads no BID + remoção leads de Disponíveis
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-84 (continuação)
+**Commits:** `cfeb175`, `477e647` (sessão anterior)
+
+### O que foi feito
+
+**1. Code review multi-agente da lógica de leads (sessão anterior)**
+- 4 bugs confirmados: DELETE antes do parse, cidade_cache cacheia null, geocoder case-sensitive, client_name null.
+- Todos corrigidos no commit `477e647` (geocode.ts, metabaseSync.ts, BIDDashboard.tsx).
+- Root cause dos "nomes de mulheres": dedup era first-seen wins → troca por Map com prioridade de status (chapa_ativado > candidato_apto > ...).
+
+**2. Nova aba "Leads" em cada card de tarefa BID (commit cfeb175)**
+- `candidateView` expandido para `"disponiveis" | "bloqueados" | "leads_bid"`.
+- Aba "Leads" carrega lazy `chapa_registry WHERE fonte='leads_saac'` para a cidade da tarefa.
+- Cruzamento de telefone: `basePhoneSet` = todos telefones da fonte metabase → leads NA BASE ficam esmaecidos e sem disparo.
+- Filtro de status por dropdown (inclui prazo_vencido, candidato_apto, etc.) — usuário decidiu filtrar em vez de bloquear.
+- Disponíveis agora só retorna `fonte = 'metabase'` — leads não aparecem mais misturados.
+- Checkbox + disparo em lote funcionam na aba Leads para leads disponíveis (não bloqueados e não na base).
+
+**3. Build e release v1.0.14**
+- `npm run tauri build` → `MCM_1.0.14_x64-setup.exe` gerado com sucesso.
+- Assinado com `tauri signer sign` → `.sig` gerado.
+- `latest.json` atualizado com assinatura real e URL v1.0.14.
+- Commit `cfeb175` pendente de push (bloqueado por auto-mode; aguardar autorização do usuário).
+- GitHub Release pendente: upload `.exe` + `.sig` para `v1.0.14`.
+
+**Files changed:** `src/pages/BIDDashboard.tsx`, `src-tauri/tauri.conf.json`, `latest.json`
+**Next:** `git push origin main` → criar GitHub Release `v1.0.14` → upload assets.
+
+---
+
 ## 2026-06-29 — MCM — Correções pós-v1.0.13: updater, _key virtual scroll, farol leads
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-84 (follow-up)

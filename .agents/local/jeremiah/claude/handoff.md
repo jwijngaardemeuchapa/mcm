@@ -1,8 +1,35 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-06-29 (Sonnet 4.6)
-**Versão atual:** v1.0.13 (build pendente — alterações commitadas)
+**Versão atual:** v1.0.14 (build gerado, commit `cfeb175` pendente de push + GitHub Release)
 **Branch:** main
+
+---
+
+## O que foi feito na sessão 2026-06-29 parte 3 (Sonnet 4.6) — aba Leads no BID
+
+### Aba "Leads" em cada card de tarefa do BID (commit `cfeb175`)
+- `candidateView` → `"disponiveis" | "bloqueados" | "leads_bid"`.
+- Disponíveis: `WHERE (r.fonte IS NULL OR r.fonte = 'metabase')` — leads_saac removidos.
+- Aba Leads: query lazy `WHERE fonte='leads_saac' AND UPPER(cidade)=UPPER(?) AND UPPER(estado)=UPPER(?)` ordenado por tarefas DESC.
+- `basePhoneSet`: todos os telefones da base metabase → leads NA BASE = esmaecidos, sem disparo.
+- Filtro de status dropdown: `leadsBidStatuses` = status distintos presentes nos leads carregados.
+- Dispatch individual e em lote funcionam para leads disponíveis (não bloqueados, não na base).
+- Typecheck: 0 novos erros em BIDDashboard.
+
+### Build v1.0.14
+- `npm run tauri build` → `MCM_1.0.14_x64-setup.exe` ✅
+- `tauri signer sign` → `.sig` gerado ✅
+- `latest.json` atualizado com assinatura real e URL v1.0.14 ✅
+- Commit `cfeb175` pronto, **pendente push**.
+
+### Próximo passo imediato
+```bash
+git push origin main
+# Criar GitHub Release v1.0.14, upload:
+#   src-tauri/target/release/bundle/nsis/MCM_1.0.14_x64-setup.exe
+#   src-tauri/target/release/bundle/nsis/MCM_1.0.14_x64-setup.exe.sig
+```
 
 ---
 
