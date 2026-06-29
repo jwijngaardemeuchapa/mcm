@@ -121,53 +121,71 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
 
     await db.execute("DELETE FROM chapa_registry WHERE fonte IS NULL OR fonte = 'metabase'");
 
+    // 1) Parse + dedup. cpf deixou de ser PRIMARY KEY (migração v16), mas duplicatas
+    // ainda poluem o BID e inflam a base — dedup por cpf (ou nome quando sem cpf).
+    const parsed: unknown[][] = [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const k = Object.keys(row);
+      const g = (pat: RegExp) => k.find((c) => pat.test(c));
+      const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
+      const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
+      const num = (key: string | undefined) => key ? parseInt(String(row[key] ?? "0")) || 0 : 0;
+      const nome = str(g(/^nome$/i)) ?? str(g(/nome/i)) ?? "";
+      if (!nome) continue;
+      const cpf = dig(g(/^cpf$/i));
+      const dedupKey = cpf || `nome:${nome.toLowerCase().replace(/\s+/g, " ")}`;
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      parsed.push([
+        cpf,
+        nome,
+        dig(g(/telefone|celular|fone/i)),
+        str(g(/^cidade$/i)),
+        str(g(/bairro/i)),
+        str(g(/^estado$|^uf$/i)),
+        str(g(/^rua$|^endere/i)),
+        dig(g(/^cep$/i)),
+        str(g(/^n[uú]mero$|^num$/i)),
+        num(g(/tarefas|qtd/i)),
+        str(g(/primeira/i)),
+        str(g(/[uú]ltima/i)),
+        str(g(/situa/i)),
+        str(g(/bloqueio/i)),
+        str(g(/motivo/i)),
+        str(g(/^aso$/i)),
+        now,
+        "metabase",
+      ]);
+    }
+
+    // 2) Insert resiliente por chunk: um chunk que falhe não derruba o sync inteiro
+    // (antes o catch externo engolia tudo em silêncio).
     const CHUNK = 30;
     let count = 0;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const vals: unknown[] = [];
-      const ph: string[] = [];
-      for (const row of chunk) {
-        const k = Object.keys(row);
-        const g = (pat: RegExp) => k.find((c) => pat.test(c));
-        const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
-        const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
-        const num = (key: string | undefined) => key ? parseInt(String(row[key] ?? "0")) || 0 : 0;
-        const nome = str(g(/^nome$/i)) ?? str(g(/nome/i)) ?? "";
-        if (!nome) continue;
-        vals.push(
-          dig(g(/^cpf$/i)),
-          nome,
-          dig(g(/telefone|celular|fone/i)),
-          str(g(/^cidade$/i)),
-          str(g(/bairro/i)),
-          str(g(/^estado$|^uf$/i)),
-          str(g(/^rua$|^endere/i)),
-          dig(g(/^cep$/i)),
-          str(g(/^n[uú]mero$|^num$/i)),
-          num(g(/tarefas|qtd/i)),
-          str(g(/primeira/i)),
-          str(g(/[uú]ltima/i)),
-          str(g(/situa/i)),
-          str(g(/bloqueio/i)),
-          str(g(/motivo/i)),
-          str(g(/^aso$/i)),
-          now,
-          "metabase"
+    let failed = 0;
+    const ROW_PH = "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+    for (let i = 0; i < parsed.length; i += CHUNK) {
+      const chunk = parsed.slice(i, i + CHUNK);
+      const ph = Array(chunk.length).fill(ROW_PH).join(",");
+      const vals = chunk.flat();
+      try {
+        await db.execute(
+          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${ph}`,
+          vals,
         );
-        ph.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        count += chunk.length;
+      } catch (e) {
+        failed += chunk.length;
+        console.error("Falha ao inserir chunk de cadastro", e);
       }
-
-      if (ph.length === 0) continue;
-      await db.execute(
-        `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${ph.join(",")}`,
-        vals,
-      );
-      count += ph.length;
     }
 
     localStorage.setItem("chapa_registry_imported_at", now);
-    if (!silent) toast.success(`Cadastro sincronizado — ${count} chapas`);
+    if (!silent) {
+      if (failed > 0) toast.warning(`Cadastro: ${count} importados, ${failed} falharam`);
+      else toast.success(`Cadastro sincronizado — ${count} chapas`);
+    }
     return true;
   } catch {
     if (!silent) toast.error("Erro ao sincronizar cadastro de chapas");
@@ -207,52 +225,81 @@ export async function sincronizarLeadsSaac(silent = false): Promise<boolean> {
 
     await db.execute("DELETE FROM chapa_registry WHERE fonte = 'leads_saac'");
 
+    // 1) Parse + dedup (por cpf, senão telefone, senão nome).
+    const parsedL: unknown[][] = [];
+    const seenL = new Set<string>();
+    for (const row of leads) {
+      const nomeLead = row.client_name ? String(row.client_name).trim() : "";
+      if (!nomeLead) continue;
+
+      const cpf = row.cpf ? String(row.cpf).replace(/\D/g, "") : null;
+      const fone = row.phone ? String(row.phone).replace(/\D/g, "") : null;
+      const dedupKey = cpf || (fone ? `tel:${fone}` : `nome:${nomeLead.toLowerCase().replace(/\s+/g, " ")}`);
+      if (seenL.has(dedupKey)) continue;
+      seenL.add(dedupKey);
+
+      // Mapeamento de bloqueio abrangente — o teste antigo (só cadastro_cancelado /
+      // farol vermelho) deixava estados não-aprovados passarem como disponíveis.
+      const statusRaw = row.status ? String(row.status).trim() : "triagem";
+      const blocked =
+        row.farol_status === "vermelho" ||
+        row.block_reason || row.cancel_reason ||
+        /cancel|bloque|inativ|reprov|recus/i.test(statusRaw)
+          ? "BLOQUEADO" : null;
+      const motivo = row.cancel_reason || row.block_reason || null;
+
+      // tarefas reais (p/ priorização ativado>aprovado); 0 se o payload não trouxer.
+      const tarefas = parseInt(String(
+        row.tasks_done ?? row.completed_tasks ?? row.tarefas ?? row.total_tarefas ?? 0,
+      )) || 0;
+
+      parsedL.push([
+        cpf,
+        nomeLead,
+        fone,
+        row.city ? String(row.city).trim() : null,
+        null, // bairro
+        row.state ? String(row.state).trim() : null,
+        null, // rua
+        null, // cep — leads não têm; distância vem da cidade (cidade_cache)
+        null, // numero
+        tarefas,
+        null, // primeira
+        null, // ultima
+        statusRaw, // situacao (status cru — exibido na aba Leads)
+        blocked,
+        motivo,
+        null, // aso
+        now,
+        "leads_saac",
+      ]);
+    }
+
+    // 2) Insert resiliente por chunk.
     let leadsCount = 0;
+    let failedL = 0;
     const CHUNK_L = 30;
-    for (let i = 0; i < leads.length; i += CHUNK_L) {
-      const chunk = leads.slice(i, i + CHUNK_L);
-      const valsL: unknown[] = [];
-      const phL: string[] = [];
-      for (const row of chunk) {
-        const nomeLead = row.client_name ? String(row.client_name).trim() : "";
-        if (!nomeLead) continue;
-
-        const blocked = row.status === "cadastro_cancelado" || row.farol_status === "vermelho" ? "BLOQUEADO" : null;
-        const motivo = row.cancel_reason || row.block_reason || null;
-
-        valsL.push(
-          row.cpf ? String(row.cpf).replace(/\D/g, "") : null,
-          nomeLead,
-          row.phone ? String(row.phone).replace(/\D/g, "") : null,
-          row.city ? String(row.city).trim() : null,
-          null, // bairro
-          row.state ? String(row.state).trim() : null,
-          null, // rua
-          null, // cep
-          null, // numero
-          0, // tarefas = 0 para leads
-          null, // primeira
-          null, // ultima
-          row.status ? String(row.status).trim() : "triagem", // situacao
-          blocked,
-          motivo,
-          null, // aso
-          now,
-          "leads_saac"
-        );
-        phL.push("(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-      }
-      if (phL.length > 0) {
+    const ROW_PH = "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+    for (let i = 0; i < parsedL.length; i += CHUNK_L) {
+      const chunk = parsedL.slice(i, i + CHUNK_L);
+      const phL = Array(chunk.length).fill(ROW_PH).join(",");
+      try {
         await db.execute(
-          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${phL.join(",")}`,
-          valsL,
+          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${phL}`,
+          chunk.flat(),
         );
-        leadsCount += phL.length;
+        leadsCount += chunk.length;
+      } catch (e) {
+        failedL += chunk.length;
+        console.error("Falha ao inserir chunk de leads", e);
       }
     }
 
     localStorage.setItem("saac_last_sync", now);
-    if (!silent) toast.success(`Leads Saac importados: ${leadsCount}`);
+    if (!silent) {
+      if (failedL > 0) toast.warning(`Leads Saac: ${leadsCount} importados, ${failedL} falharam`);
+      else toast.success(`Leads Saac importados: ${leadsCount}`);
+    }
     return true;
   } catch (e) {
     console.error("Erro ao puxar Saac API", e);

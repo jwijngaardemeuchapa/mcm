@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "MCM",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "identifier": "com.fupmanager.app",
   "build": {
     "frontendDist": "../dist",
@@ -38,7 +38,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "Wijngaarde Design",
     "copyright": "© 2026 Wijngaarde Design. Todos os direitos reservados.",
     "shortDescription": "Sistema operacional para gestão de tarefas de alocação de chapas.",

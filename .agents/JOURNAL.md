@@ -3,6 +3,51 @@
 
 ---
 
+## 2026-06-29 — MCM — BID Dashboard: correção de bugs + aba Leads + v1.0.13
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-84 (follow-up), MCM-85
+
+### Problema
+Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disponíveis; (2) chapas já alocados aparecendo como disponíveis; (3) bloqueados entre disponíveis; (4) incerteza sobre sync dos Leads Saac + sem visibilidade dos leads.
+
+### Diagnóstico
+- Leads Saac (`fonte='leads_saac'`) vazavam para Disponíveis porque `cep=null` → `distance_km=null` → filtro de raio sempre incluía.
+- Mapeamento de bloqueio estreito (só `cadastro_cancelado`/farol vermelho) deixava outros status não-aprovados passarem.
+- `chapa_registry.cpf` era PRIMARY KEY → INSERT colide quando mesmo CPF existe no cadastro e nos leads → chunk de 30 linhas descartado em silêncio.
+- `occupiedNameSet`: `normalize()` não colapsa espaços internos; SQL usava `LOWER(TRIM())` → mismatch deixava chapas alocados escaparem.
+
+### Alterações
+**`src-tauri/src/lib.rs`**
+- Migração idempotente: recria `chapa_registry` com `id INTEGER PRIMARY KEY AUTOINCREMENT` (surrogate), CPF deixa de ser PK. Preserva todos os dados e índices.
+- Cria `cidade_cache` (chave TEXT PK, lat/lng por cidade+UF).
+
+**`src/lib/metabaseSync.ts`**
+- `sincronizarRegistro`: dedup por CPF/nome antes de inserir; insert resiliente por chunk (try/catch individual + toast com contagem de falhas).
+- `sincronizarLeadsSaac`: dedup por CPF/telefone/nome; bloqueio abrangente (`/cancel|bloque|inativ|reprov|recus/i` + farol + block_reason); captura `tarefas` reais do payload; insert resiliente.
+
+**`src/lib/geocode.ts`**
+- Novo `CityGeocoder` + singleton `cityGeocoder`: fila + rate-limit 1.1s + cache em `cidade_cache`, Nominatim `city=+state=`.
+
+**`src/pages/BIDDashboard.tsx`**
+- `normName()`: normalize + colapsa espaços → aplicado nos dois lados do occupied check (fecha bug 2).
+- `isApprovedSituacao()`: heurística `/aprovad|apto|ativo|verde|liberad/i`.
+- `computeScore()`: tiers ativado (+1000+tarefas) > aprovado (+500) > demais (+10) — magnitude domina distância/recência.
+- `useEffect` geocode por cidade para leads sem CEP via `cityGeocoder`.
+- Gate de leads no raio: `fonte='leads_saac'` só entra em Disponíveis se `distance_km != null && <= maxDistKm`.
+- Badge EXTRA corrigido: `is_extra === 1` (antes `cpf === null` conflitava com leads).
+- Badge LEAD adicionado para `fonte='leads_saac'`.
+- Nova aba **"Leads"** no BID: lista `leads_saac`, busca, filtro cidade, contagem, último sync, botão sincronizar, badges ATIVADO/APROVADO/BLOQUEADO/LEAD.
+
+### Diagnóstico adicional (sessão 2026-06-29)
+- `latest.json` retornava 404 para o updater → repo privado bloqueia `raw.githubusercontent.com`. Resolvido tornando o repo público.
+
+### Verificação
+- `npm run typecheck`: 13 erros pré-existentes, 0 novos.
+- `cargo check`: clean.
+- Versão bumped `1.0.12` → `1.0.13`.
+
+---
+
 ## 2026-06-26 — MCM — Build v1.0.12 + GitHub Release + senha de Integrações
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** —

@@ -1,12 +1,93 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-26
-**Versão atual:** v1.0.1
+**Data:** 2026-06-29 (Sonnet 4.6)
+**Versão atual:** v1.0.13 (build pendente — alterações commitadas)
 **Branch:** main
 
 ---
 
-## O que foi feito na sessão 2026-06-26 (Opus 4.8)
+## O que foi feito na sessão 2026-06-29 (Sonnet 4.6) — BID bugs + aba Leads + v1.0.13
+
+### BID Dashboard: 4 bugs corrigidos + aba Leads
+- **Bug 1/3 (mulheres/bloqueados em Disponíveis):** Leads Saac agora só entram em Disponíveis se `distance_km <= maxDistKm` (cidade geocodificada via `cityGeocoder`). Mapeamento de bloqueio expandido: `/cancel|bloque|inativ|reprov|recus/i` + farol + block_reason.
+- **Bug 2 (ocupados vazando):** `normName()` colapsa espaços e normaliza nos dois lados do `occupiedNameSet` — fecha o mismatch entre SQL `LOWER(TRIM())` e JS `normalize()`.
+- **Bug 4 (sync frágil):** Migração Rust recria `chapa_registry` com surrogate `id` PK (sem conflito entre cadastro e leads). Inserts resilientes por chunk com toast de falha.
+- **Novo `cityGeocoder`:** fila + rate-limit + cache em `cidade_cache` (nova tabela). Nominatim por cidade+UF.
+- **Nova aba "Leads":** lista `fonte='leads_saac'`, busca, filtro cidade, badges ATIVADO/APROVADO/BLOQUEADO/LEAD, botão sincronizar.
+- **Score tiers:** ativado (`tarefas>0`, +1000) > aprovado (`isApprovedSituacao`, +500) > demais (+10).
+- **Diagnóstico updater 404:** repo privado bloqueava `raw.githubusercontent.com`. Resolvido tornando repo público.
+- Versão: `1.0.12` → `1.0.13`. Typecheck: 0 novos erros. Cargo check: clean.
+- Commits desta sessão: pendente (build em andamento).
+
+---
+
+## O que foi feito na sessão 2026-06-26 parte 4 (Sonnet 4.6) — Build + Release
+
+### Build v1.0.12 + GitHub Release
+- Senha de Integrações alterada: `ch@p@Meu` → `meuCh@p@`.
+- Versão `1.0.11` → `1.0.12` em `tauri.conf.json` e `Ajuda.tsx`.
+- Build gerado: `MCM_1.0.12_x64-setup.exe`.
+- Assinatura gerada via `tauri signer sign` (sem senha): `MCM_1.0.12_x64-setup.exe.sig`.
+- `latest.json` atualizado com assinatura real e URL do release.
+- GitHub Release `v1.0.12` criado via API + `.exe` e `.sig` publicados.
+- **Updater 100% funcional** — qualquer instalação do MCM pode verificar e atualizar via Integrações.
+- Commits: `27e504c` (senha), `04f2ed3` (versão + latest.json).
+
+### Processo de release para próximas versões
+```powershell
+# Na mesma sessão de PowerShell:
+$env:TAURI_SIGNING_PRIVATE_KEY_PATH = "C:\Users\W Design\task-flow-hub\tauri_update_key"
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+npm run tauri build
+
+# Depois de buildar:
+# 1. Assinar: npm run tauri -- signer sign --private-key-path tauri_update_key --password '""' <caminho.exe>
+# 2. Criar GitHub Release vX.X.X via API ou github.com, upload .exe + .sig
+# 3. Atualizar latest.json com nova versão, assinatura e URL
+# 4. git commit latest.json && git push
+```
+
+---
+
+## O que foi feito na sessão 2026-06-26 parte 3 (Sonnet 4.6) — Updater
+
+### Atualização manual protegida por senha
+- `tauri-plugin-updater` + `tauri-plugin-process` no Cargo.toml/lib.rs.
+- `tauri.conf.json`: pubkey real + endpoint `raw.githubusercontent.com/.../latest.json` + `dialog:false`.
+- `npm install @tauri-apps/plugin-updater @tauri-apps/plugin-process`.
+- Card "Atualização do Sistema" em `Integracoes.tsx` (dentro de `unlocked`, 6 estados, barra de progresso).
+- `latest.json` na raiz (template com `"signature": ""` — preencher com `.exe.sig` a cada release).
+- `tauri_update_key.pub` commitada; chave privada (`tauri_update_key`) em `.gitignore` — guardar offline!
+- Typecheck OK (0 erros novos). Commit `0da8cc9`.
+
+### Processo de release para próximas versões
+```powershell
+$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content tauri_update_key -Raw
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+npm run tauri build
+# → pega o .exe.sig gerado em src-tauri/target/release/bundle/nsis/
+# → criar GitHub Release tag vX.X.X, upload .exe + .exe.sig
+# → atualizar latest.json com versão, sig e URL
+# → git commit latest.json && git push
+```
+
+---
+
+## O que foi feito na sessão 2026-06-26 parte 2 (Sonnet 4.6)
+
+### Ajustes e build v1.0.11
+- `tauri.conf.json`: `"maximized": true` — janela abre maximizada.
+- `tauri.conf.json`: versão `1.0.1` → `1.0.11`.
+- Build `MCM_1.0.11_x64-setup.exe` gerado com sucesso.
+
+### Mockup do instalador customizado (aprovado, pendente implementação)
+- Design criado com identidade visual real: laranja `#e85f00`, Montserrat 900, logo real da aplicação, "por Wijngaarde Design" na sidebar.
+- 3 telas: boas-vindas, progresso animado, conclusão.
+- **Próximo passo:** exportar assets (sidebarImage 164×314px, headerImage 150×57px) e configurar `bundle.windows.nsis` no `tauri.conf.json` com script customizado.
+
+---
+
+## O que foi feito na sessão 2026-06-26 parte 1 (Opus 4.8)
 
 ### Parte A — Sync automático dos Leads Saac
 - `sincronizarLeadsSaac()` extraída/desacoplada do `sincronizarRegistro` pesado (só `fonte='leads_saac'`, grava `saac_last_sync`).
@@ -53,6 +134,8 @@
 ---
 
 ## Pendências Próximas
-- **MCM-71 — Autopilot (Fase 2):** Aguardando definições de negócio do operador no Jira/Chat (se o manager será Frontend-only ou CRON, regra de notificação de vagas, e tempo de cooldown do batch) para iniciarmos o desenvolvimento.
-- **Distribuição v1.0.1:** Gerar o executável atualizado assim que testarmos tudo em produção.
-- **MCM-27 — Caderno de Clientes:** Vinculação de chapas pré-aprovados aos pools (complementar à gestão do novo volume Saac).
+- **Instalador customizado NSIS:** Exportar sidebar (164×314px) e header (150×57px) com design aprovado; configurar `bundle.windows.nsis`; script com cores/fontes MCM. Design já aprovado.
+- **Primeiro release assinado:** ✅ Concluído — v1.0.12 publicado em GitHub Releases.
+- **MCM-71 — Autopilot (Fase 2):** Aguardando definições de negócio do operador no Jira/Chat.
+- **Refactor reload Dashboard:** Plano existe, não implementado — revalidar contra BIDDashboard/TaskCard novos.
+- **MCM-27 — Caderno de Clientes:** Vinculação de chapas pré-aprovados aos pools.

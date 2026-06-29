@@ -7,7 +7,7 @@ import { getDb, uuid, errMsg } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarMetabase30h } from "@/lib/metabaseSync";
+import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync";
 import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
 import { startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
@@ -15,7 +15,7 @@ import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
 import { companyMatches } from "@/lib/company";
-import { cepGeocoder } from "@/lib/geocode";
+import { cepGeocoder, cityGeocoder } from "@/lib/geocode";
 import { toast } from "sonner";
 import { getLeoCache, parseRespostasBidCsv, getLeoConfig, syncLeo, normalizePhone } from "@/pages/AnaliseBase/modules/M_leo";
 import type { LeoMetrics } from "@/pages/AnaliseBase/types";
@@ -108,6 +108,8 @@ export type BidChapa = {
   motivo_bloqueio: string | null;
   aso: string | null;
   importado_em: string;
+  // Origem do cadastro: 'metabase' (cadastro geral), 'leads_saac' (lead) ou null (extra).
+  fonte: string | null;
   lat: number | null;
   lng: number | null;
   // 1 = extra autorizado (vindo de bid_chapas); 0/undefined = cadastro geral.
@@ -234,9 +236,31 @@ function parseLatLngFromUrl(url: string): { lat: number; lng: number } | null {
   return null;
 }
 
+// Normalização de nome p/ comparação: sem acento, minúsculo e espaços internos
+// colapsados. Usar dos DOIS lados (roster ocupado × candidato) — antes o roster
+// só fazia LOWER(TRIM()) (sem colapsar espaço interno) e o candidato só normalize(),
+// deixando ocupados escaparem por diferença de formatação (ex.: leads sem CPF).
+function normName(s: string | null | undefined): string {
+  return normalize(s ?? "").replace(/\s+/g, " ").trim();
+}
+
+// "Aprovado" = passou nas análises (apto a trabalhar) mas ainda sem tarefa.
+// Para leads, `situacao` guarda o status cru do Saac; para o cadastro geral,
+// a situação ("ativo" etc.). Heurística ampla — refinar contra dados reais via
+// a aba Leads quando o enum do Saac estiver confirmado.
+function isApprovedSituacao(sit: string | null): boolean {
+  if (!sit) return false;
+  return /aprovad|apto|ativo|verde|liberad/i.test(sit);
+}
+
 function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | null, maxDist?: number, leoCache?: Map<string, LeoMetrics>, disparoStatus?: string): number {
   let score = 0;
-  score += c.tarefas === 0 ? 10 : Math.min(c.tarefas, 100) * 1.0;
+  // Priorização por tier (negócio): ativado (já fez ≥1 tarefa) > aprovado (passou
+  // na análise, 0 tarefas) > demais. A magnitude domina distância/recência/leo
+  // para manter a ordem entre tiers; esses fatores refinam dentro de cada tier.
+  if (c.tarefas > 0) score += 1000 + Math.min(c.tarefas, 100) * 1.0; // ativado
+  else if (isApprovedSituacao(c.situacao)) score += 500;             // aprovado
+  else score += 10;                                                  // piso
   const scale = maxDist ?? 30;
   if (distKm !== null) score += Math.max(0, scale - distKm) * (60 / scale);
   if (c.data_ultima_tarefa) {
@@ -524,7 +548,7 @@ function BidTaskCard({
           `, [taskDate, task.id_tarefa]),
         ]);
         setOccupiedCpfSet(new Set(byCpf.map((r) => r.cpf.replace(/\D/g, ""))));
-        setOccupiedNameSet(new Set(byName.map((r) => normalize(r.nome_norm))));
+        setOccupiedNameSet(new Set(byName.map((r) => normName(r.nome_norm))));
         setAllOccupiedChapas(allOccupied);
 
         if (!cityUf) { setRawCandidates([]); return; }
@@ -569,6 +593,23 @@ function BidTaskCard({
           cepGeocoder.enqueue(cep, (_cep, coords) => {
             if (!coords) return;
             setRawCandidates((prev) => prev.map((p) => p.cep === cep ? { ...p, lat: coords.lat, lng: coords.lng } : p));
+          });
+        }
+
+        // Leads não têm CEP — geocodifica pela cidade/UF para medir distância.
+        const cidadesSemCoord = chapas.filter((c) => !c.cep && c.lat === null && c.cidade);
+        const cidadesVistas = new Set<string>();
+        for (const c of cidadesSemCoord) {
+          const cidade = c.cidade!;
+          const estado = c.estado ?? "";
+          const dedup = `${cidade.toLowerCase().trim()}|${estado.toUpperCase().trim()}`;
+          if (cidadesVistas.has(dedup)) continue;
+          cidadesVistas.add(dedup);
+          cityGeocoder.enqueue(cidade, estado, (_key, coords) => {
+            if (!coords) return;
+            setRawCandidates((prev) => prev.map((p) =>
+              (!p.cep && p.lat === null && p.cidade === cidade && (p.estado ?? "") === estado)
+                ? { ...p, lat: coords.lat, lng: coords.lng } : p));
           });
         }
       } catch { /* silencioso */ }
@@ -635,7 +676,7 @@ function BidTaskCard({
       // autorizados some inteira ao filtrar "só extras" (MCM-83).
       const isOccupied = c.is_extra !== 1 && (
         (c.cpf != null && occupiedCpfSet.has(c.cpf.replace(/\D/g, ""))) ||
-        occupiedNameSet.has(normalize(c.nome))
+        occupiedNameSet.has(normName(c.nome))
       );
       let distKm: number | null = null;
       if (dispatchParams.localLat !== null && dispatchParams.localLng !== null && c.lat !== null && c.lng !== null)
@@ -854,11 +895,15 @@ function BidTaskCard({
     ? dispatchParams.localCep.replace(/\D/g, "").slice(0, 5)
     : null;
   const hasCepFilter = !!cepPrefixFilter && cepPrefixFilter.length >= 5;
-  const extrasCount = rawCandidates.filter((c) => c.cpf === null).length;
+  const extrasCount = rawCandidates.filter((c) => c.is_extra === 1).length;
   const available = leoTierFilteredCandidates.filter((c) => {
     if (c.is_occupied) return false;
     if (c.disparo?.status === "aguardando") return false;
-    if (onlyExtras && c.cpf !== null) return false;
+    if (onlyExtras && c.is_extra !== 1) return false;
+    // Leads Saac só entram em Disponíveis se confirmados DENTRO do raio (distância
+    // pela cidade). Sem coords/cidade geocodificada → distance_km null → fora.
+    // (Leads não têm CEP, então escapariam pelo ramo `!c.cep` do filtro de proximidade.)
+    if (c.fonte === "leads_saac" && !(c.distance_km !== null && c.distance_km <= maxDistKm)) return false;
     if (filterPositiveOnly && leoCache && leoCache.size > 0 && c.telefone) {
       const leo = leoCache.get(normalizePhone(c.telefone));
       if (leo && leo.pct_sim < 0.3 && leo.total_ofertas >= 3) return false;
@@ -1612,9 +1657,14 @@ function BidTaskCard({
                             className="text-sm font-medium hover:text-primary hover:underline truncate text-left max-w-[180px]">
                             {c.nome}
                           </button>
-                          {c.cpf === null && (
+                          {c.is_extra === 1 && (
                             <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-primary/10 text-primary border border-primary/25 leading-none">
                               EXTRA
+                            </span>
+                          )}
+                          {c.fonte === "leads_saac" && (
+                            <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/25 leading-none">
+                              LEAD
                             </span>
                           )}
                           <AsoBadge aso={c.aso} />
@@ -1857,7 +1907,7 @@ function BidTaskCard({
 
 export default function BIDDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"tarefas" | "bloqueados" | "cadastro">("tarefas");
+  const [activeTab, setActiveTab] = useState<"tarefas" | "bloqueados" | "cadastro" | "leads">("tarefas");
   const [registryCount, setRegistryCount] = useState(0);
   const [extrasCount, setExtrasCount] = useState(0);
   const [extrasOpen, setExtrasOpen] = useState(false);
@@ -2217,7 +2267,7 @@ export default function BIDDashboard() {
 
       {/* Tab navigation — sempre visível */}
       <div className="flex items-center gap-1 p-0.5 bg-muted rounded-lg w-fit">
-        {(["tarefas", "bloqueados", "cadastro"] as const).map((tab) => (
+        {(["tarefas", "bloqueados", "cadastro", "leads"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
@@ -2231,7 +2281,8 @@ export default function BIDDashboard() {
             {tab === "tarefas" && <Send className="h-3 w-3" />}
             {tab === "bloqueados" && <Ban className="h-3 w-3" />}
             {tab === "cadastro" && <Database className="h-3 w-3" />}
-            {tab === "tarefas" ? "Tarefas" : tab === "bloqueados" ? "Bloqueados" : "Cadastro"}
+            {tab === "leads" && <UserPlus className="h-3 w-3" />}
+            {tab === "tarefas" ? "Tarefas" : tab === "bloqueados" ? "Bloqueados" : tab === "cadastro" ? "Cadastro" : "Leads"}
           </button>
         ))}
       </div>
@@ -2443,6 +2494,7 @@ export default function BIDDashboard() {
           ? <CadastroTab />
           : <SemCadastroAviso />
       )}
+      {activeTab === "leads" && <LeadsTab />}
 
       <ImportExtrasDialog
         open={extrasOpen}
@@ -2916,6 +2968,197 @@ type BlockedRow = RegistryRow & {
   lng: number | null;
   distance_km: number | null;
 };
+
+type LeadRow = {
+  cpf: string | null;
+  nome: string;
+  telefone: string | null;
+  cidade: string | null;
+  estado: string | null;
+  situacao: string | null;
+  bloqueio: string | null;
+  motivo_bloqueio: string | null;
+  tarefas: number;
+};
+
+// Lista de Leads Saac — visibilidade do sync. Confirma que a importação ocorreu,
+// mostra status/farol crus (situacao), estado de bloqueio e cidade (base da
+// distância usada no BID). A qualificação por raio é aplicada no card do BID.
+function LeadsTab() {
+  const PAGE_SIZE = 50;
+  const [rows, setRows] = useState<LeadRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [cidade, setCidade] = useState("__all__");
+  const [page, setPage] = useState(0);
+  const [lastSync, setLastSync] = useState<string | null>(null);
+
+  const loadLeads = useCallback(async () => {
+    setLoading(true);
+    try {
+      const db = await getDb();
+      const data = await db.select<LeadRow[]>(`
+        SELECT cpf, nome, telefone, cidade, estado, situacao, bloqueio, motivo_bloqueio, tarefas
+        FROM chapa_registry WHERE fonte = 'leads_saac'
+        ORDER BY (tarefas > 0) DESC, nome ASC
+      `);
+      setRows(data);
+      setLastSync(localStorage.getItem("saac_last_sync"));
+    } catch (e) { toast.error(errMsg(e)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { loadLeads(); }, [loadLeads]);
+
+  async function handleSync() {
+    setSyncing(true);
+    try { await sincronizarLeadsSaac(); await loadLeads(); }
+    finally { setSyncing(false); }
+  }
+
+  const cidades = useMemo(
+    () => [...new Set(rows.map((r) => r.cidade).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [rows],
+  );
+
+  const filtered = useMemo(() => {
+    const q = normName(search);
+    return rows.filter((r) => {
+      if (cidade !== "__all__" && r.cidade !== cidade) return false;
+      if (!q) return true;
+      return normName(r.nome).includes(q)
+        || (r.telefone ?? "").replace(/\D/g, "").includes(search.replace(/\D/g, ""))
+        || normName(r.cidade).includes(q);
+    });
+  }, [rows, search, cidade]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+  const bloqueados = rows.filter((r) => r.bloqueio).length;
+
+  return (
+    <div className="space-y-3">
+      {/* Header: contagem + último sync + sincronizar */}
+      <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+            <UserPlus className="h-4 w-4 text-indigo-500" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold">{rows.length.toLocaleString("pt-BR")} leads importados</div>
+            <div className="text-[11px] text-muted-foreground">
+              {bloqueados > 0 && `${bloqueados} bloqueados · `}
+              Último sync: {lastSync ? fmtDateTime(lastSync) : "nunca"}
+            </div>
+          </div>
+        </div>
+        <Button size="sm" onClick={handleSync} disabled={syncing} className="gap-1.5 h-8 ml-auto">
+          {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Sincronizar agora
+        </Button>
+      </div>
+
+      {/* Filtros */}
+      <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            placeholder="Nome, telefone, cidade…"
+            className="pl-8 h-9 text-sm"
+          />
+        </div>
+        {cidades.length > 0 && (
+          <Select value={cidade} onValueChange={(v) => { setCidade(v); setPage(0); }}>
+            <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue placeholder="Cidade" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todas as cidades</SelectItem>
+              {cidades.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {/* Lista */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div
+          className="hidden md:grid px-4 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/60 border-b border-border/50"
+          style={{ gridTemplateColumns: "24px 1fr 120px 160px 60px 1fr" }}
+        >
+          <span>#</span>
+          <span>Nome</span>
+          <span>Telefone</span>
+          <span>Cidade/UF</span>
+          <span>Tar.</span>
+          <span>Status / Bloqueio</span>
+        </div>
+        <div className="divide-y divide-border/50">
+          {loading ? (
+            <div className="px-4 py-4 space-y-2">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-9 rounded bg-muted/30 animate-pulse" style={{ opacity: 1 - i * 0.12 }} />
+              ))}
+            </div>
+          ) : pageRows.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+              {rows.length === 0
+                ? "Nenhum lead importado. Configure a API Saac em Integrações e clique em Sincronizar."
+                : "Nenhum lead encontrado com os filtros aplicados."}
+            </div>
+          ) : pageRows.map((r, idx) => (
+            <div
+              key={`${r.cpf ?? r.nome}-${safePage * PAGE_SIZE + idx}`}
+              className="grid items-center px-4 py-2 gap-2 hover:bg-muted/20 transition-colors"
+              style={{ gridTemplateColumns: "24px 1fr 120px 160px 60px 1fr" }}
+            >
+              <div className="text-xs text-muted-foreground/50 tabular-nums font-mono">{safePage * PAGE_SIZE + idx + 1}</div>
+              <button type="button" onClick={() => clipCopy(r.nome, "Nome copiado")}
+                className="font-medium text-sm hover:text-primary hover:underline truncate text-left">
+                {r.nome}
+              </button>
+              <div className="text-xs text-muted-foreground">
+                {r.telefone
+                  ? <button type="button" onClick={() => clipCopy(r.telefone!.replace(/\D/g, ""), "Telefone copiado")}
+                      className="hover:text-primary flex items-center gap-1"><Phone className="h-2.5 w-2.5" />{r.telefone}</button>
+                  : <span className="text-muted-foreground/40">—</span>}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {r.cidade ? `${r.cidade}${r.estado ? `/${r.estado}` : ""}` : <span className="text-muted-foreground/40">—</span>}
+              </div>
+              <div className="text-xs tabular-nums text-muted-foreground">{r.tarefas}</div>
+              <div className="flex items-center gap-1.5 min-w-0">
+                {r.bloqueio
+                  ? <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-destructive/10 text-destructive border border-destructive/25 leading-none">
+                      {r.motivo_bloqueio || "BLOQUEADO"}
+                    </span>
+                  : r.tarefas > 0
+                    ? <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-success/10 text-success border border-success/25 leading-none">ATIVADO</span>
+                    : isApprovedSituacao(r.situacao)
+                      ? <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/25 leading-none">APROVADO</span>
+                      : null}
+                <span className="text-[11px] text-muted-foreground/70 truncate">{r.situacao ?? "—"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-end gap-2 px-4 py-2 border-t border-border/50">
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              {safePage + 1} / {totalPages}
+            </span>
+            <Button size="icon" variant="outline" className="h-7 w-7" disabled={safePage === 0}
+              onClick={() => setPage(safePage - 1)}><ChevronLeft className="h-3.5 w-3.5" /></Button>
+            <Button size="icon" variant="outline" className="h-7 w-7" disabled={safePage >= totalPages - 1}
+              onClick={() => setPage(safePage + 1)}><ChevronRight className="h-3.5 w-3.5" /></Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function BloqueadosTab() {
   const PAGE_SIZE = 50;

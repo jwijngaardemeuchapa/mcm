@@ -1183,6 +1183,58 @@ CREATE INDEX IF NOT EXISTS idx_resposta_log_tarefa ON resposta_log(id_tarefa);
               let _ = conn.execute("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'", []);
               let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_registry_fonte ON chapa_registry(fonte)", []);
             }
+
+            // chapa_registry foi criada com `cpf TEXT PRIMARY KEY`. Isso quebra o
+            // sync: quando o mesmo CPF aparece em duas fontes (metabase + leads_saac)
+            // ou duplica num feed, o INSERT em lote lança UNIQUE constraint e o chunk
+            // inteiro é perdido em silêncio. Recria a tabela com chave surrogate `id`
+            // (cpf deixa de ser PK); a unicidade lógica passa a ser feita por dedup no
+            // TS. Idempotente: só recria enquanto cpf ainda for PK. A coluna `fonte`
+            // já está garantida pelo bloco acima, então o INSERT...SELECT é seguro.
+            let cpf_is_pk: bool = conn.query_row(
+              "SELECT COUNT(*) FROM pragma_table_info('chapa_registry') WHERE name='cpf' AND pk>0",
+              [],
+              |row| row.get::<_, i64>(0),
+            ).map(|n| n > 0).unwrap_or(false);
+            if cpf_is_pk {
+              let _ = conn.execute_batch(
+                "BEGIN;
+                 CREATE TABLE chapa_registry_new (
+                   id INTEGER PRIMARY KEY AUTOINCREMENT,
+                   cpf TEXT, nome TEXT NOT NULL, telefone TEXT, cidade TEXT, bairro TEXT,
+                   estado TEXT, rua TEXT, cep TEXT, numero TEXT,
+                   tarefas INTEGER NOT NULL DEFAULT 0,
+                   data_primeira_tarefa TEXT, data_ultima_tarefa TEXT, situacao TEXT,
+                   bloqueio TEXT, motivo_bloqueio TEXT, aso TEXT, importado_em TEXT NOT NULL,
+                   fonte TEXT DEFAULT 'metabase'
+                 );
+                 INSERT INTO chapa_registry_new
+                   (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,
+                    data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,
+                    motivo_bloqueio,aso,importado_em,fonte)
+                   SELECT cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,
+                          data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,
+                          motivo_bloqueio,aso,importado_em,COALESCE(fonte,'metabase')
+                   FROM chapa_registry;
+                 DROP TABLE chapa_registry;
+                 ALTER TABLE chapa_registry_new RENAME TO chapa_registry;
+                 CREATE INDEX IF NOT EXISTS idx_registry_telefone ON chapa_registry(telefone);
+                 CREATE INDEX IF NOT EXISTS idx_registry_cep ON chapa_registry(cep);
+                 CREATE INDEX IF NOT EXISTS idx_registry_cidade ON chapa_registry(cidade);
+                 CREATE INDEX IF NOT EXISTS idx_registry_fonte ON chapa_registry(fonte);
+                 COMMIT;"
+              );
+            }
+
+            // Cache de coordenadas por cidade (leads não têm CEP — geocodificação
+            // por cidade/UF para medir distância no BID).
+            let _ = conn.execute_batch(
+              "CREATE TABLE IF NOT EXISTS cidade_cache (
+                 chave TEXT PRIMARY KEY,
+                 cidade TEXT, estado TEXT, lat REAL, lng REAL,
+                 geocodificado_em TEXT NOT NULL
+               );"
+            );
           }
         }
       }
