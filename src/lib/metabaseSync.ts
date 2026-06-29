@@ -238,20 +238,23 @@ export async function sincronizarLeadsSaac(silent = false): Promise<boolean> {
       if (seenL.has(dedupKey)) continue;
       seenL.add(dedupKey);
 
-      // Mapeamento de bloqueio abrangente — o teste antigo (só cadastro_cancelado /
-      // farol vermelho) deixava estados não-aprovados passarem como disponíveis.
+      // Bloqueio baseado em dados concretos do payload — farol_status NÃO é
+      // sinal de bloqueio: aparece "vermelho" em candidato_apto e chapa_ativado
+      // (leads bons). Bloquear apenas por: status explicitamente negativo,
+      // block_reason ou cancel_reason preenchidos.
       const statusRaw = row.status ? String(row.status).trim() : "triagem";
+      const BLOCKED_STATUSES = ["cadastro_cancelado", "chapa_bloqueado", "reprovado_brk"];
       const blocked =
-        row.farol_status === "vermelho" ||
-        row.block_reason || row.cancel_reason ||
-        /cancel|bloque|inativ|reprov|recus/i.test(statusRaw)
+        BLOCKED_STATUSES.includes(statusRaw) ||
+        !!row.block_reason ||
+        !!row.cancel_reason
           ? "BLOQUEADO" : null;
-      const motivo = row.cancel_reason || row.block_reason || null;
+      const motivo = row.cancel_reason || row.block_reason || statusRaw === "reprovado_brk" ? "reprovado" : null;
 
-      // tarefas reais (p/ priorização ativado>aprovado); 0 se o payload não trouxer.
-      const tarefas = parseInt(String(
-        row.tasks_done ?? row.completed_tasks ?? row.tarefas ?? row.total_tarefas ?? 0,
-      )) || 0;
+      // chapa_ativado = já fez tarefas no sistema, mas o payload não traz contagem.
+      // Marca tarefas=1 para que o scoring do BID coloque no tier "ativado" (prioridade máxima).
+      const tarefas = statusRaw === "chapa_ativado" ? 1
+        : parseInt(String(row.tasks_done ?? row.completed_tasks ?? row.tarefas ?? row.total_tarefas ?? 0)) || 0;
 
       parsedL.push([
         cpf,
