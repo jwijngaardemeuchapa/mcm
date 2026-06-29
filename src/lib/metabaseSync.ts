@@ -249,7 +249,7 @@ export async function sincronizarLeadsSaac(silent = false): Promise<boolean> {
         !!row.block_reason ||
         !!row.cancel_reason
           ? "BLOQUEADO" : null;
-      const motivo = row.cancel_reason || row.block_reason || statusRaw === "reprovado_brk" ? "reprovado" : null;
+      const motivo = row.cancel_reason || row.block_reason || (statusRaw === "reprovado_brk" ? "reprovado" : null);
 
       // chapa_ativado = já fez tarefas no sistema, mas o payload não traz contagem.
       // Marca tarefas=1 para que o scoring do BID coloque no tier "ativado" (prioridade máxima).
