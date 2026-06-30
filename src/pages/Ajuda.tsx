@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.13</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.15</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,15 +767,13 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.13 — Novidades desta versão:</strong>{" "}
-              <strong>BID — Leads Saac corrigidos</strong>: leads agora aparecem em Disponíveis apenas dentro do raio (distância calculada pelo centroide da cidade). Bloqueados e cancelados não vazam mais.{" "}
-              <strong>BID — aba Leads</strong>: nova aba dedicada aos Leads Saac com busca, filtro por cidade, badges ATIVADO/APROVADO/BLOQUEADO e botão de sincronização.{" "}
-              <strong>BID — prioridade ativados → aprovados</strong>: chapas que já fizeram tarefas ficam no topo; em seguida aprovados (0 tarefas); por último os demais.{" "}
-              <strong>BID — nomes duplicados corrigidos</strong>: detecção de chapas já alocados agora é consistente mesmo com variações de espaço e acentuação.{" "}
-              <strong>Sync de Leads mais robusto</strong>: falhas em um chunk não derrubam a importação inteira — toast informa quantos foram importados e quantos falharam.{" "}
+              <strong>v1.0.15 — Novidades desta versão:</strong>{" "}
+              <strong>BID — nome do chapa corrigido</strong>: nomes trocados (aparecia o nome da mãe com o telefone do chapa) foram corrigidos no cadastro — agora sempre o nome correto do chapa.{" "}
+              <strong>BID — ocupados por telefone</strong>: chapas já alocados em alguma tarefa do dia são ocultados de Disponíveis também pelo número de telefone (além de CPF e nome), evitando reofertas.{" "}
+              <strong>Links de tarefa atualizados</strong>: botão "Abrir tarefa no Meu Chapa" agora aponta para o novo domínio (.com).{" "}
+              <strong>BID — aba Leads</strong>: aba dedicada aos Leads Saac com busca, filtro por cidade, badges ATIVADO/APROVADO/BLOQUEADO e sincronização.{" "}
               <strong>Updater manual</strong>: verificação de atualização disponível em Integrações (senha de acesso).{" "}
-              <strong>Notificações filtradas pela carteira</strong>: respostas de empresas fora do filtro de grupos não geram notificação — atualiza em tempo real ao trocar o filtro.{" "}
-              <strong>Janela maximizada no boot</strong>: o app abre sempre em tela cheia.
+              <strong>Notificações filtradas pela carteira</strong>: respostas de empresas fora do filtro de grupos não geram notificação — atualiza em tempo real ao trocar o filtro.
             </span>
           </div>
         )}
@@ -1011,7 +1009,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.13 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.15 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1046,7 +1044,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.13 · © 2026 Wijngaarde Design
+        MCM v1.0.15 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
