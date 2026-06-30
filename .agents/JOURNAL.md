@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-06-30 — MCM — Release v1.0.14 publicado sem assinatura + gh CLI autenticado
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+
+### Tentativa de assinatura falhou: chave não está nesta máquina
+Após o build final (3ª rodada, confirmado via `grep` que o bundle tinha `meu-chapa.com`), tentei assinar com `tauri signer sign --private-key-path tauri_update_key` — arquivo não existe nesta máquina. Busca em todo `$env:USERPROFILE` (Jeremiah) não encontrou. `C:\Users\W Design\` (caminho referenciado em sessão de 26/06) não existe neste Windows — só `Jeremiah` e `Public`. A chave privada está fisicamente em outra máquina, fora do alcance desta sessão.
+
+Usuário decidiu (via pergunta direta): **publicar sem assinar por enquanto**, em vez de esperar a chave ou abortar o release.
+
+### gh CLI não autenticado — resolvido via device flow
+`gh release create` falhou (`gh auth login` necessário). Rodei `gh auth login --web`, usuário autorizou no navegador com o código exibido. Login persistiu no keyring do Windows (`jwijngaardemeuchapa`, escopos `gist, read:org, repo`). Primeira tentativa de `gh release create` retornou `401 Bad credentials` (provável atraso de propagação do token logo após o device flow) — retry imediato funcionou.
+
+### Release v1.0.14 publicado
+https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14 — apenas o `.exe`, sem `.sig`. Notas do release documentam que a instalação precisa ser manual (auto-update não vai oferecer esta versão até a assinatura ser regularizada).
+
+**Atenção:** `latest.json` no repo já tinha `version: 1.0.14` com uma assinatura de uma sessão anterior — mas é a assinatura de um binário DIFERENTE (antes dos fixes MCM-87/88 desta sessão). Não foi atualizado nesta sessão (não temos assinatura válida pro binário atual). O updater vai falhar a verificação com segurança, não vai instalar nada incorreto — só não vai oferecer a atualização até isso ser corrigido.
+
+**Lição para LESSONS.md:** a chave privada do updater (`tauri_update_key`) precisa de um local fixo e documentado (gerenciador de senhas, não "qual máquina tem ela hoje"). Já causou retrabalho em pelo menos 2 sessões.
+
+**Next:** localizar `tauri_update_key` na máquina física certa, assinar `MCM_1.0.14_x64-setup.exe` (já publicado), atualizar `latest.json` com assinatura real, commit + push.
+
+---
+
 ## 2026-06-30 — MCM — Fix "Nome da Mãe" sobrepondo nome do chapa (MCM-87) + domínio .com (MCM-88)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-87, MCM-88

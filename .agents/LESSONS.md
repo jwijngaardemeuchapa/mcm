@@ -133,3 +133,17 @@
 **Rule:** Never compare company names with raw string equality against `nome_fantasia`. Always use `companyMatches()`.
 **Why:** Umbler dashboard names often differ from how they were imported (LTDA suffix, accent variations, spacing). `companyMatches()` in `src/lib/company.ts` handles all of this.
 **How to apply:** Any feature that filters tasks or chapas by company must go through `companyMatches(empresa, carteira)`. When instructing users to add companies manually, tell them to use the exact name from the Meu Chapa dashboard column "Empresa".
+
+---
+
+## 2026-06-30 [build, updater, signing-key]
+**Rule:** Never assume `tauri_update_key` (private updater signing key) is on the current machine. Check before promising a signed build.
+**Why:** The key lives offline on a specific physical machine (referenced once as `C:\Users\W Design\task-flow-hub\tauri_update_key`), never committed (correctly gitignored). Two separate sessions assumed it would be present and only discovered otherwise mid-build, after already generating the .exe. Caused a release to go out unsigned.
+**How to apply:** Before running `tauri signer sign`, verify the key file exists at the expected path first. If missing, ask the user where it lives or whether to publish unsigned (auto-update will safely fail verification, not install anything broken — but won't update existing installs either). Long-term: move the key to a password manager with a documented retrieval path instead of "whichever machine has it".
+
+---
+
+## 2026-06-30 [build, vite, timing]
+**Rule:** When making code changes during a long `tauri build` (Rust compile takes 10-25min), verify the compiled `dist/` actually contains the latest commit before assuming a rebuild picked it up.
+**Why:** `vite build` runs early in the `tauri build` pipeline (~1min) and snapshots the working tree at that moment. Commits made *after* kicking off the build do NOT make it into that build's bundle, even though Rust keeps compiling for many more minutes afterward — easy to miss since there's no error, just stale content.
+**How to apply:** After any build where edits landed mid-build, `grep` the compiled `dist/assets/*.js` for a string unique to the new change before trusting the output. If stale, rebuild (fast — Rust stays cached, only `vite build` + NSIS repack reruns).

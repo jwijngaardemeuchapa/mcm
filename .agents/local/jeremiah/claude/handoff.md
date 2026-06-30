@@ -1,9 +1,26 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-06-30 (Sonnet 4.6)
-**Versão atual:** v1.0.14 (3ª rodada de build em andamento — release ainda NÃO publicado)
+**Versão atual:** v1.0.14 — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14), **mas SEM assinatura** (instalação manual apenas, auto-update não vai puxar)
 **Branch:** main
-**Último commit:** `f230de5`
+**Último commit:** `40da3bc`
+
+---
+
+## ⚠️ PENDÊNCIA CRÍTICA: chave privada do updater não está nesta máquina
+
+A chave (`tauri_update_key`, sem extensão) não existe em nenhum lugar desta máquina (Jeremiah) — busquei em todo `$env:USERPROFILE`, nada. O perfil `C:\Users\W Design\` referenciado em sessões anteriores (26/06) **não existe nesta máquina** (só `Jeremiah` e `Public` em `C:\Users`). A chave está fisicamente em outra máquina física.
+
+**Efeito:** o `latest.json` no repo já tem `version: "1.0.14"` com uma assinatura — mas é a assinatura do binário da SESSÃO ANTERIOR (antes dos fixes MCM-87/88 desta sessão). O binário mudou (novo conteúdo), então essa assinatura **não bate mais com o .exe publicado agora**. Não toquei em `latest.json` nesta sessão — o auto-update vai falhar a verificação de assinatura com segurança (não instala nada corrompido), só não vai oferecer a atualização.
+
+**Para resolver definitivamente (próxima sessão ou na outra máquina):**
+1. Localizar `tauri_update_key` na máquina física onde foi usada antes (verificar histórico de comandos PowerShell — referenciava `C:\Users\W Design\task-flow-hub\tauri_update_key`).
+2. Rodar `tauri signer sign` sobre `MCM_1.0.14_x64-setup.exe` (já publicado no Release) com essa chave.
+3. Atualizar `latest.json` com a assinatura real + commit + push.
+4. Decidir um lugar permanente e documentado para a chave (ex.: gerenciador de senhas), em vez de depender de "qual máquina tem ela" — isso já causou retrabalho 2x.
+
+### gh CLI autenticado nesta máquina
+Rodei `gh auth login --web` e o usuário autorizou — `gh` agora está logado como `jwijngaardemeuchapa` nesta máquina (token com escopos `gist, read:org, repo`, armazenado no keyring do Windows). Releases futuros podem ser criados via `gh release create` direto, sem precisar repetir o login.
 
 ---
 
