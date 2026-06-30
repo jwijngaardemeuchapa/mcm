@@ -148,7 +148,15 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
       const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
       const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
       const num = (key: string | undefined) => key ? parseInt(String(row[key] ?? "0")) || 0 : 0;
-      const nomeCol = pick(/^nome$/i, /nome/i);
+      // "Nome do Chapa" nunca pode cair para "Nome da Mãe" — mesmo como fallback.
+      // A pergunta de Cadastro Geral tem as duas colunas; se "Nome do Chapa" vier
+      // vazio/omitido nessa linha (APIs costumam omitir campos nulos do JSON), o
+      // regex genérico /nome/i pegaria "Nome da Mãe" para aquela linha específica,
+      // mantendo o telefone real do chapa — produz nome feminino (da mãe) com
+      // telefone do próprio chapa (geralmente homem). Exclusão explícita evita isso.
+      const nomeCol = k.find((c) => /^nome do chapa$/i.test(c))
+        ?? k.find((c) => /^nome$/i.test(c))
+        ?? k.find((c) => /nome/i.test(c) && !/m[ãa]e/i.test(c));
       const nome = str(nomeCol) ?? "";
       if (!nome) continue;
       const telCol = pick(/^telefone$/i, /^celular$/i, /^fone$/i, /telefone|celular|fone/i);
@@ -157,7 +165,10 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
         ambiguousPhoneCols = allPhoneLike.length > 1 ? allPhoneLike : [];
       }
       if (ambiguousNameCols === null) {
-        const allNameLike = Array.from(new Set(k.filter((c) => /nome/i.test(c))));
+        // "Nome da Mãe" é um caso conhecido e tratado (excluído acima) — não conta
+        // como ambiguidade a alertar. Só preocupa se houver OUTRA coluna "nome"
+        // além de "Nome do Chapa"/"Nome" que não seja a mãe.
+        const allNameLike = Array.from(new Set(k.filter((c) => /nome/i.test(c) && !/m[ãa]e/i.test(c))));
         ambiguousNameCols = allNameLike.length > 1 ? allNameLike : [];
       }
       const cpf = dig(pick(/^cpf$/i));
