@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-06-30 — MCM — BID: ocupado também por telefone (MCM-89)
+**Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
+**Tickets:** MCM-89
+**Commits:** `b36e6f8`
+
+### Contexto
+Após confirmar que o fix da "Nome da Mãe" funcionou (usuário: "deu certo"), revisamos a lógica de detecção de "ocupado" no BID (candidato já alocado em alguma tarefa na mesma data → deve ser ocultado e não disparado).
+
+### Problema
+A detecção usava só CPF + nome (`occupiedCpfSet`, `occupiedNameSet`, ambos incluindo a própria tarefa). Ambos frágeis: nome varia em grafia (e o cadastro às vezes traz nome trocado, ver fix da Mãe); leads Saac não têm CPF. Resultado: pessoas já em tarefa escapavam da detecção e voltavam a aparecer em Disponíveis.
+
+### Fix (`BIDDashboard.tsx`)
+- Novo `occupiedPhoneSet`: query `SELECT DISTINCT c.telefone_chapa` de todas as `chapas` em tarefas da data (não-removidas), normalizado via `normalizePhone` (remove DDI 55 + não-dígitos → casa formatos diferentes).
+- Adicionado como 3º critério no `isOccupied`: `c.telefone != null && occupiedPhoneSet.has(normalizePhone(c.telefone))`.
+- Respeita a exceção dos extras autorizados (`is_extra === 1`, MCM-83) — extras nunca viram ocupados.
+- Tudo flui pelo flag único `is_occupied`: `available` já filtra (`line 959`), checkbox some, botão de disparo desabilita. Sem mudança de UI necessária.
+
+### Validação
+Typecheck baseline 13 (sem novos). ESLint: 1 erro pré-existente (linha ~1707/1719, fora do escopo) confirmado via `git stash`.
+
+**Files changed:** `src/pages/BIDDashboard.tsx`
+**Next:** atualizar handoff, build, e (pendente de sessões anteriores) assinar v1.0.14 quando a chave estiver disponível.
+
+---
+
 ## 2026-06-30 — MCM — Release v1.0.14 publicado sem assinatura + gh CLI autenticado
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 

@@ -1,9 +1,19 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-30 (Sonnet 4.6)
-**Versão atual:** v1.0.14 — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14), **mas SEM assinatura** (instalação manual apenas, auto-update não vai puxar)
+**Data:** 2026-06-30 (Opus 4.8)
+**Versão atual:** v1.0.14 — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14), **mas SEM assinatura** (instalação manual apenas, auto-update não vai puxar). Há commits posteriores ao release (MCM-89) ainda não buildados/publicados.
 **Branch:** main
-**Último commit:** `40da3bc`
+**Último commit:** `b36e6f8`
+
+---
+
+## Sessão Opus 4.8 (continuação 2026-06-30) — pós fix da Mãe
+
+### Confirmado: fix "Nome da Mãe" funcionou
+Usuário instalou v1.0.14, ressincronizou e confirmou ("deu certo"). O bug de nome feminino com telefone masculino em Disponíveis está resolvido — era o fallback do regex `/nome/i` pegando "Nome da Mãe" quando "Nome do Chapa" vinha vazio.
+
+### MCM-89 — BID: ocupado também por telefone (commit `b36e6f8`)
+Revisada a detecção de "ocupado" (candidato já em tarefa na data → ocultar + não disparar). Antes só CPF + nome. Adicionado `occupiedPhoneSet` (telefone_chapa de todas as chapas da data, via `normalizePhone`). 3º critério no `isOccupied`, respeitando exceção de extras autorizados. Telefone é a chave mais confiável (nome varia, leads Saac sem CPF). Ainda não buildado/publicado.
 
 ---
 
