@@ -187,7 +187,7 @@ export default function Historico() {
                 {removals.map((r) => (
                   <tr key={r.id} className="border-t border-border">
                     <td className="px-4 py-2 font-mono">
-                      <a href={`https://app.meu-chapa.net/admin/edit-task/${r.id_tarefa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa}</a>
+                      <a href={`https://app.meu-chapa.com/admin/edit-task/${r.id_tarefa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa}</a>
                     </td>
                     <td className="px-4 py-2">{r.tarefa?.empresa ?? "—"}</td>
                     <td className="px-4 py-2 font-medium">{r.nome_chapa}</td>
@@ -275,7 +275,7 @@ export default function Historico() {
                 {filteredFups.map((f) => (
                   <tr key={f.id} className="border-t border-border">
                     <td className="px-4 py-2 font-mono">
-                      <a href={`https://app.meu-chapa.net/admin/edit-task/${f.id_tarefa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{f.id_tarefa}</a>
+                      <a href={`https://app.meu-chapa.com/admin/edit-task/${f.id_tarefa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{f.id_tarefa}</a>
                     </td>
                     <td className="px-4 py-2">{f.tarefa?.empresa ?? "—"}</td>
                     <td className="px-4 py-2">
@@ -348,7 +348,7 @@ export default function Historico() {
                   return (
                     <tr key={t.id_tarefa} className="border-t border-border">
                       <td className="px-4 py-2 font-mono">
-                        <a href={`https://app.meu-chapa.net/admin/edit-task/${t.id_tarefa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{t.id_tarefa}</a>
+                        <a href={`https://app.meu-chapa.com/admin/edit-task/${t.id_tarefa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{t.id_tarefa}</a>
                       </td>
                       <td className="px-4 py-2">{t.empresa}</td>
                       <td className="px-4 py-2 text-xs">{fmtDateTime(t.data_tarefa)}</td>

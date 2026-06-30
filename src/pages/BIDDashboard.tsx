@@ -1077,7 +1077,7 @@ function BidTaskCard({
             {vagas} vaga{vagas !== 1 ? "s" : ""}
           </Badge>
           <a
-            href={`https://app.meu-chapa.net/admin/edit-task/${task.id_tarefa}`}
+            href={`https://app.meu-chapa.com/admin/edit-task/${task.id_tarefa}`}
             target="_blank" rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
             className="ml-auto font-mono text-[10px] text-muted-foreground/50 hover:text-primary flex items-center gap-0.5"

@@ -558,7 +558,7 @@ export default function Consultor() {
                       <TableCell className="font-mono text-xs">
                         {F.id(r) ? (
                           <a
-                            href={`https://app.meu-chapa.net/admin/edit-task/${encodeURIComponent(F.id(r))}`}
+                            href={`https://app.meu-chapa.com/admin/edit-task/${encodeURIComponent(F.id(r))}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:underline"

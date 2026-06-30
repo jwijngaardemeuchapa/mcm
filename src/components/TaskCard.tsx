@@ -804,7 +804,7 @@ Precisamos de 1 substituto para esta tarefa.`;
             )}
             <div className="flex items-center justify-center gap-1 mt-0.5">
               <a
-                href={`https://app.meu-chapa.net/admin/edit-task/${task.id_tarefa}`}
+                href={`https://app.meu-chapa.com/admin/edit-task/${task.id_tarefa}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[12px] uppercase tracking-wider opacity-90 hover:opacity-100 hover:underline inline-flex items-center gap-0.5"

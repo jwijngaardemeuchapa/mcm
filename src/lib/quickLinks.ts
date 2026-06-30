@@ -7,7 +7,7 @@ export type QuickLink = {
 const KEY = "fup_quick_links";
 
 const DEFAULTS: QuickLink[] = [
-  { id: "default-1", name: "Contas a Pagar", url: "https://app.meu-chapa.net/admin/bills-to-pay" },
+  { id: "default-1", name: "Contas a Pagar", url: "https://app.meu-chapa.com/admin/bills-to-pay" },
 ];
 
 export function readQuickLinks(): QuickLink[] {

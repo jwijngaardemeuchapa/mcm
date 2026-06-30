@@ -806,7 +806,7 @@ function TaskTable({ rows }: { rows: TaskRow[] }) {
             <div className="grid gap-2 px-4 py-2.5 items-center border-b border-border hover:bg-muted/20 transition-colors cursor-pointer"
               style={{ gridTemplateColumns: "60px 1fr 70px 80px 80px 80px 90px 80px 24px" }}
               onClick={() => toggleExpand(r.id)}>
-              <a href={`https://app.meu-chapa.net/admin/edit-task/${r.id}`} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id}</a>
+              <a href={`https://app.meu-chapa.com/admin/edit-task/${r.id}`} target="_blank" rel="noopener noreferrer" className="text-xs font-mono text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id}</a>
               <div className="min-w-0">
                 <span className="text-xs font-medium text-foreground truncate block">{r.tipoTrabalho || "—"}</span>
                 <span className="text-[10px] text-muted-foreground">{r.cidade}{r.uf ? ` (${r.uf})` : ""}</span>

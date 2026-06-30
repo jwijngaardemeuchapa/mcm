@@ -351,10 +351,10 @@ export default function ValidacoesTardiasTab() {
               return (
                 <tr key={r.id} className="border-t border-border">
                   <td className="px-4 py-2 font-mono">
-                    <a href={`https://app.meu-chapa.net/admin/edit-task/${r.id_tarefa_retroativa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa_retroativa}</a>
+                    <a href={`https://app.meu-chapa.com/admin/edit-task/${r.id_tarefa_retroativa}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa_retroativa}</a>
                   </td>
                   <td className="px-4 py-2 text-xs">{r.data_tarefa_retroativa ? fmtDateTime(r.data_tarefa_retroativa) : "—"}</td>
-                  <td className="px-4 py-2 font-mono">{r.id_tarefa_original ? <a href={`https://app.meu-chapa.net/admin/edit-task/${r.id_tarefa_original}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa_original}</a> : "—"}</td>
+                  <td className="px-4 py-2 font-mono">{r.id_tarefa_original ? <a href={`https://app.meu-chapa.com/admin/edit-task/${r.id_tarefa_original}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Abrir tarefa no Meu Chapa">#{r.id_tarefa_original}</a> : "—"}</td>
                   <td className="px-4 py-2 text-xs">{r.data_tarefa_original ? fmtDateTime(r.data_tarefa_original) : "—"}</td>
                   <td className="px-4 py-2 text-xs">{fmtDateTime(r.data_validacao_cliente)}</td>
                   <td className="px-4 py-2"><Badge variant={motivoVariant(r.motivo)}>{motivoLabel(r.motivo)}</Badge></td>

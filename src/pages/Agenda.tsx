@@ -402,7 +402,7 @@ export default function Agenda() {
                         )}
                         {item.vinculo_tipo === "tarefa" && item.vinculo_id_tarefa && (
                           <a
-                            href={`https://app.meu-chapa.net/admin/edit-task/${item.vinculo_id_tarefa}`}
+                            href={`https://app.meu-chapa.com/admin/edit-task/${item.vinculo_id_tarefa}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border hover:text-primary transition-colors"
