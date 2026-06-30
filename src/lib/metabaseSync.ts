@@ -123,24 +123,51 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
 
     // 1) Parse + dedup. cpf deixou de ser PRIMARY KEY (migração v16), mas duplicatas
     // ainda poluem o BID e inflam a base — dedup por cpf (ou nome quando sem cpf).
+    //
+    // Detecção de coluna: se a pergunta do Metabase tiver MAIS DE UMA coluna que
+    // "pareça" telefone (ex.: "Telefone" + "Telefone Indicador"/"Telefone Recrutador"),
+    // um regex único (`telefone|celular|fone`) pode pegar a coluna errada para a base
+    // inteira — sintoma: nome de uma pessoa com telefone de outra. `pick()` tenta
+    // padrões exatos primeiro e detecta ambiguidade para alertar o operador.
+    let ambiguousPhoneCols: string[] | null = null;
+    let ambiguousNameCols: string[] | null = null;
+    const pick = (...patterns: RegExp[]) => {
+      for (const pat of patterns) {
+        const match = k0.find((c) => pat.test(c));
+        if (match) return match;
+      }
+      return undefined;
+    };
+    let k0: string[] = [];
     const parsed: unknown[][] = [];
     const seen = new Set<string>();
     for (const row of rows) {
       const k = Object.keys(row);
+      k0 = k;
       const g = (pat: RegExp) => k.find((c) => pat.test(c));
       const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
       const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
       const num = (key: string | undefined) => key ? parseInt(String(row[key] ?? "0")) || 0 : 0;
-      const nome = str(g(/^nome$/i)) ?? str(g(/nome/i)) ?? "";
+      const nomeCol = pick(/^nome$/i, /nome/i);
+      const nome = str(nomeCol) ?? "";
       if (!nome) continue;
-      const cpf = dig(g(/^cpf$/i));
+      const telCol = pick(/^telefone$/i, /^celular$/i, /^fone$/i, /telefone|celular|fone/i);
+      if (ambiguousPhoneCols === null) {
+        const allPhoneLike = Array.from(new Set(k.filter((c) => /telefone|celular|fone/i.test(c))));
+        ambiguousPhoneCols = allPhoneLike.length > 1 ? allPhoneLike : [];
+      }
+      if (ambiguousNameCols === null) {
+        const allNameLike = Array.from(new Set(k.filter((c) => /nome/i.test(c))));
+        ambiguousNameCols = allNameLike.length > 1 ? allNameLike : [];
+      }
+      const cpf = dig(pick(/^cpf$/i));
       const dedupKey = cpf || `nome:${nome.toLowerCase().replace(/\s+/g, " ")}`;
       if (seen.has(dedupKey)) continue;
       seen.add(dedupKey);
       parsed.push([
         cpf,
         nome,
-        dig(g(/telefone|celular|fone/i)),
+        dig(telCol),
         str(g(/^cidade$/i)),
         str(g(/bairro/i)),
         str(g(/^estado$|^uf$/i)),
@@ -157,6 +184,23 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
         now,
         "metabase",
       ]);
+    }
+
+    // Alerta visível (sem precisar de DevTools): se a pergunta do Metabase tem mais
+    // de uma coluna candidata a telefone ou nome, o regex pode estar pegando a
+    // coluna errada para a base inteira — sintoma relatado: nome de mulher com
+    // telefone de homem. Mostra qual coluna foi de fato usada para conferência.
+    if (ambiguousPhoneCols && ambiguousPhoneCols.length > 1) {
+      toast.warning(
+        `Cadastro: ${ambiguousPhoneCols.length} colunas parecem telefone (${ambiguousPhoneCols.join(", ")}). Usando "${ambiguousPhoneCols[0]}". Confira se está certo em Integrações.`,
+        { duration: 15000 },
+      );
+    }
+    if (ambiguousNameCols && ambiguousNameCols.length > 1) {
+      toast.warning(
+        `Cadastro: ${ambiguousNameCols.length} colunas parecem nome (${ambiguousNameCols.join(", ")}). Usando "${ambiguousNameCols[0]}". Confira se está certo em Integrações.`,
+        { duration: 15000 },
+      );
     }
 
     // 2) Insert resiliente por chunk: um chunk que falhe não derruba o sync inteiro
