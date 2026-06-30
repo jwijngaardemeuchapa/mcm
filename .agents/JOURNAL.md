@@ -3,6 +3,49 @@
 
 ---
 
+## 2026-06-30 — MCM — Fix "Nome da Mãe" sobrepondo nome do chapa (MCM-87) + domínio .com (MCM-88)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-87, MCM-88
+**Commits:** `5be532c`, `f26a53c`, `f230de5`
+
+### Problema relatado
+Usuário reportou nomes femininos aparecendo em "Disponíveis" do BID com telefones que, ao ligar, eram de homens. Já tinha sido investigado antes (sessão 2026-06-29, "Angelita com número do Cleverson") e supostamente corrigido via `_key` único no virtual scroll (`b2f5414`) — mas o usuário desinstalou, apagou os dados e ressincronizou do zero em v1.0.14 e o bug persistiu. Isso descartou a causa anterior (colisão de chave no virtualizer) e apontou para um problema de dado-na-origem, não de renderização.
+
+### Diagnóstico
+1. Revisão da pipeline de renderização (`BIDDashboard.tsx`): todos os filtros/maps preservam o objeto inteiro (`available`, `withinDist`, `visibleCandidates`) — nome e telefone nunca são desacoplados na UI. Descartado.
+2. Revisão do `metabaseSync.ts`: detecção de coluna por regex (`g(/telefone|celular|fone/i)`) sem prioridade — primeira coluna que bater, na ordem de `Object.keys(row)`. Hipótese: pergunta do Metabase com colunas ambíguas.
+3. **Confirmação com dado real:** usuário exportou a pergunta de Cadastro Geral (`query_result_2026-06-30T13_21_29...xlsx`) — colunas: `Id, Nome do Chapa, Nome da Mãe, CPF, Telefone, ...`.
+4. **Causa raiz:** existem DUAS colunas que batem com `/nome/i` — "Nome do Chapa" e "Nome da Mãe". Quando "Nome do Chapa" vem vazio/omitido do JSON para uma linha específica (comportamento comum de APIs que omitem campos nulos), o regex genérico caía no fallback "Nome da Mãe" — produzindo nome feminino (da mãe) associado ao **telefone real do próprio chapa** (predominantemente masculino na base). Bug inconsistente por natureza: só ocorre nas linhas onde "Nome do Chapa" está vazio na origem — por isso o reinstall completo não resolveu (o dado de origem continuava com o mesmo gap).
+
+### Fix (`metabaseSync.ts`, `sincronizarRegistro`)
+- `nomeCol` nunca aceita coluna contendo `mãe`/`mae`, mesmo como fallback. Se "Nome do Chapa" estiver ausente na linha, ela é descartada (`if (!nome) continue`) em vez de mal-rotulada.
+- Detecção de telefone endurecida: `pick()` tenta padrões exatos primeiro (`^telefone$`, `^celular$`, `^fone$`) antes do fallback amplo.
+- Toast de alerta (visível sem DevTools, já que o build de release não tem `devtools` feature) se houver ambiguidade real de coluna nome/telefone numa sincronização futura — exclui "Nome da Mãe" da contagem de ambiguidade (caso já tratado).
+
+### Achados relacionados (não corrigidos — aguardando confirmação do operador)
+- `Número da Casa`: regex exige match exato (`^número$|^num$`), não bate com o nome real da coluna → campo `numero` provavelmente sempre vazio.
+- Motivo do bloqueio: coluna real é `c_bloqueio_ativacao → BlacklistReasonDescr`, regex procura `/motivo/i` → `motivo_bloqueio` provavelmente sempre vazio.
+- Coluna de bloqueio ambígua: existem `Data do Bloqueio` E `Bloqueio em tudo?`; o código usa a primeira (`Data do Bloqueio`) para o campo `bloqueio` que decide status de bloqueado — pode estar usando a coluna errada.
+- Decisão do usuário: "deixe isso como está por enquanto" — registrado para retomar depois.
+
+### Domínio dos links de tarefa (MCM-88)
+Painel Meu Chapa migrou de `app.meu-chapa.net` para `app.meu-chapa.com`. Atualizadas 9 ocorrências do link "Abrir tarefa no Meu Chapa" em `TaskCard.tsx`, `BIDDashboard.tsx`, `Historico.tsx` (×3), `Agenda.tsx`, `Consultor.tsx`, `FillrateDetalhe.tsx`, `ValidacoesTardiasTab.tsx` (×2), `quickLinks.ts`.
+
+### Build v1.0.14 (3 rodadas)
+- 1ª rodada: build inicial pendente de release (sessão anterior).
+- 2ª rodada: incluiu o fix de nome/telefone, mas o `dist/` já tinha sido buildado ANTES do fix de domínio ser commitado — bundle ficou com `.net`. Confirmado via `grep` no JS compilado.
+- 3ª rodada (em andamento): inclui ambos os fixes. Rust já compilado em cache — só rebuild do frontend + repack NSIS, bem mais rápido.
+
+**Lição:** quando há commits em sequência rápida durante um build longo (Rust ~15-25min), o passo `vite build` roda no início do pipeline e captura o estado do working tree NAQUELE momento — commits feitos depois do build começar não entram no bundle. Sempre conferir `grep` no `dist/` antes de assumir que um build pegou o último commit.
+
+### Typecheck/Lint
+0 erros novos em ambos os commits (baseline mantido em 13 erros pré-existentes, fora do escopo). ESLint limpo nos arquivos alterados.
+
+**Files changed:** `src/lib/metabaseSync.ts`, `src/components/TaskCard.tsx`, `src/components/ValidacoesTardiasTab.tsx`, `src/lib/quickLinks.ts`, `src/pages/Agenda.tsx`, `src/pages/BIDDashboard.tsx`, `src/pages/Consultor.tsx`, `src/pages/FillrateDetalhe.tsx`, `src/pages/Historico.tsx`
+**Next:** terminar 3ª rodada de build → assinar → atualizar `latest.json` → GitHub Release v1.0.14 (ainda pendente desde a sessão anterior) → revisitar os 3 achados de coluna ambígua (numero, motivo_bloqueio, bloqueio) com o usuário.
+
+---
+
 ## 2026-06-29 — MCM v1.0.14 — Aba Leads no BID + remoção leads de Disponíveis
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-84 (continuação)

@@ -1,10 +1,41 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-29 (Sonnet 4.6)
-**Versão atual:** v1.0.14 (build gerado, commit `cfeb175` pendente de push + GitHub Release)
+**Data:** 2026-06-30 (Sonnet 4.6)
+**Versão atual:** v1.0.14 (3ª rodada de build em andamento — release ainda NÃO publicado)
 **Branch:** main
+**Último commit:** `f230de5`
 
 ---
+
+## O que foi feito na sessão 2026-06-30 (Sonnet 4.6) — fix nome/telefone trocados + domínio .com
+
+### MCM-87 — "Nome da Mãe" sobrepondo nome do chapa (causa raiz do bug relatado pelo usuário)
+- Usuário relatou nomes femininos com telefone de homem em Disponíveis, mesmo após reinstalar e ressincronizar do zero em v1.0.14 — descartou a causa anterior (`_key` do virtualizer, já corrigida em `b2f5414`).
+- **Causa real:** a pergunta de Cadastro Geral do Metabase tem as colunas "Nome do Chapa" E "Nome da Mãe". Quando "Nome do Chapa" vem vazio/omitido do JSON numa linha, o regex genérico `/nome/i` caía no fallback "Nome da Mãe" — nome da mãe (feminino) ficava associado ao telefone real do próprio chapa.
+- Fix em `metabaseSync.ts`: `nomeCol` nunca aceita coluna contendo "mãe"/"mae", nem como fallback. Linha sem "Nome do Chapa" é descartada, não mal-rotulada. Telefone também ganhou matching exato-primeiro + toast de alerta se houver ambiguidade real numa sync futura.
+- Commits: `5be532c` (hardening inicial), `f26a53c` (fix definitivo excluindo Mãe).
+- **Achados pendentes (usuário pediu para deixar como está por enquanto):** `Número da Casa` não bate com o regex de `numero` (campo provavelmente sempre vazio); motivo do bloqueio (`BlacklistReasonDescr`) não bate com `/motivo/i`; existe ambiguidade entre `Data do Bloqueio` e `Bloqueio em tudo?` para o campo `bloqueio`. Revisitar quando o usuário confirmar.
+
+### MCM-88 — Domínio dos links de tarefa: .net → .com
+- Painel Meu Chapa migrou para `app.meu-chapa.com`. 9 ocorrências atualizadas (TaskCard, BIDDashboard, Historico×3, Agenda, Consultor, FillrateDetalhe, ValidacoesTardiasTab×2, quickLinks). Commit `f230de5`.
+
+### Armadilha de build descoberta
+Durante esta sessão rodamos `npm run tauri build` 3 vezes seguidas. A 2ª rodada (que devia ter o fix de domínio) na verdade NÃO tinha — o passo `vite build` já tinha rodado e capturado o `dist/` ANTES do commit do domínio ser feito (commits em sequência rápida durante um build Rust de ~15-25min). Confirmado via `grep -o "meu-chapa\.\(net\|com\)" dist/assets/*.js`. **Sempre conferir o dist/ compilado antes de assumir que um build pegou o último commit**, especialmente quando há commits feitos *depois* de disparar o build.
+
+### Próximo passo imediato
+```bash
+# 3ª rodada de build em andamento (task bf4otxsaq → byw6ohpnm)
+# Depois de terminar:
+grep -o "meu-chapa\.\(net\|com\)" dist/assets/*.js   # confirmar .com no bundle
+npm run tauri -- signer sign --private-key-path tauri_update_key --password '""' src-tauri/target/release/bundle/nsis/MCM_1.0.14_x64-setup.exe
+# Atualizar latest.json com assinatura real + URL v1.0.14
+# Criar GitHub Release v1.0.14 (ainda pendente desde sessão 2026-06-29), upload .exe + .sig
+git add latest.json && git commit -m "chore: latest.json v1.0.14 final" && git push
+```
+
+---
+
+## [Sessões anteriores]
 
 ## O que foi feito na sessão 2026-06-29 parte 3 (Sonnet 4.6) — aba Leads no BID
 
