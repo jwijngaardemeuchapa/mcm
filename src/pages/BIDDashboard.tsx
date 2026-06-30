@@ -412,6 +412,7 @@ function BidTaskCard({
   const [rawCandidates, setRawCandidates] = useState<BidChapa[]>([]);
   const [occupiedCpfSet, setOccupiedCpfSet] = useState<Set<string>>(new Set());
   const [occupiedNameSet, setOccupiedNameSet] = useState<Set<string>>(new Set());
+  const [occupiedPhoneSet, setOccupiedPhoneSet] = useState<Set<string>>(new Set());
   const [allOccupiedChapas, setAllOccupiedChapas] = useState<{ nome_norm: string; empresa: string }[]>([]);
   const [blockedTipoFilter, setBlockedTipoFilter] = useState("__all__");
   const [blockedTipos, setBlockedTipos] = useState<string[]>([]);
@@ -517,7 +518,7 @@ function BidTaskCard({
 
   // Load candidates from chapa_registry when card is expanded
   useEffect(() => {
-    if (!expanded) { setRawCandidates([]); setOccupiedCpfSet(new Set()); setOccupiedNameSet(new Set()); setAllOccupiedChapas([]); setCandidatesLoading(false); return; }
+    if (!expanded) { setRawCandidates([]); setOccupiedCpfSet(new Set()); setOccupiedNameSet(new Set()); setOccupiedPhoneSet(new Set()); setAllOccupiedChapas([]); setCandidatesLoading(false); return; }
     const cityUf = parseCidadeUf(task.cidade_uf);
     setCandidatesLoading(true);
     (async () => {
@@ -530,7 +531,7 @@ function BidTaskCard({
         // data local (SP) literal, batendo com fmtSP(task.data_tarefa).
         // byCpf/byName INCLUEM a própria tarefa: chapa já alocado nela não deve
         // ser oferecido em novo BID. allOccupied exclui (é a lista "outras tarefas").
-        const [byCpf, byName, allOccupied] = await Promise.all([
+        const [byCpf, byName, byPhone, allOccupied] = await Promise.all([
           db.select<{ cpf: string }[]>(`
             SELECT DISTINCT c.cpf FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
@@ -543,6 +544,12 @@ function BidTaskCard({
             WHERE substr(t.data_tarefa, 1, 10) = ? AND c.status_contato != 'removido'
             AND c.nome_chapa IS NOT NULL
           `, [taskDate]),
+          db.select<{ telefone: string }[]>(`
+            SELECT DISTINCT c.telefone_chapa as telefone FROM chapas c
+            JOIN tarefas t ON c.id_tarefa = t.id_tarefa
+            WHERE substr(t.data_tarefa, 1, 10) = ? AND c.status_contato != 'removido'
+            AND c.telefone_chapa IS NOT NULL AND c.telefone_chapa != ''
+          `, [taskDate]),
           db.select<{ nome_norm: string; empresa: string }[]>(`
             SELECT LOWER(TRIM(c.nome_chapa)) as nome_norm, t.empresa
             FROM chapas c
@@ -554,6 +561,10 @@ function BidTaskCard({
         ]);
         setOccupiedCpfSet(new Set(byCpf.map((r) => r.cpf.replace(/\D/g, ""))));
         setOccupiedNameSet(new Set(byName.map((r) => normName(r.nome_norm))));
+        // Telefone é a chave mais confiável de identidade: nome varia em grafia
+        // (e o cadastro às vezes traz nome trocado), e leads Saac não têm CPF.
+        // normalizePhone remove DDI 55 e não-dígitos para casar formatos diferentes.
+        setOccupiedPhoneSet(new Set(byPhone.map((r) => normalizePhone(r.telefone)).filter(Boolean)));
         setAllOccupiedChapas(allOccupied);
 
         if (!cityUf) { setRawCandidates([]); return; }
@@ -721,6 +732,7 @@ function BidTaskCard({
       // autorizados some inteira ao filtrar "só extras" (MCM-83).
       const isOccupied = c.is_extra !== 1 && (
         (c.cpf != null && occupiedCpfSet.has(c.cpf.replace(/\D/g, ""))) ||
+        (c.telefone != null && occupiedPhoneSet.has(normalizePhone(c.telefone))) ||
         occupiedNameSet.has(normName(c.nome))
       );
       let distKm: number | null = null;
@@ -743,7 +755,7 @@ function BidTaskCard({
       if (sortConfig.key === "situacao") return dir * (a.situacao || "").localeCompare(b.situacao || "");
       return b.score - a.score;
     });
-  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache, sortConfig]);
+  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, occupiedPhoneSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache, sortConfig]);
 
   const leoTierFilteredCandidates = useMemo(() => {
     if (!leoTierFilter || !leoCache || leoCache.size === 0) return candidates;
