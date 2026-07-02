@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-06-30 — MCM — Aba Leads: cidade/UF com comparação exata escondia leads Saac (MCM-90)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-90
+**Commits:** `44f5693`
+
+### Problema relatado
+Usuário: leads do Saac não aparecem na aba "Leads" do BID mesmo sendo da mesma cidade da tarefa.
+
+### Diagnóstico
+A query filtrava `fonte = 'leads_saac'` com `UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)` — comparação exata em SQL, mesmo padrão usado na query de "Disponíveis" (que funciona porque ambos os lados vêm do Metabase, com formato consistente). Para leads Saac, a origem é uma API externa (Lovable/Supabase) sem garantia de formato:
+1. **Acentos:** SQLite `UPPER()` não normaliza diacríticos — `Ã` continua `Ã`. Se a tarefa tem "São Paulo" (Metabase) e o lead tem "Sao Paulo" (Saac sem acento, ou vice-versa), nunca batem apesar de ser a mesma cidade.
+2. **UF:** tarefas trazem sigla de 2 letras ("SP", vindo do campo `Cidade/UF` do Metabase). A API Saac pode devolver o nome completo do estado ("São Paulo") em vez da sigla — comparação de string falha.
+
+### Fix (`BIDDashboard.tsx`)
+- Query da aba Leads não filtra mais cidade/UF em SQL — traz todos os `fonte='leads_saac'` (dataset pequeno, ~4mil linhas no total da base, perfeitamente ok carregar inteiro no cliente, mesmo padrão já usado para `rawCandidates`).
+- Filtro migrado para o cliente: `normalize(r.cidade) === normalize(cityUf.cidade)` (usa o helper `normalize()` já existente no app, que despe acentos e normaliza caixa — mesmo usado para matching de nomes).
+- Novo helper `normalizeUf()`: se a string já tem 2 letras, usa como sigla; senão, consulta um mapa estático das 27 UFs (nome completo, sem acento → sigla) e converte antes de comparar.
+
+### Validação
+Typecheck baseline 13 (sem novos). ESLint: mesmo erro pré-existente já documentado (linha deslocada, fora do escopo desta mudança).
+
+**Files changed:** `src/pages/BIDDashboard.tsx`
+**Next:** build v1.0.16 (ou incluir nesta mesma leva se ainda não buildado) e assinar quando a chave do updater estiver disponível.
+
+---
+
 ## 2026-06-30 — MCM — BID: ocupado também por telefone (MCM-89)
 **Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
 **Tickets:** MCM-89

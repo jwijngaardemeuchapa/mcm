@@ -1,19 +1,33 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-30 (Opus 4.8)
-**Versão atual:** v1.0.14 — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14), **mas SEM assinatura** (instalação manual apenas, auto-update não vai puxar). Há commits posteriores ao release (MCM-89) ainda não buildados/publicados.
+**Data:** 2026-06-30 (Sonnet 5)
+**Versão atual:** código-fonte em `1.0.15` (tauri.conf.json), mas **nenhum release 1.0.15 foi publicado ainda**. [v1.0.14](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14) segue sendo o último release publicado — SEM assinatura (instalação manual, auto-update não puxa).
 **Branch:** main
-**Último commit:** `b36e6f8`
+**Último commit:** `44f5693`
 
 ---
 
-## Sessão Opus 4.8 (continuação 2026-06-30) — pós fix da Mãe
+## ⚠️ Build local existe mas está DESATUALIZADO — não publicar sem rebuildar
+
+Um build `MCM_1.0.15_x64-setup.exe` foi gerado e verificado (domínio `.com` + `occupiedPhoneSet` confirmados no bundle), mas isso foi **antes** do commit `44f5693` (MCM-90, fix de cidade/UF na aba Leads). O usuário perguntou sobre o repositório do Lead Protocol nesse meio-tempo e depois reportou o bug de MCM-90 — o `.exe` local em `src-tauri/target/release/bundle/nsis/` **não tem esse fix**. Rebuildar antes de publicar qualquer release.
+
+## Sessão Sonnet 5 (continuação 2026-06-30) — leads Saac não apareciam por cidade
+
+### MCM-90 — Aba Leads: comparação exata de cidade/UF escondia leads (commit `44f5693`)
+Usuário reportou: leads Saac não aparecem na aba Leads do BID mesmo sendo da mesma cidade da tarefa. Causa: query SQL comparava `UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)` — exato. SQLite `UPPER()` não normaliza acento (`Ã` ≠ `A`), então "São Paulo" (tarefa/Metabase) x "Sao Paulo" (lead/Saac) não batiam. UF também podia vir como nome completo da API Saac ("São Paulo") em vez de sigla ("SP"). Fix: query passa a trazer todos os `leads_saac` (dataset pequeno) e o match migra pro cliente com `normalize()` (já usado no app, remove acento) + novo `normalizeUf()` (mapa estático de 27 UFs, nome completo → sigla). Não testado em runtime real nesta sessão — só typecheck/lint (baseline mantido).
+
+---
+
+## Sessão anterior (Opus 4.8, 2026-06-30) — pós fix da Mãe
 
 ### Confirmado: fix "Nome da Mãe" funcionou
 Usuário instalou v1.0.14, ressincronizou e confirmou ("deu certo"). O bug de nome feminino com telefone masculino em Disponíveis está resolvido — era o fallback do regex `/nome/i` pegando "Nome da Mãe" quando "Nome do Chapa" vinha vazio.
 
 ### MCM-89 — BID: ocupado também por telefone (commit `b36e6f8`)
-Revisada a detecção de "ocupado" (candidato já em tarefa na data → ocultar + não disparar). Antes só CPF + nome. Adicionado `occupiedPhoneSet` (telefone_chapa de todas as chapas da data, via `normalizePhone`). 3º critério no `isOccupied`, respeitando exceção de extras autorizados. Telefone é a chave mais confiável (nome varia, leads Saac sem CPF). Ainda não buildado/publicado.
+Revisada a detecção de "ocupado" (candidato já em tarefa na data → ocultar + não disparar). Antes só CPF + nome. Adicionado `occupiedPhoneSet` (telefone_chapa de todas as chapas da data, via `normalizePhone`). 3º critério no `isOccupied`, respeitando exceção de extras autorizados. Telefone é a chave mais confiável (nome varia, leads Saac sem CPF).
+
+### Bump de versão (commit `a5357cb`)
+`tauri.conf.json` e `Ajuda.tsx` atualizados de 1.0.14 → 1.0.15, novidades reescritas cobrindo MCM-87/88/89.
 
 ---
 
