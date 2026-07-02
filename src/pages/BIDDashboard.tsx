@@ -193,6 +193,26 @@ function parseCidadeUf(s: string | null): { cidade: string; estado: string } | n
   return { cidade: s.slice(0, i).trim(), estado: s.slice(i + 1).trim() };
 }
 
+// Tarefas trazem UF de 2 letras ("SP"), mas a API Saac pode devolver o nome
+// completo do estado ("São Paulo") — normaliza os dois lados para a sigla
+// antes de comparar. Sem isso, leads da mesma cidade não batem (MCM-90).
+const UF_POR_NOME: Record<string, string> = {
+  acre: "AC", alagoas: "AL", amapa: "AP", amazonas: "AM", bahia: "BA",
+  ceara: "CE", "distrito federal": "DF", "espirito santo": "ES", goias: "GO",
+  maranhao: "MA", "mato grosso": "MT", "mato grosso do sul": "MS",
+  "minas gerais": "MG", para: "PA", paraiba: "PB", parana: "PR",
+  pernambuco: "PE", piaui: "PI", "rio de janeiro": "RJ",
+  "rio grande do norte": "RN", "rio grande do sul": "RS", rondonia: "RO",
+  roraima: "RR", "santa catarina": "SC", "sao paulo": "SP", sergipe: "SE",
+  tocantins: "TO",
+};
+function normalizeUf(s: string | null | undefined): string {
+  const t = normalize((s ?? "").trim());
+  if (!t) return "";
+  if (t.length === 2) return t.toUpperCase();
+  return UF_POR_NOME[t] ?? t.toUpperCase();
+}
+
 function sitLabel(sit: string | null): { text: string; cls: string } {
   if (!sit) return { text: "—", cls: "text-muted-foreground/30" };
   const s = sit.toLowerCase();
@@ -693,7 +713,7 @@ function BidTaskCard({
     (async () => {
       try {
         const db = await getDb();
-        const [leads, baseRows] = await Promise.all([
+        const [leadsAll, baseRows] = await Promise.all([
           db.select<BidChapa[]>(`
             SELECT 'reg_' || r.rowid as _key, r.cpf, r.nome, r.telefone,
                    r.cidade, r.bairro, r.estado, r.rua,
@@ -703,15 +723,23 @@ function BidTaskCard({
                    NULL as lat, NULL as lng
             FROM chapa_registry r
             WHERE r.fonte = 'leads_saac'
-            AND UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)
             ORDER BY r.tarefas DESC, r.situacao
-          `, [cityUf.cidade, cityUf.estado]),
+          `),
           db.select<{ phone: string }[]>(`
             SELECT DISTINCT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(r.telefone,'(',''),')',''),'-',''),' ',''),'+','') as phone
             FROM chapa_registry r
             WHERE (r.fonte IS NULL OR r.fonte = 'metabase') AND r.telefone IS NOT NULL
           `),
         ]);
+        // Comparação em SQL (UPPER) falha com acentuação divergente entre a
+        // origem Saac e a origem Metabase, e com UF em nome completo vs sigla
+        // ("São Paulo" x "SP") — filtra no cliente com normalize()/normalizeUf().
+        const cidadeAlvo = normalize(cityUf.cidade);
+        const ufAlvo = normalizeUf(cityUf.estado);
+        const leads = leadsAll.filter((r) =>
+          normalize(r.cidade ?? "") === cidadeAlvo &&
+          (!ufAlvo || normalizeUf(r.estado) === ufAlvo),
+        );
         setRawLeadsBid(leads);
         setBasePhoneSet(new Set(baseRows.map((r) => r.phone)));
       } catch { /* silencioso */ }
