@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-07-03 — MCM — Revert fixes Umbler MCM-91 (erro de comunicação)
+**Actor:** Jeremiah | **Agent:** antigravity (Gemini)
+**Tickets:** MCM-91 (não alterado)
+**Commits:** `341c172`
+
+Boot de sessão: leitura completa do Lead Protocol, sync com GitHub (origin estava 1 commit à frente — pulled `52ea390`). Jira consultado via `session-start`.
+
+Usuário solicitou remoção dos dois últimos commits de fix de Umbler (`2183449` — `/404/` em UMBLER_ERROS; `1a2befc` — mapeamento erro 4436 + parse body 200 + humanizarErro no BID) por terem sido feitos por erro de comunicação — o incidente estava resolvido sem necessidade de código. Revert limpo via `git revert --no-commit` dos dois commits em um único commit `341c172`, pushed para main.
+
+**Files changed:** `src/lib/umbler.ts`, `src/pages/BIDDashboard.tsx` (revertidos ao estado pré-MCM-91).
+**Next:** definir próxima tarefa com o usuário.
+
+---
+
 ## 2026-07-03 — MCM→MV2 — v1 formalizada como escopo técnico da MV2 (trabalho no repo mcm-v2)
 **Actor:** Jeremiah | **Agent:** claude (Fable 5)
 **Commits:** nenhum código no mcm; entregas no repo mcm-v2 (`6c17870`, `68c979a`, `5bbf1a2`)

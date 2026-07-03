@@ -1,26 +1,24 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-03 (Sonnet 5)
+**Data:** 2026-07-03 (Antigravity/Gemini)
 **Versão atual:** código-fonte em `1.0.15` (tauri.conf.json), mas **nenhum release 1.0.15 foi publicado ainda**. [v1.0.14](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14) segue sendo o último release publicado — SEM assinatura (instalação manual, auto-update não puxa).
 **Branch:** main
-**Último commit:** `b24b3bf`
+**Último commit:** `341c172` (revert dos fixes Umbler MCM-91)
 
 ---
 
 ## ⚠️ Build local existe mas está DESATUALIZADO — não publicar sem rebuildar
 
-Um build `MCM_1.0.15_x64-setup.exe` foi gerado e verificado (domínio `.com`, `occupiedPhoneSet`, `normalizeUf`/UF map confirmados no bundle), mas isso foi **antes** do commit `b24b3bf` (follow-up de MCM-90: UF ausente não deve excluir lead). Rebuildar antes de publicar qualquer release — conferir sempre `grep` no `dist/` compilado antes de assumir que pegou o último commit (lição registrada em LESSONS.md).
+Um build `MCM_1.0.15_x64-setup.exe` foi gerado e verificado (domínio `.com`, `occupiedPhoneSet`, `normalizeUf`/UF map confirmados no bundle), mas isso foi **antes** do commit `b24b3bf` (follow-up de MCM-90: UF ausente não deve excluir lead). Os commits de fix Umbler MCM-91 foram revertidos (`341c172`) — código está no estado pré-MCM-91. Rebuildar antes de publicar qualquer release.
 
-## Sessão 2026-07-03 (Sonnet 5) — investigação MCM-91, sem código alterado
+## Sessão 2026-07-03 (Antigravity/Gemini) — revert fixes Umbler
 
-### MCM-91 — Dropdown de bot Umbler preso no rótulo antigo (aberto, NÃO implementado)
-Usuário reportou disparo falhando com "Umbler bot 404" ao reaproveitar o bot de uma ex-funcionária (renomeado no Umbler) para um analista novo. Investigação (via Explore agent + leitura de `Integracoes.tsx`/`umbler.ts`) identificou: os 4 blocos de bot (FUP D0/D1, BID D0/D1) têm um `<Select>` cujo `value` é calculado só pelo Bot ID — editar só o Trigger Name (texto livre, input separado) não muda o Bot ID, então o dropdown fica mostrando o rótulo antigo mesmo depois do usuário editar o nome. Se o usuário reabrir o dropdown e clicar em qualquer item, `onValueChange` sobrescreve o Trigger Name editado, revertendo pro rótulo antigo. Usuário confirmou a hipótese ("acredito que como há um menu dropdown... não lidou bem com selecionar um e alterar o nome no campo editável").
+Sessão de familiarização + revert. Boot completo do Lead Protocol, pull de `52ea390` (origem estava à frente). Jira consultado via `session-start`.
 
-**Incidente do dia já resolvido manualmente** (usuário corrigiu o texto do Trigger Name direto no Umbler/MCM) — não havia urgência de deploy, por isso rejeitou `ExitPlanMode` duas vezes. **O bug de código continua existente e sem fix aplicado.**
+Usuário solicitou revert dos dois commits de fix de Umbler feitos em sessão anterior (`2183449`, `1a2befc`) — eram desnecessários, fruto de erro de comunicação. Revert limpo em commit `341c172`, pushed para main.
 
-Fix proposto e detalhado em MCM-91 (Jira) e no plano local `c-users-jeremiah-downloads-fup-webhook-nifty-gosling.md`: trocar o `value` dos 4 `<Select>` pra exigir Bot ID **e** Trigger Name batendo com uma entrada da lista simultaneamente — assim o dropdown volta pro placeholder assim que o usuário edita manualmente, em vez de ficar preso num rótulo desatualizado. Bônus: entrada `/404/` em `UMBLER_ERROS` (`src/lib/umbler.ts`) pra próximos 404s virem com mensagem legível.
-
-**Próximo passo:** perguntar ao usuário se quer implementar agora. Nenhum arquivo de código foi tocado nesta sessão.
+### MCM-91 — bug do dropdown de bot (ainda aberto, sem fix)
+O bug do `<Select>` que fica preso no rótulo antigo ao editar Trigger Name manualmente continua aberto. Fix documentado no JOURNAL e na sessão anterior — aguarda autorização do usuário para implementar (4 linhas em `Integracoes.tsx` + entrada `/404/` em `umbler.ts`).
 
 ---
 
