@@ -736,10 +736,16 @@ function BidTaskCard({
         // ("São Paulo" x "SP") — filtra no cliente com normalize()/normalizeUf().
         const cidadeAlvo = normalize(cityUf.cidade);
         const ufAlvo = normalizeUf(cityUf.estado);
-        const leads = leadsAll.filter((r) =>
-          normalize(r.cidade ?? "") === cidadeAlvo &&
-          (!ufAlvo || normalizeUf(r.estado) === ufAlvo),
-        );
+        // UF do lead ausente/vazio (comum na origem Saac) não deve excluir o
+        // lead — a cidade já é um match forte o bastante sozinha. Só bloqueia
+        // por UF quando AMBOS os lados têm UF preenchida e elas divergem
+        // (evita colisão real entre cidades homônimas de estados diferentes).
+        const leads = leadsAll.filter((r) => {
+          if (normalize(r.cidade ?? "") !== cidadeAlvo) return false;
+          const leadUf = normalizeUf(r.estado);
+          if (!ufAlvo || !leadUf) return true;
+          return leadUf === ufAlvo;
+        });
         setRawLeadsBid(leads);
         setBasePhoneSet(new Set(baseRows.map((r) => r.phone)));
       } catch { /* silencioso */ }
