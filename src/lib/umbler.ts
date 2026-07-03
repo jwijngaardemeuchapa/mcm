@@ -4,6 +4,7 @@ import { fmtSP, fmtTime, todayDateISO_SP, tomorrowDateISO_SP } from "./datetime"
 const UMBLER_ERROS: [RegExp, string][] = [
   [/401/,                   "Credenciais inválidas — verifique o Bearer Token em Integrações."],
   [/403/,                   "Sem permissão — confirme o organizationId em Integrações."],
+  [/404/,                   "Bot ou trigger não encontrado — confirme o Bot ID e Trigger Name em Integrações."],
   // 4436 = contato já tem conversa ativa com o bot (UTalk internal code) — deve vir antes de /422/
   [/4436/,                  "Contato já possui conversa ativa — aguarde encerramento ou finalize no UTalk."],
   [/422.*phone|phone.*422/, "Número de telefone inválido — corrija o telefone do chapa."],
