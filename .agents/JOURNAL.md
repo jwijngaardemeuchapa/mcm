@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-07-03 — MCM→MV2 — v1 formalizada como escopo técnico da MV2 (trabalho no repo mcm-v2)
+**Actor:** Jeremiah | **Agent:** claude (Fable 5)
+**Commits:** nenhum código no mcm; entregas no repo mcm-v2 (`6c17870`, `68c979a`, `5bbf1a2`)
+
+Decisão do usuário: o backend da v1 (v1.0.15, funcional) é o escopo técnico da reconstrução MV2 — mesmas funcionalidades/integrações, UI e execução novas, SEM repetir o caminho das pedras. Entregas (detalhes no JOURNAL do mcm-v2): `docs/escopo_tecnico_v1.md` no repo mcm-v2 (inventário do motor, schema v1–v15, contratos das 4 integrações, 21 armadilhas de LESSONS/JOURNAL deste repo) + spec técnica em comentário nos **17 tickets MV2** do Jira (épico, marcos M0.5–M5 e features). Specs antigas (era v0.9.96) atualizadas para v1.0.15. Este repo (mcm) não foi alterado.
+
+---
+
 ## 2026-07-03 — MCM — Investigação: "Umbler bot 404" ao reaproveitar bot de ex-funcionária (MCM-91)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-91 (aberto, backlog — fix de código não implementado nesta sessão)
