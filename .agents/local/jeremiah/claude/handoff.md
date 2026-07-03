@@ -1,17 +1,30 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-06-30 (Sonnet 5)
+**Data:** 2026-07-03 (Sonnet 5)
 **Versão atual:** código-fonte em `1.0.15` (tauri.conf.json), mas **nenhum release 1.0.15 foi publicado ainda**. [v1.0.14](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14) segue sendo o último release publicado — SEM assinatura (instalação manual, auto-update não puxa).
 **Branch:** main
-**Último commit:** `44f5693`
+**Último commit:** `b24b3bf`
 
 ---
 
 ## ⚠️ Build local existe mas está DESATUALIZADO — não publicar sem rebuildar
 
-Um build `MCM_1.0.15_x64-setup.exe` foi gerado e verificado (domínio `.com` + `occupiedPhoneSet` confirmados no bundle), mas isso foi **antes** do commit `44f5693` (MCM-90, fix de cidade/UF na aba Leads). O usuário perguntou sobre o repositório do Lead Protocol nesse meio-tempo e depois reportou o bug de MCM-90 — o `.exe` local em `src-tauri/target/release/bundle/nsis/` **não tem esse fix**. Rebuildar antes de publicar qualquer release.
+Um build `MCM_1.0.15_x64-setup.exe` foi gerado e verificado (domínio `.com`, `occupiedPhoneSet`, `normalizeUf`/UF map confirmados no bundle), mas isso foi **antes** do commit `b24b3bf` (follow-up de MCM-90: UF ausente não deve excluir lead). Rebuildar antes de publicar qualquer release — conferir sempre `grep` no `dist/` compilado antes de assumir que pegou o último commit (lição registrada em LESSONS.md).
 
-## Sessão Sonnet 5 (continuação 2026-06-30) — leads Saac não apareciam por cidade
+## Sessão 2026-07-03 (Sonnet 5) — investigação MCM-91, sem código alterado
+
+### MCM-91 — Dropdown de bot Umbler preso no rótulo antigo (aberto, NÃO implementado)
+Usuário reportou disparo falhando com "Umbler bot 404" ao reaproveitar o bot de uma ex-funcionária (renomeado no Umbler) para um analista novo. Investigação (via Explore agent + leitura de `Integracoes.tsx`/`umbler.ts`) identificou: os 4 blocos de bot (FUP D0/D1, BID D0/D1) têm um `<Select>` cujo `value` é calculado só pelo Bot ID — editar só o Trigger Name (texto livre, input separado) não muda o Bot ID, então o dropdown fica mostrando o rótulo antigo mesmo depois do usuário editar o nome. Se o usuário reabrir o dropdown e clicar em qualquer item, `onValueChange` sobrescreve o Trigger Name editado, revertendo pro rótulo antigo. Usuário confirmou a hipótese ("acredito que como há um menu dropdown... não lidou bem com selecionar um e alterar o nome no campo editável").
+
+**Incidente do dia já resolvido manualmente** (usuário corrigiu o texto do Trigger Name direto no Umbler/MCM) — não havia urgência de deploy, por isso rejeitou `ExitPlanMode` duas vezes. **O bug de código continua existente e sem fix aplicado.**
+
+Fix proposto e detalhado em MCM-91 (Jira) e no plano local `c-users-jeremiah-downloads-fup-webhook-nifty-gosling.md`: trocar o `value` dos 4 `<Select>` pra exigir Bot ID **e** Trigger Name batendo com uma entrada da lista simultaneamente — assim o dropdown volta pro placeholder assim que o usuário edita manualmente, em vez de ficar preso num rótulo desatualizado. Bônus: entrada `/404/` em `UMBLER_ERROS` (`src/lib/umbler.ts`) pra próximos 404s virem com mensagem legível.
+
+**Próximo passo:** perguntar ao usuário se quer implementar agora. Nenhum arquivo de código foi tocado nesta sessão.
+
+---
+
+## Sessão Sonnet 5 (2026-06-30) — leads Saac não apareciam por cidade
 
 ### MCM-90 — Aba Leads: comparação exata de cidade/UF escondia leads (commit `44f5693`)
 Usuário reportou: leads Saac não aparecem na aba Leads do BID mesmo sendo da mesma cidade da tarefa. Causa: query SQL comparava `UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)` — exato. SQLite `UPPER()` não normaliza acento (`Ã` ≠ `A`), então "São Paulo" (tarefa/Metabase) x "Sao Paulo" (lead/Saac) não batiam. UF também podia vir como nome completo da API Saac ("São Paulo") em vez de sigla ("SP"). Fix: query passa a trazer todos os `leads_saac` (dataset pequeno) e o match migra pro cliente com `normalize()` (já usado no app, remove acento) + novo `normalizeUf()` (mapa estático de 27 UFs, nome completo → sigla). Não testado em runtime real nesta sessão — só typecheck/lint (baseline mantido).

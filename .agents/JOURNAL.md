@@ -3,6 +3,41 @@
 
 ---
 
+## 2026-07-03 — MCM — Investigação: "Umbler bot 404" ao reaproveitar bot de ex-funcionária (MCM-91)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-91 (aberto, backlog — fix de código não implementado nesta sessão)
+**Commits:** nenhum (sessão só de investigação/documentação; código não foi alterado)
+
+### Incidente relatado
+Analista novo sem bot próprio no Umbler Talk. Usuário reaproveitou o bot da "Emanuelle" (ex-funcionária): renomeou o bot **e** o gatilho (Automação) corretamente no painel do Umbler. No MCM (Integrações), selecionou a entrada "FUP_EMANUELLE | D0" na lista fixa de bots e editou manualmente só o campo **Trigger Name** (manteve o **Bot ID** original). Disparo passou a falhar: `Falha no envio — Umbler bot 404: type tools.ietf.org...` (corpo RFC 7807 "Problem Details").
+
+### Resolução operacional (sem deploy)
+Usuário identificou que era **divergência de texto** no Trigger Name — corrigiu digitando o nome exatamente como configurado no Umbler, disparo voltou a funcionar. Incidente do dia resolvido sem alteração de código.
+
+### Causa raiz de código encontrada durante a investigação (NÃO corrigida — ver MCM-91)
+Em `src/pages/Integracoes.tsx`, os 4 blocos de configuração de bot (FUP D0 ~L744, FUP D1 ~L788, BID D0 ~L868, BID D1 ~L911) têm um `<Select>` de atalho cujo `value` é calculado **só a partir do Bot ID**:
+```tsx
+value={FUP_D0_BOTS.find((b) => b.botId === umblerSettings.fupBotId)?.botId ?? ""}
+```
+Ao lado, **Trigger Name** e **Bot ID** são dois `<Input>` de texto livre, editáveis independentemente do Select. Quando o usuário edita só o Trigger Name (mantendo o Bot ID de um preset), o `<Select>` continua mostrando o rótulo antigo do preset como "selecionado" — mesmo o Trigger Name já divergindo logo abaixo. Essa divergência visual é enganosa: convida o usuário a reabrir o dropdown "pra conferir" e, se clicar em qualquer item, `onValueChange` dispara de novo e **sobrescreve o Trigger Name editado manualmente**, revertendo pro rótulo antigo — reproduzindo o mesmo 404 depois de já corrigido manualmente. É exatamente o mecanismo que o usuário suspeitou ("o dropdown não lida bem com selecionar um e editar o nome no campo editável").
+
+### Fix proposto (aguardando aprovação/implementação futura)
+Fazer o `value` do `<Select>` exigir Bot ID **e** Trigger Name batendo simultaneamente com uma entrada da lista:
+```tsx
+value={FUP_D0_BOTS.find((b) => b.botId === umblerSettings.fupBotId && b.label === umblerSettings.fupBotTriggerName)?.botId ?? ""}
+```
+Assim, ao editar qualquer um dos dois campos manualmente, o dropdown volta pro placeholder "Selecionar da lista…" em vez de ficar preso num rótulo desatualizado — elimina o incentivo de reabrir o dropdown e o risco de sobrescrita acidental. Mesma mudança nos 4 blocos.
+
+**Bônus de baixo custo (não implementado):** adicionar entrada `/404/` em `UMBLER_ERROS` (`src/lib/umbler.ts:4`) — hoje 404 cai no fallback genérico que mostra o corpo RFC 7807 cru e ilegível.
+
+### Por que não foi implementado nesta sessão
+Usuário rejeitou o plano de implementação duas vezes (`ExitPlanMode`) — a leitura mais provável é que, com o incidente já resolvido manualmente, não havia urgência para o deploy do fix de código na hora. Ticket MCM-91 registrado em backlog com o diagnóstico completo para retomar quando o usuário decidir.
+
+**Files changed:** nenhum.
+**Next:** implementar o fix do `<Select>` (4 linhas em `Integracoes.tsx`) + entrada 404 em `umbler.ts` quando o usuário autorizar; build + release.
+
+---
+
 ## 2026-06-30 — MCM — Aba Leads: cidade/UF com comparação exata escondia leads Saac (MCM-90)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-90
