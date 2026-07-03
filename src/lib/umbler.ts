@@ -4,6 +4,8 @@ import { fmtSP, fmtTime, todayDateISO_SP, tomorrowDateISO_SP } from "./datetime"
 const UMBLER_ERROS: [RegExp, string][] = [
   [/401/,                   "Credenciais inválidas — verifique o Bearer Token em Integrações."],
   [/403/,                   "Sem permissão — confirme o organizationId em Integrações."],
+  // 4436 = contato já tem conversa ativa com o bot (UTalk internal code) — deve vir antes de /422/
+  [/4436/,                  "Contato já possui conversa ativa — aguarde encerramento ou finalize no UTalk."],
   [/422.*phone|phone.*422/, "Número de telefone inválido — corrija o telefone do chapa."],
   [/422/,                   "Dados inválidos — verifique os parâmetros do bot em Integrações."],
   [/429/,                   "Limite de envios atingido — aguarde alguns minutos e tente novamente."],
@@ -112,9 +114,18 @@ export async function startUmblerBot({
     }),
   });
 
+  const text = await res.text().catch(() => res.statusText);
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
     throw new Error(`Umbler bot ${res.status}: ${text}`);
+  }
+  // UTalk pode retornar HTTP 200 com erro no body (ex: {"code":4436,...})
+  try {
+    const json = JSON.parse(text);
+    const code = json?.code ?? json?.error?.code ?? json?.data?.code;
+    if (code && code !== 200) throw new Error(`Umbler bot ${code}: ${json?.message ?? json?.error?.message ?? text}`);
+  } catch (parseErr) {
+    if (parseErr instanceof SyntaxError) { /* body não é JSON — OK */ }
+    else throw parseErr;
   }
 }
 

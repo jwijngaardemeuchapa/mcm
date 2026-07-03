@@ -10,7 +10,7 @@ import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync";
 import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
-import { startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
+import { startUmblerBot, fmtTaskDateParam, humanizarErroUmbler } from "@/lib/umbler";
 import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
@@ -940,7 +940,7 @@ function BidTaskCard({
       bidDispatchQueue.notifyDispatched(record);
       toast.success(`BID disparado para ${candidate.nome}`);
     } catch (e) {
-      toast.error(`Falha ao disparar para ${candidate.nome}: ${errMsg(e)}`);
+      toast.error(`Falha ao disparar para ${candidate.nome}: ${humanizarErroUmbler(e)}`);
     } finally {
       setDispatchingIds((prev) => { const s = new Set(prev); s.delete(candidate._key); return s; });
     }
