@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-07-07 — MCM — Fix dialog mensagem personalizada + UX atalhos (MCM-93) → v1.0.16
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
+**Tickets:** MCM-93
+**Commits:** `170d3a0`
+
+**Bug reportado:** dialog de mensagem personalizada para chapas confirmados travava a janela para a direita infinitamente ao digitar mensagens longas com muitos enters — impossibilitava salvar/enviar.
+
+**Causa raiz:** Shadcn `<Textarea>` não inclui `resize-none` no className padrão — `resize: both` nativo permitia arrastar a alça horizontal além do `sm:max-w-md` do `<DialogContent>`. Sem `overflow-hidden` no dialog, o conteúdo expandia o viewport.
+
+**Fixes aplicados em `src/components/TaskCard.tsx`:**
+- `<Textarea>`: `resize-none max-h-48 overflow-y-auto` — bloqueia resize horizontal, limita altura a ~12 linhas com scroll interno
+- `<DialogContent>`: `flex flex-col max-h-[90vh]` + `<DialogHeader shrink-0>` + `<DialogFooter shrink-0>` — footer sempre fixo independente do tamanho do conteúdo
+- Área de conteúdo: `overflow-y-auto flex-1 min-h-0` — scrolla quando necessário
+- Atalhos: seção colapsável com chevron animado + atalhos como chips `flex-wrap` (em vez de lista vertical full-width) — até 2 chips por linha, edição/exclusão via ícones no hover, auto-fecha ao usar
+
+**Versão:** 1.0.15 → 1.0.16 (`tauri.conf.json` + `Ajuda.tsx`)
+**Files changed:** `src/components/TaskCard.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
+**Next:** build 1.0.16 em andamento → sign → latest.json → GitHub Release v1.0.16
+
+---
+
 ## 2026-07-03 — MCM — Revert fixes Umbler MCM-91 (erro de comunicação)
 **Actor:** Jeremiah | **Agent:** antigravity (Gemini)
 **Tickets:** MCM-91 (não alterado)
