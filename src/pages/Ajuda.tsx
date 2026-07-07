@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.15</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.16</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,13 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.15 — Novidades desta versão:</strong>{" "}
-              <strong>BID — nome do chapa corrigido</strong>: nomes trocados (aparecia o nome da mãe com o telefone do chapa) foram corrigidos no cadastro — agora sempre o nome correto do chapa.{" "}
-              <strong>BID — ocupados por telefone</strong>: chapas já alocados em alguma tarefa do dia são ocultados de Disponíveis também pelo número de telefone (além de CPF e nome), evitando reofertas.{" "}
-              <strong>Links de tarefa atualizados</strong>: botão "Abrir tarefa no Meu Chapa" agora aponta para o novo domínio (.com).{" "}
-              <strong>BID — aba Leads</strong>: aba dedicada aos Leads Saac com busca, filtro por cidade, badges ATIVADO/APROVADO/BLOQUEADO e sincronização.{" "}
-              <strong>Updater manual</strong>: verificação de atualização disponível em Integrações (senha de acesso).{" "}
-              <strong>Notificações filtradas pela carteira</strong>: respostas de empresas fora do filtro de grupos não geram notificação — atualiza em tempo real ao trocar o filtro.
+              <strong>v1.0.16 — Novidades desta versão:</strong>{" "}
+              <strong>Mensagem personalizada — corrigido</strong>: dialog de mensagem para chapas confirmados não trava mais a janela para a direita ao digitar textos longos com quebras de linha.{" "}
+              <strong>Atalhos de mensagem colapsáveis</strong>: atalhos salvos viram chips compactos em linha com um clique para mostrar/ocultar — mais espaço para escrever a mensagem.
             </span>
           </div>
         )}
@@ -1009,7 +1005,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.15 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.16 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1044,7 +1040,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.15 · © 2026 Wijngaarde Design
+        MCM v1.0.16 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

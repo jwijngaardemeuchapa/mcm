@@ -259,6 +259,7 @@ export function TaskCard({
   const [msgTemplates, setMsgTemplates] = useState<string[]>(() => readSettings().customMsgTemplates);
   const [editingTplIdx, setEditingTplIdx] = useState<number | null>(null);
   const [editingTplText, setEditingTplText] = useState("");
+  const [shortcutsOpen, setShortcutsOpen] = useState(true);
   const customMsgState = useCustomMsgState(task.id_tarefa);
 
   function persistTemplates(next: string[]) {
@@ -1413,8 +1414,8 @@ Precisamos de 1 substituto para esta tarefa.`;
 
       {/* Removal dialog */}
       <Dialog open={customMsgOpen} onOpenChange={setCustomMsgOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-primary" /> Mensagem personalizada
             </DialogTitle>
@@ -1422,75 +1423,93 @@ Precisamos de 1 substituto para esta tarefa.`;
               Texto livre para os chapas confirmados desta tarefa.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-3 overflow-y-auto flex-1 min-h-0 pr-1">
             <div className="flex items-start gap-2 rounded-md border border-success/30 bg-success/5 px-3 py-2 text-[11px] text-success leading-relaxed">
               <Check className="h-3.5 w-3.5 shrink-0 mt-0.5" />
               Confirmados já responderam — a janela de 24h do WhatsApp está aberta para mensagem livre.
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Atalhos</label>
+            {msgTemplates.length > 0 && (
               <div className="space-y-1">
-                {msgTemplates.map((tpl, idx) => (
-                  editingTplIdx === idx ? (
-                    <div key={idx} className="flex items-center gap-1.5">
-                      <Input
-                        value={editingTplText}
-                        onChange={(e) => setEditingTplText(e.target.value)}
-                        className="h-7 text-xs flex-1"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && editingTplText.trim()) {
-                            persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
-                            setEditingTplIdx(null);
-                          }
-                          if (e.key === "Escape") setEditingTplIdx(null);
-                        }}
-                      />
-                      <Button
-                        size="sm" variant="ghost" className="h-7 px-2 text-xs text-success"
-                        disabled={!editingTplText.trim()}
-                        onClick={() => {
-                          persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
-                          setEditingTplIdx(null);
-                        }}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => setEditingTplIdx(null)}>
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div key={idx} className="flex items-center gap-1.5 group">
-                      <button
-                        type="button"
-                        onClick={() => setCustomMsgText(tpl)}
-                        className="flex-1 text-left text-xs rounded-md border border-border bg-muted/30 hover:bg-primary/10 hover:border-primary/40 px-2.5 py-1.5 transition-colors truncate"
-                        title="Clique para usar esta mensagem"
-                      >
-                        {tpl}
-                      </button>
-                      <button
-                        type="button"
-                        className="text-muted-foreground/40 hover:text-primary transition-colors shrink-0"
-                        title="Editar atalho"
-                        onClick={() => { setEditingTplIdx(idx); setEditingTplText(tpl); }}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        type="button"
-                        className="text-muted-foreground/40 hover:text-destructive transition-colors shrink-0"
-                        title="Excluir atalho"
-                        onClick={() => persistTemplates(msgTemplates.filter((_, i) => i !== idx))}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  )
-                ))}
+                <button
+                  type="button"
+                  onClick={() => setShortcutsOpen((o) => !o)}
+                  className="flex items-center gap-1.5 w-full text-left"
+                >
+                  <span className="text-xs font-medium text-muted-foreground">Atalhos</span>
+                  <span className="text-[10px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
+                    {msgTemplates.length}
+                  </span>
+                  <ChevronDown
+                    className={`h-3 w-3 text-muted-foreground/50 ml-auto transition-transform duration-150 ${shortcutsOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+                {shortcutsOpen && (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {msgTemplates.map((tpl, idx) =>
+                      editingTplIdx === idx ? (
+                        <div key={idx} className="flex items-center gap-1.5 w-full">
+                          <Input
+                            value={editingTplText}
+                            onChange={(e) => setEditingTplText(e.target.value)}
+                            className="h-7 text-xs flex-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && editingTplText.trim()) {
+                                persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                                setEditingTplIdx(null);
+                              }
+                              if (e.key === "Escape") setEditingTplIdx(null);
+                            }}
+                          />
+                          <Button
+                            size="sm" variant="ghost" className="h-7 px-2 text-success"
+                            disabled={!editingTplText.trim()}
+                            onClick={() => {
+                              persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                              setEditingTplIdx(null);
+                            }}
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingTplIdx(null)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div key={idx} className="group relative inline-flex items-center max-w-[calc(50%-4px)]">
+                          <button
+                            type="button"
+                            onClick={() => { setCustomMsgText(tpl); setShortcutsOpen(false); }}
+                            title={tpl}
+                            className="inline-flex items-center rounded-full border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/40 pl-2.5 pr-7 py-1 text-xs transition-colors w-full truncate"
+                          >
+                            {tpl}
+                          </button>
+                          <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              title="Editar"
+                              className="text-muted-foreground/50 hover:text-primary transition-colors"
+                              onClick={(e) => { e.stopPropagation(); setEditingTplIdx(idx); setEditingTplText(tpl); }}
+                            >
+                              <Pencil className="h-2.5 w-2.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Excluir"
+                              className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                              onClick={(e) => { e.stopPropagation(); persistTemplates(msgTemplates.filter((_, i) => i !== idx)); }}
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Mensagem</label>
               <Textarea
@@ -1498,7 +1517,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 onChange={(e) => setCustomMsgText(e.target.value)}
                 placeholder="Digite a mensagem que será enviada…"
                 rows={4}
-                className="text-sm"
+                className="text-sm resize-none max-h-48 overflow-y-auto"
                 autoFocus
               />
               <div className="flex items-center justify-between">
@@ -1552,7 +1571,7 @@ Precisamos de 1 substituto para esta tarefa.`;
               </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setCustomMsgOpen(false)}>Cancelar</Button>
             <Button
               disabled={!customMsgText.trim() || customMsgSelected.size === 0}
