@@ -416,6 +416,19 @@ function BidTaskCard({
   const [dispatchingIds, setDispatchingIds] = useState<Set<string>>(new Set());
   const [showOccupied, setShowOccupied] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  // Busca por nome/telefone: aplica ANTES da paginação de 40, senão só acha
+  // match dentro da fatia já visível — visibleCandidates ignora o limite de
+  // 40 enquanto há termo de busca (ver showAllEffective mais abaixo).
+  const searchActive = searchTerm.trim().length > 0;
+  const searchNorm = normalize(searchTerm.trim());
+  const searchDigits = searchTerm.replace(/\D/g, "");
+  function matchesSearch(c: BidChapa): boolean {
+    if (!searchActive) return true;
+    if (normalize(c.nome).includes(searchNorm)) return true;
+    if (searchDigits && c.telefone && c.telefone.replace(/\D/g, "").includes(searchDigits)) return true;
+    return false;
+  }
   const [maxDistKm, setMaxDistKm] = useState(30);
   const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid">("disponiveis");
   const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
@@ -997,6 +1010,7 @@ function BidTaskCard({
       const leo = leoCache.get(normalizePhone(c.telefone));
       if (leo && leo.pct_sim < 0.3 && leo.total_ofertas >= 3) return false;
     }
+    if (!matchesSearch(c)) return false;
     return true;
   });
   const withinDist = hasCoords
@@ -1010,7 +1024,10 @@ function BidTaskCard({
       ? available.filter((c) => !!c.cep && !c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : [];
   const useProximityFilter = hasCoords || hasCepFilter;
-  const visibleCandidates = showAll
+  // Busca ativa força "mostrar todos" — senão o match só é encontrado se
+  // cair dentro da fatia de 40 já paginada, o que confunde quem está buscando.
+  const showAllEffective = showAll || searchActive;
+  const visibleCandidates = showAllEffective
     ? (useProximityFilter ? [...withinDist, ...beyondDist] : available)
     : (useProximityFilter ? withinDist.slice(0, 40) : available.slice(0, 40));
 
@@ -1020,7 +1037,7 @@ function BidTaskCard({
     : hasCepFilter
       ? blockedCandidates.filter((c) => !c.cep || c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : blockedCandidates;
-  const blockedVisible = blockedWithinDist;
+  const blockedVisible = blockedWithinDist.filter(matchesSearch);
 
   // Status distintos presentes nos leads carregados — alimenta o filtro da aba Leads.
   const leadsBidStatuses = useMemo(() => {
@@ -1028,9 +1045,10 @@ function BidTaskCard({
     for (const c of rawLeadsBid) if (c.situacao) s.add(c.situacao);
     return Array.from(s).sort();
   }, [rawLeadsBid]);
-  const leadsBidVisible = leadsBidStatusFilter === "__all__"
+  const leadsBidVisible = (leadsBidStatusFilter === "__all__"
     ? rawLeadsBid
-    : rawLeadsBid.filter((c) => c.situacao === leadsBidStatusFilter);
+    : rawLeadsBid.filter((c) => c.situacao === leadsBidStatusFilter)
+  ).filter(matchesSearch);
 
   // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
   // leads_bid tem render próprio (lista simples, sem virtualizer).
@@ -1517,6 +1535,15 @@ function BidTaskCard({
                   Leads{leadsBidLoaded && rawLeadsBid.length > 0 ? ` (${rawLeadsBid.length})` : ""}
                 </button>
               </div>
+              <div className="relative shrink-0">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar nome ou telefone..."
+                  className="h-7 w-48 pl-7 text-xs"
+                />
+              </div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1 flex items-center flex-wrap gap-1.5">
                 {candidateView === "disponiveis" ? (
                   <>
@@ -1524,12 +1551,12 @@ function BidTaskCard({
                       <span className="font-normal normal-case">
                         {available.length} disponíveis
                         {hasCoords ? ` · ${withinDist.length} em até ${maxDistKm} km` : hasCepFilter ? ` · ${withinDist.length} no CEP raiz` : ""}
-                        {hasCoords && beyondDist.length > 0 && !showAll && (
+                        {hasCoords && beyondDist.length > 0 && !showAllEffective && (
                           <span className="text-muted-foreground/50"> · {beyondDist.length} além</span>
                         )}
                       </span>
                     )}
-                    {(useProximityFilter ? withinDist : available).length > 40 && (
+                    {!searchActive && (useProximityFilter ? withinDist : available).length > 40 && (
                       <button type="button"
                         onClick={(e) => { e.stopPropagation(); setShowAll((v) => !v); }}
                         className="font-normal normal-case text-primary hover:underline">
