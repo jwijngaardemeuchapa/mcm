@@ -1,15 +1,25 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-03 (Antigravity/Gemini)
-**Versão atual:** código-fonte em `1.0.15` (tauri.conf.json), mas **nenhum release 1.0.15 foi publicado ainda**. [v1.0.14](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.14) segue sendo o último release publicado — SEM assinatura (instalação manual, auto-update não puxa).
+**Data:** 2026-07-08 (Fable 5)
+**Versão atual:** `1.0.16` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.16), asset **sem assinatura** (ver pendência abaixo).
 **Branch:** main
-**Último commit:** `341c172` (revert dos fixes Umbler MCM-91)
+**Último commit:** `54da22b` (busca BID, MCM-94) + agents
 
 ---
 
-## ⚠️ Build local existe mas está DESATUALIZADO — não publicar sem rebuildar
+## ⚠️ PENDÊNCIA #1: assinatura do asset v1.0.16 (auto-update inoperante)
 
-Um build `MCM_1.0.15_x64-setup.exe` foi gerado e verificado (domínio `.com`, `occupiedPhoneSet`, `normalizeUf`/UF map confirmados no bundle), mas isso foi **antes** do commit `b24b3bf` (follow-up de MCM-90: UF ausente não deve excluir lead). Os commits de fix Umbler MCM-91 foram revertidos (`341c172`) — código está no estado pré-MCM-91. Rebuildar antes de publicar qualquer release.
+A `tauri_update_key` **EXISTE na outra máquina** (a de 07/07 — a assinatura commitada no `latest.json` prova). O release v1.0.16 foi publicado DESTA máquina com build local **sem assinatura**; a assinatura do `latest.json` foi gerada para o exe da outra máquina e **não valida contra o asset publicado**. Auto-update falha verificação (seguro, mas inoperante). **Fix: na máquina com a chave, substituir o asset do release pelo `MCM_1.0.16_x64-setup.exe` assinado de lá** (`gh release upload v1.0.16 <exe> --clobber` + subir o `.sig`). Definir de vez um local permanente pra chave (gerenciador de senhas).
+
+## ⚠️ PENDÊNCIA #2: busca do BID (MCM-94) não está no build publicado
+
+Commit `54da22b` (busca por nome/telefone nas 3 abas do BID) entrou DEPOIS do build v1.0.16. Próximo build/release inclui. Se a outra máquina for rebuildar pra assinar (pendência #1), **puxar main antes** — aí o exe assinado já sai com a busca e resolve as duas pendências de uma vez (nesse caso, regenerar a assinatura do latest.json pro exe novo).
+
+## Sessão 2026-07-08 (Fable 5) — release v1.0.16 + busca BID + 4 tickets
+
+- Release v1.0.16 publicado (o `latest.json` de 07/07 apontava pra release inexistente → updater dava 404).
+- MCM-94 ✅: busca por tarefa no BID (nome via normalize, telefone por dígitos; busca ativa força "mostrar todos").
+- Backlog novo com descrição completa: MCM-95 (estudo extensão Chrome), MCM-96 (endereço da tarefa → caderno cliente), MCM-97 (sync delta de chapas recém-cadastrados), MCM-98 (remessa/descrição p/ indicados — validar com export real primeiro).
 
 ## Sessão 2026-07-03 (Antigravity/Gemini) — revert fixes Umbler
 

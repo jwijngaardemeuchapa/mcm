@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-07-08 — MCM — Release v1.0.16 publicado (asset local, sem assinatura) + busca no BID (MCM-94) + 4 tickets de backlog
+**Actor:** Jeremiah | **Agent:** claude (Fable 5)
+**Tickets:** MCM-93 (comentado), MCM-94 ✅, MCM-95/96/97/98 (criados)
+**Commits:** `54da22b` (busca BID), este (agents)
+
+### Release v1.0.16 publicado — estado quebrado do latest.json resolvido pela metade
+A sessão de 07/07 (outra máquina) commitou `latest.json` apontando para o release v1.0.16 com assinatura real — **mas nunca criou o release** (nem draft). Efeito: updater via 1.0.16 disponível → download 404. Publicado hoje https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.16 com o **build local desta máquina** (inclui MCM-93, verificado `resize-none` no dist; SEM a busca MCM-94, commitada depois do build).
+
+**⚠️ Pendência que fica:** o asset publicado é SEM assinatura e a assinatura do `latest.json` foi gerada para o exe DA OUTRA MÁQUINA — não valida contra este asset. Auto-update segue inoperante (falha verificação em vez de 404 — falha segura). **Fix definitivo: na máquina que tem a `tauri_update_key` (confirmado que ela existe lá — a assinatura de 07/07 prova), substituir o asset do release pelo exe assinado de lá.** Instalação manual funciona normalmente.
+
+### MCM-94 — Busca por nome/telefone por tarefa no BID (commit `54da22b`)
+Input ao lado das abas Disponíveis/Bloqueados/Leads em cada card. Nome via `normalize()` (tolerante a acento), telefone por dígitos parciais. Busca ativa força "mostrar todos" (senão o match ficava escondido pela paginação de 40). Entra no próximo build/release.
+
+### Backlog — 4 ideias do usuário viraram tickets com descrição completa
+MCM-95 (estudo extensão Chrome — spike, avaliar companion antes de porte), MCM-96 (endereço da tarefa → caderno do cliente, upsert com dedup), MCM-97 (sync delta de chapas recém-cadastrados — question filtrada por Data de Criação, upsert incremental, completo 2x/semana continua como fonte de verdade), MCM-98 (remessa/descrição p/ chapas indicados — validação com export real antes de codar).
+
+**Next:** próximo build inclui MCM-94; resolver assinatura do asset v1.0.16 na máquina com a chave; definir local permanente da chave.
+
+---
+
 ## 2026-07-07 — MCM — Fix dialog mensagem personalizada + UX atalhos (MCM-93) → v1.0.16
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6)
 **Tickets:** MCM-93
