@@ -3,6 +3,32 @@
 
 ---
 
+## 2026-07-16 — MCM — Bloco 3 completo: UX do BID (MCM-97/100 fechados, MCM-101/102 novos)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-97 ✅, MCM-100 ✅, MCM-101 ✅, MCM-102 ✅
+**Commits:** `0081529`, `0f1cdb6`, `844da4f`
+
+Fecha o roteiro de 7 frentes trazido pelo usuário (Blocos 1a→2→3 completos; Bloco 4 — reenvio FUP 6h — ainda não iniciado).
+
+### Badges NOVO/ORGÂNICO + aba Leads Região (`0081529`)
+- **MCM-97 fechado**: badge NOVO (telefone em `chapas_novos`) / ORGÂNICO (NOVO e nunca foi lead Saac) em Disponíveis, junto de EXTRA/LEAD/ASO.
+- **MCM-100 fechado**: 4ª aba "Leads Região" (`candidateView`), lendo `leads_regiao`, mesmo matching tolerante de cidade/UF do MCM-90. Badge Lead/Usuário Criado. Exclui quem já está em Disponíveis/Bloqueados/Leads Saac — checado na exibição, não no sync. Contato é sempre manual (wa.me + copiar), sem entrar no fluxo de disparo via bot.
+- **Fix incidental**: `basePhoneSet` só era populado pelo efeito da aba Leads Saac — se o usuário abrisse Leads Região sem nunca ter visitado Leads Saac antes, a exclusão falhava silenciosamente. Query movida pro efeito principal (roda ao expandir o card, não por aba).
+
+### Relançamento de disparo — MCM-101 (novo ticket, fechado) (`0f1cdb6`)
+`dispatchOne()` nunca bloqueava um 2º disparo — o bloqueio era só visual (Disponíveis some com quem já tem `disparo.status==='aguardando'`; Matchmaker desabilitava o próprio Send). Fix: coluna `diaria` em `bid_disparos` (ALTER idempotente); botão "Relançar" em cada linha de "Respostas desta tarefa" (usa a diária atual do card, não a histórica); Matchmaker perdeu o `disabled`+guard silencioso — agora avisa "Disparar BID relança".
+
+### Busca Chapa por tarefa — MCM-102 (novo ticket, fechado) (`844da4f`)
+Botão global "Extras" removido; virou por card ("Busca Chapa"), abre o dialog já com a tarefa fixa (sem `<Select>`). Mudança de comportamento real: `bid_chapas` ganhou `empresa TEXT`; extras deixam de ficar presos à tarefa de upload — a query de Disponíveis busca todos os extras e filtra no cliente por `companyMatches(empresa)` OU cidade (fallback pra extras antigos sem empresa). Efeito: subir a lista uma vez mostra em qualquer tarefa aberta da mesma empresa. Código morto removido (`extrasCount`/`setExtrasCount` só existiam pro botão global).
+
+### Validação
+Typecheck baseline 13 mantido em todo o bloco (conferido erro a erro contra a lista conhecida — nenhum novo). ESLint: mesmo erro pré-existente documentado, sem novos.
+
+**Files changed:** `src/pages/BIDDashboard.tsx`, `src/components/BidMatchmaker.tsx`
+**Next:** Bloco 4 (reenvio de FUP após 6h da confirmação — `TaskCard.tsx`, novo hook `useForgetFupConfirmation`). Atualizar tickets MV2 com tudo que mudou na v1 desde a spec de 03/07 (pedido do usuário, em andamento).
+
+---
+
 ## 2026-07-16 — MCM — Bloco 2 continuação: MCM-100 (leads regionais, question 983)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-100 (parcial — sync feito, integração BID pendente)
