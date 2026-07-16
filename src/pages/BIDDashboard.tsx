@@ -118,6 +118,21 @@ export type BidChapa = {
   is_extra?: number;
 };
 
+// Lead regional (MCM-100, question 983) — tabela própria leads_regiao, sem
+// CPF/tarefas/bloqueio. Contato é sempre MANUAL (não são chapas cadastrados,
+// não entram no fluxo de disparo via bot).
+export type LeadRegiao = {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  cep: string | null;
+  cidade: string | null;
+  estado: string | null;
+  categoria: "lead" | "usuario_criado";
+  status: string | null;
+  data_criacao: string | null;
+};
+
 export type BidDisparo = {
   id: string;
   chapa_nome: string;
@@ -430,13 +445,16 @@ function BidTaskCard({
     return false;
   }
   const [maxDistKm, setMaxDistKm] = useState(30);
-  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid">("disponiveis");
+  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid" | "leads_regiao">("disponiveis");
   const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
   const [blockedLoaded, setBlockedLoaded] = useState(false);
   const [rawLeadsBid, setRawLeadsBid] = useState<BidChapa[]>([]);
   const [leadsBidLoading, setLeadsBidLoading] = useState(false);
   const [leadsBidLoaded, setLeadsBidLoaded] = useState(false);
+  const [rawLeadsRegiao, setRawLeadsRegiao] = useState<LeadRegiao[]>([]);
+  const [leadsRegiaoLoading, setLeadsRegiaoLoading] = useState(false);
+  const [leadsRegiaoLoaded, setLeadsRegiaoLoaded] = useState(false);
   const [basePhoneSet, setBasePhoneSet] = useState<Set<string>>(new Set());
   const [leadsBidStatusFilter, setLeadsBidStatusFilter] = useState<string>("__all__");
   const [negOpen, setNegOpen] = useState(false);
@@ -446,6 +464,12 @@ function BidTaskCard({
   const [occupiedCpfSet, setOccupiedCpfSet] = useState<Set<string>>(new Set());
   const [occupiedNameSet, setOccupiedNameSet] = useState<Set<string>>(new Set());
   const [occupiedPhoneSet, setOccupiedPhoneSet] = useState<Set<string>>(new Set());
+  // NOVO = telefone está em chapas_novos (cadastrado nos últimos ~15 dias, MCM-97).
+  // ORGÂNICO = NOVO e telefone NÃO veio de um lead Saac antes (chapa_registry
+  // fonte='leads_saac') — aproximação: sinal melhor exigiria UserLog (fora do
+  // sync atual), ver LESSONS/handoff.
+  const [novoPhoneSet, setNovoPhoneSet] = useState<Set<string>>(new Set());
+  const [leadsSaacPhoneSet, setLeadsSaacPhoneSet] = useState<Set<string>>(new Set());
   const [allOccupiedChapas, setAllOccupiedChapas] = useState<{ nome_norm: string; empresa: string }[]>([]);
   const [blockedTipoFilter, setBlockedTipoFilter] = useState("__all__");
   const [blockedTipos, setBlockedTipos] = useState<string[]>([]);
@@ -551,7 +575,7 @@ function BidTaskCard({
 
   // Load candidates from chapa_registry when card is expanded
   useEffect(() => {
-    if (!expanded) { setRawCandidates([]); setOccupiedCpfSet(new Set()); setOccupiedNameSet(new Set()); setOccupiedPhoneSet(new Set()); setAllOccupiedChapas([]); setCandidatesLoading(false); return; }
+    if (!expanded) { setRawCandidates([]); setOccupiedCpfSet(new Set()); setOccupiedNameSet(new Set()); setOccupiedPhoneSet(new Set()); setNovoPhoneSet(new Set()); setLeadsSaacPhoneSet(new Set()); setAllOccupiedChapas([]); setCandidatesLoading(false); return; }
     const cityUf = parseCidadeUf(task.cidade_uf);
     setCandidatesLoading(true);
     (async () => {
@@ -564,7 +588,7 @@ function BidTaskCard({
         // data local (SP) literal, batendo com fmtSP(task.data_tarefa).
         // byCpf/byName INCLUEM a própria tarefa: chapa já alocado nela não deve
         // ser oferecido em novo BID. allOccupied exclui (é a lista "outras tarefas").
-        const [byCpf, byName, byPhone, allOccupied] = await Promise.all([
+        const [byCpf, byName, byPhone, allOccupied, novoRows, leadsSaacRows, baseRows] = await Promise.all([
           db.select<{ cpf: string }[]>(`
             SELECT DISTINCT c.cpf FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
@@ -591,6 +615,17 @@ function BidTaskCard({
             AND c.nome_chapa IS NOT NULL AND t.id_tarefa != ?
             ORDER BY c.nome_chapa ASC
           `, [taskDate, task.id_tarefa]),
+          db.select<{ telefone: string }[]>(
+            "SELECT telefone FROM chapas_novos WHERE telefone IS NOT NULL",
+          ).catch(() => []),
+          db.select<{ telefone: string }[]>(
+            "SELECT telefone FROM chapa_registry WHERE fonte = 'leads_saac' AND telefone IS NOT NULL",
+          ).catch(() => []),
+          db.select<{ phone: string }[]>(`
+            SELECT DISTINCT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(r.telefone,'(',''),')',''),'-',''),' ',''),'+','') as phone
+            FROM chapa_registry r
+            WHERE (r.fonte IS NULL OR r.fonte = 'metabase') AND r.telefone IS NOT NULL
+          `).catch(() => []),
         ]);
         setOccupiedCpfSet(new Set(byCpf.map((r) => r.cpf.replace(/\D/g, ""))));
         setOccupiedNameSet(new Set(byName.map((r) => normName(r.nome_norm))));
@@ -598,6 +633,12 @@ function BidTaskCard({
         // (e o cadastro às vezes traz nome trocado), e leads Saac não têm CPF.
         // normalizePhone remove DDI 55 e não-dígitos para casar formatos diferentes.
         setOccupiedPhoneSet(new Set(byPhone.map((r) => normalizePhone(r.telefone)).filter(Boolean)));
+        setNovoPhoneSet(new Set(novoRows.map((r) => normalizePhone(r.telefone)).filter(Boolean)));
+        setLeadsSaacPhoneSet(new Set(leadsSaacRows.map((r) => normalizePhone(r.telefone)).filter(Boolean)));
+        // basePhoneSet também é populado aqui (não só no efeito da aba Leads
+        // Saac) — senão a exclusão em Leads Região falha se essa aba nunca
+        // foi aberta antes (ordem de abas não pode ser uma dependência oculta).
+        setBasePhoneSet((prev) => prev.size > 0 ? prev : new Set(baseRows.map((r) => r.phone)));
         setAllOccupiedChapas(allOccupied);
 
         if (!cityUf) { setRawCandidates([]); return; }
@@ -765,6 +806,45 @@ function BidTaskCard({
       finally { setLeadsBidLoading(false); setLeadsBidLoaded(true); }
     })();
   }, [candidateView, leadsBidLoaded, expanded, task.cidade_uf]); // eslint-disable-line
+
+  // Carrega leads regionais (MCM-100, question 983) — lazy, só quando a aba é
+  // aberta. Contato é sempre MANUAL: não são chapas cadastrados, não entram
+  // no fluxo de disparo via bot.
+  useEffect(() => {
+    if (candidateView !== "leads_regiao" || leadsRegiaoLoaded || !expanded) return;
+    const cityUf = parseCidadeUf(task.cidade_uf);
+    if (!cityUf) { setLeadsRegiaoLoaded(true); return; }
+    setLeadsRegiaoLoading(true);
+    (async () => {
+      try {
+        const db = await getDb();
+        const all = await db.select<LeadRegiao[]>(
+          "SELECT id, nome, telefone, cep, cidade, estado, categoria, status, data_criacao FROM leads_regiao",
+        );
+        // Mesmo padrão de MCM-90: normalize()/normalizeUf() no cliente, nunca
+        // UPPER() no SQL (acentuação/UF em nome completo vs sigla).
+        const cidadeAlvo = normalize(cityUf.cidade);
+        const ufAlvo = normalizeUf(cityUf.estado);
+        const doCidade = all.filter((r) => {
+          if (normalize(r.cidade ?? "") !== cidadeAlvo) return false;
+          const leadUf = normalizeUf(r.estado);
+          if (!ufAlvo || !leadUf) return true;
+          return leadUf === ufAlvo;
+        });
+        // Exclui quem já aparece em qualquer outra lista do BID (Disponíveis,
+        // Bloqueados via occupiedPhoneSet, Leads Saac) — exclusão feita na
+        // exibição, não no sync, pra não precisar ressincronizar quando outra
+        // lista muda.
+        const semDuplicata = doCidade.filter((r) => {
+          const phone = r.telefone ? normalizePhone(r.telefone) : "";
+          if (!phone) return true;
+          return !occupiedPhoneSet.has(phone) && !basePhoneSet.has(phone) && !leadsSaacPhoneSet.has(phone);
+        });
+        setRawLeadsRegiao(semDuplicata);
+      } catch { /* silencioso */ }
+      finally { setLeadsRegiaoLoading(false); setLeadsRegiaoLoaded(true); }
+    })();
+  }, [candidateView, leadsRegiaoLoaded, expanded, task.cidade_uf, occupiedPhoneSet, basePhoneSet, leadsSaacPhoneSet]);
 
   // Derive ranked candidates whenever raw data, coords, occupied sets, or disparos change
   const candidates = useMemo<RankedCandidate[]>(() => {
@@ -1534,6 +1614,11 @@ function BidTaskCard({
                   className={`px-2.5 py-1 transition-colors ${candidateView === "leads_bid" ? "bg-indigo-600 text-white" : "text-muted-foreground hover:bg-muted/50"}`}>
                   Leads{leadsBidLoaded && rawLeadsBid.length > 0 ? ` (${rawLeadsBid.length})` : ""}
                 </button>
+                <button type="button"
+                  onClick={() => { setCandidateView("leads_regiao"); setShowAll(false); }}
+                  className={`px-2.5 py-1 transition-colors ${candidateView === "leads_regiao" ? "bg-success text-success-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+                  Leads Região{leadsRegiaoLoaded && rawLeadsRegiao.length > 0 ? ` (${rawLeadsRegiao.length})` : ""}
+                </button>
               </div>
               <div className="relative shrink-0">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
@@ -1569,6 +1654,10 @@ function BidTaskCard({
                     {leadsBidLoaded
                       ? `${leadsBidVisible.filter((c) => !c.bloqueio && !basePhoneSet.has(normalizePhone(c.telefone ?? ""))).length} leads disponíveis · ${leadsBidVisible.filter((c) => basePhoneSet.has(normalizePhone(c.telefone ?? ""))).length} já na base`
                       : "Carregando leads..."}
+                  </span>
+                ) : candidateView === "leads_regiao" ? (
+                  <span className="font-normal normal-case text-success/80">
+                    {leadsRegiaoLoaded ? `${rawLeadsRegiao.length} interessados na região, fora das outras listas` : "Carregando leads regionais..."}
                   </span>
                 ) : (
                   <>
@@ -1811,6 +1900,57 @@ function BidTaskCard({
                     })}
                   </div>
                 )}
+                {candidateView === "leads_regiao" && leadsRegiaoLoaded && rawLeadsRegiao.length > 0 && (
+                  <div className="divide-y divide-border/50">
+                    {rawLeadsRegiao.map((r) => {
+                      const waLink = r.telefone ? `https://wa.me/${r.telefone.replace(/\D/g, "")}` : null;
+                      return (
+                        <div key={r.id} className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2 text-xs hover:bg-muted/30 transition-colors">
+                          <div className="min-w-0 flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button type="button" onClick={() => clipCopy(r.nome, "Nome copiado")}
+                                className="font-medium truncate hover:text-primary hover:underline text-left">
+                                {r.nome}
+                              </button>
+                              <span className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${r.categoria === "usuario_criado" ? "bg-muted text-muted-foreground" : "bg-success/15 text-success"}`}>
+                                {r.categoria === "usuario_criado" ? "USUÁRIO CRIADO" : "LEAD"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                              {r.telefone && (
+                                <button type="button" onClick={() => clipCopy(r.telefone!, "Telefone copiado")} className="hover:text-primary hover:underline">
+                                  {r.telefone}
+                                </button>
+                              )}
+                              {r.data_criacao && <span>desde {r.data_criacao}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {waLink && (
+                              <a href={waLink} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="h-6 px-2 rounded text-[10px] font-medium bg-success hover:bg-success/90 text-success-foreground transition-colors flex items-center">
+                                WhatsApp
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {candidateView === "leads_regiao" && leadsRegiaoLoaded && rawLeadsRegiao.length === 0 && (
+                  <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                    Nenhum lead regional para {task.cidade_uf || "esta cidade"} (fora das outras listas).
+                  </div>
+                )}
+                {candidateView === "leads_regiao" && leadsRegiaoLoading && (
+                  <div className="px-4 py-3 space-y-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="h-10 rounded-lg bg-success/10 animate-pulse" style={{ opacity: 1 - i * 0.2 }} />
+                    ))}
+                  </div>
+                )}
                 {/* Loading states */}
                 {candidateView === "disponiveis" && candidatesLoading && rawCandidates.length === 0 && (
                   <div className="px-4 py-3 space-y-2">
@@ -1887,6 +2027,14 @@ function BidTaskCard({
                           {c.fonte === "leads_saac" && (
                             <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-indigo-500/10 text-indigo-500 border border-indigo-500/25 leading-none">
                               LEAD
+                            </span>
+                          )}
+                          {c.telefone && novoPhoneSet.has(normalizePhone(c.telefone)) && (
+                            <span
+                              className="shrink-0 text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-success/10 text-success border border-success/25 leading-none"
+                              title="Cadastrado nos últimos ~15 dias"
+                            >
+                              {leadsSaacPhoneSet.has(normalizePhone(c.telefone)) ? "NOVO" : "ORGÂNICO"}
                             </span>
                           )}
                           <AsoBadge aso={c.aso} />
