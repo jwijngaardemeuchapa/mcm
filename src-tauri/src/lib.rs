@@ -1166,6 +1166,33 @@ CREATE INDEX IF NOT EXISTS idx_chapas_novos_telefone ON chapas_novos(telefone);
 ",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // MCM-100: leads regionais (question 983) — gente que demonstrou
+      // interesse mas nunca virou usuário cadastrado ("Lead") ou já virou
+      // ("Usuário Criado"). Tabela própria (não chapa_registry/chapas_novos):
+      // volume grande (dezenas de milhares) e ciclo de vida diferente.
+      // version 20: v1 estava em 19, mcm-v2 em 18 no momento — checar sempre
+      // os dois repos antes de reusar um número (ver LESSONS.md).
+      version: 20,
+      description: "leads_regiao",
+      sql: "
+CREATE TABLE IF NOT EXISTS leads_regiao (
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  telefone TEXT,
+  cep TEXT,
+  cidade TEXT,
+  estado TEXT,
+  categoria TEXT NOT NULL,
+  status TEXT,
+  data_criacao TEXT,
+  importado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_leads_regiao_telefone ON leads_regiao(telefone);
+CREATE INDEX IF NOT EXISTS idx_leads_regiao_cidade ON leads_regiao(cidade, estado);
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

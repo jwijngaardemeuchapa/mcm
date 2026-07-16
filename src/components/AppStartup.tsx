@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Sunset, CheckCircle2, ArrowRight, Bell, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import { invoke } from "@tauri-apps/api/core";
-import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarChapas15d, devesSincronizarChapas15d } from "@/lib/metabaseSync";
+import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
 import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
@@ -185,6 +185,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasCarteiraCardId = !!s.metabaseCarteiraCardId;
       const hasEnderecosCardId = !!s.metabaseEnderecosCardId;
       const hasChapas15dCardId = !!s.metabaseChapas15dCardId;
+      const hasLeadsRegiaoCardId = !!s.metabaseLeadsRegiaoCardId;
 
       let metabaseConfigured = false;
       try {
@@ -196,11 +197,13 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasCarteira = hasCarteiraCardId && metabaseConfigured;
       const hasEnderecos = hasEnderecosCardId && metabaseConfigured;
       const hasChapas15d = hasChapas15dCardId && metabaseConfigured;
+      const hasLeadsRegiao = hasLeadsRegiaoCardId && metabaseConfigured;
       const hasRegistro = !!s.metabaseRegistroCardId && metabaseConfigured;
       const hasSaac = !!s.saacApiUrl && !!s.saacApiKey;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
       const syncEnderecos = hasEnderecos && devesSincronizarEnderecos();
       const syncChapas15d = hasChapas15d && devesSincronizarChapas15d();
+      const syncLeadsRegiao = hasLeadsRegiao && devesSincronizarLeadsRegiao();
       const syncRegistro = hasRegistro && devesSincronizarRegistro();
 
       // Tarefas a executar no boot, na ordem. Cada uma vira um step.
@@ -209,6 +212,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       if (syncCarteira) jobs.push({ label: "Sincronizando carteira", run: () => sincronizarCarteira(true) });
       if (syncEnderecos) jobs.push({ label: "Sincronizando endereços", run: () => sincronizarEnderecos(true) });
       if (syncChapas15d) jobs.push({ label: "Sincronizando chapas recentes", run: () => sincronizarChapas15d(true) });
+      if (syncLeadsRegiao) jobs.push({ label: "Sincronizando leads regionais", run: () => sincronizarLeadsRegiao(true) });
       if (syncRegistro) jobs.push({ label: "Sincronizando cadastro", run: () => sincronizarRegistro(true) });
       if (hasSaac) jobs.push({ label: "Sincronizando leads", run: () => sincronizarLeadsSaac(true) });
 

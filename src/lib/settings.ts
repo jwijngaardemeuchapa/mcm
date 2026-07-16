@@ -52,6 +52,7 @@ export type AppSettings = {
   metabaseCarteiraCardId?: number;
   metabaseEnderecosCardId?: number;
   metabaseChapas15dCardId?: number;
+  metabaseLeadsRegiaoCardId?: number;
   metabaseRegistroCardId: number;
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;

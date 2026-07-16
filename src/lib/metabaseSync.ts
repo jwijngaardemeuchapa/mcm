@@ -299,6 +299,101 @@ export function devesSincronizarChapas15d(): boolean {
   return fmtSP(last, "yyyy-MM-dd") !== todayDateISO_SP();
 }
 
+/**
+ * Leads regionais (MCM-100, question 983): pessoas que demonstraram
+ * interesse mas nunca viraram usuário cadastrado ("Lead") ou já viraram
+ * ("Usuário Criado") — mostrados no BID como categoria à parte, pro
+ * analista contatar manualmente quem ainda não é chapa. A question não
+ * tem filtro de data embutido (variáveis {{data_inicio}}/{{data_fim}} são
+ * opcionais e o comando Rust não passa parâmetros) — filtra no cliente
+ * por "últimos 365 dias" para não acumular a base inteira (~65k+ linhas,
+ * cresce sem parar). Exclusão contra outras listas do BID (Disponíveis/
+ * Bloqueados/Leads Saac) acontece na EXIBIÇÃO, não aqui — mesmo padrão de
+ * basePhoneSet em sincronizarLeadsSaac.
+ */
+export async function sincronizarLeadsRegiao(silent = false): Promise<boolean> {
+  const s = readSettings();
+  const cardId = s.metabaseLeadsRegiaoCardId;
+  if (!cardId) {
+    if (!silent) toast.error("Configure o ID da pergunta de Leads Regionais em Integrações");
+    return false;
+  }
+  try {
+    const status = await invoke<{ configured: boolean }>("metabase_status");
+    if (!status.configured) {
+      if (!silent) toast.error("Metabase não configurado em Integrações");
+      return false;
+    }
+    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const db = await getDb();
+    const now = new Date().toISOString();
+    const umAnoAtras = Date.now() - 365 * 24 * 60 * 60 * 1000;
+
+    const seen = new Set<string>();
+    const parsed: unknown[][] = [];
+    for (const row of rows) {
+      const k = Object.keys(row);
+      const g = (pat: RegExp) => k.find((c) => pat.test(c));
+      const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
+      const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
+      const nome = str(g(/^nome$/i));
+      if (!nome) continue;
+      const dataCriacaoRaw = str(g(/data.*cria/i));
+      const dataCriacaoMs = dataCriacaoRaw ? Date.parse(dataCriacaoRaw) : NaN;
+      if (!Number.isNaN(dataCriacaoMs) && dataCriacaoMs < umAnoAtras) continue;
+      const telefone = dig(g(/telefone/i));
+      const dedupKey = telefone ? `tel:${telefone}` : `nome:${nome.toLowerCase().replace(/\s+/g, " ")}`;
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      const categoriaRaw = str(g(/categoria/i)) ?? "";
+      const categoria = /criado/i.test(categoriaRaw) ? "usuario_criado" : "lead";
+      parsed.push([
+        uuid(), nome, telefone, dig(g(/^cep$/i)), str(g(/^cidade$/i)), str(g(/^uf$|^estado$/i)),
+        categoria, str(g(/status/i)), dataCriacaoRaw, now,
+      ]);
+    }
+
+    await db.execute("DELETE FROM leads_regiao");
+    const CHUNK = 90; // 10 colunas x 90 = 900 binds, dentro do limite de 999 do SQLite
+    let count = 0;
+    const ROW_PH = "(?,?,?,?,?,?,?,?,?,?)";
+    for (let i = 0; i < parsed.length; i += CHUNK) {
+      const chunk = parsed.slice(i, i + CHUNK);
+      const ph = Array(chunk.length).fill(ROW_PH).join(",");
+      try {
+        await db.execute(
+          `INSERT INTO leads_regiao (id,nome,telefone,cep,cidade,estado,categoria,status,data_criacao,importado_em) VALUES ${ph}`,
+          chunk.flat(),
+        );
+        count += chunk.length;
+      } catch (e) {
+        console.error("Falha ao inserir chunk de leads regionais", e);
+      }
+    }
+
+    localStorage.setItem("leads_regiao_last_sync", now);
+    if (!silent) toast.success(`Leads regionais sincronizados — ${count} (últimos 365 dias)`);
+    return true;
+  } catch {
+    if (!silent) toast.error("Erro ao sincronizar leads regionais");
+    return false;
+  }
+}
+
+/** Leads regionais: gate semanal (âncora segunda 00h) — base grande, sync menos frequente. */
+export function devesSincronizarLeadsRegiao(): boolean {
+  const last = localStorage.getItem("leads_regiao_last_sync");
+  if (!last) return true;
+  const lastDate = new Date(last);
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const lastMonday = new Date(now);
+  lastMonday.setDate(now.getDate() - daysSinceMonday);
+  lastMonday.setHours(0, 0, 0, 0);
+  return lastDate < lastMonday;
+}
+
 export async function sincronizarRegistro(silent = false): Promise<boolean> {
   const s = readSettings();
   const cardId = s.metabaseRegistroCardId;

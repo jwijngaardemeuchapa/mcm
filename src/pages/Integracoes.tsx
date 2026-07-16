@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos, sincronizarChapas15d } from "@/lib/metabaseSync";
+import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos, sincronizarChapas15d, sincronizarLeadsRegiao } from "@/lib/metabaseSync";
 import { fmtDateTime } from "@/lib/datetime";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
@@ -202,6 +202,21 @@ function SincronizarChapas15dBtn() {
   );
 }
 
+function SincronizarLeadsRegiaoBtn() {
+  const [syncing, setSyncing] = useState(false);
+  async function handle() {
+    setSyncing(true);
+    await sincronizarLeadsRegiao(false);
+    setSyncing(false);
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={handle} disabled={syncing} className="gap-1.5">
+      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+      Sincronizar agora
+    </Button>
+  );
+}
+
 function SincronizarRegistroBtn() {
   const [syncing, setSyncing] = useState(false);
   async function handle() {
@@ -276,6 +291,10 @@ export default function Integracoes() {
   const [metabaseChapas15dCardIdInput, setMetabaseChapas15dCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseChapas15dCardId ? String(s.metabaseChapas15dCardId) : "";
+  });
+  const [metabaseLeadsRegiaoCardIdInput, setMetabaseLeadsRegiaoCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseLeadsRegiaoCardId ? String(s.metabaseLeadsRegiaoCardId) : "";
   });
   const [metabaseRegistroCardIdInput, setMetabaseRegistroCardIdInput] = useState(() => {
     const s = readSettings();
@@ -1265,6 +1284,31 @@ export default function Integracoes() {
             {localStorage.getItem("chapas_15d_last_sync") && (
               <p className="text-xs text-muted-foreground">
                 Última sync: {new Date(localStorage.getItem("chapas_15d_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta — Leads Regionais
+              <span className="ml-1 text-muted-foreground/60">(sync semanal — últimos 365 dias, alimenta a nova categoria de interessados no BID)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="ex: 983"
+                value={metabaseLeadsRegiaoCardIdInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  setMetabaseLeadsRegiaoCardIdInput(v);
+                  writeSettings({ metabaseLeadsRegiaoCardId: v ? parseInt(v, 10) : undefined });
+                }}
+                className="max-w-[120px]"
+              />
+              <SincronizarLeadsRegiaoBtn />
+            </div>
+            {localStorage.getItem("leads_regiao_last_sync") && (
+              <p className="text-xs text-muted-foreground">
+                Última sync: {new Date(localStorage.getItem("leads_regiao_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </p>
             )}
           </div>
