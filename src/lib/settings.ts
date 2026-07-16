@@ -57,6 +57,7 @@ export type AppSettings = {
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
+  fupEsquecerConfirmacaoHoras: number;
   saacApiUrl?: string;
   saacApiKey?: string;
 };
@@ -88,6 +89,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   autoCancelFupEnabled: false,
   autoCancelFupMinutes: 60,
   fupAutoDispatchBloqueioHoras: 4,
+  fupEsquecerConfirmacaoHoras: 6,
 };
 
 export function readSettings(): AppSettings {

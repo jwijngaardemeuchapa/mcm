@@ -1097,7 +1097,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 onUndoOutcome={() =>
                   updateChapaWithUndo(
                     c,
-                    { status_contato: "pendente" },
+                    { status_contato: "pendente", data_contato: null },
                     `reabrir ${c.nome_chapa ?? "chapa"}`,
                   )
                 }

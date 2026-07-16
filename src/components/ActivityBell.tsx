@@ -19,6 +19,7 @@ const TIPO_CONFIG: Record<ActivityEntry["tipo"], { icon: React.ElementType; labe
   bid_interesse: { icon: ThumbsUp,      label: "Interesse confirmado BID", color: "text-success" },
   bid_aceite:    { icon: Star,          label: "Aceitou via app BID",     color: "text-success" },
   fup_auto:      { icon: Zap,           label: "Disparo automático FUP",  color: "text-primary" },
+  confirmacao_esquecida: { icon: RefreshCw, label: "Confirmação esquecida — reaberta", color: "text-warning" },
 };
 
 function formatRelative(ts: number): string {

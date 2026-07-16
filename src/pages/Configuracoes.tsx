@@ -658,6 +658,46 @@ export default function Configuracoes() {
 
             <Separator />
 
+            {/* Reabertura de confirmação esquecida */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-2.5">
+                <RefreshCw className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Reabrir confirmação esquecida</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Chapa confirmado há muitas horas para uma tarefa que ainda não começou volta a
+                      "pendente" automaticamente — assim ele entra de volta no próximo FUP em massa
+                      (que hoje pula quem já está confirmado).
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Select
+                      value={String(settings.fupEsquecerConfirmacaoHoras)}
+                      onValueChange={(v) => setSettings(writeSettings({ fupEsquecerConfirmacaoHoras: Number(v) }))}
+                    >
+                      <SelectTrigger className="w-52">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2">2 horas</SelectItem>
+                        <SelectItem value="4">4 horas</SelectItem>
+                        <SelectItem value="6">6 horas (recomendado)</SelectItem>
+                        <SelectItem value="8">8 horas</SelectItem>
+                        <SelectItem value="12">12 horas</SelectItem>
+                        <SelectItem value="24">24 horas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Confirmado há mais de {settings.fupEsquecerConfirmacaoHoras}h → reaberto pra reforço de FUP
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Portaria rules */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
