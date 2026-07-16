@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac } from "@/lib/metabaseSync";
+import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos } from "@/lib/metabaseSync";
 import { fmtDateTime } from "@/lib/datetime";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
@@ -172,6 +172,21 @@ function SincronizarCarteiraBtn() {
   );
 }
 
+function SincronizarEnderecosBtn() {
+  const [syncing, setSyncing] = useState(false);
+  async function handle() {
+    setSyncing(true);
+    await sincronizarEnderecos(false);
+    setSyncing(false);
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={handle} disabled={syncing} className="gap-1.5">
+      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+      Sincronizar agora
+    </Button>
+  );
+}
+
 function SincronizarRegistroBtn() {
   const [syncing, setSyncing] = useState(false);
   async function handle() {
@@ -238,6 +253,10 @@ export default function Integracoes() {
   const [metabaseCarteiraCardIdInput, setMetabaseCarteiraCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseCarteiraCardId ? String(s.metabaseCarteiraCardId) : "";
+  });
+  const [metabaseEnderecosCardIdInput, setMetabaseEnderecosCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseEnderecosCardId ? String(s.metabaseEnderecosCardId) : "";
   });
   const [metabaseRegistroCardIdInput, setMetabaseRegistroCardIdInput] = useState(() => {
     const s = readSettings();
@@ -1177,6 +1196,31 @@ export default function Integracoes() {
             {localStorage.getItem("carteira_last_sync") && (
               <p className="text-xs text-muted-foreground">
                 Última sync: {new Date(localStorage.getItem("carteira_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta — Endereços
+              <span className="ml-1 text-muted-foreground/60">(sync semanal automático às segundas — alimenta o Caderno de Clientes)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="ex: 1420"
+                value={metabaseEnderecosCardIdInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  setMetabaseEnderecosCardIdInput(v);
+                  writeSettings({ metabaseEnderecosCardId: v ? parseInt(v, 10) : undefined });
+                }}
+                className="max-w-[120px]"
+              />
+              <SincronizarEnderecosBtn />
+            </div>
+            {localStorage.getItem("enderecos_last_sync") && (
+              <p className="text-xs text-muted-foreground">
+                Última sync: {new Date(localStorage.getItem("enderecos_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </p>
             )}
           </div>

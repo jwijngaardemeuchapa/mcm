@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { readSettings } from "./settings";
 import { ingestTarefas } from "./ingestTarefas";
 import { getDb, uuid } from "./db";
+import { companyMatches } from "./company";
+import { normalize } from "./normalize";
 
 export async function sincronizarMetabase(silent = false): Promise<boolean> {
   const s = readSettings();
@@ -93,6 +95,123 @@ export async function sincronizarCarteira(silent = false): Promise<boolean> {
     return true;
   } catch {
     if (!silent) toast.error("Erro ao sincronizar carteira");
+    return false;
+  }
+}
+
+/**
+ * Endereços por tarefa (MCM-96): sincroniza a partir da Question do Metabase
+ * que traz Empresa/CEP/Logradouro/Numero/Bairro/Cidade/UF via
+ * WorkHeader.IdTaskAddress → Address — uma linha por endereço distinto já
+ * usado em alguma tarefa daquela empresa (não o cadastral único do Business).
+ *
+ * UPSERT em cliente_book: casa a empresa via companyMatches (nunca igualdade
+ * crua — variações de LTDA/acento/espaçamento entre a origem e o caderno
+ * cadastrado manualmente). Faz MERGE dos endereços novos com os já existentes
+ * (nunca substitui a lista inteira) — dedup por CEP+logradouro+número
+ * normalizados, para não duplicar o mesmo endereço a cada sync nem apagar
+ * endereços cadastrados manualmente no ClienteBook.
+ */
+export async function sincronizarEnderecos(silent = false): Promise<boolean> {
+  const s = readSettings();
+  const cardId = s.metabaseEnderecosCardId;
+  if (!cardId) {
+    if (!silent) toast.error("Configure o ID da pergunta de Endereços em Integrações");
+    return false;
+  }
+  try {
+    const status = await invoke<{ configured: boolean }>("metabase_status");
+    if (!status.configured) {
+      if (!silent) toast.error("Metabase não configurado em Integrações");
+      return false;
+    }
+    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    // Agrupa as linhas (1 por endereço distinto) por nome de empresa bruto da origem.
+    const porEmpresa = new Map<string, { cep: string; logradouro: string; numero: string; bairro: string; cidade: string; uf: string }[]>();
+    for (const row of rows) {
+      const k = Object.keys(row);
+      const g = (pat: RegExp) => k.find((c) => pat.test(c));
+      const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() : "";
+      const empresa = str(g(/^empresa$/i));
+      if (!empresa) continue;
+      const addr = {
+        cep: str(g(/^cep$/i)),
+        logradouro: str(g(/logradouro/i)),
+        numero: str(g(/^numero$|^n[uú]mero$/i)),
+        bairro: str(g(/bairro/i)),
+        cidade: str(g(/^cidade$/i)),
+        uf: str(g(/^uf$/i)),
+      };
+      if (!addr.cep) continue;
+      const list = porEmpresa.get(empresa) ?? [];
+      list.push(addr);
+      porEmpresa.set(empresa, list);
+    }
+
+    const existentes = await db.select<{ id: string; nome: string; enderecos: string | null }[]>(
+      "SELECT id, nome, enderecos FROM cliente_book",
+    );
+
+    let empresasAtualizadas = 0;
+    let enderecosNovos = 0;
+    for (const [empresaOrigem, enderecosOrigem] of porEmpresa) {
+      const match = existentes.find((r) => companyMatches(empresaOrigem, [r.nome]));
+      const atuais: {
+        id: string; label: string; endereco: string; maps_link: string;
+        lat: number | null; lng: number | null; cep: string | null;
+        logradouro?: string; numero?: string; bairro?: string; cidade?: string; uf?: string; principal?: boolean;
+      }[] = match?.enderecos ? JSON.parse(match.enderecos) : [];
+      const chaveDedup = (a: { cep?: string | null; logradouro?: string; numero?: string }) =>
+        `${normalize(a.cep ?? "")}|${normalize(a.logradouro ?? "")}|${normalize(a.numero ?? "")}`;
+      const jaExistentes = new Set(atuais.map(chaveDedup));
+
+      let mudou = false;
+      for (const a of enderecosOrigem) {
+        const chave = chaveDedup(a);
+        if (jaExistentes.has(chave)) continue;
+        jaExistentes.add(chave);
+        const linha1 = [a.logradouro, a.numero].filter(Boolean).join(", ");
+        const enderecoTxt = [linha1, a.bairro, a.cidade && a.uf ? `${a.cidade} - ${a.uf}` : (a.cidade || a.uf)]
+          .filter(Boolean).join(", ");
+        atuais.push({
+          id: uuid(),
+          label: "",
+          endereco: enderecoTxt,
+          maps_link: enderecoTxt ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(enderecoTxt)}` : "",
+          lat: null,
+          lng: null,
+          cep: a.cep || null,
+          logradouro: a.logradouro || undefined,
+          numero: a.numero || undefined,
+          bairro: a.bairro || undefined,
+          cidade: a.cidade || undefined,
+          uf: a.uf || undefined,
+          principal: atuais.length === 0,
+        });
+        enderecosNovos++;
+        mudou = true;
+      }
+      if (!mudou) continue;
+      empresasAtualizadas++;
+      const enderecosJson = JSON.stringify(atuais);
+      if (match) {
+        await db.execute("UPDATE cliente_book SET enderecos = ?, updated_at = ? WHERE id = ?", [enderecosJson, now, match.id]);
+      } else {
+        await db.execute(
+          `INSERT INTO cliente_book (id,nome,cnpj,contato_nome,telefone,email,segmento,status_cliente,particularidades,exigencias,pedidos,observacoes,enderecos,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [uuid(), empresaOrigem, null, null, null, null, null, "ativo", null, null, null, null, enderecosJson, now, now],
+        );
+      }
+    }
+
+    localStorage.setItem("enderecos_last_sync", now);
+    if (!silent) toast.success(`Endereços sincronizados — ${enderecosNovos} novos em ${empresasAtualizadas} empresas`);
+    return true;
+  } catch {
+    if (!silent) toast.error("Erro ao sincronizar endereços");
     return false;
   }
 }
@@ -385,6 +504,20 @@ export function devesSincronizarCarteira(): boolean {
   const now = new Date();
   // Encontra a última segunda-feira
   const dayOfWeek = now.getDay(); // 0=dom, 1=seg...
+  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const lastMonday = new Date(now);
+  lastMonday.setDate(now.getDate() - daysSinceMonday);
+  lastMonday.setHours(0, 0, 0, 0);
+  return lastDate < lastMonday;
+}
+
+/** Endereços: mesmo gate semanal (âncora segunda 00h) da Carteira. */
+export function devesSincronizarEnderecos(): boolean {
+  const last = localStorage.getItem("enderecos_last_sync");
+  if (!last) return true;
+  const lastDate = new Date(last);
+  const now = new Date();
+  const dayOfWeek = now.getDay();
   const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const lastMonday = new Date(now);
   lastMonday.setDate(now.getDate() - daysSinceMonday);
