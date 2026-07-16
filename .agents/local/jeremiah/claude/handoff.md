@@ -1,286 +1,164 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-08 (Fable 5)
-**Versão atual:** `1.0.16` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.16), asset **sem assinatura** (ver pendência abaixo).
+**Data:** 2026-07-14 (Sonnet 4.6 / Opus 4.8) — reconciliado com sessão 07-08 (Fable 5) após rebase
+**Versão:** código-fonte em `1.0.16`. **Release v1.0.16 publicado**, mas com asset sem assinatura válida (ver Pendência #1).
 **Branch:** main
-**Último commit:** `54da22b` (busca BID, MCM-94) + agents
+**Último commit:** ver `git log -1` — este handoff foi reconciliado via rebase, não confiar no hash fixo aqui.
 
 ---
 
-## ⚠️ PENDÊNCIA #1: assinatura do asset v1.0.16 (auto-update inoperante)
+## ⚠️ LEIA PRIMEIRO — 3 pendências ativas + roteiro de 7 frentes
 
-A `tauri_update_key` **EXISTE na outra máquina** (a de 07/07 — a assinatura commitada no `latest.json` prova). O release v1.0.16 foi publicado DESTA máquina com build local **sem assinatura**; a assinatura do `latest.json` foi gerada para o exe da outra máquina e **não valida contra o asset publicado**. Auto-update falha verificação (seguro, mas inoperante). **Fix: na máquina com a chave, substituir o asset do release pelo `MCM_1.0.16_x64-setup.exe` assinado de lá** (`gh release upload v1.0.16 <exe> --clobber` + subir o `.sig`). Definir de vez um local permanente pra chave (gerenciador de senhas).
+### Pendência #1 — asset v1.0.16 publicado SEM assinatura válida (auto-update inoperante)
+A sessão de 07/07 (máquina com `tauri_update_key`) commitou `latest.json` com assinatura real, mas nunca criou o Release. A sessão de 07/08 (Fable 5, esta ou outra máquina sem a chave) publicou o Release com um **build local sem assinatura** — o asset não bate com a assinatura já commitada no `latest.json` (que foi gerada pro exe da outra máquina). Resultado: updater falha verificação de assinatura (seguro, mas inoperante).
+**Fix:** na máquina que tem `tauri_update_key` (confirmada existente — prova é a assinatura de 07/07), rebuildar (puxando main atualizada, que já inclui MCM-93 e MCM-94/busca BID) → assinar → `gh release upload v1.0.16 <exe> --clobber` + subir o `.sig` novo → atualizar `latest.json` com a assinatura correspondente ao asset publicado.
 
-## ⚠️ PENDÊNCIA #2: busca do BID (MCM-94) não está no build publicado
+### Pendência #2 — repo pode estar privado (bloqueia o updater mesmo com assinatura certa)
+Verificado ao vivo nesta sessão (antes do rebase): `raw.githubusercontent.com/jwijngaardemeuchapa/mcm/main/latest.json` retornava **404**, e a API do GitHub também 404 sem auth — sinal de repo privado (GitHub esconde repo privado como 404 pra requisições anônimas, mesmo que o arquivo/release exista). Isso explica "não funciona nas duas máquinas": o updater faz GET anônimo. **Usuário decidiu tornar o repo público de novo** (ação manual: GitHub → Settings → Danger Zone → Change visibility). Sem isso, mesmo com o asset assinado corretamente (Pendência #1), o updater não vai enxergar o `latest.json`.
 
-Commit `54da22b` (busca por nome/telefone nas 3 abas do BID) entrou DEPOIS do build v1.0.16. Próximo build/release inclui. Se a outra máquina for rebuildar pra assinar (pendência #1), **puxar main antes** — aí o exe assinado já sai com a busca e resolve as duas pendências de uma vez (nesse caso, regenerar a assinatura do latest.json pro exe novo).
+**Nenhuma das duas pendências é sobre a chave em si** — a chave está correta e presente na máquina de 07/07.
 
-## Sessão 2026-07-08 (Fable 5) — release v1.0.16 + busca BID + 4 tickets
-
-- Release v1.0.16 publicado (o `latest.json` de 07/07 apontava pra release inexistente → updater dava 404).
-- MCM-94 ✅: busca por tarefa no BID (nome via normalize, telefone por dígitos; busca ativa força "mostrar todos").
-- Backlog novo com descrição completa: MCM-95 (estudo extensão Chrome), MCM-96 (endereço da tarefa → caderno cliente), MCM-97 (sync delta de chapas recém-cadastrados), MCM-98 (remessa/descrição p/ indicados — validar com export real primeiro).
-
-## Sessão 2026-07-03 (Antigravity/Gemini) — revert fixes Umbler
-
-Sessão de familiarização + revert. Boot completo do Lead Protocol, pull de `52ea390` (origem estava à frente). Jira consultado via `session-start`.
-
-Usuário solicitou revert dos dois commits de fix de Umbler feitos em sessão anterior (`2183449`, `1a2befc`) — eram desnecessários, fruto de erro de comunicação. Revert limpo em commit `341c172`, pushed para main.
-
-### MCM-91 — bug do dropdown de bot (ainda aberto, sem fix)
-O bug do `<Select>` que fica preso no rótulo antigo ao editar Trigger Name manualmente continua aberto. Fix documentado no JOURNAL e na sessão anterior — aguarda autorização do usuário para implementar (4 linhas em `Integracoes.tsx` + entrada `/404/` em `umbler.ts`).
+### Pendência #3 — MCM-94 (busca no BID) não está no build publicado
+Commit `54da22b` (busca por nome/telefone nas 3 abas do BID) entrou DEPOIS do build v1.0.16 publicado. Resolve-se junto com a Pendência #1 (puxar main antes de rebuildar).
 
 ---
 
-## Sessão Sonnet 5 (2026-06-30) — leads Saac não apareciam por cidade
+## Roteiro de 7 frentes — planejamento feito, código NÃO iniciado
 
-### MCM-90 — Aba Leads: comparação exata de cidade/UF escondia leads (commit `44f5693`)
-Usuário reportou: leads Saac não aparecem na aba Leads do BID mesmo sendo da mesma cidade da tarefa. Causa: query SQL comparava `UPPER(r.cidade) = UPPER(?) AND UPPER(r.estado) = UPPER(?)` — exato. SQLite `UPPER()` não normaliza acento (`Ã` ≠ `A`), então "São Paulo" (tarefa/Metabase) x "Sao Paulo" (lead/Saac) não batiam. UF também podia vir como nome completo da API Saac ("São Paulo") em vez de sigla ("SP"). Fix: query passa a trazer todos os `leads_saac` (dataset pequeno) e o match migra pro cliente com `normalize()` (já usado no app, remove acento) + novo `normalizeUf()` (mapa estático de 27 UFs, nome completo → sigla). Não testado em runtime real nesta sessão — só typecheck/lint (baseline mantido).
+Usuário trouxe um guia de schema Metabase (`guia_estrutura_metabase_meuchapa.md`, fora do repo — PostgreSQL, schema `core_api`) e pediu 7 mudanças. Exploração completa feita (sync system, BID Dashboard, FUP/updater). **Depois do rebase, descobrimos que a sessão de 07-08 já criou tickets pra boa parte disso: MCM-96 (endereços), MCM-97 (chapas 15 dias), MCM-98 (remessa/indicados), MCM-95 (extensão Chrome, spike).** Ler as descrições reais desses tickets no Jira antes de codar — elas podem ter nuances mais precisas que o que segue (ex.: MCM-97 já especifica "question filtrada por Data de Criação, upsert incremental, completo 2x/semana continua fonte de verdade").
 
----
+### Decisões do usuário (não reabrir)
+- Ordem de execução: **Bloco 1 → 2 → 3 → 4** abaixo.
+- Updater: **tornar o repo `mcm` público** (não hospedar em local alternativo) — ver Pendência #2.
+- Endereços de empresa (item 2 / MCM-96): **endereços das tarefas** (via `WorkHeader`→`Address`), não o endereço cadastral único do `Business`.
 
-## Sessão anterior (Opus 4.8, 2026-06-30) — pós fix da Mãe
+### BLOCO 1 — Updater + 3 queries Metabase
 
-### Confirmado: fix "Nome da Mãe" funcionou
-Usuário instalou v1.0.14, ressincronizou e confirmou ("deu certo"). O bug de nome feminino com telefone masculino em Disponíveis está resolvido — era o fallback do regex `/nome/i` pegando "Nome da Mãe" quando "Nome do Chapa" vinha vazio.
+**1a. Fix de código pendente:** `src/pages/Integracoes.tsx:279-314` — os `catch` de `verificarAtualizacao()`/`instalarAtualizacao()` engolem o erro sem log. Trocar por `console.error(e)` + toast com a mensagem real — é por isso que a falha de assinatura/404 nunca apareceu pro usuário.
 
-### MCM-89 — BID: ocupado também por telefone (commit `b36e6f8`)
-Revisada a detecção de "ocupado" (candidato já em tarefa na data → ocultar + não disparar). Antes só CPF + nome. Adicionado `occupiedPhoneSet` (telefone_chapa de todas as chapas da data, via `normalizePhone`). 3º critério no `isOccupied`, respeitando exceção de extras autorizados. Telefone é a chave mais confiável (nome varia, leads Saac sem CPF).
-
-### Bump de versão (commit `a5357cb`)
-`tauri.conf.json` e `Ajuda.tsx` atualizados de 1.0.14 → 1.0.15, novidades reescritas cobrindo MCM-87/88/89.
-
----
-
-## ⚠️ PENDÊNCIA CRÍTICA: chave privada do updater não está nesta máquina
-
-A chave (`tauri_update_key`, sem extensão) não existe em nenhum lugar desta máquina (Jeremiah) — busquei em todo `$env:USERPROFILE`, nada. O perfil `C:\Users\W Design\` referenciado em sessões anteriores (26/06) **não existe nesta máquina** (só `Jeremiah` e `Public` em `C:\Users`). A chave está fisicamente em outra máquina física.
-
-**Efeito:** o `latest.json` no repo já tem `version: "1.0.14"` com uma assinatura — mas é a assinatura do binário da SESSÃO ANTERIOR (antes dos fixes MCM-87/88 desta sessão). O binário mudou (novo conteúdo), então essa assinatura **não bate mais com o .exe publicado agora**. Não toquei em `latest.json` nesta sessão — o auto-update vai falhar a verificação de assinatura com segurança (não instala nada corrompido), só não vai oferecer a atualização.
-
-**Para resolver definitivamente (próxima sessão ou na outra máquina):**
-1. Localizar `tauri_update_key` na máquina física onde foi usada antes (verificar histórico de comandos PowerShell — referenciava `C:\Users\W Design\task-flow-hub\tauri_update_key`).
-2. Rodar `tauri signer sign` sobre `MCM_1.0.14_x64-setup.exe` (já publicado no Release) com essa chave.
-3. Atualizar `latest.json` com a assinatura real + commit + push.
-4. Decidir um lugar permanente e documentado para a chave (ex.: gerenciador de senhas), em vez de depender de "qual máquina tem ela" — isso já causou retrabalho 2x.
-
-### gh CLI autenticado nesta máquina
-Rodei `gh auth login --web` e o usuário autorizou — `gh` agora está logado como `jwijngaardemeuchapa` nesta máquina (token com escopos `gist, read:org, repo`, armazenado no keyring do Windows). Releases futuros podem ser criados via `gh release create` direto, sem precisar repetir o login.
-
----
-
-## O que foi feito na sessão 2026-06-30 (Sonnet 4.6) — fix nome/telefone trocados + domínio .com
-
-### MCM-87 — "Nome da Mãe" sobrepondo nome do chapa (causa raiz do bug relatado pelo usuário)
-- Usuário relatou nomes femininos com telefone de homem em Disponíveis, mesmo após reinstalar e ressincronizar do zero em v1.0.14 — descartou a causa anterior (`_key` do virtualizer, já corrigida em `b2f5414`).
-- **Causa real:** a pergunta de Cadastro Geral do Metabase tem as colunas "Nome do Chapa" E "Nome da Mãe". Quando "Nome do Chapa" vem vazio/omitido do JSON numa linha, o regex genérico `/nome/i` caía no fallback "Nome da Mãe" — nome da mãe (feminino) ficava associado ao telefone real do próprio chapa.
-- Fix em `metabaseSync.ts`: `nomeCol` nunca aceita coluna contendo "mãe"/"mae", nem como fallback. Linha sem "Nome do Chapa" é descartada, não mal-rotulada. Telefone também ganhou matching exato-primeiro + toast de alerta se houver ambiguidade real numa sync futura.
-- Commits: `5be532c` (hardening inicial), `f26a53c` (fix definitivo excluindo Mãe).
-- **Achados pendentes (usuário pediu para deixar como está por enquanto):** `Número da Casa` não bate com o regex de `numero` (campo provavelmente sempre vazio); motivo do bloqueio (`BlacklistReasonDescr`) não bate com `/motivo/i`; existe ambiguidade entre `Data do Bloqueio` e `Bloqueio em tudo?` para o campo `bloqueio`. Revisitar quando o usuário confirmar.
-
-### MCM-88 — Domínio dos links de tarefa: .net → .com
-- Painel Meu Chapa migrou para `app.meu-chapa.com`. 9 ocorrências atualizadas (TaskCard, BIDDashboard, Historico×3, Agenda, Consultor, FillrateDetalhe, ValidacoesTardiasTab×2, quickLinks). Commit `f230de5`.
-
-### Armadilha de build descoberta
-Durante esta sessão rodamos `npm run tauri build` 3 vezes seguidas. A 2ª rodada (que devia ter o fix de domínio) na verdade NÃO tinha — o passo `vite build` já tinha rodado e capturado o `dist/` ANTES do commit do domínio ser feito (commits em sequência rápida durante um build Rust de ~15-25min). Confirmado via `grep -o "meu-chapa\.\(net\|com\)" dist/assets/*.js`. **Sempre conferir o dist/ compilado antes de assumir que um build pegou o último commit**, especialmente quando há commits feitos *depois* de disparar o build.
-
-### Próximo passo imediato
-```bash
-# 3ª rodada de build em andamento (task bf4otxsaq → byw6ohpnm)
-# Depois de terminar:
-grep -o "meu-chapa\.\(net\|com\)" dist/assets/*.js   # confirmar .com no bundle
-npm run tauri -- signer sign --private-key-path tauri_update_key --password '""' src-tauri/target/release/bundle/nsis/MCM_1.0.14_x64-setup.exe
-# Atualizar latest.json com assinatura real + URL v1.0.14
-# Criar GitHub Release v1.0.14 (ainda pendente desde sessão 2026-06-29), upload .exe + .sig
-git add latest.json && git commit -m "chore: latest.json v1.0.14 final" && git push
+**1b. Query 1 — Descrições de tarefa** (já entregue, MCM-99 já implementado no Consultor):
+```sql
+SELECT
+  wh."ID"                                   AS "ID Tarefa",
+  b."FantasyName"                           AS "Empresa",
+  wh."CreateDate"                           AS "Data",
+  wh."Obs"                                  AS "Descrição"
+FROM core_api."WorkHeader" wh
+JOIN core_api."Business" b ON b."Id" = wh."IdBusiness"
+WHERE wh."Obs" IS NOT NULL
+  AND TRIM(wh."Obs") <> ''
+  AND wh."IdWorkStatus" NOT IN (6)
+  [[AND b."FantasyName" ILIKE '%' || {{empresa}} || '%']]
+  [[AND wh."CreateDate" >= {{data_inicio}}::date]]
+  [[AND wh."CreateDate" < ({{data_fim}}::date + INTERVAL '1 day')]]
+ORDER BY wh."CreateDate" DESC
 ```
+Variáveis simples (Text/Date), não Field Filter — Field Filter numa variável ainda tipo Text causa `argument of AND must be type boolean`.
 
----
-
-## [Sessões anteriores]
-
-## O que foi feito na sessão 2026-06-29 parte 3 (Sonnet 4.6) — aba Leads no BID
-
-### Aba "Leads" em cada card de tarefa do BID (commit `cfeb175`)
-- `candidateView` → `"disponiveis" | "bloqueados" | "leads_bid"`.
-- Disponíveis: `WHERE (r.fonte IS NULL OR r.fonte = 'metabase')` — leads_saac removidos.
-- Aba Leads: query lazy `WHERE fonte='leads_saac' AND UPPER(cidade)=UPPER(?) AND UPPER(estado)=UPPER(?)` ordenado por tarefas DESC.
-- `basePhoneSet`: todos os telefones da base metabase → leads NA BASE = esmaecidos, sem disparo.
-- Filtro de status dropdown: `leadsBidStatuses` = status distintos presentes nos leads carregados.
-- Dispatch individual e em lote funcionam para leads disponíveis (não bloqueados, não na base).
-- Typecheck: 0 novos erros em BIDDashboard.
-
-### Build v1.0.14
-- `npm run tauri build` → `MCM_1.0.14_x64-setup.exe` ✅
-- `tauri signer sign` → `.sig` gerado ✅
-- `latest.json` atualizado com assinatura real e URL v1.0.14 ✅
-- Commit `cfeb175` pronto, **pendente push**.
-
-### Próximo passo imediato
-```bash
-git push origin main
-# Criar GitHub Release v1.0.14, upload:
-#   src-tauri/target/release/bundle/nsis/MCM_1.0.14_x64-setup.exe
-#   src-tauri/target/release/bundle/nsis/MCM_1.0.14_x64-setup.exe.sig
+**1c. Query 2 — Endereços por empresa (MCM-96).** Antes de rodar, descobrir a coluna de endereço da tarefa em `WorkHeader` (guia de schema não documenta):
+```sql
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_schema = 'core_api' AND table_name = 'WorkHeader' ORDER BY ordinal_position
 ```
-
----
-
-## O que foi feito na sessão 2026-06-29 parte 2 (Sonnet 4.6) — pós-release fixes
-
-### Correções pós-v1.0.13 (todos commits em main, build final pendente)
-
-**Updater capabilities** (`02ce714`)
-- `capabilities/default.json` precisava de `updater:allow-check`, `updater:allow-download-and-install`, `process:allow-restart` — sem elas Tauri v2 rejeita antes de qualquer conexão.
-
-**`_key` único no virtual scroll** (`b2f5414`)
-- Sintoma: "Angelita com número do Cleverson" — nome e telefone trocados na lista do BID.
-- Causa: migração removeu cpf PK → `_key = COALESCE(cpf, 'anon_'||rowid)` colide → virtualizer recicla nó DOM errado ao reordenar.
-- Fix: `'reg_'||rowid` / `'extra_'||id` — sempre único.
-
-**Filtro de status na aba Leads** (`6d552e5`)
-- Select: Todos / Disponíveis / Bloqueados / status cru específico.
-
-**Bloqueio falso por farol_status** (`aa2c8bf`)
-- Análise de 4169 leads reais revelou: `farol=vermelho` aparece em `candidato_apto` (388x) e `chapa_ativado` (216x) — é workflow, não bloqueio.
-- Bloqueio agora só por status `[cadastro_cancelado, chapa_bloqueado, reprovado_brk]` ou `block_reason`/`cancel_reason`.
-- `chapa_ativado → tarefas=1` → tier ativado no BID (prioridade máxima).
-
-### Processo de release (build em andamento)
-Após build: `tauri signer sign` → deletar assets antigos do release v1.0.13 → upload novo `.exe` + `.sig` → atualizar `latest.json` → commit + push.
-
----
-
-## O que foi feito na sessão 2026-06-29 (Sonnet 4.6) — BID bugs + aba Leads + v1.0.13
-
-### BID Dashboard: 4 bugs corrigidos + aba Leads
-- **Bug 1/3 (mulheres/bloqueados em Disponíveis):** Leads Saac agora só entram em Disponíveis se `distance_km <= maxDistKm` (cidade geocodificada via `cityGeocoder`). Mapeamento de bloqueio expandido: `/cancel|bloque|inativ|reprov|recus/i` + farol + block_reason.
-- **Bug 2 (ocupados vazando):** `normName()` colapsa espaços e normaliza nos dois lados do `occupiedNameSet` — fecha o mismatch entre SQL `LOWER(TRIM())` e JS `normalize()`.
-- **Bug 4 (sync frágil):** Migração Rust recria `chapa_registry` com surrogate `id` PK (sem conflito entre cadastro e leads). Inserts resilientes por chunk com toast de falha.
-- **Novo `cityGeocoder`:** fila + rate-limit + cache em `cidade_cache` (nova tabela). Nominatim por cidade+UF.
-- **Nova aba "Leads":** lista `fonte='leads_saac'`, busca, filtro cidade, badges ATIVADO/APROVADO/BLOQUEADO/LEAD, botão sincronizar.
-- **Score tiers:** ativado (`tarefas>0`, +1000) > aprovado (`isApprovedSituacao`, +500) > demais (+10).
-- **Diagnóstico updater 404:** repo privado bloqueava `raw.githubusercontent.com`. Resolvido tornando repo público.
-- Versão: `1.0.12` → `1.0.13`. Typecheck: 0 novos erros. Cargo check: clean.
-- Commits desta sessão: pendente (build em andamento).
-
----
-
-## O que foi feito na sessão 2026-06-26 parte 4 (Sonnet 4.6) — Build + Release
-
-### Build v1.0.12 + GitHub Release
-- Senha de Integrações alterada: `ch@p@Meu` → `meuCh@p@`.
-- Versão `1.0.11` → `1.0.12` em `tauri.conf.json` e `Ajuda.tsx`.
-- Build gerado: `MCM_1.0.12_x64-setup.exe`.
-- Assinatura gerada via `tauri signer sign` (sem senha): `MCM_1.0.12_x64-setup.exe.sig`.
-- `latest.json` atualizado com assinatura real e URL do release.
-- GitHub Release `v1.0.12` criado via API + `.exe` e `.sig` publicados.
-- **Updater 100% funcional** — qualquer instalação do MCM pode verificar e atualizar via Integrações.
-- Commits: `27e504c` (senha), `04f2ed3` (versão + latest.json).
-
-### Processo de release para próximas versões
-```powershell
-# Na mesma sessão de PowerShell:
-$env:TAURI_SIGNING_PRIVATE_KEY_PATH = "C:\Users\W Design\task-flow-hub\tauri_update_key"
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
-npm run tauri build
-
-# Depois de buildar:
-# 1. Assinar: npm run tauri -- signer sign --private-key-path tauri_update_key --password '""' <caminho.exe>
-# 2. Criar GitHub Release vX.X.X via API ou github.com, upload .exe + .sig
-# 3. Atualizar latest.json com nova versão, assinatura e URL
-# 4. git commit latest.json && git push
+Procurar `IdTaskAddress`/`IdAddress`/`IdWorkAddress`. Depois:
+```sql
+SELECT DISTINCT
+  b."FantasyName"  AS "Empresa",
+  a."Zipcode"      AS "CEP",
+  a."Street"       AS "Logradouro",
+  a."Number"       AS "Numero",
+  a."Neighborhood" AS "Bairro",
+  a."City"         AS "Cidade",
+  a."State"        AS "UF"
+FROM core_api."WorkHeader" wh
+JOIN core_api."Business" b ON b."Id" = wh."IdBusiness"
+JOIN core_api."Address"  a ON a."Id" = wh."IdTaskAddress"   -- AJUSTAR conforme o resultado acima
+WHERE wh."IdWorkStatus" NOT IN (6) AND a."Zipcode" IS NOT NULL
+  [[AND b."FantasyName" ILIKE '%' || {{empresa}} || '%']]
+ORDER BY b."FantasyName", a."City", a."Street"
 ```
+`DISTINCT` = múltiplos endereços por empresa (cada local onde ela já teve tarefa). Fallback se a coluna não existir: `JOIN Address a ON a."Id" = b."IdAdress"` (cadastral, 1 por empresa — nota o typo real `IdAdress`).
 
----
-
-## O que foi feito na sessão 2026-06-26 parte 3 (Sonnet 4.6) — Updater
-
-### Atualização manual protegida por senha
-- `tauri-plugin-updater` + `tauri-plugin-process` no Cargo.toml/lib.rs.
-- `tauri.conf.json`: pubkey real + endpoint `raw.githubusercontent.com/.../latest.json` + `dialog:false`.
-- `npm install @tauri-apps/plugin-updater @tauri-apps/plugin-process`.
-- Card "Atualização do Sistema" em `Integracoes.tsx` (dentro de `unlocked`, 6 estados, barra de progresso).
-- `latest.json` na raiz (template com `"signature": ""` — preencher com `.exe.sig` a cada release).
-- `tauri_update_key.pub` commitada; chave privada (`tauri_update_key`) em `.gitignore` — guardar offline!
-- Typecheck OK (0 erros novos). Commit `0da8cc9`.
-
-### Processo de release para próximas versões
-```powershell
-$env:TAURI_SIGNING_PRIVATE_KEY = Get-Content tauri_update_key -Raw
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
-npm run tauri build
-# → pega o .exe.sig gerado em src-tauri/target/release/bundle/nsis/
-# → criar GitHub Release tag vX.X.X, upload .exe + .exe.sig
-# → atualizar latest.json com versão, sig e URL
-# → git commit latest.json && git push
+**1d. Query 3 — Chapas cadastrados últimos 15 dias (MCM-97):**
+```sql
+SELECT
+  u."Id" AS "id",
+  LPAD(u."DocumentNumber", 11, '0') AS "CPF",
+  CONCAT(u."FirstName", ' ', u."LastName") AS "Nome",
+  u."Phone" AS "Telefone",
+  u."CreateDate" AS "Data Cadastro",
+  a."City" AS "Cidade", a."State" AS "UF"
+FROM core_api."User" u
+LEFT JOIN core_api."Address" a ON a."Id" = u."IdAddress"
+WHERE u."CreateDate" >= (CURRENT_DATE - INTERVAL '15 days')
+ORDER BY u."CreateDate" DESC
 ```
+Checar contra a descrição real de MCM-97 no Jira ("question filtrada por Data de Criação, upsert incremental") antes de finalizar — pode já ter refinamentos que essa versão não tem.
+
+### BLOCO 2 — 3 sincronizações (MCM-96, MCM-97 + cruzamento Saac)
+
+Molde: `sincronizarRegistro`/`sincronizarLeadsSaac` em `src/lib/metabaseSync.ts:100-379` (ALTER idempotente → DELETE por discriminador → parse+dedup em memória → INSERT resiliente em chunks de 30 → `localStorage[..._last_sync]`).
+
+- **Settings/UI:** novos campos `metabaseEnderecosCardId?`, `metabaseChapas15dCardId?` em `AppSettings` (`src/lib/settings.ts`); blocos de card ID em `Integracoes.tsx:1157-1205`.
+- **MCM-96 (endereços):** `sincronizarEnderecos(silent)` — agrupa por `FantasyName`, monta JSON array de `ClienteAddress`, **UPSERT em `cliente_book`** casando por `nome` via `companyMatches` (`src/lib/company.ts`), merge preservando endereços manuais (dedup por CEP+logradouro+número). BID já consome `cliente_book.enderecos` (`BIDDashboard.tsx:508-537`) — zero mudança no BID. Gate **semanal**.
+- **MCM-97 (chapas 15d):** nova tabela `chapas_novos` (migração aditiva em `src-tauri/src/lib.rs`, NÃO em `chapa_registry` pra não colidir com o DROP+recreate do import). `sincronizarChapas15d(silent)` — DELETE+INSERT, dedup por telefone. Gate **diária**.
+- **Cruzamento Saac diário:** mudar gate de `sincronizarLeadsSaac` de "todo boot" pra diário (novo `devesSincronizarLeadsSaac`), mantendo botão manual.
+- **Flags NOVO/ORGÂNICO (read-time, sem persistir):** no efeito de candidatos do BID, montar `novoPhoneSet` (de `chapas_novos`) e `leadsPhoneSet` (de `chapa_registry WHERE fonte='leads_saac'`, espelhando `basePhoneSet` já existente). NOVO = phone ∈ novoPhoneSet; ORGÂNICO = NOVO e phone ∉ leadsPhoneSet.
+- Boot jobs em `src/components/AppStartup.tsx:201-205`.
+
+### BLOCO 3 — UX do BID (itens 4, 5)
+
+- **Badges NOVO/ORGÂNICO:** `BIDDashboard.tsx:1855-1864` (junto de EXTRA/LEAD/ASO).
+- **Relançamento (item 4):** `dispatchOne` (`:888-947`) já não trava no INSERT — trava é visual (`available` esconde `disparo.status==="aguardando"`, `:994`). Adicionar coluna `diaria TEXT` em `bid_disparos` (ALTER idempotente, molde `motivo_nao` em `:2189`). Botão "Relançar" em "Respostas desta tarefa" (`:1994+`) com a `diaria` atual do card. Desbloquear Send do Matchmaker (`:1981-1984`).
+- **"Busca Chapa" por tarefa (item 5):** remover botão "Extras" do topo (`:2454-2456`); botão por card (`BidTaskCard`, âncora `:1150-1162` ou `:1519`) chamando `doImport` direto com `task.id_tarefa`/`task.empresa`, sem o `<Select>` de tarefa (`:3020-3041`). Adicionar coluna `empresa TEXT` em `bid_chapas` (ALTER idempotente, hoje só tem `cidade`/`estado`, `:2182-2188`); query de extras (`:611-620`) passa a trazer `empresa` casada (`companyMatches`) OU `cidade` da tarefa.
+
+### BLOCO 4 — Reenvio de FUP após 6h (item 6)
+
+Travas: disparo em massa exclui `status_contato==='confirmado'` (`TaskCard.tsx:554-566`); linha confirmada não renderiza botão de envio (`:1807-1816`). `chapas.data_contato` = hora da confirmação.
+- Novo settings `fupEsquecerConfirmacaoHoras` (padrão 6), espelhando `fupAutoDispatchBloqueioHoras`.
+- Novo hook `useForgetFupConfirmation` (molde `src/lib/useScheduledFup.ts:102-130`): tarefas futuras/dia seguinte (via `isPrefup` de `src/lib/prefup.ts`), `now - data_contato > 6h` → auto-flip `status_contato → 'pendente'` **e limpa `data_contato`** (senão loop — `onUndoOutcome` em `:1097-1102` hoje não limpa esse campo, ajustar junto).
+
+### Verificação por bloco
+1. Bloco 1: `curl -I` no `latest.json` = 200 (só após repo público); as 3 queries rodam com filtros ok.
+2. Bloco 2: toast de contagem por sync; `cliente_book` recebe endereços; `chapas_novos` populada; gates corretos.
+3. Bloco 3: badges aparecem; "Relançar" gera novo `bid_disparos`; "Busca Chapa" sem pedir tarefa, chapa reaparece em outras da mesma empresa/cidade.
+4. Bloco 4: confirmar chapa em tarefa de amanhã, simular 6h, verificar volta a `pendente`.
+5. Todos: `npm run typecheck` (baseline 13); commit+push+JOURNAL/handoff por bloco (§J8).
 
 ---
 
-## O que foi feito na sessão 2026-06-26 parte 2 (Sonnet 4.6)
+## MCM-99 — Consultor: busca em descrições (FEITO, commit `3bf27bb`)
 
-### Ajustes e build v1.0.11
-- `tauri.conf.json`: `"maximized": true` — janela abre maximizada.
-- `tauri.conf.json`: versão `1.0.1` → `1.0.11`.
-- Build `MCM_1.0.11_x64-setup.exe` gerado com sucesso.
-
-### Mockup do instalador customizado (aprovado, pendente implementação)
-- Design criado com identidade visual real: laranja `#e85f00`, Montserrat 900, logo real da aplicação, "por Wijngaarde Design" na sidebar.
-- 3 telas: boas-vindas, progresso animado, conclusão.
-- **Próximo passo:** exportar assets (sidebarImage 164×314px, headerImage 150×57px) e configurar `bundle.windows.nsis` no `tauri.conf.json` com script customizado.
+- `src/utils/consultorFields.ts`: `F.descricao`.
+- `src/pages/Consultor.tsx`: upload separado de CSV de descrições, `descMap` (ID normalizado só-dígitos), busca dedicada varre **todo** `descMap` (task só-com-descrição vira linha mínima com ID clicável), ícone `FileText`+`Popover` com highlight.
+- Decisão do usuário: dois CSVs separados (não Question unificada), ícone+popover (não coluna de texto). Query = "Query 1" do Bloco 1 acima.
 
 ---
 
-## O que foi feito na sessão 2026-06-26 parte 1 (Opus 4.8)
-
-### Parte A — Sync automático dos Leads Saac
-- `sincronizarLeadsSaac()` extraída/desacoplada do `sincronizarRegistro` pesado (só `fonte='leads_saac'`, grava `saac_last_sync`).
-- `devesSincronizarRegistro()`: cadastro geral auto 2x/semana (seg/qui).
-- `AppStartup` boot refatorado para steps dinâmicos: Saac (sempre) + cadastro (2x/sem) além de tarefas/carteira.
-- Botão "Sincronizar Leads Saac" em Integrações.
-
-### Parte B — Notificações filtradas pela carteira (tempo real)
-- `src/lib/carteira.ts` novo: `getActiveCarteiraNames()`.
-- `WatcherContext`: cache reativo + gate em `handleActivity`/`handleWebhookEvent` (só notificação; dados intactos).
-- `Carteira.tsx` dispara `carteira:changed`.
-
-### Validação / contexto
-- `npm run typecheck` (NÃO `npx tsc --noEmit` — vazio): 0 erros novos, baseline 13 mantida.
-- Sincronizado com os 14 commits do outro PC; corrigida regressão `sync_aceite` no ActivityBell (b31b39f).
-
-### Pendência aberta (planejada, não implementada)
-- Refactor do reload pesado do Dashboard (queries scopeadas + store incremental useReducer) — plano antigo, precisa revalidar contra BIDDashboard/TaskCard novos.
+## MCM-94 — Busca por nome/telefone por tarefa no BID (FEITO 07-08, commit `54da22b`)
+Input ao lado das abas Disponíveis/Bloqueados/Leads em cada card. Nome via `normalize()`, telefone por dígitos parciais. Busca ativa força "mostrar todos" (senão match escondido pela paginação de 40). **Ainda não está no release publicado** (ver Pendência #3).
 
 ---
 
-## [Sessões anteriores — outro PC]
-## O que foi feito nesta sessão
-
-### Integração Saac & Otimização do BID Dashboard (MCM-84)
-- **Integração Saac (Fase 1):** Configuração de ingestão de leads via webhook (`metabase-leads`), inclusão do campo `fonte` no DB (`chapa_registry`) e nova aba em `Integracoes.tsx` para configuração segura de API URL e API Key do Supabase/Lovable.
-- **Bônus de Cidade (+30pts):** Adicionado ao algoritmo do BID (`update_biddashboard.cjs`) para garantir que leads recém importados sem CEP válido ou preenchido não sejam excessivamente penalizados no ranking.
-- **Virtual Scroll (useVirtualizer):** Refatoração da tabela principal do `BIDDashboard.tsx` para usar o `@tanstack/react-virtual`, garantindo máxima performance e zero lag na UI mesmo com mais de 3.000 candidatos carregados.
-- **Ordenação em Tempo Real (Real Sorting):** Adicionada capacidade de clicar no cabeçalho da tabela do BID e ordenar instantaneamente a base por Nome, Distância, Tarefas e Situação (asc/desc).
-- **Badge 'LEAD SAAC':** Inclusão de um selo visual cor índigo nos candidatos com `fonte === "leads_saac"` para rápida distinção na operação.
-
-### Conserto pós-revisão do MCM-84 (MCM-85 + MCM-83) — commit 8ab536a
-- **MCM-84 tinha ido para a main quebrado:** BIDDashboard usava `virtualizer`/`activeList`/`toggleSort` indefinidos + tipo `AdHocBidParams` inexistente → crash ao expandir card. Virtualização ficou pela metade.
-- **Causa de não ter sido pego:** `npx tsc --noEmit` não checa `src/` (tsconfig.json `files:[]` + references). Usar **`npm run typecheck`** (`tsc -p tsconfig.app.json`) — script adicionado nesta sessão.
-- Completei `useVirtualizer` (medição dinâmica), `activeList`, `toggleSort`, `AdHocBidParams`.
-- Recovery idempotente da coluna `fonte` em `chapa_registry` no `setup()` Rust (a query `r.fonte` do BID quebrava em instalação nova).
-- MCM-83: extras autorizados não somem mais (flag `is_extra` em vez de `cpf===null`, por causa de leads Saac sem CPF).
-- **Atenção:** restam **14 erros de tipo pré-existentes** (fora do BID) revelados pelo typecheck correto — vite ignora, mas valem revisão futura.
-
-### Planejamento Autopilot (MCM-71)
-- **Implementação do Plano Técnico:** Levantamento de Requisitos e perguntas abertas detalhados.
-- **Jira Sync:** Especificações técnicas e decisões pendentes postadas automaticamente no ticket do Jira (MCM-71) via CLI. O arquivo de planejamento local `implementation_plan.md` também foi gerado para análise.
+## MCM-93 — dialog mensagem personalizada (FEITO 07-07, commit `170d3a0`)
+Bug: janela scrollava pra direita infinitamente com mensagens longas. Causa: `<Textarea>` sem `resize-none`. Fixes em `src/components/TaskCard.tsx`: `resize-none max-h-48 overflow-y-auto`; `DialogContent flex flex-col max-h-[90vh]`; header/footer `shrink-0`; atalhos viraram chips colapsáveis.
 
 ---
 
-## Pendências Próximas
-- **Instalador customizado NSIS:** Exportar sidebar (164×314px) e header (150×57px) com design aprovado; configurar `bundle.windows.nsis`; script com cores/fontes MCM. Design já aprovado.
-- **Primeiro release assinado:** ✅ Concluído — v1.0.12 publicado em GitHub Releases.
-- **MCM-71 — Autopilot (Fase 2):** Aguardando definições de negócio do operador no Jira/Chat.
-- **Refactor reload Dashboard:** Plano existe, não implementado — revalidar contra BIDDashboard/TaskCard novos.
-- **MCM-27 — Caderno de Clientes:** Vinculação de chapas pré-aprovados aos pools.
+## Pendências mais antigas
+
+### MCM-91 — Umbler: Select dropdown fica preso no label antigo
+`src/pages/Integracoes.tsx` (~L744, L788, L868, L911) — `value` do Select deve exigir Bot ID **e** Trigger Name batendo simultaneamente:
+```tsx
+value={FUP_D0_BOTS.find((b) => b.botId === umblerSettings.fupBotId && b.label === umblerSettings.fupBotTriggerName)?.botId ?? ""}
+```
+Aguarda autorização do usuário.
+
+### MCM-92 — Mapeamento completo de erros UTalk
+Mensagens user-friendly (2 camadas) pra todos os códigos de erro da API UTalk. Aguarda revisão da doc oficial.
+
+### MCM-95 — Spike viabilidade extensão Chrome
+Aberto, não retomado — usuário interrompeu em plan mode pra priorizar Consultor/roteiro de 7 frentes.
+
+### Chave de assinatura
+`tauri_update_key` confirmada existente e funcional na máquina de 07/07 (`C:\Users\W Design\task-flow-hub\tauri_update_key`, gitignored). Não é o problema do updater — ver Pendências #1 e #2 no topo.

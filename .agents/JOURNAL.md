@@ -3,6 +3,35 @@
 
 ---
 
+## 2026-07-14 — MCM — Consultor: busca em descrições (MCM-99) + roteiro de 7 frentes planejado
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6 / Opus 4.8)
+**Tickets:** MCM-99 (feito); roteiro cruza com MCM-95/96/97/98 já existentes (ver sessão 07-08 abaixo)
+**Commits:** `3bf27bb`
+
+### Entregue: MCM-99 — Consultor, busca em descrições de tarefa
+Usuário mapeou o schema do Metabase (`core_api`, PostgreSQL) via investigação própria e trouxe amostras de CSV confirmando `WorkHeader.Obs` como campo de descrição. Implementado em `src/pages/Consultor.tsx` + `src/utils/consultorFields.ts`:
+- Upload separado de um segundo CSV (só descrições, gerado por uma Question à parte no Metabase) — não mexe na exportação principal já usada.
+- Cruzamento por `ID Tarefa` normalizado (só dígitos — a exportação de descrição vem com separador de milhar tipo `"451,238"`, a principal não).
+- Busca dedicada varre **todo** o `descMap`, não só as tarefas do CSV principal — task só-com-descrição vira linha mínima com ID clicável (igual aos outros modos de busca), evitando perder resultado por a tarefa não estar no dataset carregado.
+- Ícone + Popover mostrando o texto completo, com highlight do termo buscado.
+- Decisão de design (usuário): dois CSVs separados unidos no app, não uma Question única — ícone+popover em vez de coluna de texto na tabela.
+
+### Planejado (não implementado): roteiro de 7 frentes — sobreposição descoberta com MCM-95/96/97/98
+Usuário trouxe um guia de schema Metabase mais completo e pediu 7 mudanças grandes numa tacada, sem saber que a sessão de 07-08 (outra máquina) já tinha criado tickets pra parte disso. Fizemos 3 rodadas de exploração (Explore agents) cobrindo sync system, BID Dashboard completo, e FUP/updater. **Após o rebase que trouxe os commits de 07-08, ficou claro que:**
+- Item 2 do usuário (endereços de empresa → caderno de clientes) = **MCM-96** já existente.
+- Item 3 (sync chapas 15 dias) = **MCM-97** já existente.
+- Item enterrado sobre remessa/indicados = **MCM-98** já existente.
+- MCM-95 (extensão Chrome) já era conhecido de sessão anterior.
+
+Roteiro completo (4 blocos: updater, 3 syncs, UX do BID, reenvio FUP) copiado integralmente para o handoff.md — **antes de codar o Bloco 2, ler as descrições reais de MCM-96/97/98 no Jira**, que podem ter nuances não capturadas nesta exploração (ex.: MCM-97 já especifica "question filtrada por Data de Criação, upsert incremental, completo 2x/semana continua fonte de verdade" — mais preciso que o que eu tinha desenhado).
+
+**Correção sobre o diagnóstico do updater:** eu tinha concluído "release v1.0.16 nunca foi publicado" — **desatualizado**. A sessão de 07-08 publicou o release (ver entrada abaixo), mas com um problema diferente e ainda bloqueante: asset sem assinatura válida. Ver seção "Release v1.0.16" abaixo para o estado real.
+
+**Files changed:** `src/pages/Consultor.tsx`, `src/utils/consultorFields.ts` (MCM-99 only — nada do roteiro de 7 frentes foi codificado ainda).
+**Next:** ler MCM-96/97/98 no Jira antes de iniciar o Bloco 2; resolver a assinatura do asset v1.0.16 (máquina com a `tauri_update_key`); usuário ainda precisa tornar o repo público e criar as 2 Questions restantes no Metabase (endereços, chapas 15d).
+
+---
+
 ## 2026-07-08 — MCM — Release v1.0.16 publicado (asset local, sem assinatura) + busca no BID (MCM-94) + 4 tickets de backlog
 **Actor:** Jeremiah | **Agent:** claude (Fable 5)
 **Tickets:** MCM-93 (comentado), MCM-94 ✅, MCM-95/96/97/98 (criados)
