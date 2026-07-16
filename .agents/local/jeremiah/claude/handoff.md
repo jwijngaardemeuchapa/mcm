@@ -3,30 +3,32 @@
 **Data:** 2026-07-16 (Sonnet 5)
 **Versão:** `1.0.17` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17), asset **sem assinatura** (ver Pendência #1).
 **Branch:** main
-**Último commit:** `844da4f` (MCM-102, Bloco 3) — depois disso só Lead Protocol.
+**Último commit:** `2bdfcee` (MCM-103, Bloco 4) — depois disso só Lead Protocol. **Roteiro de 7 frentes ENCERRADO** (Blocos 1a→2→3→4 todos feitos).
 
 ---
 
-## ⚠️ LEIA PRIMEIRO — 2 pendências ativas + Bloco 4 do roteiro
+## ⚠️ LEIA PRIMEIRO — 2 pendências ativas (roteiro de 7 frentes encerrado)
 
 ### Pendência #1 — asset sem assinatura válida (única pendência do updater)
-Repo já é público, MCM-94 já no build publicado. Falta só: **na máquina que tem `tauri_update_key`** (`C:\Users\W Design\task-flow-hub\tauri_update_key`), puxar main (já inclui até o Bloco 3), rebuildar, assinar, `gh release upload v1.0.17 <exe> --clobber` + `.sig`, regenerar assinatura no `latest.json`.
+Repo já é público, MCM-94 já no build publicado. Falta só: **na máquina que tem `tauri_update_key`** (`C:\Users\W Design\task-flow-hub\tauri_update_key`), puxar main (já inclui até o Bloco 4), rebuildar, assinar, `gh release upload v1.0.17 <exe> --clobber` + `.sig`, regenerar assinatura no `latest.json`.
 
 ### Pendência #2 — colisão de versionamento de migration entre mcm e mcm-v2 (sem correção)
-`mcm` e `mcm-v2` compartilham o MESMO banco físico, mas cada repo numera suas migrations Rust independentemente. Achado real: v1 `version:15` = `activity_log` (colunas `descricao/chapa_nome/empresa/timestamp`); mcm-v2 `version:16` = `activity_log` (colunas DIFERENTES `mensagem/created_at`). Mesma tabela, schemas incompatíveis — quem rodar primeiro numa máquina "vence", o outro app fica com uma tabela que não bate com seu código. **Antes de adicionar QUALQUER migration nova em qualquer um dos dois repos, rodar `grep "version: " src-tauri/src/lib.rs` no OUTRO repo primeiro** (v1 já foi até `version:20`, mcm-v2 até `18` na última checagem — reconferir sempre). Registrado em LESSONS.md. **Decisão pendente do usuário:** reconciliar o `activity_log` já colidido.
+`mcm` e `mcm-v2` compartilham o MESMO banco físico, mas cada repo numera suas migrations Rust independentemente. Achado real: v1 `version:15` = `activity_log` (colunas `descricao/chapa_nome/empresa/timestamp`); mcm-v2 `version:16` = `activity_log` (colunas DIFERENTES `mensagem/created_at`). Mesma tabela, schemas incompatíveis — quem rodar primeiro numa máquina "vence", o outro app fica com uma tabela que não bate com seu código. **Antes de adicionar QUALQUER migration nova em qualquer um dos dois repos, rodar `grep "version: " src-tauri/src/lib.rs` no OUTRO repo primeiro** (v1 em `version:20`, mcm-v2 em `18` na última checagem — reconferir sempre). Registrado em LESSONS.md. **Decisão pendente do usuário:** reconciliar o `activity_log` já colidido.
 
-### Roteiro de 7 frentes — Blocos 1a, 2 e 3 FEITOS. Falta só o Bloco 4.
+### Roteiro de 7 frentes — TODOS os blocos feitos (1a → 2 → 3 → 4)
 - **Bloco 1a** (`a979501`): catch mudo do updater corrigido.
-- **Bloco 2**: MCM-96 (endereços por tarefa, card 1420) ✅. MCM-97 (chapas 15d, card 1425) ✅. MCM-100 (leads regionais, card 983) ✅ — todos fechados no Jira.
-- **Bloco 3** (`0081529`, `0f1cdb6`, `844da4f`): badges NOVO/ORGÂNICO + aba Leads Região (MCM-97/100 fechados) · Relançamento de disparo, novo ticket MCM-101 ✅ · Busca Chapa por tarefa (extras agora por empresa/cidade, não presos à tarefa de upload), novo ticket MCM-102 ✅.
-- **Bloco 4 (PRÓXIMO, não iniciado)**: reenvio de FUP após 6h da confirmação. Ver detalhe completo mais abaixo na seção "Roteiro de 7 frentes" (settings `fupEsquecerConfirmacaoHoras`, hook `useForgetFupConfirmation` moldado em `useScheduledFup.ts:102-130`, cuidado de limpar `data_contato` no auto-flip pra não entrar em loop).
+- **Bloco 2**: MCM-96 (endereços por tarefa, card 1420) ✅. MCM-97 (chapas 15d, card 1425) ✅. MCM-100 (leads regionais, card 983) ✅.
+- **Bloco 3** (`0081529`, `0f1cdb6`, `844da4f`): badges NOVO/ORGÂNICO + aba Leads Região (MCM-97/100) · Relançamento de disparo (MCM-101) · Busca Chapa por tarefa vira por empresa/cidade (MCM-102).
+- **Bloco 4** (`2bdfcee`, MCM-103): chapa confirmado há mais de `fupEsquecerConfirmacaoHoras` (padrão 6h) pra tarefa que ainda não começou volta a `pendente` automaticamente (`useForgetFupConfirmation`, molde `useScheduledFup.ts`) — entra de volta no próximo FUP em massa. `data_contato` limpo junto (evita loop); mesmo fix aplicado em `onUndoOutcome` (reabertura manual), que tinha o mesmo gap.
+
+Todos os 8 tickets do roteiro (MCM-93/94/96/97/99/100/101/102/103) estão fechados no Jira. Tickets MV2 (MV2-1/3/5/6) já receberam comentários com tudo que mudou na v1 (16/07), pra dev da v2 não perder nada.
 
 ### Refinamento opcional registrado, não crítico
 MCM-97 (chapas 15d) usa só `CreateDate`; schema real revelou sinal melhor de "orgânico" via `UserLog.LogType='Add' AND UserId=LoggedUserId`, não capturado hoje — considerar se o usuário quiser refinar a question depois.
 
 ---
 
-## Roteiro de 7 frentes (detalhe do Bloco 4, ainda não iniciado)
+## Roteiro de 7 frentes — ENCERRADO (detalhe do Bloco 4 abaixo, já implementado)
 
 Usuário trouxe um guia de schema Metabase (`guia_estrutura_metabase_meuchapa.md`, fora do repo — PostgreSQL, schema `core_api`) e pediu 7 mudanças. Exploração completa feita (sync system, BID Dashboard, FUP/updater). **Depois do rebase, descobrimos que a sessão de 07-08 já criou tickets pra boa parte disso: MCM-96 (endereços), MCM-97 (chapas 15 dias), MCM-98 (remessa/indicados), MCM-95 (extensão Chrome, spike).** Ler as descrições reais desses tickets no Jira antes de codar — elas podem ter nuances mais precisas que o que segue (ex.: MCM-97 já especifica "question filtrada por Data de Criação, upsert incremental, completo 2x/semana continua fonte de verdade").
 

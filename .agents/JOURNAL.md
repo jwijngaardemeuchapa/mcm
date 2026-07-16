@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-07-16 — MCM — Bloco 4: reabertura de confirmação esquecida (MCM-103) — roteiro de 7 frentes FECHADO
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-103 ✅
+**Commits:** `2bdfcee`
+
+Último bloco do roteiro de 7 frentes trazido pelo usuário em 14/07. Blocos 1a→2→3→4 completos.
+
+### Problema
+Chapa confirmado muitas horas antes de uma tarefa que ainda não começou não é mais um sinal confiável de comparecimento, mas o FUP em massa (`TaskCard.tsx:556`) pula quem já está `confirmado` — ninguém reforça esse contato antigo.
+
+### Implementação
+`useForgetFupConfirmation()` (novo hook, molde `useScheduledFup.ts`): poll a cada 60s; tarefas ainda não iniciadas (`minutesUntil > 0`) com chapa `confirmado` há mais de `fupEsquecerConfirmacaoHoras` (settings, padrão 6h) → `UPDATE status_contato='pendente', data_contato=NULL` na MESMA query. Sem dialog (ação interna, reversível, não dispara nada externo) — só `logActivity` (novo tipo `confirmacao_esquecida`) + evento `fup:refresh`.
+
+**Fix relacionado, mesma lição:** `onUndoOutcome` (reabertura manual em `TaskCard.tsx`) também não limpava `data_contato` — corrigido junto, senão um timestamp antigo órfão confundiria esta mesma lógica de "esquecida" depois.
+
+Setting configurável em `Configuracoes.tsx`, mesmo padrão visual de `fupAutoDispatchBloqueioHoras`.
+
+### Validação
+Typecheck baseline 13 mantido. ESLint: 2 erros `prefer-const` pré-existentes em `TaskCard.tsx` (confirmado via `git stash` que já existiam antes desta sessão, fora do escopo do meu diff).
+
+**Files changed:** `src/lib/useForgetFupConfirmation.ts` (novo), `src/lib/settings.ts`, `src/lib/activityLog.ts`, `src/components/AppLayout.tsx`, `src/components/ActivityBell.tsx`, `src/components/TaskCard.tsx`, `src/pages/Configuracoes.tsx`
+**Next:** roteiro de 7 frentes encerrado. Pendências que seguem abertas: assinatura do release v1.0.17 (chave na máquina de 07/07), colisão de migration `activity_log` v1×MV2 (sem correção), MCM-91 (dropdown Umbler, aguarda autorização), MCM-92 (mapeamento erros UTalk), MCM-95 (spike extensão Chrome).
+
+---
+
 ## 2026-07-16 — MCM — Bloco 3 completo: UX do BID (MCM-97/100 fechados, MCM-101/102 novos)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-97 ✅, MCM-100 ✅, MCM-101 ✅, MCM-102 ✅
