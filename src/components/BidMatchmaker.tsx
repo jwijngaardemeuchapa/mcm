@@ -111,7 +111,7 @@ export function BidMatchmaker({ task, candidates, dispatchParams, onDispatch, ma
               {currentCandidate.disparo && (
                 <div className="bg-primary/5 border border-primary/20 text-primary p-3 rounded-lg text-sm flex items-center gap-2">
                   <ExternalLink className="h-4 w-4" />
-                  Já disparado para esta tarefa ({currentCandidate.disparo.status})
+                  Já disparado para esta tarefa ({currentCandidate.disparo.status}) — Disparar BID relança
                 </div>
               )}
             </div>
@@ -124,10 +124,9 @@ export function BidMatchmaker({ task, candidates, dispatchParams, onDispatch, ma
                 <Ban className="h-6 w-6 mb-1" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Pular</span>
               </button>
-              <button 
+              <button
                 onClick={handleDispatch}
-                disabled={!!currentCandidate.disparo}
-                className="flex-1 flex flex-col items-center justify-center p-4 hover:bg-success/5 text-success transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                className="flex-1 flex flex-col items-center justify-center p-4 hover:bg-success/5 text-success transition-colors"
               >
                 <Send className="h-6 w-6 mb-1" />
                 <span className="text-xs font-semibold uppercase tracking-wider">Disparar BID</span>

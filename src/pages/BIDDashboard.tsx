@@ -146,6 +146,7 @@ export type BidDisparo = {
   status: string;
   data_resposta1: string | null;
   data_resposta2: string | null;
+  diaria?: string | null;
 };
 
 export type OpenTask = {
@@ -1022,8 +1023,8 @@ function BidTaskCard({
       });
       const db = await getDb();
       await db.execute(
-        "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status) VALUES (?,?,?,?,?,?,?,?,?)",
-        [dispId, candidate.nome, candidate.telefone, task.id_tarefa, task.empresa, task.data_tarefa, paramsJson, now, "aguardando"],
+        "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        [dispId, candidate.nome, candidate.telefone, task.id_tarefa, task.empresa, task.data_tarefa, paramsJson, now, "aguardando", dispatchParams.diaria],
       );
       const record: BidDispatchRecord = {
         id: dispId, id_tarefa: task.id_tarefa, chapa_nome: candidate.nome, chapa_telefone: candidate.telefone,
@@ -2153,10 +2154,7 @@ function BidTaskCard({
                 task={task}
                 candidates={leoTierFilteredCandidates}
                 dispatchParams={dispatchParams}
-                onDispatch={(c) => {
-                  if (c.disparo) return;
-                  dispatchOne(c);
-                }}
+                onDispatch={(c) => dispatchOne(c)}
                 maxDistKm={maxDistKm}
               />
             </TabsContent>
@@ -2254,6 +2252,13 @@ function BidTaskCard({
                             onClick={() => onDisparoStatusUpdate(d.id, "precisa_ajuda", 2)}>Ajuda</Button>
                         </div>
                       )}
+                      <Button size="sm" variant="outline"
+                        className="h-6 text-[10px] px-2"
+                        disabled={dispatchingIds.has(d.id) || !dispatchParams.diaria}
+                        title="Disparar de novo pra este chapa com a diária atual do card — não é bloqueado pelo disparo anterior"
+                        onClick={() => dispatchOne({ _key: d.id, nome: d.chapa_nome, telefone: d.chapa_telefone } as unknown as RankedCandidate)}>
+                        {dispatchingIds.has(d.id) ? "..." : "Relançar"}
+                      </Button>
                     </div>
                   );
                 })}
@@ -2363,6 +2368,9 @@ export default function BIDDashboard() {
       try { await db.execute("ALTER TABLE bid_chapas ADD COLUMN id_tarefa INTEGER"); } catch { /* exists */ }
       try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN motivo_nao TEXT"); } catch { /* exists */ }
       try { await db.execute("ALTER TABLE cliente_book ADD COLUMN enderecos TEXT"); } catch { /* exists */ }
+      // Bloco 3: Relançamento (diaria por disparo) + Busca Chapa por tarefa (empresa por extra).
+      try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN diaria TEXT"); } catch { /* exists */ }
+      try { await db.execute("ALTER TABLE bid_chapas ADD COLUMN empresa TEXT"); } catch { /* exists */ }
 
       const [cntRows, extrasRows, tasks, disp, carteira] = await Promise.all([
         db.select<{ cnt: number }[]>("SELECT COUNT(*) as cnt FROM chapa_registry").catch(() => [{ cnt: 0 }]),
