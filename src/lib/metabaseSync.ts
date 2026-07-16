@@ -5,6 +5,7 @@ import { ingestTarefas } from "./ingestTarefas";
 import { getDb, uuid } from "./db";
 import { companyMatches } from "./company";
 import { normalize } from "./normalize";
+import { fmtSP, todayDateISO_SP } from "./datetime";
 
 export async function sincronizarMetabase(silent = false): Promise<boolean> {
   const s = readSettings();
@@ -214,6 +215,88 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
     if (!silent) toast.error("Erro ao sincronizar endereços");
     return false;
   }
+}
+
+/**
+ * Chapas cadastrados recentemente (MCM-97): sync curto e frequente (gate
+ * diário) de uma Question filtrada por data de criação (ex.: últimos 15
+ * dias). Não altera chapa_registry — grava em tabela própria (chapas_novos)
+ * para não colidir com o DROP+recreate do cadastro geral (2x/semana).
+ * O cadastro geral segue como fonte de verdade; este sync só ADIANTA a
+ * aparição de gente recém-cadastrada no BID (o ciclo completo eventualmente
+ * absorve o mesmo registro em chapa_registry).
+ */
+export async function sincronizarChapas15d(silent = false): Promise<boolean> {
+  const s = readSettings();
+  const cardId = s.metabaseChapas15dCardId;
+  if (!cardId) {
+    if (!silent) toast.error("Configure o ID da pergunta de Chapas Recentes em Integrações");
+    return false;
+  }
+  try {
+    const status = await invoke<{ configured: boolean }>("metabase_status");
+    if (!status.configured) {
+      if (!silent) toast.error("Metabase não configurado em Integrações");
+      return false;
+    }
+    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    const seen = new Set<string>();
+    const parsed: unknown[][] = [];
+    for (const row of rows) {
+      const k = Object.keys(row);
+      const g = (pat: RegExp) => k.find((c) => pat.test(c));
+      const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
+      const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
+      const nome = str(g(/^nome$/i));
+      if (!nome) continue;
+      const cpf = dig(g(/^cpf$/i));
+      const telefone = dig(g(/telefone|celular|fone/i));
+      const dedupKey = cpf || (telefone ? `tel:${telefone}` : `nome:${nome.toLowerCase().replace(/\s+/g, " ")}`);
+      if (seen.has(dedupKey)) continue;
+      seen.add(dedupKey);
+      parsed.push([
+        uuid(), cpf, nome, telefone,
+        str(g(/data.*cadastro/i)), str(g(/^cidade$/i)), str(g(/^uf$|^estado$/i)), now,
+      ]);
+    }
+
+    // Sync curta e sempre em janela pequena (~15d) — DELETE+INSERT total é
+    // seguro e simples aqui, ao contrário de chapa_registry (base inteira).
+    await db.execute("DELETE FROM chapas_novos");
+    const CHUNK = 30;
+    let count = 0;
+    const ROW_PH = "(?,?,?,?,?,?,?,?)";
+    for (let i = 0; i < parsed.length; i += CHUNK) {
+      const chunk = parsed.slice(i, i + CHUNK);
+      const ph = Array(chunk.length).fill(ROW_PH).join(",");
+      try {
+        await db.execute(
+          `INSERT INTO chapas_novos (id,cpf,nome,telefone,data_cadastro,cidade,estado,importado_em) VALUES ${ph}`,
+          chunk.flat(),
+        );
+        count += chunk.length;
+      } catch (e) {
+        console.error("Falha ao inserir chunk de chapas recentes", e);
+      }
+    }
+
+    localStorage.setItem("chapas_15d_last_sync", now);
+    if (!silent) toast.success(`Chapas recentes sincronizados — ${count}`);
+    return true;
+  } catch {
+    if (!silent) toast.error("Erro ao sincronizar chapas recentes");
+    return false;
+  }
+}
+
+/** Chapas recentes: gate diário (última sync não foi hoje, fuso SP). */
+export function devesSincronizarChapas15d(): boolean {
+  const last = localStorage.getItem("chapas_15d_last_sync");
+  if (!last) return true;
+  return fmtSP(last, "yyyy-MM-dd") !== todayDateISO_SP();
 }
 
 export async function sincronizarRegistro(silent = false): Promise<boolean> {

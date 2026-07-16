@@ -1141,6 +1141,31 @@ CREATE INDEX IF NOT EXISTS idx_resposta_log_tarefa ON resposta_log(id_tarefa);
       CREATE INDEX IF NOT EXISTS idx_activity_log_timestamp ON activity_log(timestamp DESC);",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // MCM-97: chapas cadastrados recentemente (sync curto, ~15 dias) via
+      // Metabase. Tabela PRÓPRIA — não em chapa_registry, que sofre DROP+
+      // recreate no import geral 2x/semana (colidiria com esse ciclo).
+      // version 19 (não 16): mcm-v2 compartilha este mesmo banco físico e já
+      // usa 16/17/18 para migrations próprias — nunca reusar um número sem
+      // checar o outro repo primeiro (colisão real já existe em activity_log,
+      // v1 versão 15 x mcm-v2 versão 16, schemas diferentes na mesma tabela).
+      version: 19,
+      description: "chapas_novos",
+      sql: "
+CREATE TABLE IF NOT EXISTS chapas_novos (
+  id TEXT PRIMARY KEY,
+  cpf TEXT,
+  nome TEXT NOT NULL,
+  telefone TEXT,
+  data_cadastro TEXT,
+  cidade TEXT,
+  estado TEXT,
+  importado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chapas_novos_telefone ON chapas_novos(telefone);
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()
