@@ -21,6 +21,7 @@ export const F = {
   valid:    (r: WorkerRow) => r['Validação Presença'] || r['Validacao Presenca'] || r['validacao_presenca'] || '',
   cpf:      (r: WorkerRow) => r['CPF'] || r['cpf'] || '',
   descricao: (r: WorkerRow) => r['Descrição'] || r['Obs'] || r['descricao'] || '',
+  remessa: (r: WorkerRow) => r['Remessa'] || r['Shipping'] || r['remessa'] || '',
 };
 
 export function norm(s: string): string {
