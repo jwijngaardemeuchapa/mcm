@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-07-16 — MCM — Bloco 2 (endereços + chapas 15d) + colisão crítica de migration descoberta
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-96 ✅, MCM-97 (parcial — sync feito, integração BID pendente), MCM-100 (criado, aguardando amostra)
+**Commits:** `4787c2c` (MCM-96), `e38b2ad` (MCM-97)
+
+### Schema real confirmado com guia do usuário
+`guia_estrutura_metabase_meuchapa.md` (fora do repo) trouxe schema PostgreSQL `core_api` documentado e validado. Achado chave: `WorkHeader.IdTaskAddress → Address` EXISTE (usuário confirmou rodando `SELECT *` na tabela) — a suposição inicial (só endereço cadastral de `Business`) estava errada. Também trouxe classificação pronta pra indicados (`WorkHeader.IdJobType=35` + heurística de `Shipping`) e sinal de cadastro orgânico (`UserLog.LogType='Add' AND UserId=LoggedUserId`) — ambos ainda não usados, ficam para MCM-98 e um refinamento futuro do MCM-97.
+
+### MCM-96 — sync de endereços por tarefa (commit `4787c2c`)
+Card ID 1420. `sincronizarEnderecos()`: agrupa linhas por empresa, casa com `cliente_book` via `companyMatches()`, MERGE com endereços já existentes (dedup CEP+logradouro+número normalizado) — nunca substitui a lista inteira, preserva o que foi cadastrado manualmente. Gate semanal. BID já lê `cliente_book.enderecos`, zero mudança lá.
+
+### MCM-97 — sync de chapas recentes, parcial (commit `e38b2ad`)
+Card ID 1425. Nova tabela `chapas_novos` (fora de `chapa_registry`, que sofre DROP+recreate no cadastro geral). `sincronizarChapas15d()`: DELETE+INSERT total (janela pequena, seguro), dedup cpf→telefone→nome, gate diário via `fmtSP`/`todayDateISO_SP`. **Falta**: badge NOVO + merge na lista Disponíveis do BID — vai pro Bloco 3.
+
+### ⚠️ Descoberta crítica: colisão de versionamento de migration entre mcm e mcm-v2
+Os dois repos **compartilham o mesmo banco físico** (`fupmanager.db`) mas cada um define sua PRÓPRIA lista de migrations Rust, numeradas independentemente. Achado real, não hipotético: v1 tem `version: 15` = `activity_log` com colunas `descricao/chapa_nome/empresa/timestamp`; mcm-v2 tem `version: 16` = `activity_log` com colunas **diferentes** `mensagem/created_at`. Mesma tabela, schemas incompatíveis, mesmo mecanismo `IF NOT EXISTS` — quem rodar primeiro numa máquina "vence" e o outro app fica com uma tabela que não bate com o que seu código espera (provável causa de erro silencioso na feature de activity feed da MV2, se ela já rodou numa máquina com o v1 instalado).
+
+Ao adicionar a migration de `chapas_novos` (MCM-97), evitei reusar `version: 16/17/18` (já usados pela MV2) — usei `version: 19`, documentando o motivo no comentário da migration. **A colisão do `activity_log` em si não foi corrigida** — só documentada. Precisa de decisão do usuário (reconciliar os dois schemas, ou aceitar que nunca deveriam ter usado o mesmo nome de tabela) e, mais importante: **os dois repos precisam de uma regra explícita de alocação de números de migration** para nunca mais colidir (ex.: checar o outro repo antes de escolher um número, ou reservar faixas fixas).
+
+### MCM-100 — nova aba de leads regionais não cadastrados (criado, aguardando dado real)
+Question 983 do Metabase: leads por região que demonstraram interesse mas não são chapas cadastrados (fora de `User`/`WorkHeader`) — 3ª origem de lead, diferente do Saac. Objetivo: nova aba no BID mostrando esses interessados, excluindo quem já aparece em qualquer lista existente (Disponíveis/Bloqueados/Leads Saac), pro analista contatar manualmente. **Bloqueado em validação de dado real** — pedido ao usuário export/amostra da question 983 antes de desenhar schema (mesma disciplina que evitou repetir o bug "Nome da Mãe").
+
+**Files changed:** `src-tauri/src/lib.rs`, `src/lib/metabaseSync.ts`, `src/lib/settings.ts`, `src/pages/Integracoes.tsx`, `src/components/AppStartup.tsx`
+**Next:** aguardando CSV da question 983 (MCM-100). Depois: Bloco 3 (badges NOVO/ORGÂNICO + merge em Disponíveis, Relançamento, Busca Chapa por tarefa) → Bloco 4 (reenvio FUP 6h). Decisão pendente sobre a colisão de migration `activity_log`.
+
+---
+
 ## 2026-07-16 — MCM — Bloco 1a (fix updater) + release v1.0.17
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-93/94/99 (release), roteiro de 7 frentes Bloco 1a

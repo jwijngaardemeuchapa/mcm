@@ -1,23 +1,31 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-07-16 (Sonnet 5)
-**Versão:** `1.0.17` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17), asset **sem assinatura** (ver Pendência #1, única que resta).
+**Versão:** `1.0.17` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17), asset **sem assinatura** (ver Pendência #1).
 **Branch:** main
-**Último commit:** `019efd2` (bump 1.0.17) — depois disso só Lead Protocol.
+**Último commit:** `e38b2ad` (MCM-97) — depois disso só Lead Protocol.
 
 ---
 
-## ⚠️ LEIA PRIMEIRO — 1 pendência ativa (assinatura) + roteiro de 7 frentes
+## ⚠️ LEIA PRIMEIRO — 2 pendências ativas + roteiro de 7 frentes
 
-### Pendência #1 — asset sem assinatura válida (única pendência restante do updater)
-Repo já é **público** (Pendência #2 antiga — confirmado `raw.githubusercontent.com/.../latest.json` → 200 anônimo, resolvido). MCM-94 já está no build publicado (Pendência #3 antiga, resolvida — v1.0.17 inclui). Falta só: **na máquina que tem `tauri_update_key`** (confirmada existente, é a de 07/07 — `C:\Users\W Design\task-flow-hub\tauri_update_key`), puxar main (já inclui tudo até o Bloco 1a), rebuildar, assinar, `gh release upload v1.0.17 <exe> --clobber` + subir o `.sig`, e regenerar a assinatura no `latest.json` correspondente a ESSE exe.
+### Pendência #1 — asset sem assinatura válida (única pendência do updater)
+Repo já é público, MCM-94 já no build publicado. Falta só: **na máquina que tem `tauri_update_key`** (`C:\Users\W Design\task-flow-hub\tauri_update_key`), puxar main (já inclui até o Bloco 2), rebuildar, assinar, `gh release upload v1.0.17 <exe> --clobber` + `.sig`, regenerar assinatura no `latest.json`.
+
+### Pendência #2 — NOVA, crítica: colisão de versionamento de migration entre mcm e mcm-v2
+`mcm` e `mcm-v2` compartilham o MESMO banco físico, mas cada repo numera suas migrations Rust independentemente. Achado real: v1 `version:15` = `activity_log` (colunas `descricao/chapa_nome/empresa/timestamp`); mcm-v2 `version:16` = `activity_log` (colunas DIFERENTES `mensagem/created_at`). Mesma tabela, schemas incompatíveis — quem rodar primeiro numa máquina "vence", o outro app fica com uma tabela que não bate com seu código (provável erro silencioso no activity feed da MV2). **Antes de adicionar QUALQUER migration nova em qualquer um dos dois repos, rodar `grep "version: " src-tauri/src/lib.rs` no OUTRO repo primeiro.** MCM-97 usou `version:19` por isso (v1 estava em 15, mcm-v2 em 18). Registrado em LESSONS.md. **Decisão pendente do usuário:** reconciliar o `activity_log` já colidido, e definir regra permanente (faixas reservadas, ou coordenação única).
 
 ### Bloco 1a do roteiro — FEITO (commit `a979501`)
-`verificarAtualizacao()`/`instalarAtualizacao()` em `Integracoes.tsx` engoliam a exceção com mensagem genérica. Agora `console.error(e)` + toast com `errMsg(e)`. É por isso que a falha de assinatura/404 nunca aparecia pro usuário.
+`verificarAtualizacao()`/`instalarAtualizacao()` engoliam a exceção. Agora `console.error(e)` + toast com `errMsg(e)`.
+
+### Bloco 2 do roteiro — MCM-96 feito, MCM-97 parcial (commits `4787c2c`, `e38b2ad`)
+- **MCM-96 ✅**: `sincronizarEnderecos()` — card ID **1420**. `WorkHeader.IdTaskAddress → Address` confirmado pelo usuário (schema real tem endereço por tarefa, não só o cadastral de Business). Agrupa por empresa, casa via `companyMatches()`, MERGE com `cliente_book.enderecos` existente (dedup CEP+logradouro+número, nunca apaga endereço manual). Gate semanal.
+- **MCM-97 parcial**: `sincronizarChapas15d()` — card ID **1425**. Tabela nova `chapas_novos` (migration v19). DELETE+INSERT total, dedup, gate diário. **Falta**: badge NOVO + merge na lista Disponíveis do BID (Bloco 3). Schema real também revelou sinal melhor de "orgânico" (`UserLog.LogType='Add' AND UserId=LoggedUserId`) que a question atual não captura — considerar se o usuário quiser refinar depois.
+- **MCM-100 (novo, criado nesta sessão)**: question 983 do Metabase — leads regionais que demonstraram interesse mas NÃO são chapas cadastrados (3ª origem de lead, diferente do Saac). Nova aba no BID, excluindo quem já está em Disponíveis/Bloqueados/Leads Saac. **Bloqueado aguardando o usuário exportar amostra real da question 983** (mesma disciplina que evitou repetir "Nome da Mãe") — prometeu trazer CSV no próximo prompt.
 
 ---
 
-## Roteiro de 7 frentes — Bloco 1a feito, restante NÃO iniciado
+## Roteiro de 7 frentes — Blocos 1a e 2 (parcial) feitos
 
 Usuário trouxe um guia de schema Metabase (`guia_estrutura_metabase_meuchapa.md`, fora do repo — PostgreSQL, schema `core_api`) e pediu 7 mudanças. Exploração completa feita (sync system, BID Dashboard, FUP/updater). **Depois do rebase, descobrimos que a sessão de 07-08 já criou tickets pra boa parte disso: MCM-96 (endereços), MCM-97 (chapas 15 dias), MCM-98 (remessa/indicados), MCM-95 (extensão Chrome, spike).** Ler as descrições reais desses tickets no Jira antes de codar — elas podem ter nuances mais precisas que o que segue (ex.: MCM-97 já especifica "question filtrada por Data de Criação, upsert incremental, completo 2x/semana continua fonte de verdade").
 
