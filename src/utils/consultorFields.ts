@@ -20,6 +20,7 @@ export const F = {
   contato:  (r: WorkerRow) => r['Status Contato'] || r['status_contato'] || '',
   valid:    (r: WorkerRow) => r['Validação Presença'] || r['Validacao Presenca'] || r['validacao_presenca'] || '',
   cpf:      (r: WorkerRow) => r['CPF'] || r['cpf'] || '',
+  descricao: (r: WorkerRow) => r['Descrição'] || r['Obs'] || r['descricao'] || '',
 };
 
 export function norm(s: string): string {

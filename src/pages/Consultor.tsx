@@ -1,11 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { Upload, Search, X, Trash2, Send, Loader2, FileText } from "lucide-react";
+import { Upload, Search, X, Trash2, Send, Loader2, FileText, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Accordion,
   AccordionContent,
@@ -31,6 +32,21 @@ import { toast } from "sonner";
 import { F, norm, type WorkerRow, type FilterResult } from "@/utils/consultorFields";
 import { fmtDate, parseDate, parseNLDate } from "@/utils/consultorDate";
 import { MODES } from "@/utils/consultorRouter";
+
+function highlightText(text: string, term: string) {
+  if (!term.trim()) return text;
+  const n = norm(text);
+  const t = norm(term);
+  const idx = n.indexOf(t);
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-warning/40 text-foreground rounded-sm px-0.5">{text.slice(idx, idx + term.length)}</mark>
+      {text.slice(idx + term.length)}
+    </>
+  );
+}
 
 function statusTarefaCls(s: string) {
   const n = norm(s);
@@ -143,6 +159,11 @@ export default function Consultor() {
   const [aiLoading, setAiLoading] = useState(false);
   const [tokens, setTokens] = useState(0);
 
+  const [descMap, setDescMap] = useState<Map<string, string>>(new Map());
+  const [descTerm, setDescTerm] = useState("");
+  const [descSearchTerm, setDescSearchTerm] = useState("");
+  const descInputRef = useRef<HTMLInputElement>(null);
+
   function handleFile(file: File) {
     setLoading(true);
     setProgress(0);
@@ -189,6 +210,29 @@ export default function Consultor() {
     });
   }
 
+  function normId(v: unknown): string {
+    return String(v ?? "").replace(/\D/g, "");
+  }
+
+  function handleDescFile(file: File) {
+    Papa.parse<WorkerRow>(file, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: false,
+      complete: (res) => {
+        const map = new Map<string, string>();
+        for (const row of res.data) {
+          const id = normId(row["ID Tarefa"] ?? row["ID"] ?? row["id_tarefa"]);
+          const desc = F.descricao(row);
+          if (id && desc) map.set(id, desc);
+        }
+        setDescMap(map);
+        toast.success(`${map.size} descrições carregadas`);
+      },
+      error: (err) => toast.error(err.message),
+    });
+  }
+
   function clearSession() {
     setData([]);
     setResult(null);
@@ -197,7 +241,19 @@ export default function Consultor() {
     setAiAnswer("");
     setTokens(0);
     setProgress(0);
+    setDescMap(new Map());
+    setDescTerm("");
+    setDescSearchTerm("");
   }
+
+  const dataById = useMemo(() => {
+    const map = new Map<string, WorkerRow>();
+    for (const r of data) {
+      const id = normId(F.id(r));
+      if (id) map.set(id, r);
+    }
+    return map;
+  }, [data]);
 
   // Quick lists
   const quickRemoved = useMemo(
@@ -220,6 +276,33 @@ export default function Consultor() {
 
   function runQuick(label: string, rows: WorkerRow[]) {
     setResult({ data: rows, label });
+    setPage(1);
+  }
+
+  function runDescSearch(term: string) {
+    const raw = term.trim();
+    if (!raw) {
+      toast.info("Digite um telefone ou nome para buscar nas descrições.");
+      return;
+    }
+    if (descMap.size === 0) {
+      toast.info("Anexe primeiro o CSV de descrições.");
+      return;
+    }
+    const digits = raw.replace(/\D/g, "");
+    const n = norm(raw);
+    const rows: WorkerRow[] = [];
+    // Percorre TODAS as descrições, não só as tarefas já carregadas no CSV
+    // principal — se a tarefa não estiver em `data`, monta uma linha mínima
+    // (só o ID, clicável) pra não perder o resultado.
+    descMap.forEach((desc, id) => {
+      const isMatch = (digits.length >= 8 && desc.replace(/\D/g, "").includes(digits)) || norm(desc).includes(n);
+      if (!isMatch) return;
+      const existing = dataById.get(id);
+      rows.push(existing ?? { "ID Tarefa": id });
+    });
+    setDescSearchTerm(raw);
+    setResult({ data: rows, label: `Descrição: "${raw}"`, zeroMsg: `Nenhuma descrição contém "${raw}".` });
     setPage(1);
   }
 
@@ -352,6 +435,28 @@ export default function Consultor() {
           </Button>
         </div>
 
+        <div className="flex items-center justify-between mb-3 -mt-1">
+          <button
+            type="button"
+            onClick={() => descInputRef.current?.click()}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Paperclip className="h-3 w-3" />
+            {descMap.size > 0 ? `${descMap.size} descrições anexadas` : "Anexar descrições (CSV)"}
+          </button>
+          <input
+            ref={descInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleDescFile(f);
+              e.target.value = "";
+            }}
+          />
+        </div>
+
         <Accordion type="multiple" defaultValue={["w", "t", "e", "d", "q"]} className="space-y-1">
           <AccordionItem value="w" className="border-border">
             <AccordionTrigger className="text-sm font-semibold py-2">Ajudante</AccordionTrigger>
@@ -368,6 +473,31 @@ export default function Consultor() {
               {(["task-id", "task-status"] as const).map((k) => (
                 <ModeBlock key={k} modeKey={k} values={values} setValues={setValues} onRun={runMode} />
               ))}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                  Buscar em descrições
+                </div>
+                <Input
+                  placeholder="Telefone ou nome"
+                  value={descTerm}
+                  onChange={(e) => setDescTerm(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") runDescSearch(descTerm); }}
+                  className="h-8 text-xs"
+                  disabled={descMap.size === 0}
+                />
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="w-full h-8 text-xs"
+                  onClick={() => runDescSearch(descTerm)}
+                  disabled={descMap.size === 0}
+                >
+                  Buscar
+                </Button>
+                {descMap.size === 0 && (
+                  <p className="text-[10px] text-muted-foreground">Anexe o CSV de descrições acima para habilitar.</p>
+                )}
+              </div>
               <div>
                 <Button
                   size="sm"
@@ -527,6 +657,7 @@ export default function Consultor() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {descMap.size > 0 && <TableHead className="w-8" />}
                     {[
                       ["Tarefa", "ID Tarefa"],
                       ["Data/Hora", "Data da Tarefa"],
@@ -553,8 +684,30 @@ export default function Consultor() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paged.map((r, i) => (
+                  {paged.map((r, i) => {
+                    const desc = descMap.size > 0 ? descMap.get(normId(F.id(r))) : undefined;
+                    return (
                     <TableRow key={i}>
+                      {descMap.size > 0 && (
+                        <TableCell className="p-1">
+                          {desc && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  title="Ver descrição da tarefa"
+                                  className="text-muted-foreground hover:text-primary transition-colors"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-96 max-h-72 overflow-y-auto text-xs whitespace-pre-wrap leading-relaxed">
+                                {highlightText(desc, descSearchTerm)}
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="font-mono text-xs">
                         {F.id(r) ? (
                           <a
@@ -613,10 +766,10 @@ export default function Consultor() {
                         </span>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  );})}
                   {paged.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-8">
+                      <TableCell colSpan={descMap.size > 0 ? 11 : 10} className="text-center text-sm text-muted-foreground py-8">
                         Nenhum registro
                       </TableCell>
                     </TableRow>
