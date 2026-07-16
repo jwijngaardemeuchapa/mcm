@@ -10,7 +10,32 @@
 ## ⚠️ LEIA PRIMEIRO — 2 pendências ativas (roteiro de 7 frentes encerrado)
 
 ### Pendência #1 — asset sem assinatura válida (única pendência do updater)
-Repo já é público, MCM-94 já no build publicado. Falta só: **na máquina que tem `tauri_update_key`** (`C:\Users\W Design\task-flow-hub\tauri_update_key`), puxar main (já inclui até o Bloco 4), rebuildar, assinar, `gh release upload v1.0.17 <exe> --clobber` + `.sig`, regenerar assinatura no `latest.json`.
+Repo já é público, MCM-94 já no build publicado. **Runbook pronto pra rodar na máquina que tem `tauri_update_key`** (`C:\Users\W Design\task-flow-hub\tauri_update_key`) — não precisa reanalisar nada, só executar em sequência:
+
+```bash
+# 1. Garantir que está na main atualizada (inclui até o Bloco 4, commit 7806240)
+git checkout main && git pull origin main
+
+# 2. Build (gera o instalador em src-tauri/target/release/bundle/nsis/)
+npm install   # se node_modules não existir/estiver desatualizado
+npm run tauri build
+
+# 3. Assinar o .exe gerado (senha vazia, mesmo padrão de sempre)
+npm run tauri -- signer sign --private-key-path "C:\Users\W Design\task-flow-hub\tauri_update_key" --password '""' src-tauri/target/release/bundle/nsis/MCM_1.0.17_x64-setup.exe
+# gera um arquivo .sig ao lado do .exe — abrir e copiar o conteúdo (é a assinatura base64)
+
+# 4. Substituir o asset do release já publicado (mantém a mesma tag v1.0.17)
+gh release upload v1.0.17 src-tauri/target/release/bundle/nsis/MCM_1.0.17_x64-setup.exe --clobber
+
+# 5. Atualizar latest.json com a assinatura do passo 3 (campo "signature"),
+#    conferir que "version" está "1.0.17" e a "url" aponta pro asset certo,
+#    depois commit + push:
+git add latest.json
+git commit -m "chore: assinatura real do updater para v1.0.17"
+git push origin main
+```
+
+Depois disso, o auto-update volta a funcionar pra qualquer instalação existente do MCM. Se `gh` não estiver autenticado nessa máquina: `gh auth login --web`.
 
 ### Pendência #2 — colisão de versionamento de migration entre mcm e mcm-v2 (sem correção)
 `mcm` e `mcm-v2` compartilham o MESMO banco físico, mas cada repo numera suas migrations Rust independentemente. Achado real: v1 `version:15` = `activity_log` (colunas `descricao/chapa_nome/empresa/timestamp`); mcm-v2 `version:16` = `activity_log` (colunas DIFERENTES `mensagem/created_at`). Mesma tabela, schemas incompatíveis — quem rodar primeiro numa máquina "vence", o outro app fica com uma tabela que não bate com seu código. **Antes de adicionar QUALQUER migration nova em qualquer um dos dois repos, rodar `grep "version: " src-tauri/src/lib.rs` no OUTRO repo primeiro** (v1 em `version:20`, mcm-v2 em `18` na última checagem — reconferir sempre). Registrado em LESSONS.md. **Decisão pendente do usuário:** reconciliar o `activity_log` já colidido.
