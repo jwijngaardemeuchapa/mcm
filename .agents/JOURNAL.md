@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-07-16 — MCM — Bloco 2 continuação: MCM-100 (leads regionais, question 983)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-100 (parcial — sync feito, integração BID pendente)
+**Commits:** `3af444c`
+
+### Question 983 confirmada com CSV real (65.714 linhas)
+Usuário mandou o SQL da question 983 (CTE sobre `core_api."Lead"` + `City`/`State`) e um CSV exportado. Colunas confirmadas: Nome, Telefone (+55...), CEP, Cidade, UF, `Categoria de Lead` ('Lead' = nunca virou usuário / 'Usuário Criado' = já virou), Data de Criação (texto em inglês, ex. "November 24, 2025, 12:17 PM"), Status do Lead (só 'Pending'/'Não preenchido' — sem sinal de bloqueio pra esse tipo).
+
+### Decisões do usuário
+- Sync só dos últimos **365 dias** (base é nacional, 65k+ linhas, só cresce — sincronizar tudo seria pesado e a maior parte não é acionável).
+- Mostrar **as duas categorias** (Lead e Usuário Criado), com badge distinguindo — não só "Lead" como o ticket original sugeria.
+
+### Limitação técnica descoberta e contornada
+A question tem variáveis opcionais `{{data_inicio}}/{{data_fim}}`, mas o comando Rust `metabase_query_card(card_id)` não suporta passar parâmetros — só executa a question como está (sem alterar a arquitetura pra isso, que exigiria mudança maior no backend Rust pra um caso só). Solução: filtro de 365 dias aplicado **no cliente** depois de trazer os dados.
+
+### Implementado (infraestrutura de sync)
+Nova tabela `leads_regiao` (migration Rust **version 20** — checado explicitamente contra os dois repos primeiro: v1 estava em 19, mcm-v2 em 18, ver lição de colisão registrada mais abaixo/LESSONS.md). `sincronizarLeadsRegiao()`: parse + filtro de 365 dias + dedup telefone→nome + DELETE+INSERT em chunks de 90 (10 colunas × 90 = 900 binds, dentro do limite 999). Gate semanal (base grande). UI em Integrações + job de boot condicional.
+
+**Files changed:** `src-tauri/src/lib.rs`, `src/lib/metabaseSync.ts`, `src/lib/settings.ts`, `src/pages/Integracoes.tsx`, `src/components/AppStartup.tsx`
+**Next:** Bloco 3 (UX do BID) — nova aba/categoria mostrando leads_regiao com badge Lead/Usuário Criado, excluindo quem já está em Disponíveis/Bloqueados/Leads Saac na exibição (mesmo padrão do basePhoneSet). Junto: badge NOVO/ORGÂNICO do MCM-97, Relançamento, Busca Chapa por tarefa.
+
+---
+
 ## 2026-07-16 — MCM — Bloco 2 (endereços + chapas 15d) + colisão crítica de migration descoberta
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-96 ✅, MCM-97 (parcial — sync feito, integração BID pendente), MCM-100 (criado, aguardando amostra)

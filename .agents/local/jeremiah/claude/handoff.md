@@ -3,7 +3,7 @@
 **Data:** 2026-07-16 (Sonnet 5)
 **Versão:** `1.0.17` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17), asset **sem assinatura** (ver Pendência #1).
 **Branch:** main
-**Último commit:** `e38b2ad` (MCM-97) — depois disso só Lead Protocol.
+**Último commit:** `3af444c` (MCM-100) — depois disso só Lead Protocol.
 
 ---
 
@@ -21,7 +21,7 @@ Repo já é público, MCM-94 já no build publicado. Falta só: **na máquina qu
 ### Bloco 2 do roteiro — MCM-96 feito, MCM-97 parcial (commits `4787c2c`, `e38b2ad`)
 - **MCM-96 ✅**: `sincronizarEnderecos()` — card ID **1420**. `WorkHeader.IdTaskAddress → Address` confirmado pelo usuário (schema real tem endereço por tarefa, não só o cadastral de Business). Agrupa por empresa, casa via `companyMatches()`, MERGE com `cliente_book.enderecos` existente (dedup CEP+logradouro+número, nunca apaga endereço manual). Gate semanal.
 - **MCM-97 parcial**: `sincronizarChapas15d()` — card ID **1425**. Tabela nova `chapas_novos` (migration v19). DELETE+INSERT total, dedup, gate diário. **Falta**: badge NOVO + merge na lista Disponíveis do BID (Bloco 3). Schema real também revelou sinal melhor de "orgânico" (`UserLog.LogType='Add' AND UserId=LoggedUserId`) que a question atual não captura — considerar se o usuário quiser refinar depois.
-- **MCM-100 (novo, criado nesta sessão)**: question 983 do Metabase — leads regionais que demonstraram interesse mas NÃO são chapas cadastrados (3ª origem de lead, diferente do Saac). Nova aba no BID, excluindo quem já está em Disponíveis/Bloqueados/Leads Saac. **Bloqueado aguardando o usuário exportar amostra real da question 983** (mesma disciplina que evitou repetir "Nome da Mãe") — prometeu trazer CSV no próximo prompt.
+- **MCM-100 parcial (commit `3af444c`)**: question 983 confirmada com CSV real (65.714 linhas). Colunas: Nome/Telefone(+55)/CEP/Cidade/UF/`Categoria de Lead`('Lead' vs 'Usuário Criado')/Data de Criação(texto inglês)/Status(só Pending/Não preenchido, sem bloqueio). Usuário decidiu: sync só 365 dias (base nacional, 65k+, só cresce) + mostrar as DUAS categorias com badge distinguindo (não só "Lead"). Limitação técnica: comando Rust `metabase_query_card` não passa parâmetros pra question — filtro de 365d é client-side. Tabela nova `leads_regiao` (migration v20 — v1 estava em 19, mcm-v2 em 18). Card ID **983**. Gate semanal. **Falta**: nova aba/badge no BID + exclusão contra Disponíveis/Bloqueados/Leads Saac na exibição — Bloco 3.
 
 ---
 
