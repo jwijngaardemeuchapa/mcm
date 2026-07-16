@@ -401,6 +401,7 @@ function BidTaskCard({
   focusExtras,
   forceExpand,
   onDidExpand,
+  onOpenExtras,
 }: {
   task: OpenTask;
   disparos: BidDisparo[];
@@ -410,6 +411,7 @@ function BidTaskCard({
   focusExtras?: boolean;
   forceExpand?: boolean;
   onDidExpand?: () => void;
+  onOpenExtras: (task: OpenTask) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [dispatchParams, setDispatchParams] = useState<DispatchParams>(() => {
@@ -663,18 +665,25 @@ function BidTaskCard({
             ORDER BY r.tarefas DESC
             LIMIT 600
           `, [cityUf.cidade, cityUf.estado]),
-          db.select<BidChapa[]>(`
+          db.select<(BidChapa & { empresa: string | null })[]>(`
             SELECT 'extra_' || b.id as _key, NULL as cpf, b.nome, b.telefone, b.cidade, NULL as bairro, b.estado, NULL as rua,
                    NULL as cep, NULL as numero, b.tarefas_finalizadas as tarefas,
                    NULL as data_primeira_tarefa, NULL as data_ultima_tarefa, NULL as situacao,
                    NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
-                   b.importado_em, NULL as fonte, 1 as is_extra, b.lat, b.lng
+                   b.importado_em, NULL as fonte, 1 as is_extra, b.lat, b.lng, b.empresa
             FROM bid_chapas b
-            WHERE b.id_tarefa = ?
             ORDER BY b.tarefas_finalizadas DESC
-          `, [task.id_tarefa]),
+          `),
         ]);
-        const chapas = [...extras, ...registry];
+        // Extras deixam de ser presos à tarefa onde foram carregados ("Busca
+        // Chapa por tarefa", MCM-*) — aparecem em QUALQUER tarefa aberta da
+        // mesma empresa (companyMatches, tolerante a LTDA/acento) ou da mesma
+        // cidade (fallback pra extras antigos, sem empresa gravada).
+        const extrasDaTarefa = extras.filter((b) =>
+          (b.empresa && companyMatches(task.empresa, [b.empresa])) ||
+          (!b.empresa && normalize(b.cidade ?? "") === normalize(cityUf.cidade)),
+        );
+        const chapas = [...extrasDaTarefa, ...registry];
 
         setRawCandidates(chapas);
 
@@ -1755,6 +1764,16 @@ function BidTaskCard({
                   {onlyExtras ? `Extras (${extrasCount})` : `Só extras (${extrasCount})`}
                 </button>
               )}
+              {candidateView === "disponiveis" && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onOpenExtras(task); }}
+                  className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors flex items-center gap-1"
+                  title="Importar chapas extras (CSV/XLSX Busca Chapa) para esta empresa/cidade"
+                >
+                  <UserPlus className="h-3 w-3" /> Busca Chapa
+                </button>
+              )}
               {candidateView === "disponiveis" && leoCache && leoCache.size > 0 && (
                 <button
                   type="button"
@@ -2284,8 +2303,7 @@ export default function BIDDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"tarefas" | "bloqueados" | "cadastro" | "leads">("tarefas");
   const [registryCount, setRegistryCount] = useState(0);
-  const [extrasCount, setExtrasCount] = useState(0);
-  const [extrasOpen, setExtrasOpen] = useState(false);
+  const [extrasForTask, setExtrasForTask] = useState<OpenTask | null>(null);
   const [extrasActivatedForTask, setExtrasActivatedForTask] = useState<number | null>(null);
   const [expandTaskId, setExpandTaskId] = useState<number | null>(null);
   const [respostasClearedAt, setRespostasClearedAt] = useState<number>(() => {
@@ -2372,9 +2390,8 @@ export default function BIDDashboard() {
       try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN diaria TEXT"); } catch { /* exists */ }
       try { await db.execute("ALTER TABLE bid_chapas ADD COLUMN empresa TEXT"); } catch { /* exists */ }
 
-      const [cntRows, extrasRows, tasks, disp, carteira] = await Promise.all([
+      const [cntRows, tasks, disp, carteira] = await Promise.all([
         db.select<{ cnt: number }[]>("SELECT COUNT(*) as cnt FROM chapa_registry").catch(() => [{ cnt: 0 }]),
-        db.select<{ cnt: number }[]>("SELECT COUNT(*) as cnt FROM bid_chapas").catch(() => [{ cnt: 0 }]),
         db.select<OpenTask[]>(`
           SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas, t.status_tarefa,
             (SELECT COUNT(*) FROM chapas c WHERE c.id_tarefa = t.id_tarefa
@@ -2421,7 +2438,6 @@ export default function BIDDashboard() {
         return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;
       });
       setRegistryCount(cntRows[0]?.cnt ?? 0);
-      setExtrasCount(extrasRows[0]?.cnt ?? 0);
       setOpenTasks(withVagas);
       setDisparos(disp);
 
@@ -2633,9 +2649,6 @@ export default function BIDDashboard() {
           <Button variant="outline" size="sm" onClick={handleSyncPlanilha} disabled={leoSyncing} className="gap-1.5 h-8">
             {leoSyncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             Planilha BID
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setExtrasOpen(true)} className="gap-1.5 h-8">
-            <UserPlus className="h-3.5 w-3.5" /> Extras{extrasCount > 0 ? ` (${extrasCount.toLocaleString("pt-BR")})` : ""}
           </Button>
           <Button size="sm" variant="outline" onClick={() => navigate("/importar")} className="gap-1.5 h-8">
             <Upload className="h-3.5 w-3.5" /> Cadastro de Chapas
@@ -2852,6 +2865,7 @@ export default function BIDDashboard() {
                       focusExtras={extrasActivatedForTask === t.id_tarefa}
                       forceExpand={expandTaskId === t.id_tarefa}
                       onDidExpand={() => setExpandTaskId(null)}
+                      onOpenExtras={setExtrasForTask}
                     />
                   ))}
                 </div>
@@ -2875,8 +2889,8 @@ export default function BIDDashboard() {
       {activeTab === "leads" && <LeadsTab />}
 
       <ImportExtrasDialog
-        open={extrasOpen}
-        onClose={() => setExtrasOpen(false)}
+        task={extrasForTask}
+        onClose={() => setExtrasForTask(null)}
         onDone={(taskId?: number) => {
           loadAll();
           if (taskId != null) {
@@ -2884,7 +2898,6 @@ export default function BIDDashboard() {
             window.dispatchEvent(new CustomEvent("bid:extras-imported", { detail: { taskId } }));
           }
         }}
-        openTasks={openTasks}
       />
     </div>
   );
@@ -3061,20 +3074,18 @@ type ExtrasRow = {
   tarefas: number;
 };
 
-function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
-  open: boolean;
+function ImportExtrasDialog({ task, onClose, onDone }: {
+  task: OpenTask | null;
   onClose: () => void;
   onDone: (taskId?: number) => void;
-  openTasks: OpenTask[];
 }) {
   const [extRows, setExtRows] = useState<ExtrasRow[]>([]);
   const [preview, setPreview] = useState<{ count: number; format: "csv" | "xlsx" } | null>(null);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  function reset() { setExtRows([]); setPreview(null); setProgress(0); setSelectedTaskId(null); }
+  function reset() { setExtRows([]); setPreview(null); setProgress(0); }
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -3155,30 +3166,30 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
   }
 
   async function doImport() {
-    if (extRows.length === 0 || selectedTaskId === null) return;
+    if (extRows.length === 0 || !task) return;
     setImporting(true);
     setProgress(0);
     try {
       const db = await getDb();
-      await db.execute("DELETE FROM bid_chapas WHERE id_tarefa = ?", [selectedTaskId]);
+      await db.execute("DELETE FROM bid_chapas WHERE id_tarefa = ?", [task.id_tarefa]);
       const now = new Date().toISOString();
       const CHUNK = 100;
       for (let i = 0; i < extRows.length; i += CHUNK) {
         const chunk = extRows.slice(i, i + CHUNK);
-        const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?)").join(",");
+        const ph = chunk.map(() => "(?,?,?,?,?,?,?,?,?,?,?)").join(",");
         const vals: unknown[] = [];
         for (const r of chunk) {
-          vals.push(uuid(), r.nome, r.telefone, r.cidade, r.estado, r.lat ?? null, r.lng ?? null, r.tarefas, now, selectedTaskId);
+          vals.push(uuid(), r.nome, r.telefone, r.cidade, r.estado, r.lat ?? null, r.lng ?? null, r.tarefas, now, task.id_tarefa, task.empresa);
         }
         await db.execute(
-          `INSERT INTO bid_chapas (id,nome,telefone,cidade,estado,lat,lng,tarefas_finalizadas,importado_em,id_tarefa) VALUES ${ph}`,
+          `INSERT INTO bid_chapas (id,nome,telefone,cidade,estado,lat,lng,tarefas_finalizadas,importado_em,id_tarefa,empresa) VALUES ${ph}`,
           vals,
         );
         setProgress(Math.round(((i + chunk.length) / extRows.length) * 100));
         await new Promise<void>((r) => setTimeout(r, 0));
       }
-      toast.success(`${extRows.length.toLocaleString("pt-BR")} chapas extras vinculados à tarefa #${selectedTaskId}.`);
-      onDone(selectedTaskId ?? undefined);
+      toast.success(`${extRows.length.toLocaleString("pt-BR")} chapas extras vinculados a ${task.empresa} (visíveis em todas as tarefas abertas dessa empresa/cidade).`);
+      onDone(task.id_tarefa);
       onClose();
       reset();
     } catch (e) {
@@ -3188,43 +3199,28 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
     }
   }
 
-  const selectedTask = openTasks.find((t) => t.id_tarefa === selectedTaskId);
-
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o && !importing) { onClose(); reset(); } }}>
+    <Dialog open={!!task} onOpenChange={(o) => { if (!o && !importing) { onClose(); reset(); } }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-4 w-4 text-primary" /> Importar Chapas Extras
+            <UserPlus className="h-4 w-4 text-primary" /> Busca Chapa — Importar Extras
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-1">
-          {/* Task selector */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Tarefa de destino *</label>
-            <Select
-              value={selectedTaskId !== null ? String(selectedTaskId) : "__none__"}
-              onValueChange={(v) => setSelectedTaskId(v === "__none__" ? null : parseInt(v))}
-            >
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecionar tarefa…" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Selecionar tarefa…</SelectItem>
-                {openTasks.map((t) => (
-                  <SelectItem key={t.id_tarefa} value={String(t.id_tarefa)}>
-                    {t.empresa.substring(0, 30)} · {fmtSP(t.data_tarefa, "dd/MM HH:mm")} · #{t.id_tarefa}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedTaskId === null && (
-              <p className="text-[10px] text-warning flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" /> Selecione uma tarefa antes de importar
-              </p>
-            )}
-          </div>
+          {task && (
+            <div className="rounded-lg bg-muted/30 border border-border px-3 py-2 text-xs flex items-center justify-between">
+              <span className="text-muted-foreground">Empresa/tarefa de origem</span>
+              <span className="font-medium text-foreground truncate max-w-[220px]">
+                {task.empresa.substring(0, 30)} · #{task.id_tarefa}
+              </span>
+            </div>
+          )}
 
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Lista complementar vinculada à tarefa selecionada. Aceita dois formatos:
+            Lista complementar vinculada à empresa desta tarefa — aparece em{" "}
+            <b>qualquer tarefa aberta da mesma empresa ou cidade</b>, não só nesta.
+            Aceita dois formatos:
             <br />
             <span className="font-medium text-foreground">CSV</span> — colunas{" "}
             <code className="text-[10px] bg-muted px-1 rounded">nome</code> e{" "}
@@ -3265,7 +3261,7 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
             </div>
           )}
 
-          {preview && !importing && selectedTask && (
+          {preview && !importing && task && (
             <div className="rounded-lg bg-muted/30 border border-border px-3 py-2.5 text-xs space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Total de chapas</span>
@@ -3276,13 +3272,13 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
                 <span>{preview.format === "csv" ? "CSV" : "XLSX Busca Chapa"}</span>
               </div>
               <div className="flex items-center justify-between text-muted-foreground/60">
-                <span>Tarefa destino</span>
+                <span>Empresa</span>
                 <span className="font-medium text-foreground truncate max-w-[180px]">
-                  {selectedTask.empresa.substring(0, 25)} #{selectedTask.id_tarefa}
+                  {task.empresa.substring(0, 25)} #{task.id_tarefa}
                 </span>
               </div>
               <p className="text-[10px] text-warning/80 border-t border-border/40 pt-1.5">
-                Substituirá os extras já importados para esta tarefa.
+                Substituirá os extras já importados a partir desta tarefa.
               </p>
             </div>
           )}
@@ -3293,7 +3289,7 @@ function ImportExtrasDialog({ open, onClose, onDone, openTasks }: {
           </Button>
           <Button
             size="sm"
-            disabled={extRows.length === 0 || importing || selectedTaskId === null}
+            disabled={extRows.length === 0 || importing || !task}
             onClick={doImport}
             className="gap-1.5"
           >
