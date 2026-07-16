@@ -286,9 +286,10 @@ export default function Integracoes() {
       } else {
         setUpdateStatus("up-to-date");
       }
-    } catch {
+    } catch (e) {
+      console.error("Erro ao verificar atualização:", e);
       setUpdateStatus("idle");
-      toast.error("Erro ao verificar atualização. Verifique a conexão.");
+      toast.error(`Erro ao verificar atualização: ${errMsg(e)}`);
     }
   }
 
@@ -307,9 +308,10 @@ export default function Integracoes() {
         if (event.event === "Finished") setUpdateStatus("installing");
       });
       await relaunch();
-    } catch {
+    } catch (e) {
+      console.error("Erro ao instalar atualização:", e);
       setUpdateStatus("available");
-      toast.error("Erro ao instalar atualização.");
+      toast.error(`Erro ao instalar atualização: ${errMsg(e)}`);
     }
   }
 
