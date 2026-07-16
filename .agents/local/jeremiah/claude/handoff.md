@@ -1,29 +1,23 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-14 (Sonnet 4.6 / Opus 4.8) — reconciliado com sessão 07-08 (Fable 5) após rebase
-**Versão:** código-fonte em `1.0.16`. **Release v1.0.16 publicado**, mas com asset sem assinatura válida (ver Pendência #1).
+**Data:** 2026-07-16 (Sonnet 5)
+**Versão:** `1.0.17` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17), asset **sem assinatura** (ver Pendência #1, única que resta).
 **Branch:** main
-**Último commit:** ver `git log -1` — este handoff foi reconciliado via rebase, não confiar no hash fixo aqui.
+**Último commit:** `019efd2` (bump 1.0.17) — depois disso só Lead Protocol.
 
 ---
 
-## ⚠️ LEIA PRIMEIRO — 3 pendências ativas + roteiro de 7 frentes
+## ⚠️ LEIA PRIMEIRO — 1 pendência ativa (assinatura) + roteiro de 7 frentes
 
-### Pendência #1 — asset v1.0.16 publicado SEM assinatura válida (auto-update inoperante)
-A sessão de 07/07 (máquina com `tauri_update_key`) commitou `latest.json` com assinatura real, mas nunca criou o Release. A sessão de 07/08 (Fable 5, esta ou outra máquina sem a chave) publicou o Release com um **build local sem assinatura** — o asset não bate com a assinatura já commitada no `latest.json` (que foi gerada pro exe da outra máquina). Resultado: updater falha verificação de assinatura (seguro, mas inoperante).
-**Fix:** na máquina que tem `tauri_update_key` (confirmada existente — prova é a assinatura de 07/07), rebuildar (puxando main atualizada, que já inclui MCM-93 e MCM-94/busca BID) → assinar → `gh release upload v1.0.16 <exe> --clobber` + subir o `.sig` novo → atualizar `latest.json` com a assinatura correspondente ao asset publicado.
+### Pendência #1 — asset sem assinatura válida (única pendência restante do updater)
+Repo já é **público** (Pendência #2 antiga — confirmado `raw.githubusercontent.com/.../latest.json` → 200 anônimo, resolvido). MCM-94 já está no build publicado (Pendência #3 antiga, resolvida — v1.0.17 inclui). Falta só: **na máquina que tem `tauri_update_key`** (confirmada existente, é a de 07/07 — `C:\Users\W Design\task-flow-hub\tauri_update_key`), puxar main (já inclui tudo até o Bloco 1a), rebuildar, assinar, `gh release upload v1.0.17 <exe> --clobber` + subir o `.sig`, e regenerar a assinatura no `latest.json` correspondente a ESSE exe.
 
-### Pendência #2 — repo pode estar privado (bloqueia o updater mesmo com assinatura certa)
-Verificado ao vivo nesta sessão (antes do rebase): `raw.githubusercontent.com/jwijngaardemeuchapa/mcm/main/latest.json` retornava **404**, e a API do GitHub também 404 sem auth — sinal de repo privado (GitHub esconde repo privado como 404 pra requisições anônimas, mesmo que o arquivo/release exista). Isso explica "não funciona nas duas máquinas": o updater faz GET anônimo. **Usuário decidiu tornar o repo público de novo** (ação manual: GitHub → Settings → Danger Zone → Change visibility). Sem isso, mesmo com o asset assinado corretamente (Pendência #1), o updater não vai enxergar o `latest.json`.
-
-**Nenhuma das duas pendências é sobre a chave em si** — a chave está correta e presente na máquina de 07/07.
-
-### Pendência #3 — MCM-94 (busca no BID) não está no build publicado
-Commit `54da22b` (busca por nome/telefone nas 3 abas do BID) entrou DEPOIS do build v1.0.16 publicado. Resolve-se junto com a Pendência #1 (puxar main antes de rebuildar).
+### Bloco 1a do roteiro — FEITO (commit `a979501`)
+`verificarAtualizacao()`/`instalarAtualizacao()` em `Integracoes.tsx` engoliam a exceção com mensagem genérica. Agora `console.error(e)` + toast com `errMsg(e)`. É por isso que a falha de assinatura/404 nunca aparecia pro usuário.
 
 ---
 
-## Roteiro de 7 frentes — planejamento feito, código NÃO iniciado
+## Roteiro de 7 frentes — Bloco 1a feito, restante NÃO iniciado
 
 Usuário trouxe um guia de schema Metabase (`guia_estrutura_metabase_meuchapa.md`, fora do repo — PostgreSQL, schema `core_api`) e pediu 7 mudanças. Exploração completa feita (sync system, BID Dashboard, FUP/updater). **Depois do rebase, descobrimos que a sessão de 07-08 já criou tickets pra boa parte disso: MCM-96 (endereços), MCM-97 (chapas 15 dias), MCM-98 (remessa/indicados), MCM-95 (extensão Chrome, spike).** Ler as descrições reais desses tickets no Jira antes de codar — elas podem ter nuances mais precisas que o que segue (ex.: MCM-97 já especifica "question filtrada por Data de Criação, upsert incremental, completo 2x/semana continua fonte de verdade").
 
@@ -34,7 +28,7 @@ Usuário trouxe um guia de schema Metabase (`guia_estrutura_metabase_meuchapa.md
 
 ### BLOCO 1 — Updater + 3 queries Metabase
 
-**1a. Fix de código pendente:** `src/pages/Integracoes.tsx:279-314` — os `catch` de `verificarAtualizacao()`/`instalarAtualizacao()` engolem o erro sem log. Trocar por `console.error(e)` + toast com a mensagem real — é por isso que a falha de assinatura/404 nunca apareceu pro usuário.
+**1a. FEITO** (commit `a979501`, release v1.0.17). Próximo passo real do Bloco 1: **1b/1c/1d** são queries que o usuário roda no Metabase (1b já virou MCM-99/Consultor, feito) — falta 1c (endereços) e 1d (chapas 15d), que exigem o usuário rodar as queries de descoberta de schema e colar os resultados/card IDs antes de qualquer código do Bloco 2.
 
 **1b. Query 1 — Descrições de tarefa** (já entregue, MCM-99 já implementado no Consultor):
 ```sql

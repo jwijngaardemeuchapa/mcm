@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-07-16 — MCM — Bloco 1a (fix updater) + release v1.0.17
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-93/94/99 (release), roteiro de 7 frentes Bloco 1a
+**Commits:** `a979501` (fix updater), `019efd2` (bump 1.0.17)
+
+### Bloco 1a — catch mudo do updater corrigido
+`verificarAtualizacao()`/`instalarAtualizacao()` em `Integracoes.tsx` engoliam a exceção com mensagem genérica ("verifique a conexão"). Agora loga `console.error(e)` + toast com `errMsg(e)` (helper já usado no resto do arquivo). É o motivo pelo qual a falha real (assinatura inválida / 404 do release anterior) nunca apareceu pro usuário.
+
+### Release v1.0.17 publicado
+Confirmado que o repo público resolveu a Pendência #2 do handoff anterior (`raw.githubusercontent.com/.../latest.json` → 200 anônimo). Bump 1.0.16→1.0.17 (`tauri.conf.json` + `Ajuda.tsx`, novidades reescritas cobrindo MCM-93/94/99 + fix updater). Build local verificado (`grep` no `dist/`: domínio `.com`, busca do BID presente). Publicado https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17 — **sem assinatura ainda** (decisão do usuário: "resolvemos a chave depois").
+
+**Files changed:** `src/pages/Integracoes.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
+**Next:** Bloco 2 do roteiro (sincronizações: endereços MCM-96, chapas 15d MCM-97, Saac diário + flags NOVO/ORGÂNICO) — precisa dos card IDs das questions 1c/1d do Metabase, ainda não criadas pelo usuário. Depois: Bloco 3 (UX BID) → Bloco 4 (reenvio FUP 6h). Assinatura do release segue pendente (chave na máquina de 07/07).
+
+---
+
 ## 2026-07-14 — MCM — Consultor: busca em descrições (MCM-99) + roteiro de 7 frentes planejado
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 4.6 / Opus 4.8)
 **Tickets:** MCM-99 (feito); roteiro cruza com MCM-95/96/97/98 já existentes (ver sessão 07-08 abaixo)
