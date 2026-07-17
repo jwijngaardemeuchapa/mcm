@@ -157,10 +157,13 @@ export type ClienteAddress = {
   lat: number | null;
   lng: number | null;
   cep: string | null;
-  // ID do endereço no Metabase (Address.Id) — presente quando veio de
+  // IDs do endereço no Metabase (Address.Id) — presentes quando veio de
   // sincronizarEnderecos (MCM-96); usado por tarefa_enderecos pra achar o
   // endereço EXATO de uma tarefa, sem depender de fuzzy match por empresa.
-  metabase_address_id?: string;
+  // É ARRAY porque um mesmo endereço físico tem vários Address.Id distintos
+  // na origem (o Metabase não deduplica por tarefa — média 8, até 13 mil
+  // num caso real) — qualquer um deles deve casar.
+  metabase_address_ids?: string[];
 };
 
 export type DispatchParams = {
@@ -567,11 +570,13 @@ function BidTaskCard({
         setTaskAddresses(addrs);
         if (addrs.length > 0 && !dispatchParams.local && !dispatchParams.mapsLink) {
           // Endereço GARANTIDO: cruza o ID do endereço vinculado a esta
-          // tarefa (tarefa_enderecos) contra o metabase_address_id de cada
-          // item do caderno de clientes. Só cai no primeiro-da-lista (fuzzy,
-          // não garantido) quando não há vínculo por ID.
+          // tarefa (tarefa_enderecos) contra a LISTA de metabase_address_ids
+          // de cada item do caderno de clientes — um endereço físico tem
+          // vários Address.Id de origem, então basta bater com qualquer um
+          // deles. Só cai no primeiro-da-lista (fuzzy, não garantido) quando
+          // não há vínculo por ID.
           const addrId = vinculo[0]?.metabase_address_id;
-          const porId = addrId ? addrs.find((a) => a.metabase_address_id === addrId) : undefined;
+          const porId = addrId ? addrs.find((a) => a.metabase_address_ids?.includes(addrId)) : undefined;
           const chosen = porId ?? addrs[0];
           setEnderecoConfiavel(!!porId);
           setSelectedAddressId(chosen.id);
