@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.17</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.18</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,12 +767,13 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.17 — Novidades desta versão:</strong>{" "}
-              <strong>Mensagem personalizada — corrigido</strong>: dialog de mensagem para chapas confirmados não trava mais a janela para a direita ao digitar textos longos com quebras de linha.{" "}
-              <strong>Atalhos de mensagem colapsáveis</strong>: atalhos salvos viram chips compactos em linha com um clique para mostrar/ocultar — mais espaço para escrever a mensagem.{" "}
-              <strong>BID — busca por tarefa</strong>: campo de busca por nome ou telefone em cada card, nas abas Disponíveis/Bloqueados/Leads.{" "}
-              <strong>Consultor — busca em descrições</strong>: upload de descrições de tarefa e busca dedicada com destaque do trecho encontrado.{" "}
-              <strong>Atualização — erros mais claros</strong>: falhas ao verificar/instalar atualização agora mostram o motivo real, não uma mensagem genérica.
+              <strong>v1.0.18 — Novidades desta versão:</strong>{" "}
+              <strong>BID — endereço da tarefa por ID</strong>: local da tarefa passa a ser preenchido pelo vínculo exato com o Metabase (quando disponível), não só por nome de empresa parecido.{" "}
+              <strong>BID — Leads Região com distância real</strong>: mostra km de verdade em vez de só cidade/UF, com selo indicando o quão confiável é o endereço usado.{" "}
+              <strong>BID — botão Captação</strong>: dispara template de captação direto pra leads regionais, com o primeiro nome preenchido automaticamente.{" "}
+              <strong>BID — filtro de km corrigido</strong>: candidatos sem coordenada confirmada não entram mais escondidos na lista "dentro do raio" — agora aparecem separados como "distância desconhecida".{" "}
+              <strong>Geocodificação em segundo plano</strong>: o app agora completa coordenadas faltantes sozinho, aos poucos, sem atrapalhar quem está usando o BID na hora.{" "}
+              <strong>Consultor — remessa e indicados</strong>: o mesmo anexo de descrições agora também identifica chapas indicados por empresa.
             </span>
           </div>
         )}
@@ -1008,7 +1009,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.17 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.18 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1043,7 +1044,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.17 · © 2026 Wijngaarde Design
+        MCM v1.0.18 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
