@@ -452,13 +452,16 @@ function BidTaskCard({
     return false;
   }
   const [maxDistKm, setMaxDistKm] = useState(30);
-  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid" | "leads_regiao">("disponiveis");
+  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid" | "leads_regiao" | "novos">("disponiveis");
   const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
   const [blockedLoaded, setBlockedLoaded] = useState(false);
   const [rawLeadsBid, setRawLeadsBid] = useState<BidChapa[]>([]);
   const [leadsBidLoading, setLeadsBidLoading] = useState(false);
   const [leadsBidLoaded, setLeadsBidLoaded] = useState(false);
+  const [rawNovos, setRawNovos] = useState<BidChapa[]>([]);
+  const [novosLoading, setNovosLoading] = useState(false);
+  const [novosLoaded, setNovosLoaded] = useState(false);
   const [rawLeadsRegiao, setRawLeadsRegiao] = useState<LeadRegiao[]>([]);
   const [leadsRegiaoLoading, setLeadsRegiaoLoading] = useState(false);
   const [leadsRegiaoLoaded, setLeadsRegiaoLoaded] = useState(false);
@@ -837,6 +840,66 @@ function BidTaskCard({
     })();
   }, [candidateView, leadsBidLoaded, expanded, task.cidade_uf]); // eslint-disable-line
 
+  // Carrega chapas recém-cadastrados (MCM-97, chapas_novos) para a aba "Novos"
+  // — gente que já é chapa de verdade (sync diário, adianta o cadastro geral
+  // que só roda 2x/semana), disparo pelo mesmo motor de BID de Disponíveis.
+  useEffect(() => {
+    if (candidateView !== "novos" || novosLoaded || !expanded) return;
+    const cityUf = parseCidadeUf(task.cidade_uf);
+    if (!cityUf) { setNovosLoaded(true); return; }
+    setNovosLoading(true);
+    (async () => {
+      try {
+        const db = await getDb();
+        const rows = await db.select<BidChapa[]>(`
+          SELECT n.id as _key, n.cpf, n.nome, n.telefone,
+                 n.cidade, NULL as bairro, n.estado, NULL as rua,
+                 NULL as cep, NULL as numero, 0 as tarefas,
+                 n.data_cadastro as data_primeira_tarefa, NULL as data_ultima_tarefa,
+                 NULL as situacao, NULL as bloqueio, NULL as motivo_bloqueio, NULL as aso,
+                 n.importado_em, 'novo' as fonte, 0 as is_extra, NULL as lat, NULL as lng
+          FROM chapas_novos n
+          ORDER BY n.data_cadastro DESC
+        `);
+        const cidadeAlvo = normalize(cityUf.cidade);
+        const ufAlvo = normalizeUf(cityUf.estado);
+        const doCidade = rows.filter((r) => {
+          if (normalize(r.cidade ?? "") !== cidadeAlvo) return false;
+          const uf = normalizeUf(r.estado);
+          if (!ufAlvo || !uf) return true;
+          return uf === ufAlvo;
+        });
+        // basePhoneSet: quem já foi absorvido pelo cadastro geral não precisa
+        // mais aparecer aqui (já aparece em Disponíveis, com dados completos).
+        const semDuplicata = doCidade.filter((r) => {
+          const phone = r.telefone ? normalizePhone(r.telefone) : "";
+          if (!phone) return true;
+          return !occupiedPhoneSet.has(phone) && !basePhoneSet.has(phone);
+        });
+        setRawNovos(semDuplicata);
+        // Sem CEP nessa tabela — geocodifica por cidade/UF (mesmo padrão de leads sem CEP).
+        const cidadesVistas = new Set<string>();
+        for (const r of semDuplicata) {
+          if (!r.cidade) continue;
+          const cidade = r.cidade;
+          const estado = r.estado ?? "";
+          const dedup = `${cidade.toLowerCase().trim()}|${estado.toUpperCase().trim()}`;
+          if (cidadesVistas.has(dedup)) continue;
+          cidadesVistas.add(dedup);
+          cityGeocoder.enqueue(cidade, estado, (_key, coords) => {
+            if (!coords) return;
+            const cidadeLow = cidade.toLowerCase();
+            const estadoUp = estado.toUpperCase();
+            setRawNovos((prev) => prev.map((p) =>
+              (p.lat === null && (p.cidade ?? "").toLowerCase() === cidadeLow && (p.estado ?? "").toUpperCase() === estadoUp)
+                ? { ...p, lat: coords.lat, lng: coords.lng } : p));
+          });
+        }
+      } catch { /* silencioso */ }
+      finally { setNovosLoading(false); setNovosLoaded(true); }
+    })();
+  }, [candidateView, novosLoaded, expanded, task.cidade_uf, occupiedPhoneSet, basePhoneSet]); // eslint-disable-line
+
   // Carrega leads regionais (MCM-100, question 983) — lazy, só quando a aba é
   // aberta. Contato é sempre MANUAL: não são chapas cadastrados, não entram
   // no fluxo de disparo via bot.
@@ -1096,6 +1159,7 @@ function BidTaskCard({
   function handleDispatchSelected() {
     const pool = candidateView === "bloqueados" ? blockedCandidates
       : candidateView === "leads_bid" ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
+      : candidateView === "novos" ? novosVisible
       : candidates;
     const toDispatch = pool.filter((c) => selectedIds.has(c._key) && c.telefone);
     if (toDispatch.length === 0) return;
@@ -1192,6 +1256,8 @@ function BidTaskCard({
     : rawLeadsBid.filter((c) => c.situacao === leadsBidStatusFilter)
   ).filter(matchesSearch);
 
+  const novosVisible = rawNovos.filter(matchesSearch);
+
   // Leads Região: só fica "assertivo" (distância real, raio de maxDistKm)
   // quando o endereço da tarefa é garantido (enderecoConfiavel — vínculo por
   // ID ou escolha manual do operador, não fuzzy match). Sem isso, mantém a
@@ -1239,7 +1305,9 @@ function BidTaskCard({
       ? blockedVisible.filter((c) => c.telefone)
       : candidateView === "leads_bid"
         ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
-        : available.filter((c) => c.telefone);
+        : candidateView === "novos"
+          ? novosVisible.filter((c) => c.telefone)
+          : available.filter((c) => c.telefone);
     const allSel = pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
     setSelectedIds(allSel ? new Set() : new Set(pool.map((c) => c._key)));
   }
@@ -1651,6 +1719,11 @@ function BidTaskCard({
                   className={`px-2.5 py-1 transition-colors ${candidateView === "leads_regiao" ? "bg-success text-success-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
                   Leads Região{leadsRegiaoLoaded && leadsRegiaoVisible.length > 0 ? ` (${leadsRegiaoVisible.length})` : ""}
                 </button>
+                <button type="button"
+                  onClick={() => { setCandidateView("novos"); setShowAll(false); }}
+                  className={`px-2.5 py-1 transition-colors ${candidateView === "novos" ? "bg-warning text-warning-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
+                  Novos{novosLoaded && novosVisible.length > 0 ? ` (${novosVisible.length})` : ""}
+                </button>
               </div>
               <div className="relative shrink-0">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
@@ -1710,6 +1783,12 @@ function BidTaskCard({
                         </span>
                       )
                     )}
+                  </span>
+                ) : candidateView === "novos" ? (
+                  <span className="font-normal normal-case text-warning/80">
+                    {novosLoaded
+                      ? `${novosVisible.length} cadastrados recentemente na cidade`
+                      : "Carregando novos cadastros..."}
                   </span>
                 ) : (
                   <>
@@ -1948,6 +2027,70 @@ function BidTaskCard({
                               {c.telefone && <span>{c.telefone}</span>}
                               {c.situacao && <span className="capitalize">{c.situacao.replace(/_/g, " ")}</span>}
                               {c.motivo_bloqueio && <span className="text-destructive/70 truncate max-w-[160px]">{c.motivo_bloqueio}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {canDispatch && (
+                              <button type="button"
+                                disabled={isDispatching}
+                                onClick={(e) => { e.stopPropagation(); dispatchOne(c as unknown as RankedCandidate); }}
+                                className="h-6 px-2 rounded text-[10px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50">
+                                {isDispatching ? "..." : "Disparar"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* ── Novos (chapas_novos, MCM-97) ── */}
+                {candidateView === "novos" && novosLoading && (
+                  <div className="px-4 py-3 space-y-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="h-10 rounded-lg bg-warning/10 animate-pulse" style={{ opacity: 1 - i * 0.2 }} />
+                    ))}
+                  </div>
+                )}
+                {candidateView === "novos" && novosLoaded && novosVisible.length === 0 && (
+                  <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                    Nenhum cadastro recente para {task.cidade_uf || "esta cidade"}.
+                  </div>
+                )}
+                {candidateView === "novos" && novosLoaded && novosVisible.length > 0 && (
+                  <div className="divide-y divide-border/50">
+                    {novosVisible.map((c) => {
+                      const phone = normalizePhone(c.telefone ?? "");
+                      const isOrganico = phone ? !leadsSaacPhoneSet.has(phone) : true;
+                      const canDispatch = !!c.telefone;
+                      const isDispatching = dispatchingIds.has(c._key);
+                      return (
+                        <div key={c._key}
+                          className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 py-2 text-xs transition-colors hover:bg-muted/30">
+                          <span className="w-5 flex items-center justify-center">
+                            <input type="checkbox"
+                              className="h-3.5 w-3.5 accent-warning cursor-pointer"
+                              checked={selectedIds.has(c._key)}
+                              onChange={() => setSelectedIds((prev) => {
+                                const s = new Set(prev);
+                                s.has(c._key) ? s.delete(c._key) : s.add(c._key);
+                                return s;
+                              })}
+                            />
+                          </span>
+                          <div className="min-w-0 flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium truncate">{c.nome}</span>
+                              <span
+                                className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${isOrganico ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                                title="Cadastrado nos últimos ~15 dias"
+                              >
+                                {isOrganico ? "ORGÂNICO" : "NOVO"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                              {c.telefone && <span>{c.telefone}</span>}
+                              {c.data_primeira_tarefa && <span>desde {c.data_primeira_tarefa}</span>}
                             </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
