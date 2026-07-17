@@ -3,6 +3,31 @@
 
 ---
 
+## 2026-07-17 — MCM — Fechamento de pendências: MCM-91 (não reproduz), MCM-98 (Consultor), updater assinado — v1.0.17
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-91 (fechado, sem código), MCM-98 ✅
+**Commits:** `b844082` (MCM-98), `f289f90` (assinatura updater)
+
+Usuário revisou o backlog de pendências e decidiu o destino de cada uma:
+
+**MCM-91** (dropdown Umbler preso) — fechado sem alterar código. Usuário confirma que digitando o Trigger Name correto no Umbler o disparo funciona; o bug do `<Select>` continua existindo tecnicamente mas deixou de ser prioridade.
+
+**MCM-95** (spike extensão Chrome) — adiado explicitamente, sem mudança.
+
+**MCM-98** (remessa/indicados) — implementado com abordagem mais leve que a originalmente cogitada no ticket. Em vez de nova coluna em `chapa_registry` + integração no BID, reaproveitou o mecanismo de upload de CSV do Consultor (mesmo do MCM-99), já que `Obs` e `Shipping` vêm da mesma `WorkHeader`. `src/utils/consultorFields.ts` ganhou `F.remessa`; `descMap` em `Consultor.tsx` passou a guardar `{descricao, remessa}` por ID; `classifyIndicado()` aplica a heurística do guia de schema (`Shipping` exato "INDICADO" → confirmado, contém "indicado" → possível); busca e popover cobrem os dois campos.
+
+**Updater (Pendência #1 do handoff)** — resolvida de ponta a ponta:
+- `gh` CLI instalado nesta máquina via `winget` (não estava presente).
+- Autenticação `gh auth login --web` falhou 3x com "token in keyring is invalid" — Windows Credential Manager com resíduo corrompido de tentativas anteriores. Resolvido limpando `%APPDATA%\GitHub CLI` e usando `--insecure-storage` (token em arquivo em vez do keyring do SO).
+- Build limpo `npm run tauri build` (~13min), assinado com `tauri_update_key`, asset substituído no release v1.0.17 via `gh release upload --clobber`.
+- **Achado real:** `latest.json` na main ainda apontava pra `1.0.16` — o release v1.0.17 tinha sido publicado pela sessão anterior mas o `latest.json` nunca foi atualizado junto (dois passos manuais separados, só um foi feito). Corrigido junto com a nova assinatura.
+- Verificado ao vivo: `raw.githubusercontent.com/.../latest.json` → 200; asset do release → 302 (redirect normal pra CDN, download ok).
+
+**Files changed:** `src/utils/consultorFields.ts`, `src/pages/Consultor.tsx`, `latest.json`.
+**Next:** nenhuma pendência ativa de updater. Resta a Pendência #2 (colisão de versionamento de migration mcm/mcm-v2, decisão do usuário) e MCM-95 (adiado).
+
+---
+
 ## 2026-07-16 — MCM — Bloco 4: reabertura de confirmação esquecida (MCM-103) — roteiro de 7 frentes FECHADO
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-103 ✅
