@@ -131,7 +131,7 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
     const now = new Date().toISOString();
 
     // Agrupa as linhas (1 por endereço distinto) por nome de empresa bruto da origem.
-    const porEmpresa = new Map<string, { cep: string; logradouro: string; numero: string; bairro: string; cidade: string; uf: string }[]>();
+    const porEmpresa = new Map<string, { cep: string; logradouro: string; numero: string; bairro: string; cidade: string; uf: string; metabaseId: string }[]>();
     for (const row of rows) {
       const k = Object.keys(row);
       const g = (pat: RegExp) => k.find((c) => pat.test(c));
@@ -145,6 +145,10 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
         bairro: str(g(/bairro/i)),
         cidade: str(g(/^cidade$/i)),
         uf: str(g(/^uf$/i)),
+        // ID do endereço no Metabase (Address.Id) — permite vincular tarefa->
+        // endereço com exatidão via sincronizarTarefaEnderecos, em vez de só
+        // texto (cep/logradouro/numero), que pode variar de grafia na fonte.
+        metabaseId: str(g(/^id ?endere[cç]o$/i)),
       };
       if (!addr.cep) continue;
       const list = porEmpresa.get(empresa) ?? [];
@@ -164,20 +168,30 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
         id: string; label: string; endereco: string; maps_link: string;
         lat: number | null; lng: number | null; cep: string | null;
         logradouro?: string; numero?: string; bairro?: string; cidade?: string; uf?: string; principal?: boolean;
+        metabase_address_id?: string;
       }[] = match?.enderecos ? JSON.parse(match.enderecos) : [];
       const chaveDedup = (a: { cep?: string | null; logradouro?: string; numero?: string }) =>
         `${normalize(a.cep ?? "")}|${normalize(a.logradouro ?? "")}|${normalize(a.numero ?? "")}`;
-      const jaExistentes = new Set(atuais.map(chaveDedup));
+      const porChave = new Map(atuais.map((a) => [chaveDedup(a), a]));
 
       let mudou = false;
       for (const a of enderecosOrigem) {
         const chave = chaveDedup(a);
-        if (jaExistentes.has(chave)) continue;
-        jaExistentes.add(chave);
+        const existente = porChave.get(chave);
+        if (existente) {
+          // Já sincronizado antes — backfill do ID do Metabase se essa
+          // entrada ainda não tinha (endereço sincronizado antes desse ID
+          // existir na question), sem duplicar nem sobrescrever texto manual.
+          if (a.metabaseId && existente.metabase_address_id !== a.metabaseId) {
+            existente.metabase_address_id = a.metabaseId;
+            mudou = true;
+          }
+          continue;
+        }
         const linha1 = [a.logradouro, a.numero].filter(Boolean).join(", ");
         const enderecoTxt = [linha1, a.bairro, a.cidade && a.uf ? `${a.cidade} - ${a.uf}` : (a.cidade || a.uf)]
           .filter(Boolean).join(", ");
-        atuais.push({
+        const novo = {
           id: uuid(),
           label: "",
           endereco: enderecoTxt,
@@ -191,7 +205,10 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
           cidade: a.cidade || undefined,
           uf: a.uf || undefined,
           principal: atuais.length === 0,
-        });
+          metabase_address_id: a.metabaseId || undefined,
+        };
+        atuais.push(novo);
+        porChave.set(chave, novo);
         enderecosNovos++;
         mudou = true;
       }
@@ -213,6 +230,70 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
     return true;
   } catch {
     if (!silent) toast.error("Erro ao sincronizar endereços");
+    return false;
+  }
+}
+
+/**
+ * Vínculo tarefa -> endereço por ID: sincroniza uma Question do Metabase que
+ * traz só (ID Tarefa, ID Endereço) — WorkHeader.ID + WorkHeader.IdTaskAddress.
+ * Grava em tabela própria `tarefa_enderecos`. O BID cruza `id_tarefa` aqui
+ * contra `metabase_address_id` gravado em cada item de `cliente_book.enderecos`
+ * (por `sincronizarEnderecos`) para resolver o endereço EXATO da tarefa, sem
+ * depender do match fuzzy por nome de empresa. DELETE+INSERT total: tabela
+ * pequena (2 colunas), sem histórico a preservar.
+ */
+export async function sincronizarTarefaEnderecos(silent = false): Promise<boolean> {
+  const s = readSettings();
+  const cardId = s.metabaseTarefaEnderecosCardId;
+  if (!cardId) {
+    if (!silent) toast.error("Configure o ID da pergunta de Tarefa→Endereço em Integrações");
+    return false;
+  }
+  try {
+    const status = await invoke<{ configured: boolean }>("metabase_status");
+    if (!status.configured) {
+      if (!silent) toast.error("Metabase não configurado em Integrações");
+      return false;
+    }
+    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    const parsed: [number, string][] = [];
+    for (const row of rows) {
+      const k = Object.keys(row);
+      const g = (pat: RegExp) => k.find((c) => pat.test(c));
+      const idTarefaKey = g(/^id ?tarefa$/i);
+      const idEnderecoKey = g(/^id ?endere[cç]o$/i);
+      const idTarefa = idTarefaKey ? parseInt(String(row[idTarefaKey] ?? "").replace(/\D/g, ""), 10) : NaN;
+      const idEndereco = idEnderecoKey ? String(row[idEnderecoKey] ?? "").trim() : "";
+      if (!idTarefa || !idEndereco) continue;
+      parsed.push([idTarefa, idEndereco]);
+    }
+
+    await db.execute("DELETE FROM tarefa_enderecos");
+    const CHUNK = 50;
+    let count = 0;
+    for (let i = 0; i < parsed.length; i += CHUNK) {
+      const chunk = parsed.slice(i, i + CHUNK);
+      const ph = Array(chunk.length).fill("(?,?,?)").join(",");
+      try {
+        await db.execute(
+          `INSERT INTO tarefa_enderecos (id_tarefa,metabase_address_id,importado_em) VALUES ${ph}`,
+          chunk.flatMap(([idTarefa, idEndereco]) => [idTarefa, idEndereco, now]),
+        );
+        count += chunk.length;
+      } catch (e) {
+        console.error("Falha ao inserir chunk de tarefa_enderecos", e);
+      }
+    }
+
+    localStorage.setItem("tarefa_enderecos_last_sync", now);
+    if (!silent) toast.success(`Vínculos tarefa→endereço sincronizados — ${count}`);
+    return true;
+  } catch {
+    if (!silent) toast.error("Erro ao sincronizar vínculos tarefa→endereço");
     return false;
   }
 }
@@ -295,6 +376,13 @@ export async function sincronizarChapas15d(silent = false): Promise<boolean> {
 /** Chapas recentes: gate diário (última sync não foi hoje, fuso SP). */
 export function devesSincronizarChapas15d(): boolean {
   const last = localStorage.getItem("chapas_15d_last_sync");
+  if (!last) return true;
+  return fmtSP(last, "yyyy-MM-dd") !== todayDateISO_SP();
+}
+
+/** Tarefa->endereço: gate diário — tarefas novas aparecem todo dia. */
+export function devesSincronizarTarefaEnderecos(): boolean {
+  const last = localStorage.getItem("tarefa_enderecos_last_sync");
   if (!last) return true;
   return fmtSP(last, "yyyy-MM-dd") !== todayDateISO_SP();
 }

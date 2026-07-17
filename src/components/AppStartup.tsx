@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Sunset, CheckCircle2, ArrowRight, Bell, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import { invoke } from "@tauri-apps/api/core";
-import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
+import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarTarefaEnderecos, devesSincronizarTarefaEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
 import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
@@ -184,6 +184,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasMetabaseCardId = !!s.metabaseTarefasCardId;
       const hasCarteiraCardId = !!s.metabaseCarteiraCardId;
       const hasEnderecosCardId = !!s.metabaseEnderecosCardId;
+      const hasTarefaEnderecosCardId = !!s.metabaseTarefaEnderecosCardId;
       const hasChapas15dCardId = !!s.metabaseChapas15dCardId;
       const hasLeadsRegiaoCardId = !!s.metabaseLeadsRegiaoCardId;
 
@@ -196,12 +197,14 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasMetabase = hasMetabaseCardId && metabaseConfigured;
       const hasCarteira = hasCarteiraCardId && metabaseConfigured;
       const hasEnderecos = hasEnderecosCardId && metabaseConfigured;
+      const hasTarefaEnderecos = hasTarefaEnderecosCardId && metabaseConfigured;
       const hasChapas15d = hasChapas15dCardId && metabaseConfigured;
       const hasLeadsRegiao = hasLeadsRegiaoCardId && metabaseConfigured;
       const hasRegistro = !!s.metabaseRegistroCardId && metabaseConfigured;
       const hasSaac = !!s.saacApiUrl && !!s.saacApiKey;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
       const syncEnderecos = hasEnderecos && devesSincronizarEnderecos();
+      const syncTarefaEnderecos = hasTarefaEnderecos && devesSincronizarTarefaEnderecos();
       const syncChapas15d = hasChapas15d && devesSincronizarChapas15d();
       const syncLeadsRegiao = hasLeadsRegiao && devesSincronizarLeadsRegiao();
       const syncRegistro = hasRegistro && devesSincronizarRegistro();
@@ -211,6 +214,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       if (hasMetabase) jobs.push({ label: "Sincronizando tarefas", run: () => sincronizarMetabase(true) });
       if (syncCarteira) jobs.push({ label: "Sincronizando carteira", run: () => sincronizarCarteira(true) });
       if (syncEnderecos) jobs.push({ label: "Sincronizando endereços", run: () => sincronizarEnderecos(true) });
+      if (syncTarefaEnderecos) jobs.push({ label: "Sincronizando vínculos tarefa→endereço", run: () => sincronizarTarefaEnderecos(true) });
       if (syncChapas15d) jobs.push({ label: "Sincronizando chapas recentes", run: () => sincronizarChapas15d(true) });
       if (syncLeadsRegiao) jobs.push({ label: "Sincronizando leads regionais", run: () => sincronizarLeadsRegiao(true) });
       if (syncRegistro) jobs.push({ label: "Sincronizando cadastro", run: () => sincronizarRegistro(true) });

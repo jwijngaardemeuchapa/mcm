@@ -10,7 +10,7 @@ import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync";
 import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
-import { startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
+import { startUmblerBot, sendUmblerFup, fmtTaskDateParam } from "@/lib/umbler";
 import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
@@ -167,6 +167,10 @@ export type ClienteAddress = {
   lat: number | null;
   lng: number | null;
   cep: string | null;
+  // ID do endereço no Metabase (Address.Id) — presente quando veio de
+  // sincronizarEnderecos (MCM-96); usado por tarefa_enderecos pra achar o
+  // endereço EXATO de uma tarefa, sem depender de fuzzy match por empresa.
+  metabase_address_id?: string;
 };
 
 export type DispatchParams = {
@@ -331,6 +335,10 @@ function formatCep(raw: string): string {
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 }
 
+function primeiroNome(nome: string): string {
+  return (nome || "").trim().split(/\s+/)[0] || "";
+}
+
 async function clipCopy(text: string, msg: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -428,10 +436,14 @@ function BidTaskCard({
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [taskAddresses, setTaskAddresses] = useState<ClienteAddress[]>([]);
   const [matchedEmpresaNome, setMatchedEmpresaNome] = useState<string | null>(null);
+  // true só quando o endereço auto-selecionado veio do vínculo tarefa_enderecos
+  // (ID exato, não fuzzy match por nome de empresa) — gate pra Leads Região.
+  const [enderecoConfiavel, setEnderecoConfiavel] = useState(false);
   const [addrPickerOpen, setAddrPickerOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchState, setBatchState] = useState<BidBatchState>(() => bidDispatchQueue.getBatchState(task.id_tarefa));
   const [dispatchingIds, setDispatchingIds] = useState<Set<string>>(new Set());
+  const [captacaoSendingIds, setCaptacaoSendingIds] = useState<Set<string>>(new Set());
   const [showOccupied, setShowOccupied] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -458,6 +470,7 @@ function BidTaskCard({
   const [rawLeadsRegiao, setRawLeadsRegiao] = useState<LeadRegiao[]>([]);
   const [leadsRegiaoLoading, setLeadsRegiaoLoading] = useState(false);
   const [leadsRegiaoLoaded, setLeadsRegiaoLoaded] = useState(false);
+  const [leadsRegiaoCoords, setLeadsRegiaoCoords] = useState<Map<string, { lat: number; lng: number }>>(new Map());
   const [basePhoneSet, setBasePhoneSet] = useState<Set<string>>(new Set());
   const [leadsBidStatusFilter, setLeadsBidStatusFilter] = useState<string>("__all__");
   const [negOpen, setNegOpen] = useState(false);
@@ -550,23 +563,36 @@ function BidTaskCard({
     (async () => {
       try {
         const db = await getDb();
-        const rows = await db.select<{ nome: string; enderecos: string | null }[]>(
-          "SELECT nome, enderecos FROM cliente_book WHERE enderecos IS NOT NULL AND enderecos != '[]' AND enderecos != ''",
-        );
+        const [rows, vinculo] = await Promise.all([
+          db.select<{ nome: string; enderecos: string | null }[]>(
+            "SELECT nome, enderecos FROM cliente_book WHERE enderecos IS NOT NULL AND enderecos != '[]' AND enderecos != ''",
+          ),
+          db.select<{ metabase_address_id: string }[]>(
+            "SELECT metabase_address_id FROM tarefa_enderecos WHERE id_tarefa = ?",
+            [task.id_tarefa],
+          ),
+        ]);
         const match = rows.find((r) => companyMatches(task.empresa, [r.nome]));
         if (match) setMatchedEmpresaNome(match.nome);
         const addrs: ClienteAddress[] = match?.enderecos ? JSON.parse(match.enderecos) : [];
         setTaskAddresses(addrs);
         if (addrs.length > 0 && !dispatchParams.local && !dispatchParams.mapsLink) {
-          const first = addrs[0];
-          setSelectedAddressId(first.id);
-          const cepFromAddr = first.cep ?? extractCepFromText(first.endereco);
+          // Endereço GARANTIDO: cruza o ID do endereço vinculado a esta
+          // tarefa (tarefa_enderecos) contra o metabase_address_id de cada
+          // item do caderno de clientes. Só cai no primeiro-da-lista (fuzzy,
+          // não garantido) quando não há vínculo por ID.
+          const addrId = vinculo[0]?.metabase_address_id;
+          const porId = addrId ? addrs.find((a) => a.metabase_address_id === addrId) : undefined;
+          const chosen = porId ?? addrs[0];
+          setEnderecoConfiavel(!!porId);
+          setSelectedAddressId(chosen.id);
+          const cepFromAddr = chosen.cep ?? extractCepFromText(chosen.endereco);
           setDispatchParams((p) => ({
             ...p,
-            local: first.endereco,
-            mapsLink: first.maps_link ?? "",
-            localLat: first.lat,
-            localLng: first.lng,
+            local: chosen.endereco,
+            mapsLink: chosen.maps_link ?? "",
+            localLat: chosen.lat,
+            localLng: chosen.lng,
             localCep: p.localCep || formatCep(cepFromAddr),
           }));
         }
@@ -574,7 +600,7 @@ function BidTaskCard({
         setTaskAddresses([]);
       }
     })();
-  }, [expanded, task.empresa]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [expanded, task.empresa, task.id_tarefa]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load candidates from chapa_registry when card is expanded
   useEffect(() => {
@@ -851,6 +877,22 @@ function BidTaskCard({
           return !occupiedPhoneSet.has(phone) && !basePhoneSet.has(phone) && !leadsSaacPhoneSet.has(phone);
         });
         setRawLeadsRegiao(semDuplicata);
+        // Geocodifica os CEPs dos leads em background — usado só quando o
+        // endereço da tarefa é garantido (enderecoConfiavel), pra refinar a
+        // lista por distância real em vez de só cidade/UF em texto.
+        for (const r of semDuplicata) {
+          if (!r.cep) continue;
+          const cep = r.cep;
+          const leadId = r.id;
+          cepGeocoder.enqueue(cep, (_cep, coords) => {
+            if (!coords) return;
+            setLeadsRegiaoCoords((prev) => {
+              const next = new Map(prev);
+              next.set(leadId, coords);
+              return next;
+            });
+          });
+        }
       } catch { /* silencioso */ }
       finally { setLeadsRegiaoLoading(false); setLeadsRegiaoLoaded(true); }
     })();
@@ -940,12 +982,17 @@ function BidTaskCard({
     setAddrPickerOpen(false);
     if (val === "__manual__") {
       setSelectedAddressId(null);
+      setEnderecoConfiavel(false);
       setDispatchParams((p) => ({ ...p, localLat: null, localLng: null, localCep: "" }));
       return;
     }
     const addr = taskAddresses.find((a) => a.id === val);
     if (!addr) return;
     setSelectedAddressId(val);
+    // Escolha manual do operador dentre os endereços cadastrados da empresa
+    // também conta como "garantida" (é uma confirmação humana explícita,
+    // igual ou mais forte que o vínculo por ID automático).
+    setEnderecoConfiavel(true);
     const cepFromAddr = addr.cep ?? extractCepFromText(addr.endereco);
     setDispatchParams((p) => ({
       ...p,
@@ -1049,6 +1096,31 @@ function BidTaskCard({
     }
   }
 
+  // Envio manual de template "Captação" para leads regionais (não-cadastrados,
+  // fora do fluxo de bot) — 1 variável posicional: primeiro nome do lead.
+  async function sendCaptacao(lead: LeadRegiao) {
+    if (!lead.telefone) { toast.error("Lead sem telefone cadastrado."); return; }
+    const us = readSettings().umblerSettings;
+    if (!us.bearerToken) { toast.error("Umbler não configurado. Acesse Integrações."); return; }
+    setCaptacaoSendingIds((prev) => new Set(prev).add(lead.id));
+    try {
+      await sendUmblerFup({
+        chapaNome: lead.nome,
+        chapaTelefone: lead.telefone,
+        dataTarefa: task.data_tarefa,
+        empresa: task.empresa,
+        settings: us,
+        overrideParams: [primeiroNome(lead.nome)],
+        templateIdOverride: us.captacaoTemplateId,
+      });
+      toast.success(`Captação enviada para ${lead.nome}`);
+    } catch (e) {
+      toast.error(`Falha ao enviar captação: ${errMsg(e)}`);
+    } finally {
+      setCaptacaoSendingIds((prev) => { const s = new Set(prev); s.delete(lead.id); return s; });
+    }
+  }
+
   function handleDispatchSelected() {
     const pool = candidateView === "bloqueados" ? blockedCandidates
       : candidateView === "leads_bid" ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
@@ -1139,6 +1211,23 @@ function BidTaskCard({
     ? rawLeadsBid
     : rawLeadsBid.filter((c) => c.situacao === leadsBidStatusFilter)
   ).filter(matchesSearch);
+
+  // Leads Região: só fica "assertivo" (distância real, raio de maxDistKm)
+  // quando o endereço da tarefa é garantido (enderecoConfiavel — vínculo por
+  // ID ou escolha manual do operador, não fuzzy match). Sem isso, mantém a
+  // lista por cidade/UF (texto) como estimativa — visível como tal na UI,
+  // nunca escondida (perderia leads reais por falta de sync/cadastro).
+  const leadsRegiaoComDist: (LeadRegiao & { distance_km: number | null })[] = rawLeadsRegiao.map((r) => {
+    const coords = leadsRegiaoCoords.get(r.id);
+    const distance_km = (enderecoConfiavel && coords && dispatchParams.localLat !== null && dispatchParams.localLng !== null)
+      ? haversine(dispatchParams.localLat, dispatchParams.localLng, coords.lat, coords.lng)
+      : null;
+    return { ...r, distance_km };
+  });
+  const leadsRegiaoAssertivo = enderecoConfiavel && dispatchParams.localLat !== null && dispatchParams.localLng !== null;
+  const leadsRegiaoVisible = leadsRegiaoAssertivo
+    ? leadsRegiaoComDist.filter((r) => r.distance_km !== null && r.distance_km <= maxDistKm)
+    : leadsRegiaoComDist;
 
   // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
   // leads_bid tem render próprio (lista simples, sem virtualizer).
@@ -1627,7 +1716,7 @@ function BidTaskCard({
                 <button type="button"
                   onClick={() => { setCandidateView("leads_regiao"); setShowAll(false); }}
                   className={`px-2.5 py-1 transition-colors ${candidateView === "leads_regiao" ? "bg-success text-success-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
-                  Leads Região{leadsRegiaoLoaded && rawLeadsRegiao.length > 0 ? ` (${rawLeadsRegiao.length})` : ""}
+                  Leads Região{leadsRegiaoLoaded && leadsRegiaoVisible.length > 0 ? ` (${leadsRegiaoVisible.length})` : ""}
                 </button>
               </div>
               <div className="relative shrink-0">
@@ -1666,8 +1755,21 @@ function BidTaskCard({
                       : "Carregando leads..."}
                   </span>
                 ) : candidateView === "leads_regiao" ? (
-                  <span className="font-normal normal-case text-success/80">
-                    {leadsRegiaoLoaded ? `${rawLeadsRegiao.length} interessados na região, fora das outras listas` : "Carregando leads regionais..."}
+                  <span className="font-normal normal-case text-success/80 flex items-center gap-1.5">
+                    {leadsRegiaoLoaded
+                      ? `${leadsRegiaoVisible.length} interessados na região, fora das outras listas`
+                      : "Carregando leads regionais..."}
+                    {leadsRegiaoLoaded && (
+                      leadsRegiaoAssertivo ? (
+                        <span className="px-1 py-0 rounded text-[9px] font-bold bg-success/15 text-success normal-case tracking-normal">
+                          ENDEREÇO CONFIRMADO · até {maxDistKm} km
+                        </span>
+                      ) : (
+                        <span className="px-1 py-0 rounded text-[9px] font-bold bg-warning/15 text-warning normal-case tracking-normal">
+                          ESTIMATIVA POR CIDADE
+                        </span>
+                      )
+                    )}
                   </span>
                 ) : (
                   <>
@@ -1920,9 +2022,9 @@ function BidTaskCard({
                     })}
                   </div>
                 )}
-                {candidateView === "leads_regiao" && leadsRegiaoLoaded && rawLeadsRegiao.length > 0 && (
+                {candidateView === "leads_regiao" && leadsRegiaoLoaded && leadsRegiaoVisible.length > 0 && (
                   <div className="divide-y divide-border/50">
-                    {rawLeadsRegiao.map((r) => {
+                    {leadsRegiaoVisible.map((r) => {
                       const waLink = r.telefone ? `https://wa.me/${r.telefone.replace(/\D/g, "")}` : null;
                       return (
                         <div key={r.id} className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2 text-xs hover:bg-muted/30 transition-colors">
@@ -1935,6 +2037,11 @@ function BidTaskCard({
                               <span className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${r.categoria === "usuario_criado" ? "bg-muted text-muted-foreground" : "bg-success/15 text-success"}`}>
                                 {r.categoria === "usuario_criado" ? "USUÁRIO CRIADO" : "LEAD"}
                               </span>
+                              {r.distance_km !== null && (
+                                <span className="px-1 py-0 rounded text-[9px] font-bold shrink-0 bg-muted text-muted-foreground">
+                                  {r.distance_km.toFixed(1)} km
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
                               {r.telefone && (
@@ -1953,15 +2060,26 @@ function BidTaskCard({
                                 WhatsApp
                               </a>
                             )}
+                            {r.telefone && (
+                              <button type="button"
+                                disabled={captacaoSendingIds.has(r.id)}
+                                onClick={(e) => { e.stopPropagation(); sendCaptacao(r); }}
+                                title={`Enviar template Captação para ${primeiroNome(r.nome)}`}
+                                className="h-6 px-2 rounded text-[10px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50">
+                                {captacaoSendingIds.has(r.id) ? "..." : "Captação"}
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
-                {candidateView === "leads_regiao" && leadsRegiaoLoaded && rawLeadsRegiao.length === 0 && (
+                {candidateView === "leads_regiao" && leadsRegiaoLoaded && leadsRegiaoVisible.length === 0 && (
                   <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                    Nenhum lead regional para {task.cidade_uf || "esta cidade"} (fora das outras listas).
+                    {leadsRegiaoAssertivo
+                      ? `Nenhum lead regional em até ${maxDistKm} km do endereço confirmado da tarefa.`
+                      : `Nenhum lead regional para ${task.cidade_uf || "esta cidade"} (fora das outras listas).`}
                   </div>
                 )}
                 {candidateView === "leads_regiao" && leadsRegiaoLoading && (

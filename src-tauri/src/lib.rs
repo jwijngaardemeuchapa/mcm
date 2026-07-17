@@ -1193,6 +1193,27 @@ CREATE INDEX IF NOT EXISTS idx_leads_regiao_cidade ON leads_regiao(cidade, estad
 ",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Vínculo tarefa -> endereço por ID (não por nome/fuzzy match): mapeia
+      // cada tarefa ao ID do endereço no Metabase (WorkHeader.IdTaskAddress),
+      // que é cruzado em runtime contra o metabase_address_id gravado em cada
+      // item de cliente_book.enderecos (ver sincronizarEnderecos, MCM-96).
+      // Tabela própria — não expande `tarefas` porque o vínculo é opcional
+      // e depende de uma sync separada (pode nunca existir para uma tarefa).
+      // version 21: v1 estava em 20, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 21,
+      description: "tarefa_enderecos",
+      sql: "
+CREATE TABLE IF NOT EXISTS tarefa_enderecos (
+  id_tarefa INTEGER PRIMARY KEY,
+  metabase_address_id TEXT NOT NULL,
+  importado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_tarefa_enderecos_addr ON tarefa_enderecos(metabase_address_id);
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()
