@@ -38,15 +38,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import {
   RefreshCw,
   MapPin,
@@ -75,7 +66,6 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
-  ChevronsUpDown,
   BookMarked,
   Hash,
   Calendar,
@@ -439,7 +429,6 @@ function BidTaskCard({
   // true só quando o endereço auto-selecionado veio do vínculo tarefa_enderecos
   // (ID exato, não fuzzy match por nome de empresa) — gate pra Leads Região.
   const [enderecoConfiavel, setEnderecoConfiavel] = useState(false);
-  const [addrPickerOpen, setAddrPickerOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchState, setBatchState] = useState<BidBatchState>(() => bidDispatchQueue.getBatchState(task.id_tarefa));
   const [dispatchingIds, setDispatchingIds] = useState<Set<string>>(new Set());
@@ -978,32 +967,6 @@ function BidTaskCard({
     return [...set].sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [rawBlocked, blockedTipoFilter]);
 
-  function handleAddressSelect(val: string) {
-    setAddrPickerOpen(false);
-    if (val === "__manual__") {
-      setSelectedAddressId(null);
-      setEnderecoConfiavel(false);
-      setDispatchParams((p) => ({ ...p, localLat: null, localLng: null, localCep: "" }));
-      return;
-    }
-    const addr = taskAddresses.find((a) => a.id === val);
-    if (!addr) return;
-    setSelectedAddressId(val);
-    // Escolha manual do operador dentre os endereços cadastrados da empresa
-    // também conta como "garantida" (é uma confirmação humana explícita,
-    // igual ou mais forte que o vínculo por ID automático).
-    setEnderecoConfiavel(true);
-    const cepFromAddr = addr.cep ?? extractCepFromText(addr.endereco);
-    setDispatchParams((p) => ({
-      ...p,
-      local: addr.endereco,
-      mapsLink: addr.maps_link ?? "",
-      localLat: addr.lat,
-      localLng: addr.lng,
-      localCep: formatCep(cepFromAddr) || p.localCep,
-    }));
-  }
-
   async function saveCepToAddress() {
     if (!selectedAddressId || !matchedEmpresaNome || !dispatchParams.localCep) return;
     const cepClean = dispatchParams.localCep.replace(/\D/g, "");
@@ -1400,67 +1363,15 @@ function BidTaskCard({
               <div className="space-y-1.5 sm:col-span-2">
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                   <MapPin className="h-3 w-3" /> Local
+                  {enderecoConfiavel && dispatchParams.local && (
+                    <span className="px-1 py-0 rounded text-[9px] font-bold bg-success/15 text-success normal-case tracking-normal ml-1">
+                      PREENCHIDO POR SYNC
+                    </span>
+                  )}
                 </label>
                 <div className="flex gap-2">
-                  {taskAddresses.length > 0 && (
-                    <Popover open={addrPickerOpen} onOpenChange={setAddrPickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          className="h-8 text-sm w-48 shrink-0 justify-between font-normal"
-                        >
-                          <span className="truncate">
-                            {selectedAddressId
-                              ? (taskAddresses.find((a) => a.id === selectedAddressId)?.label ?? "Selecionar…")
-                              : "Manual"}
-                          </span>
-                          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-72 p-0" align="start">
-                        <Command>
-                          <CommandInput placeholder="Pesquisar endereço…" className="h-8 text-sm" />
-                          <CommandList>
-                            <CommandEmpty className="py-3 text-center text-xs text-muted-foreground">
-                              Nenhum endereço encontrado.
-                            </CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                value="manual"
-                                onSelect={() => handleAddressSelect("__manual__")}
-                                className="text-sm"
-                              >
-                                <span className="text-muted-foreground italic">Digitar manualmente</span>
-                              </CommandItem>
-                              {taskAddresses.map((a) => (
-                                <CommandItem
-                                  key={a.id}
-                                  value={a.label}
-                                  onSelect={() => handleAddressSelect(a.id)}
-                                  className="text-sm"
-                                >
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="truncate">{a.label}</span>
-                                    {a.cep && (
-                                      <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
-                                        <Hash className="h-2.5 w-2.5" />{a.cep}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {selectedAddressId === a.id && (
-                                    <Check className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />
-                                  )}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  )}
                   <Input
-                    placeholder="Endereço completo…"
+                    placeholder="Endereço completo… (preenche sozinho quando o vínculo tarefa→endereço existe)"
                     value={dispatchParams.local}
                     onChange={(e) => setDispatchParams((p) => ({ ...p, local: e.target.value, localLat: null, localLng: null }))}
                     className="h-8 text-sm flex-1"
