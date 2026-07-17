@@ -1285,7 +1285,7 @@ export default function Integracoes() {
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
               ID da pergunta — Tarefa → Endereço
-              <span className="ml-1 text-muted-foreground/60">(sync diário — ID Tarefa + ID Endereço, cruza com Endereços acima pra preencher o local exato da tarefa no BID)</span>
+              <span className="ml-1 text-muted-foreground/60">(sync todo boot, junto com tarefas — filtre a question pra hoje+30h, mesma janela de "tarefas próximas 30h"; cruza com Endereços acima pra preencher o local exato da tarefa no BID)</span>
             </label>
             <div className="flex gap-2 items-center">
               <Input

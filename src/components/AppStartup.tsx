@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Sunset, CheckCircle2, ArrowRight, Bell, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import { invoke } from "@tauri-apps/api/core";
-import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarTarefaEnderecos, devesSincronizarTarefaEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
+import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
 import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
@@ -204,7 +204,10 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasSaac = !!s.saacApiUrl && !!s.saacApiKey;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
       const syncEnderecos = hasEnderecos && devesSincronizarEnderecos();
-      const syncTarefaEnderecos = hasTarefaEnderecos && devesSincronizarTarefaEnderecos();
+      // Sem gate diário — acompanha o mesmo ciclo da sync de tarefas (todo
+      // boot), não um horário fixo. Faz sentido porque a question em si já
+      // é filtrada pra hoje+30h (ver Integrações): dataset sempre pequeno.
+      const syncTarefaEnderecos = hasTarefaEnderecos;
       const syncChapas15d = hasChapas15d && devesSincronizarChapas15d();
       const syncLeadsRegiao = hasLeadsRegiao && devesSincronizarLeadsRegiao();
       const syncRegistro = hasRegistro && devesSincronizarRegistro();

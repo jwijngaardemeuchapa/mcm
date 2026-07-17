@@ -242,6 +242,11 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
  * (por `sincronizarEnderecos`) para resolver o endereço EXATO da tarefa, sem
  * depender do match fuzzy por nome de empresa. DELETE+INSERT total: tabela
  * pequena (2 colunas), sem histórico a preservar.
+ *
+ * Sem gate de frequência própria (ao contrário de chapas15d/leadsRegiao) —
+ * roda todo boot junto com a sync principal de tarefas (AppStartup), porque
+ * a Question em si já é filtrada pra hoje+30h (mesma janela da question de
+ * "tarefas próximas 30h"), então o dataset sempre é pequeno.
  */
 export async function sincronizarTarefaEnderecos(silent = false): Promise<boolean> {
   const s = readSettings();
@@ -376,13 +381,6 @@ export async function sincronizarChapas15d(silent = false): Promise<boolean> {
 /** Chapas recentes: gate diário (última sync não foi hoje, fuso SP). */
 export function devesSincronizarChapas15d(): boolean {
   const last = localStorage.getItem("chapas_15d_last_sync");
-  if (!last) return true;
-  return fmtSP(last, "yyyy-MM-dd") !== todayDateISO_SP();
-}
-
-/** Tarefa->endereço: gate diário — tarefas novas aparecem todo dia. */
-export function devesSincronizarTarefaEnderecos(): boolean {
-  const last = localStorage.getItem("tarefa_enderecos_last_sync");
   if (!last) return true;
   return fmtSP(last, "yyyy-MM-dd") !== todayDateISO_SP();
 }
