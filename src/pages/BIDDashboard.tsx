@@ -864,11 +864,15 @@ function BidTaskCard({
         // Exclui quem já aparece em qualquer outra lista do BID (Disponíveis,
         // Bloqueados via occupiedPhoneSet, Leads Saac) — exclusão feita na
         // exibição, não no sync, pra não precisar ressincronizar quando outra
-        // lista muda.
+        // lista muda. novoPhoneSet (chapas_novos, sync diário) é essencial
+        // aqui: cadastro geral (basePhoneSet) só atualiza 2x/semana, então
+        // sem essa checagem alguém que se cadastrou ontem ficaria até ~3 dias
+        // aparecendo como lead não cadastrado, mesmo já tendo virado chapa.
         const semDuplicata = doCidade.filter((r) => {
           const phone = r.telefone ? normalizePhone(r.telefone) : "";
           if (!phone) return true;
-          return !occupiedPhoneSet.has(phone) && !basePhoneSet.has(phone) && !leadsSaacPhoneSet.has(phone);
+          return !occupiedPhoneSet.has(phone) && !basePhoneSet.has(phone)
+            && !leadsSaacPhoneSet.has(phone) && !novoPhoneSet.has(phone);
         });
         setRawLeadsRegiao(semDuplicata);
         // Geocodifica os CEPs dos leads em background — usado só quando o
@@ -890,7 +894,7 @@ function BidTaskCard({
       } catch { /* silencioso */ }
       finally { setLeadsRegiaoLoading(false); setLeadsRegiaoLoaded(true); }
     })();
-  }, [candidateView, leadsRegiaoLoaded, expanded, task.cidade_uf, occupiedPhoneSet, basePhoneSet, leadsSaacPhoneSet]);
+  }, [candidateView, leadsRegiaoLoaded, expanded, task.cidade_uf, occupiedPhoneSet, basePhoneSet, leadsSaacPhoneSet, novoPhoneSet]);
 
   // Derive ranked candidates whenever raw data, coords, occupied sets, or disparos change
   const candidates = useMemo<RankedCandidate[]>(() => {
