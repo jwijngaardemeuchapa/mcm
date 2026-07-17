@@ -9,12 +9,25 @@ class CepGeocoder {
   private running = false;
   private lastAt = 0;
 
-  enqueue(rawCep: string, cb: GeoCb): void {
+  // `background: true` (varredura proativa de backfill) sempre vai pro FIM
+  // da fila — nunca atrasa uma consulta em primeiro plano (abrir um card do
+  // BID). Chamadas normais (sem opts) furam a fila: se o CEP já estava
+  // enfileirado só pelo backfill, é promovido pro início agora.
+  enqueue(rawCep: string, cb: GeoCb, opts?: { background?: boolean }): void {
     const cep = rawCep.replace(/\D/g, "");
     if (!cep) { cb(rawCep, null); return; }
-    if (this.cbs.has(cep)) { this.cbs.get(cep)!.push(cb); return; }
+    const background = opts?.background ?? false;
+    if (this.cbs.has(cep)) {
+      this.cbs.get(cep)!.push(cb);
+      if (!background) {
+        const idx = this.queue.indexOf(cep);
+        if (idx > 0) { this.queue.splice(idx, 1); this.queue.unshift(cep); }
+      }
+      return;
+    }
     this.cbs.set(cep, [cb]);
-    this.queue.push(cep);
+    if (background) this.queue.push(cep);
+    else this.queue.unshift(cep);
     if (!this.running) this._run();
   }
 
@@ -70,6 +83,32 @@ class CepGeocoder {
 }
 
 export const cepGeocoder = new CepGeocoder();
+
+/**
+ * Backfill proativo do cep_cache: varre CEPs de chapa_registry e
+ * leads_regiao que ainda não têm coordenada, e enfileira todos como
+ * `background: true` — nunca disputa com uma consulta em primeiro plano
+ * (abrir um card do BID sempre fura a fila, ver enqueue() acima).
+ * Autolimitante: uma vez que o cache alcança a base, a query WHERE
+ * cc.cep IS NULL retorna vazio e a chamada seguinte não enfileira nada.
+ * Chamar 1x depois do boot (AppStartup onDone), nunca bloqueante.
+ */
+export async function backfillCepCache(): Promise<number> {
+  const db = await getDb();
+  const missing = await db.select<{ cep: string }[]>(`
+    SELECT DISTINCT cep FROM (
+      SELECT REPLACE(REPLACE(r.cep,' ',''),'-','') as cep FROM chapa_registry r WHERE r.cep IS NOT NULL AND r.cep != ''
+      UNION
+      SELECT REPLACE(REPLACE(l.cep,' ',''),'-','') as cep FROM leads_regiao l WHERE l.cep IS NOT NULL AND l.cep != ''
+    ) x
+    WHERE cep != '' AND cep NOT IN (SELECT cep FROM cep_cache)
+  `);
+  for (const { cep } of missing) {
+    if (!cep) continue;
+    cepGeocoder.enqueue(cep, () => { /* backfill — só grava no cache, sem callback de UI */ }, { background: true });
+  }
+  return missing.length;
+}
 
 /* ── Geocodificação por cidade ──────────────────────────────────────
    Leads Saac não têm CEP; a distância no BID vem do centroide da cidade.

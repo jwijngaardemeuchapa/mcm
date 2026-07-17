@@ -7,6 +7,7 @@ import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
+import { backfillCepCache } from "@/lib/geocode";
 import { buildPriorities, type PriorityItem, type Level, type LembreteAlertItem } from "@/components/PriorityPanel";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
@@ -179,6 +180,12 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
   const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // Backfill proativo de coordenadas (fila em background, nunca disputa
+    // com geocode em primeiro plano — ver enqueue()/backfillCepCache em
+    // src/lib/geocode.ts). Fire-and-forget: não bloqueia o boot nem depende
+    // de Metabase configurado (dado já está local em chapa_registry/leads_regiao).
+    backfillCepCache().catch(() => { /* silencioso */ });
+
     async function run() {
       const s = readSettings();
       const hasMetabaseCardId = !!s.metabaseTarefasCardId;
