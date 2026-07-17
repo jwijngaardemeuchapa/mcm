@@ -1,11 +1,38 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-17 (Sonnet 5)
-**Versão:** `1.0.17` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17) com asset **assinado corretamente** (Pendência #1 resolvida nesta sessão).
+**Data:** 2026-07-17 (tarde, Sonnet 5 / Opus 4.8)
+**Versão:** `1.0.20` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.20), assinado e verificado (latest.json + asset HTTP 200).
 **Branch:** main
-**Último commit:** `f289f90` (assinatura real do updater v1.0.17). Antes: `b844082` (MCM-98, remessa/indicados no Consultor).
+**Último commit:** `2e60c31` (latest.json v1.0.20).
 
 ---
+
+## Sessão 2026-07-17 tarde — aba Novos, fix Leads Região, Leo automático + fix crítico
+
+### O que foi entregue
+1. **Fix Leads Região não excluía chapas recém-cadastrados** (`c199849`) — `novoPhoneSet` (chapas_novos, sync diário) faltava no filtro de exclusão, que só olhava `basePhoneSet` (cadastro geral, sync 2x/semana). Alguém que virou chapa ontem podia continuar aparecendo como lead "nunca cadastrado" por até ~3 dias.
+2. **Nova aba "Novos" no BID** (`bfff73d`, MCM-110) — 1º passo de um pedido em 3 partes do usuário (Novos → Recomendados → disparo cruzado entre listas). ORGÂNICO/NOVO deixa de ser só um badge dentro de Disponíveis e vira categoria própria: lista `chapas_novos` por cidade, geocodificado por cidade (sem CEP nessa tabela), seleção em lote, disparo pelo mesmo bot BID de Disponíveis.
+3. **Sync automática diária do Leo** (`2f2b170`, MCM-111) — `leo_cache` (respostas de BID por telefone, base dos tiers alta/média/baixa) só atualizava por clique manual. Agora sincroniza 1x/dia no boot, mesmo padrão das outras syncs.
+4. **Fix crítico do parser do Leo** (`a2cf94e`) — usuário tentou configurar com a planilha real e recebeu "Coluna de número/telefone não encontrada" sempre. Causa: comparação de cabeçalho sem tirar acento (`"número".includes("numero")` é `false` em JS). Corrigido nos dois caminhos (Sheets e CSV) usando `normalize()`.
+5. **Release v1.0.20** publicado e verificado.
+
+### Análise "Recomendados" (ranking unificado) — mapeada, NÃO implementada
+Usuário pediu recomendação de especialista em operações pra cruzar resposta de BID+FUP com distância, ranqueando candidatos de 4 origens diferentes (cadastro geral, Novos, Leads Saac, Leads Região) numa lista só.
+
+**Achado importante:** BID (`leo_cache`) e FUP são assimétricos.
+- **BID**: `leo_cache` já é indexado por telefone, com limiares operacionais estabelecidos (`passa_75pct`=75%, tier média=pct_sim≥0.4, tier baixa=pct_sim<0.3 com amostra≥3). Reaproveitável direto.
+- **FUP**: não existe agregado persistido/indexado por telefone. O que existe (`ConfiabilidadeStats`, `src/lib/confiabilidade.ts`) mede presença/confirmação em tarefas JÁ ALOCADAS — pergunta diferente de "aceita oferta de BID". Calculado em memória (zero cache), identidade fuzzy (CPF→telefone→nome, não só telefone), janela de 15 dias.
+
+**Recomendação registrada (não implementada):**
+- **Fase 1** (mais barata, dado já pronto): ranking com tiers estendidos por origem — Ativado > Aprovado/Novos > Leads Saac > Leads Região — usando os MESMOS limiares de tier que já existem no BID hoje (`computeScore`, `leoTierFilter`). Dentro de cada tier, `leo_cache.pct_sim` desempata; sem histórico, distância desempata.
+- **Fase 2** (trabalho de engenharia real, não 1 linha): extrair a lógica de `ConfiabilidadeStats` pra uma função reutilizável indexada só por telefone (hoje só roda dentro do painel de FUP do Dashboard, sem cache), pra cruzar com o ranking de BID sem misturar métricas incompatíveis.
+- **Achado colateral, não corrigido:** o limiar de "não-responde" já está inconsistente em 3 lugares do código (0.2 em `computeScore`, 0.25 em `M4_classificacao.ts`, 0.3 no filtro/tier) — decisão de unificar fica pro usuário.
+
+**Próximo passo real:** implementar a aba "Recomendados" (Fase 1) + disparo cruzado entre listas. Usuário ainda vai testar a sync do Leo com a planilha real corrigida antes.
+
+---
+
+## Sessões anteriores (mais antigas)
 
 ## ✅ Pendência #1 RESOLVIDA nesta sessão (2026-07-17)
 
