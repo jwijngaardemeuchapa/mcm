@@ -1175,11 +1175,18 @@ function BidTaskCard({
     if (!matchesSearch(c)) return false;
     return true;
   });
+  // Antes: distance_km===null (CEP não geocodificado ainda/sem CEP) entrava
+  // direto em "dentro do raio" — o filtro de km não filtrava de verdade quem
+  // ainda não tinha coordenada. Agora vira um 3º grupo visível à parte
+  // ("distância desconhecida"), nunca contado como confirmado dentro do raio.
   const withinDist = hasCoords
-    ? available.filter((c) => c.distance_km === null || c.distance_km <= maxDistKm)
+    ? available.filter((c) => c.distance_km !== null && c.distance_km <= maxDistKm)
     : hasCepFilter
       ? available.filter((c) => !c.cep || c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : available;
+  const unknownDist = hasCoords
+    ? available.filter((c) => c.distance_km === null)
+    : [];
   const beyondDist = hasCoords
     ? available.filter((c) => c.distance_km !== null && c.distance_km > maxDistKm)
     : hasCepFilter
@@ -1190,16 +1197,17 @@ function BidTaskCard({
   // cair dentro da fatia de 40 já paginada, o que confunde quem está buscando.
   const showAllEffective = showAll || searchActive;
   const visibleCandidates = showAllEffective
-    ? (useProximityFilter ? [...withinDist, ...beyondDist] : available)
-    : (useProximityFilter ? withinDist.slice(0, 40) : available.slice(0, 40));
+    ? (useProximityFilter ? [...withinDist, ...unknownDist, ...beyondDist] : available)
+    : (useProximityFilter ? [...withinDist, ...unknownDist].slice(0, 40) : available.slice(0, 40));
 
   // Blocked visible — must be after hasCoords/hasCepFilter/cepPrefixFilter are defined
   const blockedWithinDist = hasCoords
-    ? blockedCandidates.filter((c) => c.distance_km === null || c.distance_km <= maxDistKm)
+    ? blockedCandidates.filter((c) => c.distance_km !== null && c.distance_km <= maxDistKm)
     : hasCepFilter
       ? blockedCandidates.filter((c) => !c.cep || c.cep.replace(/\D/g, "").startsWith(cepPrefixFilter!))
       : blockedCandidates;
-  const blockedVisible = blockedWithinDist.filter(matchesSearch);
+  const blockedUnknownDist = hasCoords ? blockedCandidates.filter((c) => c.distance_km === null) : [];
+  const blockedVisible = [...blockedWithinDist, ...blockedUnknownDist].filter(matchesSearch);
 
   // Status distintos presentes nos leads carregados — alimenta o filtro da aba Leads.
   const leadsBidStatuses = useMemo(() => {
@@ -1217,14 +1225,19 @@ function BidTaskCard({
   // ID ou escolha manual do operador, não fuzzy match). Sem isso, mantém a
   // lista por cidade/UF (texto) como estimativa — visível como tal na UI,
   // nunca escondida (perderia leads reais por falta de sync/cadastro).
+  // A matemática de distância não depende do vínculo por ID — já funciona
+  // com qualquer lat/lng resolvida (geocodificada). O ID/escolha manual
+  // (enderecoConfiavel) só reforça QUAL endereço é o certo quando a empresa
+  // tem vários locais; sem ele ainda usamos o endereço auto-selecionado
+  // (primeiro da lista), só marcado como confiança menor no badge.
   const leadsRegiaoComDist: (LeadRegiao & { distance_km: number | null })[] = rawLeadsRegiao.map((r) => {
     const coords = leadsRegiaoCoords.get(r.id);
-    const distance_km = (enderecoConfiavel && coords && dispatchParams.localLat !== null && dispatchParams.localLng !== null)
+    const distance_km = (coords && dispatchParams.localLat !== null && dispatchParams.localLng !== null)
       ? haversine(dispatchParams.localLat, dispatchParams.localLng, coords.lat, coords.lng)
       : null;
     return { ...r, distance_km };
   });
-  const leadsRegiaoAssertivo = enderecoConfiavel && dispatchParams.localLat !== null && dispatchParams.localLng !== null;
+  const leadsRegiaoAssertivo = dispatchParams.localLat !== null && dispatchParams.localLng !== null;
   const leadsRegiaoVisible = leadsRegiaoAssertivo
     ? leadsRegiaoComDist.filter((r) => r.distance_km !== null && r.distance_km <= maxDistKm)
     : leadsRegiaoComDist;
@@ -1734,17 +1747,20 @@ function BidTaskCard({
                     {available.length > 0 && (
                       <span className="font-normal normal-case">
                         {available.length} disponíveis
-                        {hasCoords ? ` · ${withinDist.length} em até ${maxDistKm} km` : hasCepFilter ? ` · ${withinDist.length} no CEP raiz` : ""}
+                        {hasCoords ? ` · ${withinDist.length} confirmados em até ${maxDistKm} km` : hasCepFilter ? ` · ${withinDist.length} no CEP raiz` : ""}
+                        {hasCoords && unknownDist.length > 0 && (
+                          <span className="text-warning/70"> · {unknownDist.length} distância desconhecida</span>
+                        )}
                         {hasCoords && beyondDist.length > 0 && !showAllEffective && (
                           <span className="text-muted-foreground/50"> · {beyondDist.length} além</span>
                         )}
                       </span>
                     )}
-                    {!searchActive && (useProximityFilter ? withinDist : available).length > 40 && (
+                    {!searchActive && (useProximityFilter ? [...withinDist, ...unknownDist] : available).length > 40 && (
                       <button type="button"
                         onClick={(e) => { e.stopPropagation(); setShowAll((v) => !v); }}
                         className="font-normal normal-case text-primary hover:underline">
-                        {showAll ? "mostrar menos" : `ver todos (${(useProximityFilter ? withinDist : available).length})`}
+                        {showAll ? "mostrar menos" : `ver todos (${(useProximityFilter ? [...withinDist, ...unknownDist] : available).length})`}
                       </button>
                     )}
                   </>
@@ -1760,13 +1776,17 @@ function BidTaskCard({
                       ? `${leadsRegiaoVisible.length} interessados na região, fora das outras listas`
                       : "Carregando leads regionais..."}
                     {leadsRegiaoLoaded && (
-                      leadsRegiaoAssertivo ? (
+                      !leadsRegiaoAssertivo ? (
+                        <span className="px-1 py-0 rounded text-[9px] font-bold bg-warning/15 text-warning normal-case tracking-normal">
+                          ESTIMATIVA POR CIDADE
+                        </span>
+                      ) : enderecoConfiavel ? (
                         <span className="px-1 py-0 rounded text-[9px] font-bold bg-success/15 text-success normal-case tracking-normal">
                           ENDEREÇO CONFIRMADO · até {maxDistKm} km
                         </span>
                       ) : (
-                        <span className="px-1 py-0 rounded text-[9px] font-bold bg-warning/15 text-warning normal-case tracking-normal">
-                          ESTIMATIVA POR CIDADE
+                        <span className="px-1 py-0 rounded text-[9px] font-bold bg-info/15 text-info normal-case tracking-normal">
+                          DISTÂNCIA POR CEP · até {maxDistKm} km
                         </span>
                       )
                     )}
@@ -1777,14 +1797,17 @@ function BidTaskCard({
                       <span className="font-normal normal-case text-destructive/70">
                         {blockedCandidates.length} bloqueados
                         {rawBlocked.length !== blockedCandidates.length ? ` de ${rawBlocked.length}` : " na cidade"}
-                        {hasCoords ? ` · ${blockedWithinDist.length} em até ${maxDistKm} km` : ""}
+                        {hasCoords ? ` · ${blockedWithinDist.length} confirmados em até ${maxDistKm} km` : ""}
+                        {hasCoords && blockedUnknownDist.length > 0 && (
+                          <span className="text-warning/70"> · {blockedUnknownDist.length} distância desconhecida</span>
+                        )}
                       </span>
                     )}
-                    {blockedWithinDist.length > 40 && (
+                    {blockedVisible.length > 40 && (
                       <button type="button"
                         onClick={(e) => { e.stopPropagation(); setShowAll((v) => !v); }}
                         className="font-normal normal-case text-primary hover:underline">
-                        {showAll ? "mostrar menos" : `ver todos (${blockedWithinDist.length})`}
+                        {showAll ? "mostrar menos" : `ver todos (${blockedVisible.length})`}
                       </button>
                     )}
                   </>
