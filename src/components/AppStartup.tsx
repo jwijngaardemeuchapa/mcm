@@ -8,6 +8,7 @@ import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { backfillCepCache } from "@/lib/geocode";
+import { devesSincronizarLeo, sincronizarLeoAuto } from "@/pages/AnaliseBase/modules/M_leo";
 import { buildPriorities, type PriorityItem, type Level, type LembreteAlertItem } from "@/components/PriorityPanel";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
@@ -218,6 +219,9 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const syncChapas15d = hasChapas15d && devesSincronizarChapas15d();
       const syncLeadsRegiao = hasLeadsRegiao && devesSincronizarLeadsRegiao();
       const syncRegistro = hasRegistro && devesSincronizarRegistro();
+      // Leo (respostas de BID via Google Sheets) — config própria em leo_config
+      // (planilha + service account), não em settings/Metabase. Gate diário.
+      const syncLeo = await devesSincronizarLeo().catch(() => false);
 
       // Tarefas a executar no boot, na ordem. Cada uma vira um step.
       const jobs: { label: string; run: () => Promise<unknown> }[] = [];
@@ -229,6 +233,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       if (syncLeadsRegiao) jobs.push({ label: "Sincronizando leads regionais", run: () => sincronizarLeadsRegiao(true) });
       if (syncRegistro) jobs.push({ label: "Sincronizando cadastro", run: () => sincronizarRegistro(true) });
       if (hasSaac) jobs.push({ label: "Sincronizando leads", run: () => sincronizarLeadsSaac(true) });
+      if (syncLeo) jobs.push({ label: "Sincronizando respostas BID (Leo)", run: () => sincronizarLeoAuto() });
 
       // Nada a sincronizar: pula direto pro app (decisão de produto).
       if (jobs.length === 0) { onDone(); return; }

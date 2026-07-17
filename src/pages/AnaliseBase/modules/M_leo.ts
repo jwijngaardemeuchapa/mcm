@@ -1,6 +1,7 @@
 import { SignJWT, importPKCS8 } from "jose"
 import Papa from "papaparse"
 import { getDb } from "@/lib/db"
+import { fmtSP, todayDateISO_SP } from "@/lib/datetime"
 import type { LeoMetrics } from "../types"
 
 type ServiceAccount = {
@@ -152,6 +153,31 @@ export async function syncLeo(spreadsheetId: string, serviceAccountJson: string)
   }
 
   return entries.length
+}
+
+// ── Sync automático (gate diário no boot) ─────────────────────────────────
+
+/**
+ * Sincroniza o leo_cache a partir do Google Sheets configurado, SEM interação.
+ * Retorna a contagem de registros, ou null se não configurado (não é erro —
+ * simplesmente não há planilha pra puxar). Reaproveita syncLeo/getLeoConfig.
+ */
+export async function sincronizarLeoAuto(): Promise<number | null> {
+  const { spreadsheetId, serviceAccountJson } = await getLeoConfig()
+  if (!spreadsheetId || !serviceAccountJson) return null
+  return await syncLeo(spreadsheetId, serviceAccountJson)
+}
+
+/**
+ * Gate diário: só sincroniza se estiver configurado E a última sync não foi
+ * hoje (fuso SP). O timestamp de referência é leo_cache.atualizado_em — mesma
+ * fonte que a UI mostra como "última sync", então bate com o que o usuário vê.
+ */
+export async function devesSincronizarLeo(): Promise<boolean> {
+  const { spreadsheetId, serviceAccountJson, lastSync } = await getLeoConfig()
+  if (!spreadsheetId || !serviceAccountJson) return false
+  if (!lastSync) return true
+  return fmtSP(lastSync, "yyyy-MM-dd") !== todayDateISO_SP()
 }
 
 // ── Direct CSV import ("Respostas BID.csv" format) ───────────────────────
