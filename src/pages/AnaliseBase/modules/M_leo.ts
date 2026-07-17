@@ -2,6 +2,7 @@ import { SignJWT, importPKCS8 } from "jose"
 import Papa from "papaparse"
 import { getDb } from "@/lib/db"
 import { fmtSP, todayDateISO_SP } from "@/lib/datetime"
+import { normalize } from "@/lib/normalize"
 import type { LeoMetrics } from "../types"
 
 type ServiceAccount = {
@@ -99,7 +100,11 @@ export async function syncLeo(spreadsheetId: string, serviceAccountJson: string)
   const rows: string[][] = data.values ?? []
   if (rows.length < 2) return 0
 
-  const headers = rows[0].map((h) => h.toLowerCase().trim())
+  // normalize() tira acento (NFD + strip de marcas) — sem isso "Número" (com
+  // acento, cabeçalho real visto em produção) nunca batia com o termo de
+  // busca "numero" (sem acento) e o sync falhava com "coluna não encontrada"
+  // mesmo com a planilha 100% correta.
+  const headers = rows[0].map((h) => normalize(h).trim())
 
   const findCol = (...names: string[]) => {
     for (const n of names) {
@@ -210,7 +215,9 @@ function parseBidRow(row: Record<string, string>, cols: {
 function detectBidCols(headers: string[]): {
   iNumero: number; iOfertas: number; iSim: number; iPct: number; iAprovado: number
 } {
-  const h = headers.map((s) => s.toLowerCase().trim())
+  // normalize() (mesmo helper usado no sync via Sheets acima) tira acento —
+  // "número"/"numero" batem os dois, sem depender de listar as duas grafias.
+  const h = headers.map((s) => normalize(s).trim())
   const find = (...kw: string[]) => {
     for (const k of kw) {
       const i = h.findIndex((s) => s.includes(k))
@@ -220,7 +227,7 @@ function detectBidCols(headers: string[]): {
   }
 
   return {
-    iNumero: find("número", "numero", "telefone", "whatsapp", "fone"),
+    iNumero: find("numero", "telefone", "whatsapp", "fone"),
     // "total de vezes que o número aparece" — must NOT include "sim"
     iOfertas: (() => {
       for (let i = 0; i < h.length; i++) {
