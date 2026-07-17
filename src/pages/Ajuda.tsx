@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.18</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.19</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,8 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.18 — Novidades desta versão:</strong>{" "}
-              <strong>BID — endereço da tarefa por ID</strong>: local da tarefa passa a ser preenchido pelo vínculo exato com o Metabase (quando disponível), não só por nome de empresa parecido.{" "}
+              <strong>v1.0.19 — Novidades desta versão:</strong>{" "}
+              <strong>BID — endereço da tarefa 100% automático</strong>: local da tarefa preenche sozinho pelo vínculo exato com o Metabase — sem opção de trocar manualmente, direto do sync.{" "}
+              <strong>BID — cruzamento de endereço corrigido</strong>: um mesmo endereço pode ter vários IDs diferentes na origem (até milhares, num caso real) — agora todos são reconhecidos, não só o último sincronizado.{" "}
               <strong>BID — Leads Região com distância real</strong>: mostra km de verdade em vez de só cidade/UF, com selo indicando o quão confiável é o endereço usado.{" "}
               <strong>BID — botão Captação</strong>: dispara template de captação direto pra leads regionais, com o primeiro nome preenchido automaticamente.{" "}
               <strong>BID — filtro de km corrigido</strong>: candidatos sem coordenada confirmada não entram mais escondidos na lista "dentro do raio" — agora aparecem separados como "distância desconhecida".{" "}
@@ -1009,7 +1010,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.18 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.19 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1044,7 +1045,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.18 · © 2026 Wijngaarde Design
+        MCM v1.0.19 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
