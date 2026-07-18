@@ -53,6 +53,21 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
 
 // ── Config persistence ────────────────────────────────────────────────────
 
+// Credencial de fábrica embutida no build (VITE_LEO_* em .env, gitignored — nunca vai pro
+// git). Seeda leo_config na 1ª execução em máquinas novas, pra não exigir configurar a
+// Service Account manualmente em cada instalação. Config já salva no banco sempre vence.
+async function seedLeoConfigFromEnv(map: Map<string, string>): Promise<void> {
+  if (map.has("spreadsheet_id") || map.has("service_account_json")) return
+  const envSpreadsheetId = import.meta.env.VITE_LEO_SPREADSHEET_ID as string | undefined
+  const envServiceAccountJson = import.meta.env.VITE_LEO_SERVICE_ACCOUNT_JSON as string | undefined
+  if (!envSpreadsheetId || !envServiceAccountJson) return
+
+  await saveLeoConfig("spreadsheet_id", envSpreadsheetId)
+  await saveLeoConfig("service_account_json", envServiceAccountJson)
+  map.set("spreadsheet_id", envSpreadsheetId)
+  map.set("service_account_json", envServiceAccountJson)
+}
+
 export async function getLeoConfig(): Promise<{
   spreadsheetId: string | null
   serviceAccountJson: string | null
@@ -64,6 +79,7 @@ export async function getLeoConfig(): Promise<{
     "SELECT chave, valor FROM leo_config",
   )
   const map = new Map(rows.map((r) => [r.chave, r.valor]))
+  await seedLeoConfigFromEnv(map)
 
   const [countRow] = await db.select<{ n: number }[]>("SELECT COUNT(*) as n FROM leo_cache")
   const [lastRow] = await db.select<{ atualizado_em: string }[]>(
