@@ -1,40 +1,32 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-07-18 (Sonnet 5)
-**Versão:** `1.0.21` publicada no GitHub (release + tag `v1.0.21`), **SEM assinatura** — build feito nesta máquina, que não tem a `tauri_update_key`.
+**Versão:** `1.0.21` publicada e **ASSINADA** — pendência do topo anterior resolvida nesta sessão.
 **Branch:** main
-**Último commit:** `b0414ab` (bump 1.0.21) — merge da sessão de hoje com a sessão "tarde" de 07-17 já integrado (`43a11fd`).
+**Último commit:** `506f758` (latest.json v1.0.21 assinado).
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.21 (fazer nesta máquina se ela tiver a `tauri_update_key`)
+## ✅ Pendência anterior RESOLVIDA nesta sessão — v1.0.21 assinada
 
-Runbook idêntico ao já executado com sucesso pra v1.0.17 (ver seção "Pendência #1 RESOLVIDA" mais abaixo — reusar aquele passo-a-passo). Resumo direto pra hoje:
+Runbook padrão executado nesta máquina (tem `tauri_update_key`): `npm run tauri build` (~9min) → `tauri signer sign --private-key-path tauri_update_key --password ""` (via Bash, não PowerShell) → `gh release upload v1.0.21 <exe> <sig> --clobber` → `latest.json` atualizado (`version:1.0.21`, nova assinatura, `pub_date` de hoje) → commit `506f758` + push. Verificado ao vivo: `raw.githubusercontent.com/.../latest.json` → 200; asset do release → 302 (redirect normal pra CDN).
 
-1. `cd` até o repo `mcm`, `git pull origin main` (a tag `v1.0.21` já está lá, release já publicada sem assinatura).
-2. Confirmar que `tauri_update_key` existe (`C:\Users\W Design\task-flow-hub\tauri_update_key` era o caminho na última vez).
-3. `npm run tauri build` (gera + assina automaticamente se a chave estiver configurada no ambiente/`tauri.conf.json` — conferir `TAURI_SIGNING_PRIVATE_KEY` env var, mesmo esquema de antes).
-4. Isso produz `MCM_1.0.21_x64-setup.exe` + `MCM_1.0.21_x64-setup.exe.sig`.
-5. `gh release upload v1.0.21 src-tauri/target/release/bundle/nsis/MCM_1.0.21_x64-setup.exe --clobber` (substitui o .exe não-assinado já publicado por este).
-6. `gh release upload v1.0.21 src-tauri/target/release/bundle/nsis/MCM_1.0.21_x64-setup.exe.sig`.
-7. Atualizar `latest.json` na raiz do repo (mesma estrutura de sempre — ver histórico do arquivo):
-   ```json
-   {
-     "version": "1.0.21",
-     "notes": "Ver página de Ajuda para novidades.",
-     "pub_date": "<data ISO de hoje>",
-     "platforms": {
-       "windows-x86_64": {
-         "signature": "<conteúdo do .sig gerado no passo 3/4>",
-         "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.21/MCM_1.0.21_x64-setup.exe"
-       }
-     }
-   }
-   ```
-   Commit + push desse `latest.json` direto na `main` (é isso que o updater do app lê).
-8. Verificar: `curl -I https://raw.githubusercontent.com/jwijngaardemeuchapa/mcm/main/latest.json` → 200, e o asset assinado no release → download funcional.
+## ⚠️ NOVO — incidente de segurança encontrado e parcialmente corrigido: `.env` estava rastreado no git público
 
-Sem isso, quem já tem o app instalado **não recebe a notificação de update automático** — só quem baixar manualmente o instalador da release vai estar em 1.0.21.
+Durante a implementação da credencial do Leo (ver seção abaixo), descobri que `.env` estava **commitado no repo desde antes da regra existir no `.gitignore`** — `.gitignore` só vale para arquivos não rastreados, então isso nunca teve efeito sobre ele. Como o repo `mcm` é público desde a sessão anterior, isso expôs publicamente (confirmado lendo `origin/main:.env` via `git cat-file`):
+- `JIRA_TOKEN` — **credencial real e ainda válida**, exposta publicamente.
+- Chaves Firebase/Supabase — **sem risco real** (documentado em `PROJECT_RULES.md §J10`: Firebase `apiKey` não é secreta por design; Supabase é a chave `anon`/publishable, protegida por RLS).
+
+**Corrigido:** `git rm --cached .env` + commit `f519313` + push — `.env` não é mais rastreado a partir de agora, futuros segredos locais ficam de fora.
+**NÃO corrigido, decisão explícita do usuário ("deixar pra depois"):** o `JIRA_TOKEN` antigo continua válido e continua recuperável no histórico do git (untrack não apaga histórico). **Ação pendente do usuário:** revogar esse token em Atlassian (Perfil → Segurança → Tokens de API) e gerar um novo — sem isso, qualquer um que baixe o histórico do repo público tem acesso de verdade à conta Jira. Considerar também se vale reescrever o histórico (`git filter-repo`) depois da rotação, já que o blob antigo continua alcançável por hash mesmo sem estar no HEAD.
+
+## ✅ Credencial do Leo (Google Sheets) resolvida — auto-seed via `.env` local
+
+Usuário trouxe o JSON da Service Account (`book-meuchapa`, `mcm-leo-reader@...iam.gserviceaccount.com`) + a URL da planilha (`1BAEsx5sVmPogJtEPNmw-ZZHIL4sW3MvjY12lNH27b34`). Implementado (commit `f519313`):
+- `.env` local (nesta máquina, gitignored e agora de fato não-rastreado) ganhou `VITE_LEO_SPREADSHEET_ID` e `VITE_LEO_SERVICE_ACCOUNT_JSON` — **nunca vai pro git**, só entra no bundle compilado via `import.meta.env` no momento do build.
+- `getLeoConfig()` (`M_leo.ts`) ganhou `seedLeoConfigFromEnv()`: se `leo_config` está vazio no banco local, semeia a partir das env vars de build e persiste — config já salva manualmente sempre vence, nunca sobrescreve.
+- **Efeito prático:** o instalador que sair do PRÓXIMO build feito nesta máquina (com o `.env` acima) já vem com a sincronização do Leo funcionando de fábrica em qualquer máquina nova, sem precisar configurar Service Account por analista. **O build de hoje (v1.0.21) foi feito ANTES dessa mudança** — não tem a credencial embutida ainda. Só o próximo release vai carregar isso.
+- **Se outra máquina for gerar um release no futuro**, ela precisa do MESMO `.env` (ou pelo menos essas 2 variáveis) pra manter esse auto-seed — senão builds de outras máquinas saem sem a credencial embutida e cada uma delas exige configuração manual de novo.
 
 ---
 

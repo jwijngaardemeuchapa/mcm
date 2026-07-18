@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-07-18 — MCM — v1.0.21 assinada + incidente `.env` público corrigido + credencial Leo auto-seed
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits:** `f519313` (untrack .env + auto-seed Leo), `506f758` (latest.json v1.0.21 assinado)
+
+### v1.0.21 assinada (pendência do handoff resolvida)
+Máquina com `tauri_update_key` disponível. Rebuild (~9min) + `tauri signer sign` + `gh release upload --clobber` (exe+sig) + `latest.json` atualizado. Verificado: `raw.githubusercontent.com/.../latest.json` → 200, asset → 302/download ok.
+
+### ⚠️ Incidente de segurança encontrado: `.env` rastreado no git público
+Ao implementar a credencial do Leo, descoberto que `.env` estava commitado desde antes da regra existir no `.gitignore` (que só afeta arquivos não-rastreados) — com o repo `mcm` público, isso expunha `JIRA_TOKEN` (credencial real) publicamente. Firebase/Supabase no mesmo arquivo não são risco real (documentado, não-secretos por design). **Corrigido:** `git rm --cached .env` — arquivo sai do rastreamento sem apagar o local. **Não corrigido:** rotação do `JIRA_TOKEN` — usuário decidiu explicitamente deixar para depois; token antigo segue válido e recuperável no histórico do git até ser revogado no Atlassian.
+
+### Credencial do Leo (Google Sheets) — solução de distribuição sem instalação manual por máquina
+Usuário pediu forma de não precisar configurar Service Account em cada máquina de analista ("seria um pouco insalubre"). Trouxe o JSON real da Service Account (`book-meuchapa`) + URL da planilha. Implementado: `.env` local (agora de fato não-rastreado) ganha `VITE_LEO_SPREADSHEET_ID`/`VITE_LEO_SERVICE_ACCOUNT_JSON`; `getLeoConfig()` em `M_leo.ts` ganha `seedLeoConfigFromEnv()` — semeia `leo_config` a partir das env vars de build só se o banco local estiver vazio (config manual sempre vence). Credencial passa a ser embutida no binário no momento do build, nunca no git. **v1.0.21 foi buildada ANTES dessa mudança** — só o próximo release sai com isso. Qualquer máquina que gerar release no futuro precisa do mesmo `.env` pra manter o auto-seed.
+
+### Validação
+`npm run typecheck`: baseline 13 erros pré-existentes mantida, zero novos.
+
+**Files changed:** `.env` (untracked), `src/pages/AnaliseBase/modules/M_leo.ts`, `latest.json`
+**Next:** usuário decidir quando rotacionar `JIRA_TOKEN`; próximo build/release já sai com a credencial do Leo embutida — nenhuma ação de código pendente.
+
+---
+
 ## 2026-07-18 — MCM — Release v1.0.21 publicada (sem assinatura)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Commits:** `b0414ab` (bump 1.0.21) | **Tag/Release:** `v1.0.21`
