@@ -181,8 +181,9 @@ function ChapaItem({
     }
     const taskDateStr = chapa.dataTarefa.slice(0, 10);
     const isD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.fupBotD1Id && umblerSettings.fupBotD1TriggerName);
+    let chatId: string | null = null;
     try {
-      await startUmblerBot({
+      const res = await startUmblerBot({
         chapaTelefone: chapa.telefone,
         settings: umblerSettings,
         initialData: {
@@ -192,6 +193,7 @@ function ChapaItem({
         botIdOverride: isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId,
         triggerNameOverride: isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName,
       });
+      chatId = res.chatId;
     } catch (e) {
       toast.error(`Falha ao enviar FUP: ${errMsg(e)}`);
       return;
@@ -199,13 +201,14 @@ function ChapaItem({
     try {
       const db = await getDb();
       const now = new Date().toISOString();
+      try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
       await db.execute(
         "UPDATE chapas SET canal_contato = ?, data_contato = ? WHERE id = ?",
         ["umbler_talk", now, chapa.id],
       );
       await db.execute(
-        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao) VALUES (?, (SELECT id_tarefa FROM chapas WHERE id = ?), ?, ?, ?)",
-        [uuid(), chapa.id, "umbler_talk", now, "Disparado via alerta de proximidade"],
+        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, (SELECT id_tarefa FROM chapas WHERE id = ?), ?, ?, ?, ?, ?)",
+        [uuid(), chapa.id, "umbler_talk", now, "Disparado via alerta de proximidade", chapa.id, chatId],
       );
     } catch { /* mensagem já enviada */ }
     toast.success(`FUP enviado para ${chapa.nome}`);
@@ -214,8 +217,9 @@ function ChapaItem({
 
   async function fireUmblerCancel() {
     if (!hasPhone) { toast.error("Chapa sem número cadastrado"); return; }
+    let chatId: string | null = null;
     try {
-      await sendUmblerFup({
+      const res = await sendUmblerFup({
         chapaNome: chapa.nome,
         chapaTelefone: chapa.telefone,
         dataTarefa: chapa.dataTarefa,
@@ -224,15 +228,17 @@ function ChapaItem({
         templateIdOverride: umblerSettings.cancelTemplateId,
         overrideParams: [],
       });
+      chatId = res.chatId;
     } catch (e) {
       toast.error(`Falha ao enviar sem-resposta: ${errMsg(e)}`);
       return;
     }
     try {
       const db = await getDb();
+      try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
       await db.execute(
-        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao) VALUES (?, (SELECT id_tarefa FROM chapas WHERE id = ?), ?, ?, ?)",
-        [uuid(), chapa.id, "umbler_cancelamento", new Date().toISOString(), `Sem resposta — ${chapa.nome}`],
+        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, (SELECT id_tarefa FROM chapas WHERE id = ?), ?, ?, ?, ?, ?)",
+        [uuid(), chapa.id, "umbler_cancelamento", new Date().toISOString(), `Sem resposta — ${chapa.nome}`, chapa.id, chatId],
       );
       localStorage.setItem(`umbler_cancel_${chapa.id}`, "1");
     } catch { /* noop */ }

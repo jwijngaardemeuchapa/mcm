@@ -675,8 +675,9 @@ class DispatchQueue {
     }
     const taskDateStr = fmtSP(task.data_tarefa, "yyyy-MM-dd");
     const isD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.fupBotD1Id && umblerSettings.fupBotD1TriggerName);
+    let chatId: string | null = null;
     try {
-      await startUmblerBot({
+      const res = await startUmblerBot({
         chapaTelefone: chapa.telefone_chapa!,
         settings: umblerSettings,
         initialData: {
@@ -686,6 +687,7 @@ class DispatchQueue {
         botIdOverride: isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId,
         triggerNameOverride: isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName,
       });
+      chatId = res.chatId;
     } catch (e) {
       toast.error(humanizarErroUmbler(e));
       this.chapaJobStates.delete(chapaId);
@@ -696,10 +698,11 @@ class DispatchQueue {
     try {
       const db = await getDb();
       const now = new Date().toISOString();
+      try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
       await db.execute("UPDATE chapas SET canal_contato = ?, data_contato = ? WHERE id = ?", ["umbler_talk", now, chapaId]);
       await db.execute(
-        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id) VALUES (?, ?, ?, ?, ?, ?)",
-        [uuid(), task.id_tarefa, "umbler_talk", now, "Disparado via API", chapaId],
+        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [uuid(), task.id_tarefa, "umbler_talk", now, "Disparado via API", chapaId, chatId],
       );
     } catch { /* noop — message already sent */ }
     toast.success(`Mensagem enviada para ${chapa.nome_chapa}`);
@@ -710,8 +713,9 @@ class DispatchQueue {
 
   private async _executeChapaCancel(chapaId: string, chapa: ChapaSnap, task: TaskSnap) {
     const { umblerSettings } = readSettings();
+    let chatId: string | null = null;
     try {
-      await sendUmblerFup({
+      const res = await sendUmblerFup({
         chapaNome: chapa.nome_chapa!,
         chapaTelefone: chapa.telefone_chapa!,
         dataTarefa: task.data_tarefa,
@@ -720,6 +724,7 @@ class DispatchQueue {
         templateIdOverride: umblerSettings.cancelTemplateId,
         overrideParams: [],
       });
+      chatId = res.chatId;
     } catch (e) {
       toast.error(`Falha ao enviar cancelamento: ${String(e)}`);
       this.chapaJobStates.delete(chapaId);
@@ -729,9 +734,10 @@ class DispatchQueue {
     }
     try {
       const db = await getDb();
+      try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
       await db.execute(
-        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id) VALUES (?, ?, ?, ?, ?, ?)",
-        [uuid(), task.id_tarefa, "umbler_cancelamento", new Date().toISOString(), `Sem resposta — ${chapa.nome_chapa}`, chapaId],
+        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [uuid(), task.id_tarefa, "umbler_cancelamento", new Date().toISOString(), `Sem resposta — ${chapa.nome_chapa}`, chapaId, chatId],
       );
     } catch { /* noop */ }
     try { localStorage.setItem(`umbler_cancel_${chapaId}`, "1"); } catch { /* noop */ }
@@ -874,7 +880,7 @@ class BidDispatchQueue {
       const candidate = candidates[i];
 
       try {
-        await startUmblerBot({
+        const { chatId } = await startUmblerBot({
           chapaTelefone: candidate.telefone,
           settings: umblerSettings,
           initialData: {
@@ -895,9 +901,13 @@ class BidDispatchQueue {
           diaria: job.params.diaria,
         });
         const db = await getDb();
+        // Não depender da ordem de carregamento com o boot do BIDDashboard —
+        // garante as colunas aqui também (idempotente, mesmo banco compartilhado).
+        try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN diaria TEXT"); } catch { /* exists */ }
+        try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
         await db.execute(
-          "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status) VALUES (?,?,?,?,?,?,?,?,?)",
-          [id, candidate.nome, candidate.telefone, taskId, job.empresa, job.dataTarefa, paramsJson, now, "aguardando"],
+          "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          [id, candidate.nome, candidate.telefone, taskId, job.empresa, job.dataTarefa, paramsJson, now, "aguardando", job.params.diaria, chatId],
         );
         const record: BidDispatchRecord = {
           id, id_tarefa: taskId, chapa_nome: candidate.nome, chapa_telefone: candidate.telefone,

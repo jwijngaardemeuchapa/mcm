@@ -74,6 +74,7 @@ import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
 import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
+import { umblerChatLink } from "@/lib/umbler";
 import { Checkbox } from "@/components/ui/checkbox";
 
 function formatCpf(cpf: string): string {
@@ -127,7 +128,7 @@ export type TaskWithChapas = {
     validacao_presenca?: string | null;
     data_validacao?: string | null;
   }>;
-  fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null; chapa_id?: string | null }>;
+  fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null; chapa_id?: string | null; umbler_chat_id?: string | null }>;
   urgent: boolean;
   continuingFromYesterday?: boolean;
 };
@@ -1138,6 +1139,14 @@ Precisamos de 1 substituto para esta tarefa.`;
                     )}
                     <span className="text-muted-foreground">{fmtDateTime(f.data_disparo)}</span>
                     {f.observacao && <span className="text-muted-foreground italic">— {f.observacao}</span>}
+                    {f.umbler_chat_id && (
+                      <a href={umblerChatLink(f.umbler_chat_id) ?? "#"} target="_blank" rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-primary hover:underline flex items-center gap-0.5 shrink-0"
+                        title="Abrir a conversa deste disparo no Umbler Talk">
+                        <ExternalLink className="h-2.5 w-2.5" /> Conversa
+                      </a>
+                    )}
                   </div>
                 );
               })}
