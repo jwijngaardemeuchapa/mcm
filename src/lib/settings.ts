@@ -11,6 +11,7 @@ export type UmblerSettings = {
   templateId: string;
   cancelTemplateId: string;
   taskCancelTemplateId: string;
+  captacaoTemplateId: string;
   fupBotId: string;
   fupBotTriggerName: string;
   fupBotD1Id: string;
@@ -51,6 +52,7 @@ export type AppSettings = {
   metabaseTarefas30hCardId?: number;
   metabaseCarteiraCardId?: number;
   metabaseEnderecosCardId?: number;
+  metabaseTarefaEnderecosCardId?: number;
   metabaseChapas15dCardId?: number;
   metabaseLeadsRegiaoCardId?: number;
   metabaseRegistroCardId: number;
@@ -74,7 +76,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
   agendaSortBy: "prazo",
-  umblerSettings: { bearerToken: "", fromPhone: "+55109997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988 },
+  umblerSettings: { bearerToken: "", fromPhone: "+55109997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "agd7fmoTaSCc75vA", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988 },
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,
@@ -113,6 +115,7 @@ export function readSettings(): AppSettings {
           organizationId: merged.organizationId || d.organizationId,
           cancelTemplateId: merged.cancelTemplateId || d.cancelTemplateId,
           taskCancelTemplateId: merged.taskCancelTemplateId || d.taskCancelTemplateId,
+          captacaoTemplateId: merged.captacaoTemplateId || d.captacaoTemplateId,
         };
       })(),
     };

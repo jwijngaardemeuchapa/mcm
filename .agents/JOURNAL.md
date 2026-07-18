@@ -3,6 +3,59 @@
 
 ---
 
+## 2026-07-17 (tarde) — MCM — Aba Novos + fix Leads Região + Leo automático + fix crítico do parser — v1.0.20
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5 / Opus 4.8)
+**Tickets:** MCM-110 ✅, MCM-111 ✅, MCM-112 ✅ (release)
+**Commits:** `c199849`, `bfff73d`, `2f2b170`, `a2cf94e`, `176b26d`, `2e60c31`
+
+### Contexto: gap identificado pelo usuário — "Novos/Orgânicos" sem categoria própria
+Depois do release v1.0.19, usuário perguntou se Leads Região já excluía quem está no cadastro geral E nos leads Saac — sim, confirmado no código (`basePhoneSet`/`leadsSaacPhoneSet`). Mas ao perguntar sobre os "chapas recentes de cadastro" (MCM-97, `chapas_novos`), achamos uma lacuna real: a exclusão de Leads Região nunca checava `novoPhoneSet` — como o cadastro geral só sincroniza 2x/semana mas `chapas_novos` sincroniza todo dia, alguém que virou chapa ontem podia continuar aparecendo como lead "nunca cadastrado" por até ~3 dias. **Fix aplicado** (commit `c199849`): `novoPhoneSet` somado ao filtro de exclusão.
+
+### MCM-110 — Nova aba "Novos" no BID
+Usuário pediu 3 coisas numa análise maior (categoria Novos → aba Recomendados → disparo cruzado entre listas — só a primeira foi entregue nesta sessão). Antes, ORGÂNICO/NOVO era só um badge dentro de "Disponíveis". Agora é aba própria (`candidateView` ganha `"novos"`), lendo `chapas_novos` filtrado por cidade/UF, geocodificado por cidade (tabela não tem CEP), com badge NOVO (veio de lead Saac antes) vs ORGÂNICO (nunca foi lead Saac), seleção em lote e disparo pelo mesmo motor de bot BID de Disponíveis (são chapas cadastrados de verdade, não leads).
+
+### Análise de "Recomendados" (ranking unificado) — não implementado ainda, mas mapeado
+Usuário pediu recomendação como "especialista em operações" pra ranquear candidatos de origens heterogêneas cruzando resposta de BID e FUP com distância. Investigação encontrou uma assimetria real:
+- **BID (`leo_cache`)**: existe, indexado por telefone, com `pct_sim`/`passa_75pct`/`total_ofertas`/`repete`, limiares já estabelecidos no código (75%/40%/30% com amostra mínima). Mas só sincronizava manualmente.
+- **FUP**: não existe agregado persistido e indexado por telefone — o que existe (`ConfiabilidadeStats` em `src/lib/confiabilidade.ts`) mede presença/confirmação em tarefas JÁ alocadas (pergunta diferente de "aceita oferta"), calculado em memória, sem cache, identidade fuzzy (CPF→telefone→nome).
+**Recomendação registrada:** Fase 1 = ranking com tiers estendidos (Ativado > Aprovado/Novos > Leads Saac > Leads Região) + leo_cache como desempate + distância; Fase 2 = cruzar FUP depois de extrair `ConfiabilidadeStats` pra função reutilizável indexada por telefone (trabalho de engenharia genuíno, não cruzamento de uma linha). Aba "Recomendados" e "disparo cruzado" ficam para uma próxima sessão.
+
+### MCM-111 — Sync automática diária do Leo (pré-requisito pra Fase 1 acima)
+`leo_cache` só atualizava com clique manual — dado podia envelhecer sem ninguém notar, o que inviabilizaria confiar nele como sinal de ranking. Adicionado `devesSincronizarLeo()` (gate diário, reusa `leo_cache.atualizado_em`) + `sincronizarLeoAuto()` (wrapper do `syncLeo` já existente) + boot job em `AppStartup.tsx`, mesmo padrão das outras syncs diárias. Nota adicionada na UI de config avisando da automação.
+
+### Fix crítico: sync do Leo falhava sempre com cabeçalho acentuado
+Usuário tentou configurar a sync (planilha real com coluna **"Número"**, acentuada) e recebeu "Coluna de número/telefone não encontrada" mesmo com tudo certo. Causa: `syncLeo()` comparava cabeçalhos só com `.toLowerCase()` (sem tirar acento), buscando o termo `"numero"` sem acento — `"número".includes("numero")` é `false` em JS. O caminho de CSV já tinha um fallback parcial (listava as duas grafias), o caminho de planilha (o usado pelo usuário) não tinha nenhum. **Fix:** os dois caminhos passam a normalizar cabeçalhos com `normalize()` (mesmo helper de acento usado no resto do app), em vez de listar manualmente cada variação.
+
+**Files changed:** `src/pages/BIDDashboard.tsx`, `src/pages/AnaliseBase/modules/M_leo.ts`, `src/components/AppStartup.tsx`, `src/pages/AnaliseBase/screens/Configuracoes.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`.
+**Next:** aba "Recomendados" (ranking unificado, Fase 1 já desenhada) + disparo cruzado entre listas — usuário ainda vai testar a sync do Leo com a planilha real corrigida antes de prosseguir.
+
+---
+
+## 2026-07-17 — MCM — Fechamento de pendências: MCM-91 (não reproduz), MCM-98 (Consultor), updater assinado — v1.0.17
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-91 (fechado, sem código), MCM-98 ✅
+**Commits:** `b844082` (MCM-98), `f289f90` (assinatura updater)
+
+Usuário revisou o backlog de pendências e decidiu o destino de cada uma:
+
+**MCM-91** (dropdown Umbler preso) — fechado sem alterar código. Usuário confirma que digitando o Trigger Name correto no Umbler o disparo funciona; o bug do `<Select>` continua existindo tecnicamente mas deixou de ser prioridade.
+
+**MCM-95** (spike extensão Chrome) — adiado explicitamente, sem mudança.
+
+**MCM-98** (remessa/indicados) — implementado com abordagem mais leve que a originalmente cogitada no ticket. Em vez de nova coluna em `chapa_registry` + integração no BID, reaproveitou o mecanismo de upload de CSV do Consultor (mesmo do MCM-99), já que `Obs` e `Shipping` vêm da mesma `WorkHeader`. `src/utils/consultorFields.ts` ganhou `F.remessa`; `descMap` em `Consultor.tsx` passou a guardar `{descricao, remessa}` por ID; `classifyIndicado()` aplica a heurística do guia de schema (`Shipping` exato "INDICADO" → confirmado, contém "indicado" → possível); busca e popover cobrem os dois campos.
+
+**Updater (Pendência #1 do handoff)** — resolvida de ponta a ponta:
+- `gh` CLI instalado nesta máquina via `winget` (não estava presente).
+- Autenticação `gh auth login --web` falhou 3x com "token in keyring is invalid" — Windows Credential Manager com resíduo corrompido de tentativas anteriores. Resolvido limpando `%APPDATA%\GitHub CLI` e usando `--insecure-storage` (token em arquivo em vez do keyring do SO).
+- Build limpo `npm run tauri build` (~13min), assinado com `tauri_update_key`, asset substituído no release v1.0.17 via `gh release upload --clobber`.
+- **Achado real:** `latest.json` na main ainda apontava pra `1.0.16` — o release v1.0.17 tinha sido publicado pela sessão anterior mas o `latest.json` nunca foi atualizado junto (dois passos manuais separados, só um foi feito). Corrigido junto com a nova assinatura.
+- Verificado ao vivo: `raw.githubusercontent.com/.../latest.json` → 200; asset do release → 302 (redirect normal pra CDN, download ok).
+
+**Files changed:** `src/utils/consultorFields.ts`, `src/pages/Consultor.tsx`, `latest.json`.
+**Next:** nenhuma pendência ativa de updater. Resta a Pendência #2 (colisão de versionamento de migration mcm/mcm-v2, decisão do usuário) e MCM-95 (adiado).
+
+---
+
 ## 2026-07-16 — MCM — Bloco 4: reabertura de confirmação esquecida (MCM-103) — roteiro de 7 frentes FECHADO
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-103 ✅

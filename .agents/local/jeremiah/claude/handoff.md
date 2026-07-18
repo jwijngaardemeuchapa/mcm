@@ -1,41 +1,51 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-16 (Sonnet 5)
-**Versão:** `1.0.17` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.17), asset **sem assinatura** (ver Pendência #1).
+**Data:** 2026-07-17 (tarde, Sonnet 5 / Opus 4.8)
+**Versão:** `1.0.20` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.20), assinado e verificado (latest.json + asset HTTP 200).
 **Branch:** main
-**Último commit:** `2bdfcee` (MCM-103, Bloco 4) — depois disso só Lead Protocol. **Roteiro de 7 frentes ENCERRADO** (Blocos 1a→2→3→4 todos feitos).
+**Último commit:** `2e60c31` (latest.json v1.0.20).
 
 ---
 
-## ⚠️ LEIA PRIMEIRO — 2 pendências ativas (roteiro de 7 frentes encerrado)
+## Sessão 2026-07-17 tarde — aba Novos, fix Leads Região, Leo automático + fix crítico
 
-### Pendência #1 — asset sem assinatura válida (única pendência do updater)
-Repo já é público, MCM-94 já no build publicado. **Runbook pronto pra rodar na máquina que tem `tauri_update_key`** (`C:\Users\W Design\task-flow-hub\tauri_update_key`) — não precisa reanalisar nada, só executar em sequência:
+### O que foi entregue
+1. **Fix Leads Região não excluía chapas recém-cadastrados** (`c199849`) — `novoPhoneSet` (chapas_novos, sync diário) faltava no filtro de exclusão, que só olhava `basePhoneSet` (cadastro geral, sync 2x/semana). Alguém que virou chapa ontem podia continuar aparecendo como lead "nunca cadastrado" por até ~3 dias.
+2. **Nova aba "Novos" no BID** (`bfff73d`, MCM-110) — 1º passo de um pedido em 3 partes do usuário (Novos → Recomendados → disparo cruzado entre listas). ORGÂNICO/NOVO deixa de ser só um badge dentro de Disponíveis e vira categoria própria: lista `chapas_novos` por cidade, geocodificado por cidade (sem CEP nessa tabela), seleção em lote, disparo pelo mesmo bot BID de Disponíveis.
+3. **Sync automática diária do Leo** (`2f2b170`, MCM-111) — `leo_cache` (respostas de BID por telefone, base dos tiers alta/média/baixa) só atualizava por clique manual. Agora sincroniza 1x/dia no boot, mesmo padrão das outras syncs.
+4. **Fix crítico do parser do Leo** (`a2cf94e`) — usuário tentou configurar com a planilha real e recebeu "Coluna de número/telefone não encontrada" sempre. Causa: comparação de cabeçalho sem tirar acento (`"número".includes("numero")` é `false` em JS). Corrigido nos dois caminhos (Sheets e CSV) usando `normalize()`.
+5. **Release v1.0.20** publicado e verificado.
 
-```bash
-# 1. Garantir que está na main atualizada (inclui até o Bloco 4, commit 7806240)
-git checkout main && git pull origin main
+### Análise "Recomendados" (ranking unificado) — mapeada, NÃO implementada
+Usuário pediu recomendação de especialista em operações pra cruzar resposta de BID+FUP com distância, ranqueando candidatos de 4 origens diferentes (cadastro geral, Novos, Leads Saac, Leads Região) numa lista só.
 
-# 2. Build (gera o instalador em src-tauri/target/release/bundle/nsis/)
-npm install   # se node_modules não existir/estiver desatualizado
-npm run tauri build
+**Achado importante:** BID (`leo_cache`) e FUP são assimétricos.
+- **BID**: `leo_cache` já é indexado por telefone, com limiares operacionais estabelecidos (`passa_75pct`=75%, tier média=pct_sim≥0.4, tier baixa=pct_sim<0.3 com amostra≥3). Reaproveitável direto.
+- **FUP**: não existe agregado persistido/indexado por telefone. O que existe (`ConfiabilidadeStats`, `src/lib/confiabilidade.ts`) mede presença/confirmação em tarefas JÁ ALOCADAS — pergunta diferente de "aceita oferta de BID". Calculado em memória (zero cache), identidade fuzzy (CPF→telefone→nome, não só telefone), janela de 15 dias.
 
-# 3. Assinar o .exe gerado (senha vazia, mesmo padrão de sempre)
-npm run tauri -- signer sign --private-key-path "C:\Users\W Design\task-flow-hub\tauri_update_key" --password '""' src-tauri/target/release/bundle/nsis/MCM_1.0.17_x64-setup.exe
-# gera um arquivo .sig ao lado do .exe — abrir e copiar o conteúdo (é a assinatura base64)
+**Recomendação registrada (não implementada):**
+- **Fase 1** (mais barata, dado já pronto): ranking com tiers estendidos por origem — Ativado > Aprovado/Novos > Leads Saac > Leads Região — usando os MESMOS limiares de tier que já existem no BID hoje (`computeScore`, `leoTierFilter`). Dentro de cada tier, `leo_cache.pct_sim` desempata; sem histórico, distância desempata.
+- **Fase 2** (trabalho de engenharia real, não 1 linha): extrair a lógica de `ConfiabilidadeStats` pra uma função reutilizável indexada só por telefone (hoje só roda dentro do painel de FUP do Dashboard, sem cache), pra cruzar com o ranking de BID sem misturar métricas incompatíveis.
+- **Achado colateral, não corrigido:** o limiar de "não-responde" já está inconsistente em 3 lugares do código (0.2 em `computeScore`, 0.25 em `M4_classificacao.ts`, 0.3 no filtro/tier) — decisão de unificar fica pro usuário.
 
-# 4. Substituir o asset do release já publicado (mantém a mesma tag v1.0.17)
-gh release upload v1.0.17 src-tauri/target/release/bundle/nsis/MCM_1.0.17_x64-setup.exe --clobber
+**Próximo passo real:** implementar a aba "Recomendados" (Fase 1) + disparo cruzado entre listas. Usuário ainda vai testar a sync do Leo com a planilha real corrigida antes.
 
-# 5. Atualizar latest.json com a assinatura do passo 3 (campo "signature"),
-#    conferir que "version" está "1.0.17" e a "url" aponta pro asset certo,
-#    depois commit + push:
-git add latest.json
-git commit -m "chore: assinatura real do updater para v1.0.17"
-git push origin main
-```
+---
 
-Depois disso, o auto-update volta a funcionar pra qualquer instalação existente do MCM. Se `gh` não estiver autenticado nessa máquina: `gh auth login --web`.
+## Sessões anteriores (mais antigas)
+
+## ✅ Pendência #1 RESOLVIDA nesta sessão (2026-07-17)
+
+Runbook executado do início ao fim nesta máquina (tem `tauri_update_key`):
+1. `gh` CLI não estava instalado → instalado via `winget install --id GitHub.cli`.
+2. Autenticação `gh auth login --web` falhou 3x com "token in keyring is invalid" (Windows Credential Manager corrompido por tentativas anteriores) — resolvido limpando `%APPDATA%\GitHub CLI` e reautenticando com `--insecure-storage` (grava em arquivo, não no keyring do SO).
+3. `npm run tauri build` — build limpo, ~13min (vite 44s + cargo release).
+4. Assinado com `tauri_update_key` → `.sig` gerado.
+5. `gh release upload v1.0.17 <exe> --clobber` + upload do `.sig`.
+6. **Achado:** `latest.json` ainda apontava pra `1.0.16` — nunca tinha sido atualizado quando o outro PC publicou o release v1.0.17 (o publish do release e o bump do `latest.json` são passos separados, e só o release foi feito). Corrigido: `version: "1.0.17"`, `url` apontando pro asset certo, `signature` do `.sig` gerado agora.
+7. **Verificado ao vivo:** `curl -I https://raw.githubusercontent.com/jwijngaardemeuchapa/mcm/main/latest.json` → 200; asset do release → 302 (redirect normal do GitHub pra CDN, download funcional).
+
+**Auto-update está funcional agora.** `gh` fica autenticado nesta máquina (`--insecure-storage`, token em arquivo `%APPDATA%\GitHub CLI\hosts.yml`) — releases futuros não precisam repetir o login.
 
 ### Pendência #2 — colisão de versionamento de migration entre mcm e mcm-v2 (sem correção)
 `mcm` e `mcm-v2` compartilham o MESMO banco físico, mas cada repo numera suas migrations Rust independentemente. Achado real: v1 `version:15` = `activity_log` (colunas `descricao/chapa_nome/empresa/timestamp`); mcm-v2 `version:16` = `activity_log` (colunas DIFERENTES `mensagem/created_at`). Mesma tabela, schemas incompatíveis — quem rodar primeiro numa máquina "vence", o outro app fica com uma tabela que não bate com seu código. **Antes de adicionar QUALQUER migration nova em qualquer um dos dois repos, rodar `grep "version: " src-tauri/src/lib.rs` no OUTRO repo primeiro** (v1 em `version:20`, mcm-v2 em `18` na última checagem — reconferir sempre). Registrado em LESSONS.md. **Decisão pendente do usuário:** reconciliar o `activity_log` já colidido.
@@ -50,6 +60,22 @@ Todos os 8 tickets do roteiro (MCM-93/94/96/97/99/100/101/102/103) estão fechad
 
 ### Refinamento opcional registrado, não crítico
 MCM-97 (chapas 15d) usa só `CreateDate`; schema real revelou sinal melhor de "orgânico" via `UserLog.LogType='Add' AND UserId=LoggedUserId`, não capturado hoje — considerar se o usuário quiser refinar a question depois.
+
+---
+
+## Sessão 2026-07-17 — MCM-91 fechado, MCM-98 implementado, updater resolvido
+
+Usuário revisou as pendências antigas remanescentes e decidiu:
+
+- **MCM-91** (dropdown Umbler preso no rótulo antigo) → **fechado sem código**. Usuário reporta que digitando o Trigger Name exatamente como configurado no Umbler, o disparo funciona normalmente — o bug do `<Select>` tecnicamente ainda existe em `Integracoes.tsx`, mas não é mais prioridade.
+- **MCM-95** (spike extensão Chrome) → adiado, "retomar posteriormente". Sem mudança de status.
+- **MCM-98** (remessa/indicados) → **implementado, commit `b844082`**. Em vez da integração pesada originalmente cogitada no ticket (nova coluna em `chapa_registry` + expor no matchesSearch do BID), o usuário optou por reaproveitar o mecanismo de anexo de CSV do Consultor já construído pro MCM-99 — já que `Obs` (descrição) e `Shipping` (remessa) vêm da mesma tabela `WorkHeader`, a MESMA question/CSV cobre os dois campos.
+  - `src/utils/consultorFields.ts`: `F.remessa` (lê `Remessa`/`Shipping`).
+  - `src/pages/Consultor.tsx`: `descMap` passou de `Map<string,string>` pra `Map<string,{descricao,remessa}>`; `classifyIndicado()` aplica a heurística já documentada no guia de schema (`Shipping` trim/upper === "INDICADO" → confirmado; contains "indicado" → possível). Busca casa contra os dois campos; popover mostra Descrição e Remessa separadas com badge/dot de indicado.
+  - **Se o usuário quiser voltar a incluir `Remessa` na SQL da Query 1 (descrições)**, adicionar `wh."Shipping" AS "Remessa"` no SELECT — mesma tabela, sem JOIN extra.
+- **Updater** → runbook executado, Pendência #1 resolvida (ver topo do arquivo).
+
+Todos os itens levantados na pergunta "veja as pendências e roteiros do prompt anterior que ainda são válidas" foram endereçados nesta sessão.
 
 ---
 

@@ -131,7 +131,7 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
     const now = new Date().toISOString();
 
     // Agrupa as linhas (1 por endereço distinto) por nome de empresa bruto da origem.
-    const porEmpresa = new Map<string, { cep: string; logradouro: string; numero: string; bairro: string; cidade: string; uf: string }[]>();
+    const porEmpresa = new Map<string, { cep: string; logradouro: string; numero: string; bairro: string; cidade: string; uf: string; metabaseId: string }[]>();
     for (const row of rows) {
       const k = Object.keys(row);
       const g = (pat: RegExp) => k.find((c) => pat.test(c));
@@ -145,6 +145,13 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
         bairro: str(g(/bairro/i)),
         cidade: str(g(/^cidade$/i)),
         uf: str(g(/^uf$/i)),
+        // ID do endereço no Metabase (Address.Id) — permite vincular tarefa->
+        // endereço com exatidão via sincronizarTarefaEnderecos, em vez de só
+        // texto (cep/logradouro/numero), que pode variar de grafia na fonte.
+        // Normalizado pra só-dígitos: o Metabase exporta esse ID formatado
+        // com separador de milhar (ex.: "402,569"), igual ao já visto em
+        // "ID Tarefa" no Consultor — sem isso a comparação de string nunca bate.
+        metabaseId: str(g(/^id ?endere[cç]o$/i)).replace(/\D/g, ""),
       };
       if (!addr.cep) continue;
       const list = porEmpresa.get(empresa) ?? [];
@@ -164,20 +171,36 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
         id: string; label: string; endereco: string; maps_link: string;
         lat: number | null; lng: number | null; cep: string | null;
         logradouro?: string; numero?: string; bairro?: string; cidade?: string; uf?: string; principal?: boolean;
+        metabase_address_ids?: string[];
       }[] = match?.enderecos ? JSON.parse(match.enderecos) : [];
       const chaveDedup = (a: { cep?: string | null; logradouro?: string; numero?: string }) =>
         `${normalize(a.cep ?? "")}|${normalize(a.logradouro ?? "")}|${normalize(a.numero ?? "")}`;
-      const jaExistentes = new Set(atuais.map(chaveDedup));
+      const porChave = new Map(atuais.map((a) => [chaveDedup(a), a]));
+      // Um mesmo endereço FÍSICO pode ter dezenas de Address.Id distintos na
+      // origem (~8 em média, até 13 mil num caso extremo real — o Metabase
+      // não deduplica endereço por tarefa). Guardar só o último ID visto
+      // fazia o cruzamento por ID falhar na maioria das tarefas. Acumula
+      // TODOS os IDs vistos por endereço num Set (evita custo O(n²) de
+      // checar duplicata num array a cada nova linha).
+      const idSets = new Map<string, Set<string>>(
+        atuais.map((a) => [chaveDedup(a), new Set(a.metabase_address_ids ?? [])]),
+      );
 
       let mudou = false;
       for (const a of enderecosOrigem) {
         const chave = chaveDedup(a);
-        if (jaExistentes.has(chave)) continue;
-        jaExistentes.add(chave);
+        const existente = porChave.get(chave);
+        if (existente) {
+          if (a.metabaseId) {
+            const set = idSets.get(chave) ?? new Set<string>();
+            if (!set.has(a.metabaseId)) { set.add(a.metabaseId); idSets.set(chave, set); mudou = true; }
+          }
+          continue;
+        }
         const linha1 = [a.logradouro, a.numero].filter(Boolean).join(", ");
         const enderecoTxt = [linha1, a.bairro, a.cidade && a.uf ? `${a.cidade} - ${a.uf}` : (a.cidade || a.uf)]
           .filter(Boolean).join(", ");
-        atuais.push({
+        const novo = {
           id: uuid(),
           label: "",
           endereco: enderecoTxt,
@@ -191,11 +214,18 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
           cidade: a.cidade || undefined,
           uf: a.uf || undefined,
           principal: atuais.length === 0,
-        });
+        };
+        atuais.push(novo);
+        porChave.set(chave, novo);
+        idSets.set(chave, new Set(a.metabaseId ? [a.metabaseId] : []));
         enderecosNovos++;
         mudou = true;
       }
       if (!mudou) continue;
+      for (const a of atuais) {
+        const set = idSets.get(chaveDedup(a));
+        if (set && set.size > 0) a.metabase_address_ids = [...set];
+      }
       empresasAtualizadas++;
       const enderecosJson = JSON.stringify(atuais);
       if (match) {
@@ -213,6 +243,80 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
     return true;
   } catch {
     if (!silent) toast.error("Erro ao sincronizar endereços");
+    return false;
+  }
+}
+
+/**
+ * Vínculo tarefa -> endereço por ID: sincroniza uma Question do Metabase que
+ * traz só (ID Tarefa, ID Endereço) — WorkHeader.ID + WorkHeader.IdTaskAddress.
+ * Grava em tabela própria `tarefa_enderecos`. O BID cruza `id_tarefa` aqui
+ * contra a LISTA `metabase_address_ids` gravada em cada item de
+ * `cliente_book.enderecos` (por `sincronizarEnderecos`) para resolver o
+ * endereço EXATO da tarefa, sem depender do match fuzzy por nome de empresa
+ * — um mesmo endereço físico tem vários Address.Id na origem (o Metabase não
+ * deduplica por tarefa), então a lista pode ter dezenas/milhares de IDs.
+ * DELETE+INSERT total: tabela pequena (2 colunas), sem histórico a preservar.
+ *
+ * Sem gate de frequência própria (ao contrário de chapas15d/leadsRegiao) —
+ * roda todo boot junto com a sync principal de tarefas (AppStartup), porque
+ * a Question em si já é filtrada pra hoje+30h (mesma janela da question de
+ * "tarefas próximas 30h"), então o dataset sempre é pequeno.
+ */
+export async function sincronizarTarefaEnderecos(silent = false): Promise<boolean> {
+  const s = readSettings();
+  const cardId = s.metabaseTarefaEnderecosCardId;
+  if (!cardId) {
+    if (!silent) toast.error("Configure o ID da pergunta de Tarefa→Endereço em Integrações");
+    return false;
+  }
+  try {
+    const status = await invoke<{ configured: boolean }>("metabase_status");
+    if (!status.configured) {
+      if (!silent) toast.error("Metabase não configurado em Integrações");
+      return false;
+    }
+    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    const parsed: [number, string][] = [];
+    for (const row of rows) {
+      const k = Object.keys(row);
+      const g = (pat: RegExp) => k.find((c) => pat.test(c));
+      const idTarefaKey = g(/^id ?tarefa$/i);
+      const idEnderecoKey = g(/^id ?endere[cç]o$/i);
+      const idTarefa = idTarefaKey ? parseInt(String(row[idTarefaKey] ?? "").replace(/\D/g, ""), 10) : NaN;
+      // Normalizado pra só-dígitos — o Metabase exporta com separador de
+      // milhar (ex.: "402,569"); precisa bater exatamente com o mesmo
+      // normalizeMetabase de sincronizarEnderecos pra o cruzamento funcionar.
+      const idEndereco = idEnderecoKey ? String(row[idEnderecoKey] ?? "").replace(/\D/g, "") : "";
+      if (!idTarefa || !idEndereco) continue;
+      parsed.push([idTarefa, idEndereco]);
+    }
+
+    await db.execute("DELETE FROM tarefa_enderecos");
+    const CHUNK = 50;
+    let count = 0;
+    for (let i = 0; i < parsed.length; i += CHUNK) {
+      const chunk = parsed.slice(i, i + CHUNK);
+      const ph = Array(chunk.length).fill("(?,?,?)").join(",");
+      try {
+        await db.execute(
+          `INSERT INTO tarefa_enderecos (id_tarefa,metabase_address_id,importado_em) VALUES ${ph}`,
+          chunk.flatMap(([idTarefa, idEndereco]) => [idTarefa, idEndereco, now]),
+        );
+        count += chunk.length;
+      } catch (e) {
+        console.error("Falha ao inserir chunk de tarefa_enderecos", e);
+      }
+    }
+
+    localStorage.setItem("tarefa_enderecos_last_sync", now);
+    if (!silent) toast.success(`Vínculos tarefa→endereço sincronizados — ${count}`);
+    return true;
+  } catch {
+    if (!silent) toast.error("Erro ao sincronizar vínculos tarefa→endereço");
     return false;
   }
 }

@@ -1,6 +1,8 @@
 import { SignJWT, importPKCS8 } from "jose"
 import Papa from "papaparse"
 import { getDb } from "@/lib/db"
+import { fmtSP, todayDateISO_SP } from "@/lib/datetime"
+import { normalize } from "@/lib/normalize"
 import type { LeoMetrics } from "../types"
 
 type ServiceAccount = {
@@ -98,7 +100,11 @@ export async function syncLeo(spreadsheetId: string, serviceAccountJson: string)
   const rows: string[][] = data.values ?? []
   if (rows.length < 2) return 0
 
-  const headers = rows[0].map((h) => h.toLowerCase().trim())
+  // normalize() tira acento (NFD + strip de marcas) — sem isso "Número" (com
+  // acento, cabeçalho real visto em produção) nunca batia com o termo de
+  // busca "numero" (sem acento) e o sync falhava com "coluna não encontrada"
+  // mesmo com a planilha 100% correta.
+  const headers = rows[0].map((h) => normalize(h).trim())
 
   const findCol = (...names: string[]) => {
     for (const n of names) {
@@ -154,6 +160,31 @@ export async function syncLeo(spreadsheetId: string, serviceAccountJson: string)
   return entries.length
 }
 
+// ── Sync automático (gate diário no boot) ─────────────────────────────────
+
+/**
+ * Sincroniza o leo_cache a partir do Google Sheets configurado, SEM interação.
+ * Retorna a contagem de registros, ou null se não configurado (não é erro —
+ * simplesmente não há planilha pra puxar). Reaproveita syncLeo/getLeoConfig.
+ */
+export async function sincronizarLeoAuto(): Promise<number | null> {
+  const { spreadsheetId, serviceAccountJson } = await getLeoConfig()
+  if (!spreadsheetId || !serviceAccountJson) return null
+  return await syncLeo(spreadsheetId, serviceAccountJson)
+}
+
+/**
+ * Gate diário: só sincroniza se estiver configurado E a última sync não foi
+ * hoje (fuso SP). O timestamp de referência é leo_cache.atualizado_em — mesma
+ * fonte que a UI mostra como "última sync", então bate com o que o usuário vê.
+ */
+export async function devesSincronizarLeo(): Promise<boolean> {
+  const { spreadsheetId, serviceAccountJson, lastSync } = await getLeoConfig()
+  if (!spreadsheetId || !serviceAccountJson) return false
+  if (!lastSync) return true
+  return fmtSP(lastSync, "yyyy-MM-dd") !== todayDateISO_SP()
+}
+
 // ── Direct CSV import ("Respostas BID.csv" format) ───────────────────────
 
 function parseBidRow(row: Record<string, string>, cols: {
@@ -184,7 +215,9 @@ function parseBidRow(row: Record<string, string>, cols: {
 function detectBidCols(headers: string[]): {
   iNumero: number; iOfertas: number; iSim: number; iPct: number; iAprovado: number
 } {
-  const h = headers.map((s) => s.toLowerCase().trim())
+  // normalize() (mesmo helper usado no sync via Sheets acima) tira acento —
+  // "número"/"numero" batem os dois, sem depender de listar as duas grafias.
+  const h = headers.map((s) => normalize(s).trim())
   const find = (...kw: string[]) => {
     for (const k of kw) {
       const i = h.findIndex((s) => s.includes(k))
@@ -194,7 +227,7 @@ function detectBidCols(headers: string[]): {
   }
 
   return {
-    iNumero: find("número", "numero", "telefone", "whatsapp", "fone"),
+    iNumero: find("numero", "telefone", "whatsapp", "fone"),
     // "total de vezes que o número aparece" — must NOT include "sim"
     iOfertas: (() => {
       for (let i = 0; i < h.length; i++) {

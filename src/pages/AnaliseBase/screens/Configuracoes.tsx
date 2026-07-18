@@ -480,6 +480,9 @@ export function Configuracoes({ config, snapshots, onConfigChange, onSnapshotsCh
               </span>
             )}
           </div>
+          <p className="text-[10px] text-success/80 leading-relaxed">
+            ✓ Sincroniza automaticamente 1x por dia ao abrir o app (quando planilha e credencial estão configuradas). O botão acima força uma atualização imediata.
+          </p>
 
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             Crie um Service Account no Google Cloud Console, compartilhe a planilha com o e-mail do Service Account (leitor), e baixe o JSON de chave privada. A planilha deve ter cabeçalhos com colunas de número (telefone/WhatsApp), ofertas e aceites.

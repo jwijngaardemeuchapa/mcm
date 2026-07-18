@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Sunset, CheckCircle2, ArrowRight, Bell, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import { invoke } from "@tauri-apps/api/core";
-import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
+import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
 import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
+import { backfillCepCache } from "@/lib/geocode";
+import { devesSincronizarLeo, sincronizarLeoAuto } from "@/pages/AnaliseBase/modules/M_leo";
 import { buildPriorities, type PriorityItem, type Level, type LembreteAlertItem } from "@/components/PriorityPanel";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
@@ -179,11 +181,18 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
   const autoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // Backfill proativo de coordenadas (fila em background, nunca disputa
+    // com geocode em primeiro plano — ver enqueue()/backfillCepCache em
+    // src/lib/geocode.ts). Fire-and-forget: não bloqueia o boot nem depende
+    // de Metabase configurado (dado já está local em chapa_registry/leads_regiao).
+    backfillCepCache().catch(() => { /* silencioso */ });
+
     async function run() {
       const s = readSettings();
       const hasMetabaseCardId = !!s.metabaseTarefasCardId;
       const hasCarteiraCardId = !!s.metabaseCarteiraCardId;
       const hasEnderecosCardId = !!s.metabaseEnderecosCardId;
+      const hasTarefaEnderecosCardId = !!s.metabaseTarefaEnderecosCardId;
       const hasChapas15dCardId = !!s.metabaseChapas15dCardId;
       const hasLeadsRegiaoCardId = !!s.metabaseLeadsRegiaoCardId;
 
@@ -196,25 +205,35 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasMetabase = hasMetabaseCardId && metabaseConfigured;
       const hasCarteira = hasCarteiraCardId && metabaseConfigured;
       const hasEnderecos = hasEnderecosCardId && metabaseConfigured;
+      const hasTarefaEnderecos = hasTarefaEnderecosCardId && metabaseConfigured;
       const hasChapas15d = hasChapas15dCardId && metabaseConfigured;
       const hasLeadsRegiao = hasLeadsRegiaoCardId && metabaseConfigured;
       const hasRegistro = !!s.metabaseRegistroCardId && metabaseConfigured;
       const hasSaac = !!s.saacApiUrl && !!s.saacApiKey;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
       const syncEnderecos = hasEnderecos && devesSincronizarEnderecos();
+      // Sem gate diário — acompanha o mesmo ciclo da sync de tarefas (todo
+      // boot), não um horário fixo. Faz sentido porque a question em si já
+      // é filtrada pra hoje+30h (ver Integrações): dataset sempre pequeno.
+      const syncTarefaEnderecos = hasTarefaEnderecos;
       const syncChapas15d = hasChapas15d && devesSincronizarChapas15d();
       const syncLeadsRegiao = hasLeadsRegiao && devesSincronizarLeadsRegiao();
       const syncRegistro = hasRegistro && devesSincronizarRegistro();
+      // Leo (respostas de BID via Google Sheets) — config própria em leo_config
+      // (planilha + service account), não em settings/Metabase. Gate diário.
+      const syncLeo = await devesSincronizarLeo().catch(() => false);
 
       // Tarefas a executar no boot, na ordem. Cada uma vira um step.
       const jobs: { label: string; run: () => Promise<unknown> }[] = [];
       if (hasMetabase) jobs.push({ label: "Sincronizando tarefas", run: () => sincronizarMetabase(true) });
       if (syncCarteira) jobs.push({ label: "Sincronizando carteira", run: () => sincronizarCarteira(true) });
       if (syncEnderecos) jobs.push({ label: "Sincronizando endereços", run: () => sincronizarEnderecos(true) });
+      if (syncTarefaEnderecos) jobs.push({ label: "Sincronizando vínculos tarefa→endereço", run: () => sincronizarTarefaEnderecos(true) });
       if (syncChapas15d) jobs.push({ label: "Sincronizando chapas recentes", run: () => sincronizarChapas15d(true) });
       if (syncLeadsRegiao) jobs.push({ label: "Sincronizando leads regionais", run: () => sincronizarLeadsRegiao(true) });
       if (syncRegistro) jobs.push({ label: "Sincronizando cadastro", run: () => sincronizarRegistro(true) });
       if (hasSaac) jobs.push({ label: "Sincronizando leads", run: () => sincronizarLeadsSaac(true) });
+      if (syncLeo) jobs.push({ label: "Sincronizando respostas BID (Leo)", run: () => sincronizarLeoAuto() });
 
       // Nada a sincronizar: pula direto pro app (decisão de produto).
       if (jobs.length === 0) { onDone(); return; }

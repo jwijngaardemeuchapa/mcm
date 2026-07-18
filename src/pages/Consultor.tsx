@@ -33,6 +33,16 @@ import { F, norm, type WorkerRow, type FilterResult } from "@/utils/consultorFie
 import { fmtDate, parseDate, parseNLDate } from "@/utils/consultorDate";
 import { MODES } from "@/utils/consultorRouter";
 
+type DescEntry = { descricao: string; remessa: string };
+
+function classifyIndicado(remessa: string): "confirmado" | "possivel" | null {
+  const t = remessa.trim().toUpperCase();
+  if (!t) return null;
+  if (t === "INDICADO") return "confirmado";
+  if (t.includes("INDICADO")) return "possivel";
+  return null;
+}
+
 function highlightText(text: string, term: string) {
   if (!term.trim()) return text;
   const n = norm(text);
@@ -159,7 +169,7 @@ export default function Consultor() {
   const [aiLoading, setAiLoading] = useState(false);
   const [tokens, setTokens] = useState(0);
 
-  const [descMap, setDescMap] = useState<Map<string, string>>(new Map());
+  const [descMap, setDescMap] = useState<Map<string, DescEntry>>(new Map());
   const [descTerm, setDescTerm] = useState("");
   const [descSearchTerm, setDescSearchTerm] = useState("");
   const descInputRef = useRef<HTMLInputElement>(null);
@@ -220,14 +230,15 @@ export default function Consultor() {
       skipEmptyLines: true,
       dynamicTyping: false,
       complete: (res) => {
-        const map = new Map<string, string>();
+        const map = new Map<string, DescEntry>();
         for (const row of res.data) {
           const id = normId(row["ID Tarefa"] ?? row["ID"] ?? row["id_tarefa"]);
-          const desc = F.descricao(row);
-          if (id && desc) map.set(id, desc);
+          const descricao = F.descricao(row);
+          const remessa = F.remessa(row);
+          if (id && (descricao || remessa)) map.set(id, { descricao, remessa });
         }
         setDescMap(map);
-        toast.success(`${map.size} descrições carregadas`);
+        toast.success(`${map.size} descrições/remessas carregadas`);
       },
       error: (err) => toast.error(err.message),
     });
@@ -286,23 +297,24 @@ export default function Consultor() {
       return;
     }
     if (descMap.size === 0) {
-      toast.info("Anexe primeiro o CSV de descrições.");
+      toast.info("Anexe primeiro o CSV de descrições/remessa.");
       return;
     }
     const digits = raw.replace(/\D/g, "");
     const n = norm(raw);
+    const matches = (text: string) =>
+      (digits.length >= 8 && text.replace(/\D/g, "").includes(digits)) || norm(text).includes(n);
     const rows: WorkerRow[] = [];
     // Percorre TODAS as descrições, não só as tarefas já carregadas no CSV
     // principal — se a tarefa não estiver em `data`, monta uma linha mínima
     // (só o ID, clicável) pra não perder o resultado.
-    descMap.forEach((desc, id) => {
-      const isMatch = (digits.length >= 8 && desc.replace(/\D/g, "").includes(digits)) || norm(desc).includes(n);
-      if (!isMatch) return;
+    descMap.forEach(({ descricao, remessa }, id) => {
+      if (!matches(descricao) && !matches(remessa)) return;
       const existing = dataById.get(id);
       rows.push(existing ?? { "ID Tarefa": id });
     });
     setDescSearchTerm(raw);
-    setResult({ data: rows, label: `Descrição: "${raw}"`, zeroMsg: `Nenhuma descrição contém "${raw}".` });
+    setResult({ data: rows, label: `Descrição/Remessa: "${raw}"`, zeroMsg: `Nada em descrição/remessa contém "${raw}".` });
     setPage(1);
   }
 
@@ -442,7 +454,7 @@ export default function Consultor() {
             className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-primary transition-colors"
           >
             <Paperclip className="h-3 w-3" />
-            {descMap.size > 0 ? `${descMap.size} descrições anexadas` : "Anexar descrições (CSV)"}
+            {descMap.size > 0 ? `${descMap.size} descrições/remessas anexadas` : "Anexar descrições/remessa (CSV)"}
           </button>
           <input
             ref={descInputRef}
@@ -475,7 +487,7 @@ export default function Consultor() {
               ))}
               <div className="space-y-1.5">
                 <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  Buscar em descrições
+                  Buscar em descrições/remessa
                 </div>
                 <Input
                   placeholder="Telefone ou nome"
@@ -495,7 +507,7 @@ export default function Consultor() {
                   Buscar
                 </Button>
                 {descMap.size === 0 && (
-                  <p className="text-[10px] text-muted-foreground">Anexe o CSV de descrições acima para habilitar.</p>
+                  <p className="text-[10px] text-muted-foreground">Anexe o CSV de descrições/remessa acima para habilitar.</p>
                 )}
               </div>
               <div>
@@ -686,25 +698,53 @@ export default function Consultor() {
                 <TableBody>
                   {paged.map((r, i) => {
                     const desc = descMap.size > 0 ? descMap.get(normId(F.id(r))) : undefined;
+                    const indicado = desc ? classifyIndicado(desc.remessa) : null;
                     return (
                     <TableRow key={i}>
                       {descMap.size > 0 && (
                         <TableCell className="p-1">
                           {desc && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <button
-                                  type="button"
-                                  title="Ver descrição da tarefa"
-                                  className="text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                  <FileText className="h-3.5 w-3.5" />
-                                </button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-96 max-h-72 overflow-y-auto text-xs whitespace-pre-wrap leading-relaxed">
-                                {highlightText(desc, descSearchTerm)}
-                              </PopoverContent>
-                            </Popover>
+                            <div className="flex items-center gap-1">
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button
+                                    type="button"
+                                    title="Ver descrição/remessa da tarefa"
+                                    className="text-muted-foreground hover:text-primary transition-colors"
+                                  >
+                                    <FileText className="h-3.5 w-3.5" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-96 max-h-72 overflow-y-auto text-xs leading-relaxed space-y-3">
+                                  {desc.descricao && (
+                                    <div>
+                                      <div className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Descrição</div>
+                                      <div className="whitespace-pre-wrap">{highlightText(desc.descricao, descSearchTerm)}</div>
+                                    </div>
+                                  )}
+                                  {desc.remessa && (
+                                    <div>
+                                      <div className="font-semibold text-[10px] uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-1.5">
+                                        Remessa
+                                        {indicado === "confirmado" && (
+                                          <span className="px-1 py-0 rounded text-[9px] font-bold bg-success/15 text-success normal-case tracking-normal">Indicado</span>
+                                        )}
+                                        {indicado === "possivel" && (
+                                          <span className="px-1 py-0 rounded text-[9px] font-bold bg-warning/15 text-warning normal-case tracking-normal">Possível indicado</span>
+                                        )}
+                                      </div>
+                                      <div className="whitespace-pre-wrap">{highlightText(desc.remessa, descSearchTerm)}</div>
+                                    </div>
+                                  )}
+                                </PopoverContent>
+                              </Popover>
+                              {indicado === "confirmado" && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-success" title="Indicado" />
+                              )}
+                              {indicado === "possivel" && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-warning" title="Possível indicado" />
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       )}
