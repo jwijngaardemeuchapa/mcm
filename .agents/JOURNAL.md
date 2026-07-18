@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-07-17 — MCM — Link direto pra conversa no Umbler (BID + FUP) — MCM-114 + merge com sessão paralela
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-114 ✅
+**Commits:** `c2c1590` (BID), `0651116` (FUP), `43a11fd` (merge)
+
+### Pedido do usuário
+Usuário trouxe `umbler_talk_schema.md` (schema extraído de outro projeto próprio, saacaptacao) documentando que a API do Umbler retorna `chat.id` na resposta dos endpoints de disparo. Pediu um botão pra ir direto pra conversa no painel do Umbler a partir de onde os disparos de BID/FUP aparecem.
+
+### Descoberta
+`umbler.ts` já fazia o POST correto pros 3 endpoints (template/start-bot/free-text), mas **nunca lia o corpo da resposta** — `sendUmblerFup()`/`startUmblerBot()` eram `Promise<void>`. `chat.id` sempre esteve disponível, só descartado.
+
+### Implementação
+`umbler.ts`: `extractChatId()` (parse defensivo, nunca lança) + `umblerChatLink(chatId)` → `https://app-utalk.umbler.com/chats/{chatId}`. Mudança de assinatura NÃO-quebrante (`Promise<void>` → `Promise<{chatId}>`; callers que só faziam `await` sem usar retorno continuam válidos).
+
+**BID** (3 pontos de disparo, todos capturando chatId agora): `dispatchOne` + BID ad-hoc em `BIDDashboard.tsx`, e `BidDispatchQueue._run` em `dispatchQueue.ts` (fila em background separada, achada durante a implementação). Coluna `bid_disparos.umbler_chat_id` (ALTER idempotente, duplicado em ambos os arquivos pra não depender de ordem de carregamento entre módulos). Botão "Conversa" em "Respostas desta tarefa".
+
+**FUP**: `_executeChapaFup`/`_executeChapaCancel` (`dispatchQueue.ts`) e `fireUmblerFup`/`fireUmblerCancel` (`ApproachingAlert.tsx`) — todos já tinham granularidade por chapa (`chapa_id`). `ApproachingAlert.tsx` ganhou `chapa_id` de brinde (gravava `fup_log` sem esse campo antes — gap incidental, corrigido junto). Coluna `fup_log.umbler_chat_id`. Botão "Conversa" na lista de FUPs disparados em `TaskCard.tsx` — zero mudança na query (`fetchAllRows("fup_log","*")` já traz a coluna nova).
+
+**Fora do escopo, documentado**: FUP em massa (`_executeMassFup`) grava 1 linha agregada de log pra N chapas — sem chatId único pra anexar sem reestruturar pra 1 linha por chapa (decisão maior, não implementada).
+
+### Merge com sessão paralela
+Durante a implementação, outra máquina pushou até **v1.0.20** (assinatura do updater resolvida via o runbook deixado no handoff — `f289f90`; abas "Recomendados"/"Novos" no BID; fix Leads Região; sync automático LEO via Sheets; endereço de tarefa só por sync). `git push` rejeitado (non-fast-forward) → fetch + merge: só `BIDDashboard.tsx` teve conflito real (1 linha de import, resolvida unindo os dois lados). `cargo check` + `npm run typecheck` (baseline 13, sem novos) confirmados pós-merge antes do push.
+
+**Nota**: o merge trouxe 2 ocorrências NOVAS de um padrão ESLint pré-existente já documentado (`s.has(x._key) ? s.delete(x._key) : s.add(x._key)` como statement) — replicado nas novas abas Recomendados/Novos. Não é regressão minha, não é funcional, não corrigido (fora de escopo de uma resolução de merge).
+
+**Files changed:** `src/lib/umbler.ts`, `src/pages/BIDDashboard.tsx`, `src/lib/dispatchQueue.ts`, `src/components/ApproachingAlert.tsx`, `src/components/TaskCard.tsx`
+**Next:** nenhuma pendência nova. Pendências antigas seguem: colisão de migration `activity_log` v1×MV2 (sem correção).
+
+---
+
 ## 2026-07-17 (tarde) — MCM — Aba Novos + fix Leads Região + Leo automático + fix crítico do parser — v1.0.20
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5 / Opus 4.8)
 **Tickets:** MCM-110 ✅, MCM-111 ✅, MCM-112 ✅ (release)

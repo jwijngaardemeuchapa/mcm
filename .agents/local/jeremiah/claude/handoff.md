@@ -1,9 +1,21 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-17 (tarde, Sonnet 5 / Opus 4.8)
-**Versão:** `1.0.20` — [Release publicado](https://github.com/jwijngaardemeuchapa/mcm/releases/tag/v1.0.20), assinado e verificado (latest.json + asset HTTP 200).
+**Data:** 2026-07-17 (Sonnet 5, sessão seguinte à tarde)
+**Versão:** código-fonte segue `1.0.20` — nenhuma mudança desta sessão exigiu bump (feature aditiva, sem tela nova). **Nenhum release publicado depois do v1.0.20** ainda.
 **Branch:** main
-**Último commit:** `2e60c31` (latest.json v1.0.20).
+**Último commit:** `0651116` (MCM-114, FUP) — antes dele `43a11fd` (merge com a sessão da tarde) e `c2c1590` (MCM-114, BID).
+
+---
+
+## ⚠️ Merge feito nesta sessão — sem perda de trabalho, mas leia antes de continuar
+Esta sessão trabalhava em paralelo com a sessão "tarde" (ver seção abaixo, dela) — `git push` foi rejeitado no meio do trabalho (non-fast-forward). Fiz `fetch` + `merge` (não rebase): só `BIDDashboard.tsx` teve conflito real (1 linha de import, união simples). `cargo check` + `npm run typecheck` confirmados limpos pós-merge antes de qualquer push. **Se outra sessão rodar em paralelo de novo, sempre `git fetch` antes de assumir que sabe o estado do `main`.**
+
+## Sessão 2026-07-17 (Sonnet 5) — Link direto pra conversa no Umbler — MCM-114 ✅
+Usuário trouxe `umbler_talk_schema.md` (schema de outro projeto próprio, saacaptacao) mostrando que a API do Umbler retorna `chat.id` na resposta do disparo — o app nunca lia isso. Implementado:
+- `umbler.ts`: `sendUmblerFup()`/`startUmblerBot()` agora retornam `{ chatId }` (mudança de assinatura não-quebrante). `umblerChatLink(chatId)` monta a URL.
+- **BID**: `bid_disparos.umbler_chat_id`, capturado nos 3 pontos de disparo (achei um 3º: `BidDispatchQueue._run` em `dispatchQueue.ts`, fila em background separada do `dispatchOne`). Botão "Conversa" em "Respostas desta tarefa". Commit `c2c1590`.
+- **FUP**: `fup_log.umbler_chat_id`, capturado em `_executeChapaFup`/`_executeChapaCancel` (`dispatchQueue.ts`) e `fireUmblerFup`/`fireUmblerCancel` (`ApproachingAlert.tsx`). `ApproachingAlert` ganhou `chapa_id` de brinde (não gravava antes). Botão "Conversa" em `TaskCard.tsx` (zero mudança de query — `SELECT *`). Commit `0651116`.
+- **Fora do escopo**: FUP em massa (`_executeMassFup`) grava 1 linha agregada por N chapas — sem chatId único a anexar sem reestruturar. Documentado, não implementado.
 
 ---
 
