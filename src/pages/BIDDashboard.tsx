@@ -70,6 +70,7 @@ import {
   Hash,
   Calendar,
   PhoneCall,
+  Star,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BidMatchmaker } from "@/components/BidMatchmaker";
@@ -318,6 +319,67 @@ function computeScore(c: BidChapa, distKm: number | null, cepPrefix?: string | n
   return score;
 }
 
+export type RecomendadoOrigin = "disponivel" | "novo" | "lead_saac" | "lead_regiao";
+
+export type RecomendadoItem = {
+  _key: string;
+  origin: RecomendadoOrigin;
+  nome: string;
+  telefone: string | null;
+  distance_km: number | null;
+  score: number;
+  leo?: LeoMetrics;
+};
+
+/**
+ * Score unificado pra "Recomendados" — cruza as 4 origens (cadastro geral,
+ * Novos, Leads Saac, Leads Região) numa ordem só, PRIORIZANDO conversão
+ * (histórico real de aceite de BID via leo_cache) sobre o tier de origem.
+ *
+ * Diferença proposital de computeScore(): lá o tier de negócio (ativado>
+ * aprovado) domina e leo só refina dentro do tier (+50/-40, marginal front
+ * a 1000/500). Aqui o pedido é "focado em conversão" — um aprovado com 90%
+ * de aceite histórico deve competir com/superar um ativado com só 1 tarefa
+ * e sem sinal de aceite, não ficar sempre atrás por causa da magnitude do
+ * tier. Por isso o bônus/penalidade de leo_cache aqui é da MESMA ordem de
+ * grandeza que o tier, não um ajuste fino.
+ *
+ * Exige >= 2 ofertas no leo_cache pra confiar no sinal (amostra mínima —
+ * mesmo critério já usado no tier "baixa confiança" do BID, agora aplicado
+ * simetricamente pro lado positivo).
+ */
+function computeRecommendedScore(
+  origin: RecomendadoOrigin,
+  tarefas: number,
+  situacao: string | null,
+  distKm: number | null,
+  maxDist: number,
+  leo: LeoMetrics | undefined,
+): number {
+  let score = 0;
+
+  // Tier base por origem/histórico — ordem de grandeza inicial.
+  if (tarefas > 0) score += 1000 + Math.min(tarefas, 100);
+  else if (isApprovedSituacao(situacao)) score += 500;
+  else if (origin === "disponivel" || origin === "novo") score += 300;
+  else if (origin === "lead_saac") score += 150;
+  else score += 50; // lead_regiao: nunca nem tentou se cadastrar
+
+  // Conversão real (BID) — sinal mais forte de "vai aceitar de novo".
+  // Magnitude comparável ao tier: pode reordenar entre faixas próximas.
+  if (leo && leo.total_ofertas >= 2) {
+    if (leo.passa_75pct) score += 600;
+    else if (leo.pct_sim >= 0.4) score += 150;
+    else if (leo.pct_sim < 0.3) score -= 350;
+    if (leo.repete) score += 50;
+  }
+
+  // Distância — desempate fino dentro da faixa já definida acima.
+  if (distKm !== null) score += Math.max(0, maxDist - distKm) * (80 / maxDist);
+
+  return score;
+}
+
 function extractCepFromText(text: string): string {
   const m = text.match(/\b(\d{5})-?(\d{3})\b/);
   return m ? `${m[1]}${m[2]}` : "";
@@ -452,7 +514,7 @@ function BidTaskCard({
     return false;
   }
   const [maxDistKm, setMaxDistKm] = useState(30);
-  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid" | "leads_regiao" | "novos">("disponiveis");
+  const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid" | "leads_regiao" | "novos" | "recomendados">("disponiveis");
   const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
   const [blockedLoaded, setBlockedLoaded] = useState(false);
@@ -791,9 +853,10 @@ function BidTaskCard({
     })();
   }, [candidateView, blockedLoaded, expanded, task.cidade_uf]); // eslint-disable-line
 
-  // Carrega leads Saac para a aba "Leads" do BID (lazy — só quando a aba é aberta)
+  // Carrega leads Saac para a aba "Leads" do BID (lazy — só quando a aba é
+  // aberta). "recomendados" também dispara — precisa das 4 fontes juntas.
   useEffect(() => {
-    if (candidateView !== "leads_bid" || leadsBidLoaded || !expanded) return;
+    if ((candidateView !== "leads_bid" && candidateView !== "recomendados") || leadsBidLoaded || !expanded) return;
     const cityUf = parseCidadeUf(task.cidade_uf);
     if (!cityUf) { setLeadsBidLoaded(true); return; }
     setLeadsBidLoading(true);
@@ -835,6 +898,35 @@ function BidTaskCard({
         });
         setRawLeadsBid(leads);
         setBasePhoneSet(new Set(baseRows.map((r) => r.phone)));
+        // Antes leads Saac nunca tinham distância calculada (lat/lng sempre
+        // NULL) — sem problema pra aba isolada (não ordenava por km), mas
+        // essencial pra entrar no ranking de "Recomendados" junto com quem
+        // já tem distância real. Mesmo padrão de Disponíveis: CEP primeiro,
+        // cidade como fallback pra quem não tem CEP.
+        const comCep = leads.filter((c) => c.cep);
+        for (const c of comCep) {
+          const cep = c.cep!;
+          cepGeocoder.enqueue(cep, (_cep, coords) => {
+            if (!coords) return;
+            setRawLeadsBid((prev) => prev.map((p) => p.cep === cep ? { ...p, lat: coords.lat, lng: coords.lng } : p));
+          });
+        }
+        const cidadesVistas = new Set<string>();
+        for (const c of leads.filter((c) => !c.cep && c.cidade)) {
+          const cidade = c.cidade!;
+          const estado = c.estado ?? "";
+          const dedup = `${cidade.toLowerCase().trim()}|${estado.toUpperCase().trim()}`;
+          if (cidadesVistas.has(dedup)) continue;
+          cidadesVistas.add(dedup);
+          cityGeocoder.enqueue(cidade, estado, (_key, coords) => {
+            if (!coords) return;
+            const cidadeLow = cidade.toLowerCase();
+            const estadoUp = estado.toUpperCase();
+            setRawLeadsBid((prev) => prev.map((p) =>
+              (!p.cep && p.lat === null && (p.cidade ?? "").toLowerCase() === cidadeLow && (p.estado ?? "").toUpperCase() === estadoUp)
+                ? { ...p, lat: coords.lat, lng: coords.lng } : p));
+          });
+        }
       } catch { /* silencioso */ }
       finally { setLeadsBidLoading(false); setLeadsBidLoaded(true); }
     })();
@@ -844,7 +936,7 @@ function BidTaskCard({
   // — gente que já é chapa de verdade (sync diário, adianta o cadastro geral
   // que só roda 2x/semana), disparo pelo mesmo motor de BID de Disponíveis.
   useEffect(() => {
-    if (candidateView !== "novos" || novosLoaded || !expanded) return;
+    if ((candidateView !== "novos" && candidateView !== "recomendados") || novosLoaded || !expanded) return;
     const cityUf = parseCidadeUf(task.cidade_uf);
     if (!cityUf) { setNovosLoaded(true); return; }
     setNovosLoading(true);
@@ -904,7 +996,7 @@ function BidTaskCard({
   // aberta. Contato é sempre MANUAL: não são chapas cadastrados, não entram
   // no fluxo de disparo via bot.
   useEffect(() => {
-    if (candidateView !== "leads_regiao" || leadsRegiaoLoaded || !expanded) return;
+    if ((candidateView !== "leads_regiao" && candidateView !== "recomendados") || leadsRegiaoLoaded || !expanded) return;
     const cityUf = parseCidadeUf(task.cidade_uf);
     if (!cityUf) { setLeadsRegiaoLoaded(true); return; }
     setLeadsRegiaoLoading(true);
@@ -1133,7 +1225,19 @@ function BidTaskCard({
 
   // Envio manual de template "Captação" para leads regionais (não-cadastrados,
   // fora do fluxo de bot) — 1 variável posicional: primeiro nome do lead.
-  async function sendCaptacao(lead: LeadRegiao) {
+  // Disparo unificado de "Recomendados" — roteia pelo mecanismo certo por
+  // origem: quem é chapa de verdade (cadastro geral/Novos/Leads Saac) recebe
+  // a oferta de BID normal (bot); Lead Região recebe o template de Captação
+  // (não pode receber oferta de vaga — nunca nem se cadastrou).
+  async function dispatchRecomendado(item: RecomendadoItem) {
+    if (item.origin === "lead_regiao") {
+      await sendCaptacao({ id: item._key, nome: item.nome, telefone: item.telefone });
+      return;
+    }
+    await dispatchOne({ _key: item._key, nome: item.nome, telefone: item.telefone } as unknown as RankedCandidate);
+  }
+
+  async function sendCaptacao(lead: { id: string; nome: string; telefone: string | null }) {
     if (!lead.telefone) { toast.error("Lead sem telefone cadastrado."); return; }
     const us = readSettings().umblerSettings;
     if (!us.bearerToken) { toast.error("Umbler não configurado. Acesse Integrações."); return; }
@@ -1156,7 +1260,46 @@ function BidTaskCard({
     }
   }
 
+  // Recomendados mistura origens que usam mecanismos de disparo diferentes:
+  // cadastro/Novos/Leads Saac vão pro bot de BID em lote (bidDispatchQueue,
+  // mesmo caminho de sempre); Lead Região não pode receber oferta de vaga
+  // (nunca se cadastrou) — vai pro template de Captação, sequencial (função
+  // já tem seu próprio loading/erro por item, sem fila dedicada).
+  async function handleDispatchSelectedRecomendados() {
+    const selecionados = recomendados.filter((it) => selectedIds.has(it._key) && it.telefone);
+    if (selecionados.length === 0) return;
+    const botEligible = selecionados.filter((it) => it.origin !== "lead_regiao");
+    const captacaoEligible = selecionados.filter((it) => it.origin === "lead_regiao");
+
+    if (botEligible.length > 0) {
+      const us = readSettings().umblerSettings;
+      if (!us.bidBotId || !us.bidBotTriggerName) {
+        toast.error("Configure o Bot ID e o Trigger Name do BID (D0) em Integrações.");
+        return;
+      }
+      bidDispatchQueue.startBatch({
+        taskId: task.id_tarefa,
+        empresa: task.empresa,
+        dataTarefa: task.data_tarefa,
+        candidates: botEligible.map((it) => ({ id: it._key, nome: it.nome, telefone: it.telefone! })),
+        params: {
+          local: dispatchParams.local,
+          mapsLink: dispatchParams.mapsLink,
+          sendMapsAsLocal: dispatchParams.sendMapsAsLocal,
+          atividades: dispatchParams.atividades,
+          diaria: dispatchParams.diaria,
+          dataParam: dispatchParams.dataParam,
+        },
+      });
+    }
+    for (const it of captacaoEligible) {
+      await sendCaptacao({ id: it._key, nome: it.nome, telefone: it.telefone });
+    }
+    setSelectedIds(new Set());
+  }
+
   function handleDispatchSelected() {
+    if (candidateView === "recomendados") { handleDispatchSelectedRecomendados(); return; }
     const pool = candidateView === "bloqueados" ? blockedCandidates
       : candidateView === "leads_bid" ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
       : candidateView === "novos" ? novosVisible
@@ -1280,6 +1423,69 @@ function BidTaskCard({
     ? leadsRegiaoComDist.filter((r) => r.distance_km !== null && r.distance_km <= maxDistKm)
     : leadsRegiaoComDist;
 
+  // "Recomendados" — cruza as 4 origens (cadastro geral, Novos, Leads Saac,
+  // Leads Região) num ranking único focado em conversão real (leo_cache),
+  // não só tier de origem (ver computeRecommendedScore acima). Cada origem
+  // já tem sua própria carga/exclusão/geocode (efeitos lazy acima, ampliados
+  // pra também disparar quando esta aba abre) — aqui só combina o resultado.
+  const recomendados = useMemo<RecomendadoItem[]>(() => {
+    const items: RecomendadoItem[] = [];
+    const localLat = dispatchParams.localLat, localLng = dispatchParams.localLng;
+    const distTo = (lat: number | null, lng: number | null) =>
+      (lat !== null && lng !== null && localLat !== null && localLng !== null)
+        ? haversine(localLat, localLng, lat, lng) : null;
+    const leoFor = (tel: string | null) => (tel && leoCache) ? leoCache.get(normalizePhone(tel)) : undefined;
+
+    for (const c of available) {
+      if (c.is_occupied || !c.telefone) continue;
+      const leo = leoFor(c.telefone);
+      items.push({
+        _key: c._key, origin: "disponivel", nome: c.nome, telefone: c.telefone,
+        distance_km: c.distance_km, leo,
+        score: computeRecommendedScore("disponivel", c.tarefas, c.situacao, c.distance_km, maxDistKm, leo),
+      });
+    }
+    for (const c of novosVisible) {
+      if (!c.telefone) continue;
+      const dist = distTo(c.lat, c.lng);
+      const leo = leoFor(c.telefone);
+      items.push({
+        _key: c._key, origin: "novo", nome: c.nome, telefone: c.telefone,
+        distance_km: dist, leo,
+        score: computeRecommendedScore("novo", 0, null, dist, maxDistKm, leo),
+      });
+    }
+    for (const c of leadsBidVisible) {
+      const phone = normalizePhone(c.telefone ?? "");
+      if (!c.telefone || c.bloqueio || (phone && basePhoneSet.has(phone))) continue;
+      const dist = distTo(c.lat, c.lng);
+      const leo = leoFor(c.telefone);
+      items.push({
+        _key: c._key, origin: "lead_saac", nome: c.nome, telefone: c.telefone,
+        distance_km: dist, leo,
+        score: computeRecommendedScore("lead_saac", c.tarefas, c.situacao, dist, maxDistKm, leo),
+      });
+    }
+    for (const r of leadsRegiaoComDist) {
+      if (!r.telefone) continue;
+      const phone = normalizePhone(r.telefone);
+      if (occupiedPhoneSet.has(phone) || basePhoneSet.has(phone) || leadsSaacPhoneSet.has(phone) || novoPhoneSet.has(phone)) continue;
+      const leo = leoFor(r.telefone);
+      items.push({
+        _key: r.id, origin: "lead_regiao", nome: r.nome, telefone: r.telefone,
+        distance_km: r.distance_km, leo,
+        score: computeRecommendedScore("lead_regiao", 0, null, r.distance_km, maxDistKm, leo),
+      });
+    }
+    const filtered = searchActive
+      ? items.filter((it) =>
+          normalize(it.nome).includes(searchNorm) ||
+          (searchDigits && it.telefone && it.telefone.replace(/\D/g, "").includes(searchDigits)))
+      : items;
+    return filtered.sort((a, b) => b.score - a.score);
+  }, [available, novosVisible, leadsBidVisible, leadsRegiaoComDist, basePhoneSet, occupiedPhoneSet, leadsSaacPhoneSet, novoPhoneSet, leoCache, dispatchParams.localLat, dispatchParams.localLng, maxDistKm, searchActive, searchNorm, searchDigits]); // eslint-disable-line
+  const recomendadosLoading = candidatesLoading || !leadsBidLoaded || !novosLoaded || !leadsRegiaoLoaded;
+
   // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
   // leads_bid tem render próprio (lista simples, sem virtualizer).
   const activeList = candidateView === "disponiveis" ? visibleCandidates
@@ -1307,7 +1513,9 @@ function BidTaskCard({
         ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
         : candidateView === "novos"
           ? novosVisible.filter((c) => c.telefone)
-          : available.filter((c) => c.telefone);
+          : candidateView === "recomendados"
+            ? recomendados.filter((it) => it.telefone)
+            : available.filter((c) => c.telefone);
     const allSel = pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
     setSelectedIds(allSel ? new Set() : new Set(pool.map((c) => c._key)));
   }
@@ -1700,6 +1908,12 @@ function BidTaskCard({
               {/* Tab: Disponíveis / Bloqueados */}
               <div className="flex rounded-md border border-border overflow-hidden text-[11px] shrink-0">
                 <button type="button"
+                  onClick={() => { setCandidateView("recomendados"); setShowAll(false); }}
+                  className={`px-2.5 py-1 transition-colors flex items-center gap-1 ${candidateView === "recomendados" ? "bg-gradient-to-r from-primary to-success text-white" : "text-muted-foreground hover:bg-muted/50"}`}>
+                  <Star className="h-3 w-3" />
+                  Recomendados{recomendados.length > 0 ? ` (${recomendados.length})` : ""}
+                </button>
+                <button type="button"
                   onClick={() => { setCandidateView("disponiveis"); setShowAll(false); }}
                   className={`px-2.5 py-1 transition-colors ${candidateView === "disponiveis" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50"}`}>
                   Disponíveis
@@ -1735,7 +1949,13 @@ function BidTaskCard({
                 />
               </div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1 flex items-center flex-wrap gap-1.5">
-                {candidateView === "disponiveis" ? (
+                {candidateView === "recomendados" ? (
+                  <span className="font-normal normal-case bg-gradient-to-r from-primary to-success bg-clip-text text-transparent font-semibold">
+                    {recomendadosLoading
+                      ? "Cruzando cadastro geral, Novos, Leads Saac e Leads Região..."
+                      : `${recomendados.length} candidatos ranqueados por conversão (histórico de aceite) + distância`}
+                  </span>
+                ) : candidateView === "disponiveis" ? (
                   <>
                     {available.length > 0 && (
                       <span className="font-normal normal-case">
@@ -1977,6 +2197,88 @@ function BidTaskCard({
               </div>
 
               <div ref={parentRef} className="max-h-[600px] overflow-auto divide-y divide-border/50">
+                {/* ── Recomendados (ranking unificado) ── */}
+                {candidateView === "recomendados" && recomendadosLoading && (
+                  <div className="px-4 py-3 space-y-2">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="h-10 rounded-lg bg-gradient-to-r from-primary/10 to-success/10 animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
+                    ))}
+                  </div>
+                )}
+                {candidateView === "recomendados" && !recomendadosLoading && recomendados.length === 0 && (
+                  <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+                    Nenhum candidato disponível em nenhuma das 4 listas para {task.cidade_uf || "esta cidade"}.
+                  </div>
+                )}
+                {candidateView === "recomendados" && !recomendadosLoading && recomendados.length > 0 && (
+                  <div className="divide-y divide-border/50">
+                    {recomendados.map((it, idx) => {
+                      const isDispatching = dispatchingIds.has(it._key) || captacaoSendingIds.has(it._key);
+                      const originBadge = {
+                        disponivel: { label: "CADASTRO", cls: "bg-primary/15 text-primary" },
+                        novo: { label: "NOVO", cls: "bg-warning/15 text-warning" },
+                        lead_saac: { label: "LEAD SAAC", cls: "bg-indigo-500/15 text-indigo-600" },
+                        lead_regiao: { label: "LEAD REGIÃO", cls: "bg-success/15 text-success" },
+                      }[it.origin];
+                      return (
+                        <div key={it._key}
+                          className="grid grid-cols-[auto_auto_1fr_auto] items-center gap-2 px-3 py-2 text-xs hover:bg-muted/30 transition-colors">
+                          <span className="w-5 flex items-center justify-center">
+                            <input type="checkbox"
+                              className="h-3.5 w-3.5 accent-primary cursor-pointer"
+                              checked={selectedIds.has(it._key)}
+                              onChange={() => setSelectedIds((prev) => {
+                                const s = new Set(prev);
+                                s.has(it._key) ? s.delete(it._key) : s.add(it._key);
+                                return s;
+                              })}
+                            />
+                          </span>
+                          <span className="text-[10px] font-mono text-muted-foreground/50 w-5 text-right">{idx + 1}</span>
+                          <div className="min-w-0 flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <button type="button" onClick={() => clipCopy(it.nome, "Nome copiado")}
+                                className="font-medium truncate hover:text-primary hover:underline text-left">
+                                {it.nome}
+                              </button>
+                              <span className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${originBadge.cls}`}>
+                                {originBadge.label}
+                              </span>
+                              {it.leo && it.leo.total_ofertas >= 2 && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${
+                                      it.leo.passa_75pct ? "bg-success/15 text-success" : it.leo.pct_sim < 0.3 ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"
+                                    }`}>
+                                      {Math.round(it.leo.pct_sim * 100)}% aceite
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{it.leo.total_sim}/{it.leo.total_ofertas} ofertas aceitas historicamente</TooltipContent>
+                                </Tooltip>
+                              )}
+                              {it.distance_km !== null && (
+                                <span className="px-1 py-0 rounded text-[9px] font-bold shrink-0 bg-muted text-muted-foreground">
+                                  {it.distance_km.toFixed(1)} km
+                                </span>
+                              )}
+                            </div>
+                            {it.telefone && <span className="text-[10px] text-muted-foreground">{it.telefone}</span>}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {it.telefone && (
+                              <button type="button"
+                                disabled={isDispatching}
+                                onClick={(e) => { e.stopPropagation(); dispatchRecomendado(it); }}
+                                className="h-6 px-2 rounded text-[10px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50">
+                                {isDispatching ? "..." : it.origin === "lead_regiao" ? "Captação" : "Disparar"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {/* ── Leads BID ── */}
                 {candidateView === "leads_bid" && leadsBidLoading && (
                   <div className="px-4 py-3 space-y-2">
