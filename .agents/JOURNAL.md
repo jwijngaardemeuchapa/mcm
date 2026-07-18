@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-07-18 — MCM — Release v1.0.21 publicada (sem assinatura)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits:** `b0414ab` (bump 1.0.21) | **Tag/Release:** `v1.0.21`
+
+Build + release v1.0.21 no GitHub, cobrindo MCM-114 (link Umbler, sessão de hoje) + tudo da sessão "tarde" de 07-17 (aba Novos, fix Leads Região, sync Leo). Verificado antes da release: `git log HEAD..origin/main` vazio (sem divergência) e grep no bundle compilado (`dist/assets/*.js`) confirmando marcadores das duas frentes (`umbler_chat_id` e `Recomendados`/`chapas_novos`) presentes juntos.
+
+**Pendência deixada para a máquina com `tauri_update_key`:** assinar o instalador e atualizar `latest.json` — runbook completo no topo do `handoff.md`. Sem isso o auto-updater não notifica quem já tem o app instalado.
+
+---
+
 ## 2026-07-17 — MCM — Link direto pra conversa no Umbler (BID + FUP) — MCM-114 + merge com sessão paralela
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-114 ✅

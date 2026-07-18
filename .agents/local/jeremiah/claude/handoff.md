@@ -1,9 +1,40 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-17 (Sonnet 5, sessão seguinte à tarde)
-**Versão:** código-fonte segue `1.0.20` — nenhuma mudança desta sessão exigiu bump (feature aditiva, sem tela nova). **Nenhum release publicado depois do v1.0.20** ainda.
+**Data:** 2026-07-18 (Sonnet 5)
+**Versão:** `1.0.21` publicada no GitHub (release + tag `v1.0.21`), **SEM assinatura** — build feito nesta máquina, que não tem a `tauri_update_key`.
 **Branch:** main
-**Último commit:** `0651116` (MCM-114, FUP) — antes dele `43a11fd` (merge com a sessão da tarde) e `c2c1590` (MCM-114, BID).
+**Último commit:** `b0414ab` (bump 1.0.21) — merge da sessão de hoje com a sessão "tarde" de 07-17 já integrado (`43a11fd`).
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.21 (fazer nesta máquina se ela tiver a `tauri_update_key`)
+
+Runbook idêntico ao já executado com sucesso pra v1.0.17 (ver seção "Pendência #1 RESOLVIDA" mais abaixo — reusar aquele passo-a-passo). Resumo direto pra hoje:
+
+1. `cd` até o repo `mcm`, `git pull origin main` (a tag `v1.0.21` já está lá, release já publicada sem assinatura).
+2. Confirmar que `tauri_update_key` existe (`C:\Users\W Design\task-flow-hub\tauri_update_key` era o caminho na última vez).
+3. `npm run tauri build` (gera + assina automaticamente se a chave estiver configurada no ambiente/`tauri.conf.json` — conferir `TAURI_SIGNING_PRIVATE_KEY` env var, mesmo esquema de antes).
+4. Isso produz `MCM_1.0.21_x64-setup.exe` + `MCM_1.0.21_x64-setup.exe.sig`.
+5. `gh release upload v1.0.21 src-tauri/target/release/bundle/nsis/MCM_1.0.21_x64-setup.exe --clobber` (substitui o .exe não-assinado já publicado por este).
+6. `gh release upload v1.0.21 src-tauri/target/release/bundle/nsis/MCM_1.0.21_x64-setup.exe.sig`.
+7. Atualizar `latest.json` na raiz do repo (mesma estrutura de sempre — ver histórico do arquivo):
+   ```json
+   {
+     "version": "1.0.21",
+     "notes": "Ver página de Ajuda para novidades.",
+     "pub_date": "<data ISO de hoje>",
+     "platforms": {
+       "windows-x86_64": {
+         "signature": "<conteúdo do .sig gerado no passo 3/4>",
+         "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.21/MCM_1.0.21_x64-setup.exe"
+       }
+     }
+   }
+   ```
+   Commit + push desse `latest.json` direto na `main` (é isso que o updater do app lê).
+8. Verificar: `curl -I https://raw.githubusercontent.com/jwijngaardemeuchapa/mcm/main/latest.json` → 200, e o asset assinado no release → download funcional.
+
+Sem isso, quem já tem o app instalado **não recebe a notificação de update automático** — só quem baixar manualmente o instalador da release vai estar em 1.0.21.
 
 ---
 
