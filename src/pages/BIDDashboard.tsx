@@ -10,7 +10,7 @@ import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync";
 import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
-import { startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
+import { startUmblerBot, fmtTaskDateParam, umblerChatLink } from "@/lib/umbler";
 import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
@@ -147,6 +147,7 @@ export type BidDisparo = {
   data_resposta1: string | null;
   data_resposta2: string | null;
   diaria?: string | null;
+  umbler_chat_id?: string | null;
 };
 
 export type OpenTask = {
@@ -1010,7 +1011,7 @@ function BidTaskCard({
 
     setDispatchingIds((prev) => new Set(prev).add(candidate._key));
     try {
-      await startUmblerBot({
+      const { chatId } = await startUmblerBot({
         chapaTelefone: candidate.telefone,
         settings: us,
         initialData: {
@@ -1032,8 +1033,8 @@ function BidTaskCard({
       });
       const db = await getDb();
       await db.execute(
-        "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria) VALUES (?,?,?,?,?,?,?,?,?,?)",
-        [dispId, candidate.nome, candidate.telefone, task.id_tarefa, task.empresa, task.data_tarefa, paramsJson, now, "aguardando", dispatchParams.diaria],
+        "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        [dispId, candidate.nome, candidate.telefone, task.id_tarefa, task.empresa, task.data_tarefa, paramsJson, now, "aguardando", dispatchParams.diaria, chatId],
       );
       const record: BidDispatchRecord = {
         id: dispId, id_tarefa: task.id_tarefa, chapa_nome: candidate.nome, chapa_telefone: candidate.telefone,
@@ -2271,6 +2272,14 @@ function BidTaskCard({
                             onClick={() => onDisparoStatusUpdate(d.id, "precisa_ajuda", 2)}>Ajuda</Button>
                         </div>
                       )}
+                      {d.umbler_chat_id && (
+                        <a href={umblerChatLink(d.umbler_chat_id) ?? "#"} target="_blank" rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-6 px-2 rounded text-[10px] font-medium border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors flex items-center gap-1"
+                          title="Abrir a conversa deste disparo no Umbler Talk">
+                          <ExternalLink className="h-3 w-3" /> Conversa
+                        </a>
+                      )}
                       <Button size="sm" variant="outline"
                         className="h-6 text-[10px] px-2"
                         disabled={dispatchingIds.has(d.id) || !dispatchParams.diaria}
@@ -2389,6 +2398,8 @@ export default function BIDDashboard() {
       // Bloco 3: Relançamento (diaria por disparo) + Busca Chapa por tarefa (empresa por extra).
       try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN diaria TEXT"); } catch { /* exists */ }
       try { await db.execute("ALTER TABLE bid_chapas ADD COLUMN empresa TEXT"); } catch { /* exists */ }
+      // Link direto pra conversa no Umbler — chat.id vem da resposta do disparo (start-bot).
+      try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
 
       const [cntRows, tasks, disp, carteira] = await Promise.all([
         db.select<{ cnt: number }[]>("SELECT COUNT(*) as cnt FROM chapa_registry").catch(() => [{ cnt: 0 }]),
@@ -3719,7 +3730,7 @@ function BloqueadosTab() {
       const selectedTask = openTasks.find((t) => t.id_tarefa === taskId);
       const isoDate = selectedTask ? selectedTask.data_tarefa : `${dataTarefa}:00-03:00`;
       const isBidD1 = fmtSP(isoDate, "yyyy-MM-dd") > todayDateISO_SP() && !!(us.bidBotD1Id && us.bidBotD1TriggerName);
-      await startUmblerBot({
+      const { chatId } = await startUmblerBot({
         chapaTelefone: bidTarget.telefone,
         settings: us,
         initialData: {
@@ -3737,8 +3748,8 @@ function BloqueadosTab() {
         const paramsJson = JSON.stringify({ data: fmtTaskDateParam(isoDate), local, atividades, diaria });
         const db = await getDb();
         await db.execute(
-          "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status) VALUES (?,?,?,?,?,?,?,?,?)",
-          [dispId, bidTarget.nome, bidTarget.telefone, taskId, selectedTask.empresa, selectedTask.data_tarefa, paramsJson, now, "aguardando"],
+          "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+          [dispId, bidTarget.nome, bidTarget.telefone, taskId, selectedTask.empresa, selectedTask.data_tarefa, paramsJson, now, "aguardando", diaria, chatId],
         );
         bidDispatchQueue.notifyDispatched({
           id: dispId, id_tarefa: taskId, chapa_nome: bidTarget.nome, chapa_telefone: bidTarget.telefone,

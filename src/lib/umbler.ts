@@ -32,6 +32,28 @@ export function fmtTaskDateParam(dataTarefa: string): string {
   return `${fmtSP(dataTarefa, "dd/MM")} às ${time}`;
 }
 
+// Link direto pra conversa no painel do Umbler Talk — chatId vem de
+// res.json().chat.id na resposta dos 2 endpoints de disparo (template e
+// start-bot). Ambos retornam esse shape (confirmado com o schema usado
+// pelo projeto saacaptacao, mesma API).
+export function umblerChatLink(chatId: string | null | undefined): string | null {
+  if (!chatId) return null;
+  return `https://app-utalk.umbler.com/chats/${chatId}`;
+}
+
+// Corpo de resposta comum aos 2 endpoints de disparo — só nos interessa
+// chat.id, resto do payload é ignorado.
+type UmblerDispatchResponse = { chat?: { id?: string | null } };
+
+async function extractChatId(res: Response): Promise<string | null> {
+  try {
+    const body = await res.clone().json() as UmblerDispatchResponse;
+    return body?.chat?.id ?? null;
+  } catch {
+    return null; // resposta sem corpo JSON ou formato inesperado — não é fatal
+  }
+}
+
 export async function sendUmblerFup({
   chapaNome,
   chapaTelefone,
@@ -48,7 +70,7 @@ export async function sendUmblerFup({
   settings: UmblerSettings;
   overrideParams?: string[];
   templateIdOverride?: string;
-}): Promise<void> {
+}): Promise<{ chatId: string | null }> {
   const toPhone = toInternationalPhone(chapaTelefone);
   const params = overrideParams ?? [fmtTaskDateParam(dataTarefa), empresa];
   const templateId = templateIdOverride ?? settings.templateId;
@@ -78,6 +100,7 @@ export async function sendUmblerFup({
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`Umbler ${res.status}: ${text}`);
   }
+  return { chatId: await extractChatId(res) };
 }
 
 // Disparo de BID via chatbot (start-bot): o fluxo do robô já envia o template
@@ -94,7 +117,7 @@ export async function startUmblerBot({
   initialData: Record<string, string>;
   botIdOverride?: string;
   triggerNameOverride?: string;
-}): Promise<void> {
+}): Promise<{ chatId: string | null }> {
   const res = await fetch("https://app-utalk.umbler.com/api/v1/chats/start-bot/", {
     method: "POST",
     headers: {
@@ -116,6 +139,7 @@ export async function startUmblerBot({
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`Umbler bot ${res.status}: ${text}`);
   }
+  return { chatId: await extractChatId(res) };
 }
 
 // Mensagem de texto livre — só funciona dentro da janela de 24h
