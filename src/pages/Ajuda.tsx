@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.21</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.22</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,12 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.21 — Novidades desta versão:</strong>{" "}
-              <strong>Link direto pra conversa no Umbler</strong>: botão "Conversa" nos disparos de BID (em "Respostas desta tarefa") e de FUP (na lista de FUPs disparados do card) — abre a conversa exata no painel do Umbler Talk, sem precisar procurar pelo telefone.{" "}
-              <strong>BID — nova aba "Novos"</strong>: chapas recém-cadastrados (últimos ~15 dias) ganham categoria própria, com badge ORGÂNICO/NOVO e disparo em lote — antes era só um selo dentro de Disponíveis.{" "}
-              <strong>BID — Leads Região não repete quem já se cadastrou</strong>: alguém que virou chapa ontem não fica mais aparecendo como lead por até 3 dias (o cadastro geral só atualiza 2x/semana; agora cruza também com os cadastros recentes, que atualizam todo dia).{" "}
-              <strong>Leo — sincronização automática</strong>: a planilha de respostas de BID (Google Sheets) agora atualiza sozinha 1x por dia — antes dependia de clicar em "Sincronizar" manualmente.{" "}
-              <strong>Leo — erro de sincronização corrigido</strong>: planilhas com cabeçalho acentuado ("Número") não eram reconhecidas e a sincronização falhava sempre — corrigido.
+              <strong>v1.0.22 — Novidades desta versão:</strong>{" "}
+              <strong>BID — aba "Recomendados"</strong>: ranking único cruzando as 4 origens de candidato (cadastro geral, Novos, Leads BID, Leads Região), priorizando quem já respondeu bem a ofertas de BID no histórico — foco em quem realmente tem chance de aceitar, com seleção e disparo em lote entre listas diferentes numa única ação.{" "}
+              <strong>Leo — configuração automática de fábrica</strong>: instalações novas do app já saem com a sincronização de respostas de BID (Google Sheets) configurada — não é mais necessário inserir credenciais manualmente em cada máquina.
             </span>
           </div>
         )}
@@ -1008,7 +1005,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.21 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.22 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1043,7 +1040,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.21 · © 2026 Wijngaarde Design
+        MCM v1.0.22 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
