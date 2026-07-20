@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.24</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.25</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,8 +767,8 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.24 — Novidades desta versão:</strong>{" "}
-              <strong>Fix — botão "Conversa" do Umbler no BID</strong>: o link direto pra conversa nunca aparecia nos disparos de BID (chatbot) — causa confirmada na documentação oficial da Umbler (o id da conversa vem em outro lugar da resposta pra esse tipo de disparo, diferente do FUP) — corrigido.
+              <strong>v1.0.25 — Novidades desta versão:</strong>{" "}
+              <strong>Fix — BID: endereço da tarefa (cruzamento por ID)</strong>: algumas tarefas puxavam o endereço errado. Três causas corrigidas: o cruzamento pelo ID do endereço agora é global (não fica preso à empresa achada por nome, que às vezes errava); vínculos de tarefa→endereço não são mais descartados em lote quando há duplicidade na origem; e, quando não há como saber o endereço exato, o card não arrisca mais um chute que parecia certo.
             </span>
           </div>
         )}
@@ -1004,7 +1004,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.24 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.25 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1039,7 +1039,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.24 · © 2026 Wijngaarde Design
+        MCM v1.0.25 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
