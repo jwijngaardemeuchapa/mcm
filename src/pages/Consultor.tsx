@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
-import { Upload, Search, X, Trash2, Send, Loader2, FileText, Paperclip } from "lucide-react";
+import { Upload, Search, X, Trash2, Send, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -169,10 +169,8 @@ export default function Consultor() {
   const [aiLoading, setAiLoading] = useState(false);
   const [tokens, setTokens] = useState(0);
 
-  const [descMap, setDescMap] = useState<Map<string, DescEntry>>(new Map());
   const [descTerm, setDescTerm] = useState("");
   const [descSearchTerm, setDescSearchTerm] = useState("");
-  const descInputRef = useRef<HTMLInputElement>(null);
 
   function handleFile(file: File) {
     setLoading(true);
@@ -224,26 +222,6 @@ export default function Consultor() {
     return String(v ?? "").replace(/\D/g, "");
   }
 
-  function handleDescFile(file: File) {
-    Papa.parse<WorkerRow>(file, {
-      header: true,
-      skipEmptyLines: true,
-      dynamicTyping: false,
-      complete: (res) => {
-        const map = new Map<string, DescEntry>();
-        for (const row of res.data) {
-          const id = normId(row["ID Tarefa"] ?? row["ID"] ?? row["id_tarefa"]);
-          const descricao = F.descricao(row);
-          const remessa = F.remessa(row);
-          if (id && (descricao || remessa)) map.set(id, { descricao, remessa });
-        }
-        setDescMap(map);
-        toast.success(`${map.size} descrições/remessas carregadas`);
-      },
-      error: (err) => toast.error(err.message),
-    });
-  }
-
   function clearSession() {
     setData([]);
     setResult(null);
@@ -252,7 +230,6 @@ export default function Consultor() {
     setAiAnswer("");
     setTokens(0);
     setProgress(0);
-    setDescMap(new Map());
     setDescTerm("");
     setDescSearchTerm("");
   }
@@ -262,6 +239,20 @@ export default function Consultor() {
     for (const r of data) {
       const id = normId(F.id(r));
       if (id) map.set(id, r);
+    }
+    return map;
+  }, [data]);
+
+  // Descrição/remessa (Obs/Shipping) lidas do MESMO CSV principal, sem exigir
+  // um segundo anexo — a Question do Metabase que gera o CSV pode incluir
+  // essas colunas junto das demais.
+  const descMap = useMemo(() => {
+    const map = new Map<string, DescEntry>();
+    for (const r of data) {
+      const id = normId(F.id(r));
+      const descricao = F.descricao(r);
+      const remessa = F.remessa(r);
+      if (id && (descricao || remessa)) map.set(id, { descricao, remessa });
     }
     return map;
   }, [data]);
@@ -297,21 +288,20 @@ export default function Consultor() {
       return;
     }
     if (descMap.size === 0) {
-      toast.info("Anexe primeiro o CSV de descrições/remessa.");
+      toast.info("O CSV carregado não tem colunas de descrição/remessa (Obs/Shipping).");
       return;
     }
     const digits = raw.replace(/\D/g, "");
     const n = norm(raw);
     const matches = (text: string) =>
       (digits.length >= 8 && text.replace(/\D/g, "").includes(digits)) || norm(text).includes(n);
+    // descMap vem do mesmo `data` (ver useMemo acima), então todo id aqui já
+    // existe em dataById — sem necessidade de linha mínima de fallback.
     const rows: WorkerRow[] = [];
-    // Percorre TODAS as descrições, não só as tarefas já carregadas no CSV
-    // principal — se a tarefa não estiver em `data`, monta uma linha mínima
-    // (só o ID, clicável) pra não perder o resultado.
     descMap.forEach(({ descricao, remessa }, id) => {
       if (!matches(descricao) && !matches(remessa)) return;
       const existing = dataById.get(id);
-      rows.push(existing ?? { "ID Tarefa": id });
+      if (existing) rows.push(existing);
     });
     setDescSearchTerm(raw);
     setResult({ data: rows, label: `Descrição/Remessa: "${raw}"`, zeroMsg: `Nada em descrição/remessa contém "${raw}".` });
@@ -447,28 +437,6 @@ export default function Consultor() {
           </Button>
         </div>
 
-        <div className="flex items-center justify-between mb-3 -mt-1">
-          <button
-            type="button"
-            onClick={() => descInputRef.current?.click()}
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Paperclip className="h-3 w-3" />
-            {descMap.size > 0 ? `${descMap.size} descrições/remessas anexadas` : "Anexar descrições/remessa (CSV)"}
-          </button>
-          <input
-            ref={descInputRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleDescFile(f);
-              e.target.value = "";
-            }}
-          />
-        </div>
-
         <Accordion type="multiple" defaultValue={["w", "t", "e", "d", "q"]} className="space-y-1">
           <AccordionItem value="w" className="border-border">
             <AccordionTrigger className="text-sm font-semibold py-2">Ajudante</AccordionTrigger>
@@ -507,7 +475,7 @@ export default function Consultor() {
                   Buscar
                 </Button>
                 {descMap.size === 0 && (
-                  <p className="text-[10px] text-muted-foreground">Anexe o CSV de descrições/remessa acima para habilitar.</p>
+                  <p className="text-[10px] text-muted-foreground">O CSV carregado não tem colunas de descrição/remessa (Obs/Shipping).</p>
                 )}
               </div>
               <div>

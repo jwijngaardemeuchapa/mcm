@@ -9,7 +9,9 @@ export interface FilterResult {
 }
 
 export const F = {
-  id:       (r: WorkerRow) => r['ID Tarefa'] || r['id_tarefa'] || '',
+  // Sem tirar separador de milhar aqui, o link "Abrir tarefa" saía com vírgula
+  // (ex.: 402,569) — o navegador corta a URL na vírgula e abre outra tarefa.
+  id:       (r: WorkerRow) => (r['ID Tarefa'] || r['id_tarefa'] || '').toString().replace(/[^\d]/g, ''),
   data:     (r: WorkerRow) => r['Data da Tarefa'] || r['data_tarefa'] || r['Data'] || '',
   empresa:  (r: WorkerRow) => r['Empresa'] || r['empresa'] || '',
   cidade:   (r: WorkerRow) => r['Cidade/UF'] || r['cidade_uf'] || '',
