@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-07-20 — MCM — Release v1.0.26: Consultor — anexo único + fix link de tarefa (MCM-119)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-119 ✅
+**Commits:** `0ac8aa8` (fixes), `412cefa` (bump 1.0.26), `ee13c99` (latest.json)
+
+Dois ajustes no Consultor:
+1. **Removido o 2º upload de descrição/remessa** — usuário confirmou (AskUserQuestion) que o CSV principal já pode trazer essas colunas junto, sem precisar de um anexo separado. `descMap` passou de `useState`+`handleDescFile()` pra `useMemo` derivado direto de `data`. Código morto removido (`handleDescFile`, `descInputRef`, botão Paperclip, import não usado).
+2. **Fix: `F.id()` não normalizava separador de milhar** (`"402,569"` do Metabase) — link "Abrir tarefa" cortava na vírgula e abria a tarefa errada. Mesmo padrão de bug de outras sessões, mas nunca corrigido neste ponto específico. Normalizado na fonte (`consultorFields.ts`).
+
+Release: build → assinado → gh create+upload → latest.json → verificado 200/302. typecheck baseline 13.
+
+**Files changed:** `src/pages/Consultor.tsx`, `src/utils/consultorFields.ts`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** nenhuma pendência de release. Segue em aberto a verificação do MCM-118 (endereço BID) pelo usuário na máquina do analista.
+
+---
+
 ## 2026-07-20 — MCM — Release v1.0.25: BID puxava endereço errado — 3 bugs no cruzamento tarefa→endereço (MCM-118)
 **Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
 **Tickets:** MCM-118 ✅

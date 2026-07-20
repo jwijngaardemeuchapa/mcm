@@ -1,9 +1,18 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-20 (Opus 4.8)
-**Versão:** `1.0.25` publicada, assinada e verificada (MCM-118 ✅). Sem pendência de release aberta.
+**Data:** 2026-07-20 (Sonnet 5)
+**Versão:** `1.0.26` publicada, assinada e verificada (MCM-119 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `92f7961` (latest.json 1.0.25).
+**Último commit:** `ee13c99` (latest.json 1.0.26).
+
+---
+
+## ✅ MCM-119 — Consultor: anexo único + fix do link de tarefa com vírgula
+
+Usuário pediu 2 ajustes pontuais no Consultor:
+
+1. **Anexo duplicado removido.** Antes existiam 2 uploads: o CSV principal (tarefas) e um segundo CSV só de descrições/remessa (`Obs`/`Shipping`, do MCM-98/99). Usuário confirmou (via AskUserQuestion) que quer remover o segundo — o CSV principal já pode trazer essas colunas junto. `descMap` deixou de ser `useState` preenchido por `handleDescFile()`; virou `useMemo` derivado direto de `data` (mesmo CSV principal), lendo `F.descricao`/`F.remessa` linha a linha. Removidos: `handleDescFile`, `descInputRef`, botão "Anexar descrições/remessa" (ícone `Paperclip`, agora import morto removido), `setDescMap` em `clearSession`. `runDescSearch` simplificado — como todo `id` em `descMap` agora sempre existe em `dataById` (é o mesmo dataset), a linha-mínima de fallback (`existing ?? { "ID Tarefa": id }`) não é mais necessária.
+2. **Fix: link "Abrir tarefa" quebrava com vírgula.** `F.id()` em `consultorFields.ts` não normalizava o separador de milhar que o Metabase exporta em IDs grandes (ex. `"402,569"`) — mesmo padrão de bug já visto antes em outros pontos do app (ID Endereço, ID Tarefa em `metabaseSync.ts`), mas esse ponto específico nunca tinha sido corrigido. O link ficava `.../edit-task/402,569`, o navegador cortava na vírgula e abria outra tarefa. Corrigido normalizando pra só-dígitos direto na função `F.id`, na fonte — todo consumidor (link, display, matching) se beneficia.
 
 ---
 
