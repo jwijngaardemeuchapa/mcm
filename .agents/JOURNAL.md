@@ -3,6 +3,24 @@
 
 ---
 
+## 2026-07-20 — MCM — Release v1.0.23: boot travado (ESC), endereço BID não autocorrigia, diagnóstico Umbler (MCM-116)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-116 ✅
+**Commits:** `48d9bf4` (3 fixes), `672bc45` (bump 1.0.23 + novidades)
+
+Usuário reportou 3 problemas reais em produção pra investigar. Todos por leitura de código (sem logs ao vivo):
+
+1. **Boot travado até ESC.** Causa confirmada: `DailyBriefing.tsx` (Dialog "Bom dia") monta simultâneo ao `AppStartup` (não depois — `AppLayout` monta imediato, escondido atrás do overlay z-9999 do boot). Seu Dialog modal do Radix abre ~1.8s depois, e Radix trava `pointer-events` do `<body>` inteiro mesmo com o Dialog invisível — ESC fechava esse Dialog escondido e destravava o clique em "Entrar no painel". Fix: `App.tsx` dispara `mcm:startup-done` só quando o boot termina de fato; `DailyBriefing` espera esse evento antes de iniciar seu timer (fallback de 20s de segurança).
+2. **Botão "Conversa" do Umbler nunca aparecia.** Causa provável (não confirmada — precisa de um disparo real pra validar): `extractChatId()` assumia `chat.id` (camelCase, copiado de outro projeto) — se a API real usa outro shape (ex. PascalCase), `chatId` fica sempre null e o botão nunca renderiza. Ampliado `pickChatId()` pra tentar múltiplas variantes + `console.warn` uma vez logando o shape real se nenhuma bater. **Usuário precisa testar um disparo e reportar** (ver handoff pra instrução exata).
+3. **Endereço da tarefa no BID não se autocorrigia.** Arquitetura do cruzamento (id_tarefa → tarefa_enderecos/1430 → cliente_book.metabase_address_ids/1420) já estava certa desde a sessão anterior — confirmado com o usuário que bate com a lógica esperada. Bug real: guard `!dispatchParams.local` impedia a correção rodar de novo depois que QUALQUER valor (mesmo palpite fuzzy antigo) já estava preenchido/persistido. Fix: vínculo confiável por ID sempre sobrescreve valor sem ID; só preserva quando já preenchido E não há vínculo por ID ainda (não apaga edição manual).
+
+Release completa: build → assinado (`npx tauri signer sign -f/-p`, flags curtas) → `gh release create` sem assets + `upload` separado (1 bloqueio transitório do classifier, retry resolveu) → `latest.json` → verificado 200/302. `npm run typecheck` baseline 13 mantida.
+
+**Files changed:** `src/App.tsx`, `src/components/DailyBriefing.tsx`, `src/pages/BIDDashboard.tsx`, `src/lib/umbler.ts`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** aguardando o usuário testar um disparo Umbler real e reportar se o botão "Conversa" aparece (ou colar o log `[umbler] resposta de disparo sem chat.id reconhecível` do console, se não). Sem outras pendências de release.
+
+---
+
 ## 2026-07-18 — MCM — Release v1.0.22 publicada, assinada e verificada (MCM-115)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-115 ✅

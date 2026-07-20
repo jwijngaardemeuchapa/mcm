@@ -1,9 +1,23 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-18 (Sonnet 5)
-**Versão:** `1.0.22` publicada, assinada e verificada (MCM-115 ✅). Sem pendência de release aberta.
+**Data:** 2026-07-20 (Sonnet 5)
+**Versão:** `1.0.23` publicada, assinada e verificada (MCM-116 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `5ba410e` (bump 1.0.22 + novidades).
+**Último commit:** `672bc45` (bump 1.0.23 + fixes).
+
+---
+
+## ✅ Release v1.0.23 — 3 bugs reportados pelo usuário, investigados e corrigidos (MCM-116)
+
+Usuário reportou 3 problemas reais em produção. Investigação puramente por leitura de código (sem logs ao vivo do usuário) — 2 tiveram causa raiz confirmada com alta confiança, 1 corrigido mas precisa validação do usuário no próximo disparo real:
+
+1. **Tela de boot travada até apertar ESC** — causa raiz confirmada. `DailyBriefing.tsx` (resumo "Bom dia", abre 1x/dia) está montado dentro de `AppLayout`, que monta **imediatamente e simultâneo** ao `AppStartup` (tela cheia de sync, `z-[9999]`) — não depois. Seu `setTimeout(1800ms)` abre um `<Dialog>` do Radix (modal por padrão) enquanto ainda está escondido atrás do overlay de boot. Radix seta `pointer-events: none` no `<body>` inteiro quando QUALQUER Dialog modal está aberto, **mesmo invisível** — trava o clique em "Entrar no painel" até o usuário fechar esse Dialog escondido (ESC fecha o Dialog ativo, destrava tudo). **Fix:** `App.tsx` dispara `window.dispatchEvent(new CustomEvent("mcm:startup-done"))` só quando o `AppStartup` de fato termina; `DailyBriefing.tsx` espera esse evento (com fallback de 20s de segurança) antes de iniciar seu timer de 1.8s.
+
+2. **Botão "Conversa" do Umbler nunca aparece** — causa provável, **não confirmada 100%** (sem acesso a um disparo real). `extractChatId()` em `umbler.ts` assumia o shape `chat.id` (camelCase) copiado do schema de outro projeto (saacaptacao) — se a API real desta organização Umbler devolve outro formato (ex.: PascalCase `Chat.Id`, comum em API .NET), `chatId` fica sempre `null` e o botão (condicionado a `d.umbler_chat_id &&`) nunca renderiza, silenciosamente. **Fix parcial:** `pickChatId()` agora tenta `chat.id`/`Chat.Id`/`id`/`Id`/`chatId`/`ChatId` + `console.warn` uma vez por sessão logando o shape real se nenhuma bater. **AÇÃO PENDENTE DO USUÁRIO:** fazer um disparo de teste (BID ou FUP) e reportar se o botão "Conversa" aparece agora; se não, abrir DevTools (F12) e mandar a linha `[umbler] resposta de disparo sem chat.id reconhecível...` do console — isso revela o shape real e fecha a correção definitiva.
+
+3. **Endereço da tarefa no BID não se autocorrigia** — causa raiz confirmada. Arquitetura do cruzamento estava certa desde a sessão anterior: id_tarefa (question 1290/tarefas) → `tarefa_enderecos` (question 1430, ID Tarefa↔ID Endereço) → `cliente_book.enderecos[].metabase_address_ids` (question 1420, endereços). O bug: uma vez que `dispatchParams.local` tinha QUALQUER valor (mesmo um palpite fuzzy antigo, de antes desse cruzamento por ID existir, persistido em `localStorage[bid_params_{id_tarefa}]`), o efeito nunca mais rodava a lógica de correção (guard era `!dispatchParams.local && !dispatchParams.mapsLink`) — um endereço errado ficava errado pra sempre. **Fix:** o vínculo confiável por ID agora SEMPRE tem prioridade e sobrescreve um valor já preenchido sem ID; só preserva o campo quando já preenchido e não há vínculo por ID (evita apagar edição manual do analista quando genuinamente não há como confirmar via ID ainda).
+
+**Nota de processo:** `gh release upload` de dois arquivos em sequência rápida bloqueou 1x pelo classifier ("Stage 2 classifier error... geralmente transitório") — retry imediato resolveu. Confirma o padrão já registrado na entrada anterior: split `create`/`upload`, retry em bloqueios do classifier antes de escalar.
 
 ---
 
