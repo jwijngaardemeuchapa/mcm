@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-07-20 — MCM — Release v1.0.25: BID puxava endereço errado — 3 bugs no cruzamento tarefa→endereço (MCM-118)
+**Actor:** Jeremiah | **Agent:** claude (Opus 4.8)
+**Tickets:** MCM-118 ✅
+**Commits:** `c53bf8e` (fixes), `1577a47` (bump 1.0.25), `92f7961` (latest.json)
+
+Usuário: "algumas tarefas continuam puxando endereço errado, investigue a fundo". Investigação de código dos 3 elos (Questions 1290/1430/1420) + tentativa de confirmar contra banco real via sql.js no scratchpad. **Limitação:** esta máquina é a de build (banco congelado em 26/jun, migrations até v15); o BID roda em outra máquina, então os fixes vêm de análise de código (bugs concretos, não hipóteses).
+
+3 bugs:
+1. **`sincronizarTarefaEnderecos` descartava até 50 vínculos por vez** — `id_tarefa` PRIMARY KEY, Question 1430 pode devolver linha duplicada por tarefa, um dup no chunk de 50 fazia o INSERT inteiro violar UNIQUE e o catch jogava fora o chunk. Fix: dedup por Map + INSERT OR REPLACE.
+2. **CAUSA PRINCIPAL: cruzamento por Address.Id preso à empresa fuzzy** — o ID é global, mas só era procurado dentro dos endereços da empresa achada por companyMatches; fuzzy errado = endereço certo (sob outro nome) nunca achado = addrs[0] errado. Fix: busca por ID agora é global em todo cliente_book; fuzzy só fallback.
+3. **Fallback addrs[0] era chute** — só auto-preenche quando empresa tem 1 endereço; com vários e sem vínculo por ID, deixa vazio (usuário confirmou que toda tarefa no Meu Chapa tem endereço, então vazio = falha de sync a expor, não mascarar).
+
+Robustez: query do vínculo isolada em try (tabela ausente não aborta mais o card); console.warn `[bid-endereco]` distingue "sem vinculo" vs "vinculo nao casou" pra diagnóstico remoto.
+
+Release: build → assinado → gh create+upload → latest.json → verificado 200/302. typecheck baseline 13.
+
+**Files changed:** `src/lib/metabaseSync.ts`, `src/pages/BIDDashboard.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** usuário verifica na máquina do analista (após update p/ 1.0.25) se endereço volta certo; se algum ainda sair errado, mandar linhas `[bid-endereco]` do DevTools. Investigar se necessário se migration 21 (tarefa_enderecos) aplicou lá (colisão mcm/mcm-v2).
+
+---
+
 ## 2026-07-20 — MCM — Release v1.0.24: causa raiz do link Umbler no BID confirmada via doc oficial (MCM-117)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-117 ✅

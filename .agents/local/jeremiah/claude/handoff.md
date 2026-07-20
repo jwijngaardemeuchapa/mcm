@@ -1,9 +1,25 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-20 (Sonnet 5)
-**Versão:** `1.0.24` publicada, assinada e verificada (MCM-117 ✅). Sem pendência de release aberta.
+**Data:** 2026-07-20 (Opus 4.8)
+**Versão:** `1.0.25` publicada, assinada e verificada (MCM-118 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `e64f88c` (bump 1.0.24 + fix confirmado do link Umbler).
+**Último commit:** `92f7961` (latest.json 1.0.25).
+
+---
+
+## ✅ MCM-118 — "algumas tarefas puxam endereço errado" no BID: investigação profunda + 3 fixes
+
+Usuário pediu investigação a fundo. Investiguei o cruzamento tarefa→endereço (Questions 1290 tarefas / 1430 vínculo ID / 1420 endereços) no código E tentei confirmar contra o banco real via `sql.js` (instalado no scratchpad — não há sqlite3/python nesta máquina). **Achado sobre verificação:** esta máquina ("W Design") é a de BUILD — o único `fupmanager.db` aqui está congelado em **26/jun** (migrations só até v15, sem tarefa_enderecos/chapas_novos/leads_regiao). O BID de verdade roda em OUTRA máquina (a do analista). Então **não deu pra confirmar contra dados de produção reais** — os 3 fixes vêm de análise de código, mas são bugs concretos, não hipóteses.
+
+**Bug 1 — `sincronizarTarefaEnderecos` (metabaseSync.ts) descartava até 50 vínculos por vez.** `tarefa_enderecos.id_tarefa` é PRIMARY KEY, mas a Question 1430 pode devolver >1 linha pra mesma tarefa (join que multiplica na origem). Um `id_tarefa` repetido dentro do chunk de 50 fazia o `INSERT` multi-linha inteiro violar UNIQUE → o `catch` jogava fora os 50 vínculos do chunk. Tarefas sem vínculo caíam no fallback errado. **Fix:** dedup por `id_tarefa` num `Map` antes de montar `parsed` + `INSERT OR REPLACE`.
+
+**Bug 2 (CAUSA PRINCIPAL) — cruzamento por ID preso a uma empresa (BIDDashboard.tsx).** O `Address.Id` é único global no Metabase, mas o código só procurava o ID dentro dos endereços da UMA empresa achada por `companyMatches` (fuzzy por nome). Quando o fuzzy erra a empresa (nome divergente) ou há duas entradas do mesmo cliente com grafias diferentes (IDs caíram na outra), o endereço certo — que existe sob outro nome — nunca era achado → `addrs[0]` errado. **Fix:** a busca por ID agora varre TODO o `cliente_book` (loop sobre todas as rows), independente de empresa; `companyMatches` só entra como fallback quando não há vínculo por ID. A lista mostrada no card passa a ser a da empresa DONA do endereço casado por ID.
+
+**Bug 3 — fallback `addrs[0]` era chute que o analista confiava.** Sem vínculo por ID, pegava o 1º endereço da empresa (errado quando há vários). **Fix:** só auto-preenche o fallback quando inequívoco (`addrs.length === 1`); com vários e sem ID, deixa vazio de propósito. Usuário confirmou que no Meu Chapa **toda tarefa sempre tem endereço**, então o caso "vazio" só aparece em falha de sync/vínculo (e aí é bom expor, não mascarar com endereço errado).
+
+**Robustez extra:** a query do vínculo (`SELECT ... FROM tarefa_enderecos`) foi isolada num `try` próprio — se a tabela não existir (migration 21 não aplicada, ex.: colisão com mcm-v2 que compartilha o banco físico), o cruzamento é só pulado em vez de o `Promise.all` rejeitar e zerar `taskAddresses` (deixando o card sem NENHUM endereço). Adicionado `console.warn("[bid-endereco] tarefa X: ...")` que distingue remotamente **"sem vinculo"** (tarefa_enderecos vazia/ausente) de **"vinculo nao casou"** (IDs das Questions 1420/1430 podem ser campos diferentes, ou sincronizarEnderecos semanal ainda não trouxe o endereço novo).
+
+**⚠️ PENDÊNCIA DE VERIFICAÇÃO (usuário):** confirmar na máquina do analista, após atualizar pra 1.0.25, se o endereço volta certo. Se ALGUM ainda sair errado/vazio, abrir DevTools (F12) e mandar as linhas `[bid-endereco]` do console — elas dizem exatamente a causa por tarefa. Se aparecer muito "sem vinculo", investigar se `tarefa_enderecos` (migration 21) realmente aplicou naquela máquina (possível colisão de versionamento mcm/mcm-v2 — checar `_sqlx_migrations`). Ferramenta de inspeção pronta em `scratchpad/tables.mjs` e `inspect.mjs` (sql.js) — reusar apontando pro banco certo.
 
 ---
 
