@@ -634,27 +634,38 @@ function BidTaskCard({
         if (match) setMatchedEmpresaNome(match.nome);
         const addrs: ClienteAddress[] = match?.enderecos ? JSON.parse(match.enderecos) : [];
         setTaskAddresses(addrs);
-        if (addrs.length > 0 && !dispatchParams.local && !dispatchParams.mapsLink) {
+        if (addrs.length > 0) {
           // Endereço GARANTIDO: cruza o ID do endereço vinculado a esta
           // tarefa (tarefa_enderecos) contra a LISTA de metabase_address_ids
           // de cada item do caderno de clientes — um endereço físico tem
           // vários Address.Id de origem, então basta bater com qualquer um
-          // deles. Só cai no primeiro-da-lista (fuzzy, não garantido) quando
-          // não há vínculo por ID.
+          // deles.
           const addrId = vinculo[0]?.metabase_address_id;
           const porId = addrId ? addrs.find((a) => a.metabase_address_ids?.includes(addrId)) : undefined;
-          const chosen = porId ?? addrs[0];
-          setEnderecoConfiavel(!!porId);
-          setSelectedAddressId(chosen.id);
-          const cepFromAddr = chosen.cep ?? extractCepFromText(chosen.endereco);
-          setDispatchParams((p) => ({
-            ...p,
-            local: chosen.endereco,
-            mapsLink: chosen.maps_link ?? "",
-            localLat: chosen.lat,
-            localLng: chosen.lng,
-            localCep: p.localCep || formatCep(cepFromAddr),
-          }));
+          // Um vínculo confiável por ID sempre GANHA de um valor já
+          // preenchido — mesmo que dispatchParams.local já tenha algo (de
+          // um palpite fuzzy anterior, sem ID, gravado em localStorage antes
+          // de existir esse cruzamento, ou de uma expansão anterior deste
+          // mesmo card sem o vínculo ainda sincronizado). Sem essa
+          // atualização, um endereço errado gravado uma vez nunca mais era
+          // corrigido automaticamente. Só entra o fallback fuzzy
+          // (primeiro-da-lista, não garantido) quando NADA foi preenchido
+          // ainda — nunca sobrescreve um campo já preenchido sem vínculo
+          // por ID (evita apagar edição manual do analista).
+          const chosen = porId ?? (!dispatchParams.local && !dispatchParams.mapsLink ? addrs[0] : undefined);
+          if (chosen && (porId ? selectedAddressId !== chosen.id : true)) {
+            setEnderecoConfiavel(!!porId);
+            setSelectedAddressId(chosen.id);
+            const cepFromAddr = chosen.cep ?? extractCepFromText(chosen.endereco);
+            setDispatchParams((p) => ({
+              ...p,
+              local: chosen.endereco,
+              mapsLink: chosen.maps_link ?? "",
+              localLat: chosen.lat,
+              localLng: chosen.lng,
+              localCep: p.localCep || formatCep(cepFromAddr),
+            }));
+          }
         }
       } catch {
         setTaskAddresses([]);

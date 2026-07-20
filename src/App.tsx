@@ -73,7 +73,19 @@ const App = () => {
   <ErrorBoundary>
   <QueryClientProvider client={queryClient}>
     {showIntro && <IntroScreen onDone={() => setShowIntro(false)} />}
-    {!showIntro && !startupDone && <AppStartup onDone={() => setStartupDone(true)} />}
+    {!showIntro && !startupDone && (
+      <AppStartup
+        onDone={() => {
+          setStartupDone(true);
+          // AppLayout (e diálogos que auto-abrem nele, ex. DailyBriefing) já
+          // está montado por baixo do overlay de boot desde o início — sem
+          // esse sinal, um Dialog do Radix pode abrir "invisível" atrás da
+          // tela cheia de sincronização e travar pointer-events da página
+          // toda até o usuário apertar ESC.
+          window.dispatchEvent(new CustomEvent("mcm:startup-done"));
+        }}
+      />
+    )}
     <TooltipProvider>
       <UndoProvider>
         <WatcherProvider>

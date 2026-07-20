@@ -41,14 +41,36 @@ export function umblerChatLink(chatId: string | null | undefined): string | null
   return `https://app-utalk.umbler.com/chats/${chatId}`;
 }
 
-// Corpo de resposta comum aos 2 endpoints de disparo — só nos interessa
-// chat.id, resto do payload é ignorado.
-type UmblerDispatchResponse = { chat?: { id?: string | null } };
+// Corpo de resposta comum aos 2 endpoints de disparo — a suposição original
+// (schema do saacaptacao) era `chat.id` (camelCase). Como nenhum botão
+// "Conversa" nunca apareceu em produção (chatId sempre null), a API real
+// desta organização pode devolver um shape diferente (PascalCase .NET
+// comum na Umbler: `Chat.Id`, ou o id direto na raiz). Tenta as variantes
+// mais prováveis antes de desistir; loga o shape real uma única vez por
+// sessão pra confirmar qual delas é a certa (ou se é nenhuma).
+type UmblerDispatchResponse = Record<string, unknown>;
+
+let loggedUnknownShape = false;
+
+function pickChatId(body: UmblerDispatchResponse): string | null {
+  const chat = body?.chat ?? body?.Chat;
+  const fromChat = (chat as Record<string, unknown> | undefined)?.id
+    ?? (chat as Record<string, unknown> | undefined)?.Id;
+  if (typeof fromChat === "string") return fromChat;
+  const rootId = body?.id ?? body?.Id ?? body?.chatId ?? body?.ChatId;
+  if (typeof rootId === "string") return rootId;
+  return null;
+}
 
 async function extractChatId(res: Response): Promise<string | null> {
   try {
     const body = await res.clone().json() as UmblerDispatchResponse;
-    return body?.chat?.id ?? null;
+    const chatId = pickChatId(body);
+    if (!chatId && !loggedUnknownShape) {
+      loggedUnknownShape = true;
+      console.warn("[umbler] resposta de disparo sem chat.id reconhecível — shape real:", body);
+    }
+    return chatId;
   } catch {
     return null; // resposta sem corpo JSON ou formato inesperado — não é fatal
   }

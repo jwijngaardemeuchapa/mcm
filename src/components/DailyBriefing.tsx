@@ -31,49 +31,67 @@ export function DailyBriefing() {
     const last = localStorage.getItem(STORAGE_KEY);
     if (last === todayISO) return;
 
-    const t = setTimeout(async () => {
-      try {
-        const db = await getDb();
-        type CntRow = { cnt: number };
-        type ChapasRow = { cnt: number; pending: number };
+    let t: ReturnType<typeof setTimeout> | null = null;
+    let fallback: ReturnType<typeof setTimeout> | null = null;
 
-        const tasks = await db.select<CntRow[]>(
-          `SELECT COUNT(*) as cnt FROM tarefas
-           WHERE ativo = 1 AND date(data_tarefa) = ?
-           AND status_tarefa NOT LIKE 'Cancel%' AND status_tarefa != 'Finalizado'`,
-          [todayISO],
-        );
-        const chapas = await db.select<ChapasRow[]>(
-          `SELECT COUNT(*) as cnt,
-                  SUM(CASE WHEN c.status_contato NOT IN ('confirmado','removido') THEN 1 ELSE 0 END) as pending
-           FROM chapas c
-           JOIN tarefas t ON c.id_tarefa = t.id_tarefa
-           WHERE t.ativo = 1 AND date(t.data_tarefa) = ?`,
-          [todayISO],
-        );
-        const yesterday = new Date(`${todayISO}T12:00:00-03:00`);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yISO = yesterday.toISOString().slice(0, 10);
-        const overnight = await db.select<CntRow[]>(
-          `SELECT COUNT(*) as cnt FROM tarefas
-           WHERE ativo = 1 AND is_overnight = 1 AND date(data_tarefa) = ?`,
-          [yISO],
-        );
+    const openWhenReady = () => {
+      if (fallback) { clearTimeout(fallback); fallback = null; }
+      t = setTimeout(async () => {
+        try {
+          const db = await getDb();
+          type CntRow = { cnt: number };
+          type ChapasRow = { cnt: number; pending: number };
 
-        setStats({
-          tasksToday: tasks[0]?.cnt ?? 0,
-          totalChapas: chapas[0]?.cnt ?? 0,
-          pendingChapas: chapas[0]?.pending ?? 0,
-          overnightCount: overnight[0]?.cnt ?? 0,
-        });
-        setOpen(true);
-        localStorage.setItem(STORAGE_KEY, todayISO);
-      } catch {
-        /* DB may not be ready — silently skip */
-      }
-    }, 1800);
+          const tasks = await db.select<CntRow[]>(
+            `SELECT COUNT(*) as cnt FROM tarefas
+             WHERE ativo = 1 AND date(data_tarefa) = ?
+             AND status_tarefa NOT LIKE 'Cancel%' AND status_tarefa != 'Finalizado'`,
+            [todayISO],
+          );
+          const chapas = await db.select<ChapasRow[]>(
+            `SELECT COUNT(*) as cnt,
+                    SUM(CASE WHEN c.status_contato NOT IN ('confirmado','removido') THEN 1 ELSE 0 END) as pending
+             FROM chapas c
+             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
+             WHERE t.ativo = 1 AND date(t.data_tarefa) = ?`,
+            [todayISO],
+          );
+          const yesterday = new Date(`${todayISO}T12:00:00-03:00`);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yISO = yesterday.toISOString().slice(0, 10);
+          const overnight = await db.select<CntRow[]>(
+            `SELECT COUNT(*) as cnt FROM tarefas
+             WHERE ativo = 1 AND is_overnight = 1 AND date(data_tarefa) = ?`,
+            [yISO],
+          );
 
-    return () => clearTimeout(t);
+          setStats({
+            tasksToday: tasks[0]?.cnt ?? 0,
+            totalChapas: chapas[0]?.cnt ?? 0,
+            pendingChapas: chapas[0]?.pending ?? 0,
+            overnightCount: overnight[0]?.cnt ?? 0,
+          });
+          setOpen(true);
+          localStorage.setItem(STORAGE_KEY, todayISO);
+        } catch {
+          /* DB may not be ready — silently skip */
+        }
+      }, 1800);
+    };
+
+    // Espera a tela de boot (AppStartup) terminar antes de abrir o Dialog —
+    // abrir enquanto ela ainda cobre a tela trava pointer-events da página
+    // toda (Radix Dialog é modal por padrão) até o usuário apertar ESC,
+    // mesmo sem o Dialog estar visível. Fallback de 20s cobre o caso do
+    // evento nunca disparar (ex.: AppStartup pulado num fluxo futuro).
+    window.addEventListener("mcm:startup-done", openWhenReady, { once: true });
+    fallback = setTimeout(openWhenReady, 20_000);
+
+    return () => {
+      window.removeEventListener("mcm:startup-done", openWhenReady);
+      if (fallback) clearTimeout(fallback);
+      if (t) clearTimeout(t);
+    };
   }, []);
 
   if (!open || !stats) return null;
