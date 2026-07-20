@@ -3,6 +3,25 @@
 
 ---
 
+## 2026-07-20 — MCM — Release v1.0.24: causa raiz do link Umbler no BID confirmada via doc oficial (MCM-117)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-117 ✅
+**Commits:** `f5177c1` (fix), `e64f88c` (bump 1.0.24 + novidades)
+
+Usuário sugeriu a hipótese certa: diferença entre chatbot (start-bot) e template. Confirmado lendo a documentação oficial real da Umbler direto do Swagger JSON (`app-utalk.umbler.com/api/docs/v1/docs.json`, via browser — não estava no conhecimento do modelo, precisou buscar ao vivo):
+
+- `POST /v1/chats/start-bot/` (BID): resposta 200 É o chat inteiro (`BasicChatModel`/`ChatModel`) — `id` na raiz (`ModelBase.id`), nunca em `chat.id` porque não existe propriedade `chat` nessa resposta.
+- `POST /v1/template-messages/simplified/` (FUP): resposta 200 é uma mensagem (`SentMessageModel`) — aí sim tem `chat.id` (`MessageModel.chat` → `ChatIdReferenceModel.id`). Mas cuidado: a mensagem TAMBÉM tem seu próprio `id` na raiz (herdado de `ModelBase` via `MessagePartModel`) — é o id da mensagem, não do chat. Checar a raiz primeiro quebraria o FUP.
+
+Fix em `pickChatId()` (`umbler.ts`): checa `chat.id` primeiro (cobre mensagem/FUP), só cai pra `id` da raiz quando não há `chat` aninhado (chat puro/BID). Removida a especulação de variantes PascalCase da tentativa anterior (API real é camelCase consistente). `console.warn` de diagnóstico mantido como rede de segurança pra mudanças futuras de shape.
+
+Release: build → assinado → `gh release create` + `upload` separado → `latest.json` → verificado 200/302. `npm run typecheck` baseline 13 mantida.
+
+**Files changed:** `src/lib/umbler.ts`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** nenhuma pendência de release. MCM-116 (item 2, antes "não confirmado") agora fechado com causa raiz real, não só hipótese.
+
+---
+
 ## 2026-07-20 — MCM — Release v1.0.23: boot travado (ESC), endereço BID não autocorrigia, diagnóstico Umbler (MCM-116)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-116 ✅

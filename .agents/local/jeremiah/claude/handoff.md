@@ -1,9 +1,24 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-07-20 (Sonnet 5)
-**Versão:** `1.0.23` publicada, assinada e verificada (MCM-116 ✅). Sem pendência de release aberta.
+**Versão:** `1.0.24` publicada, assinada e verificada (MCM-117 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `672bc45` (bump 1.0.23 + fixes).
+**Último commit:** `e64f88c` (bump 1.0.24 + fix confirmado do link Umbler).
+
+---
+
+## ✅ MCM-117 — causa raiz do link "Conversa" do Umbler CONFIRMADA (item 2 do MCM-116, antes só hipótese)
+
+Usuário sugeriu checar se a diferença era chatbot (start-bot) vs template — bati essa hipótese contra a **documentação oficial real** da Umbler, lida direto do Swagger JSON (`https://app-utalk.umbler.com/api/docs/v1/docs.json`, via browser — o schema completo de todos os endpoints está lá, incluindo `paths` e `components.schemas`):
+
+- **`POST /v1/chats/start-bot/`** (usado no disparo de BID) — resposta 200 é `oneOf [BasicChatModel, ChatModel]`, ou seja, **o corpo da resposta É o chat inteiro**. `id` vem na **raiz** (herdado de `ModelBase.id`, `{type: string, example: "AB_12-xyzEXAMPLE"}`). Não existe propriedade `chat` dentro dessa resposta — nunca existiu.
+- **`POST /v1/template-messages/simplified/`** (usado no FUP) — resposta 200 é `SentMessageModel` (que estende `MessageModel` → `MessagePartModel` → `ModelBase`). Essa SIM tem uma propriedade `chat` (`MessageModel.chat`, tipo `ChatIdReferenceModel`, também com seu próprio `id`). Mas atenção: `MessagePartModel` **também** herda `ModelBase.id` — ou seja, o `id` na raiz da resposta de uma mensagem é o **id da própria mensagem**, não o do chat.
+
+Isso explica tudo: `chat.id` (suposição original, copiada de outro projeto) sempre funcionou certo pro FUP, e sempre falhava pro BID (nunca existiu `chat` na resposta do start-bot). Se eu tivesse simplesmente invertido pra checar a raiz primeiro (como cheguei a cogitar), teria quebrado o FUP silenciosamente (pegaria o id da mensagem em vez do chat).
+
+**Fix definitivo em `umbler.ts` `pickChatId()`:** checa `chat.id` primeiro (cobre o shape de mensagem/FUP) e só cai pra `id` da raiz quando não existe `chat` aninhado (shape de chat puro/BID). Comentário no código documenta os dois shapes com a fonte (link da doc). Removida a lógica especulativa de variantes PascalCase (`Chat.Id`, `ChatId` etc.) da tentativa anterior — a API real usa camelCase consistente (`System.Text.Json` com policy padrão), não havia necessidade.
+
+**Se o botão "Conversa" ainda não aparecer em algum disparo específico depois desta versão**, o `console.warn("[umbler] resposta de disparo sem chat.id reconhecível...")` em `umbler.ts` ainda está lá como rede de segurança — pedir pro usuário abrir DevTools (F12) e mandar essa linha.
 
 ---
 
