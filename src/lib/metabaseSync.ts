@@ -280,7 +280,16 @@ export async function sincronizarTarefaEnderecos(silent = false): Promise<boolea
     const db = await getDb();
     const now = new Date().toISOString();
 
-    const parsed: [number, string][] = [];
+    // Dedup por id_tarefa ANTES de inserir. id_tarefa é PRIMARY KEY, e a
+    // Question pode devolver mais de uma linha pra mesma tarefa (join que
+    // multiplica linhas, ou tarefa repetida na origem). Sem dedup, um único
+    // id_tarefa repetido dentro de um chunk faz o INSERT multi-linha inteiro
+    // violar UNIQUE e o catch descartava os 50 vínculos do chunk de uma vez
+    // — tarefas perdiam o vínculo exato e caíam no fallback de endereço
+    // errado. Map = última linha vence (todas deveriam ter o mesmo
+    // IdTaskAddress pra mesma tarefa; se divergirem, não há como saber qual
+    // é a certa, então qualquer uma serve e o importante é não quebrar).
+    const porTarefa = new Map<number, string>();
     for (const row of rows) {
       const k = Object.keys(row);
       const g = (pat: RegExp) => k.find((c) => pat.test(c));
@@ -292,8 +301,9 @@ export async function sincronizarTarefaEnderecos(silent = false): Promise<boolea
       // normalizeMetabase de sincronizarEnderecos pra o cruzamento funcionar.
       const idEndereco = idEnderecoKey ? String(row[idEnderecoKey] ?? "").replace(/\D/g, "") : "";
       if (!idTarefa || !idEndereco) continue;
-      parsed.push([idTarefa, idEndereco]);
+      porTarefa.set(idTarefa, idEndereco);
     }
+    const parsed: [number, string][] = [...porTarefa];
 
     await db.execute("DELETE FROM tarefa_enderecos");
     const CHUNK = 50;
@@ -302,8 +312,10 @@ export async function sincronizarTarefaEnderecos(silent = false): Promise<boolea
       const chunk = parsed.slice(i, i + CHUNK);
       const ph = Array(chunk.length).fill("(?,?,?)").join(",");
       try {
+        // OR REPLACE por segurança extra (dedup em memória já garante chunk
+        // sem colisão interna, mas mantém idempotência se algo escapar).
         await db.execute(
-          `INSERT INTO tarefa_enderecos (id_tarefa,metabase_address_id,importado_em) VALUES ${ph}`,
+          `INSERT OR REPLACE INTO tarefa_enderecos (id_tarefa,metabase_address_id,importado_em) VALUES ${ph}`,
           chunk.flatMap(([idTarefa, idEndereco]) => [idTarefa, idEndereco, now]),
         );
         count += chunk.length;

@@ -621,38 +621,90 @@ function BidTaskCard({
     (async () => {
       try {
         const db = await getDb();
-        const [rows, vinculo] = await Promise.all([
-          db.select<{ nome: string; enderecos: string | null }[]>(
-            "SELECT nome, enderecos FROM cliente_book WHERE enderecos IS NOT NULL AND enderecos != '[]' AND enderecos != ''",
-          ),
-          db.select<{ metabase_address_id: string }[]>(
+        const rows = await db.select<{ nome: string; enderecos: string | null }[]>(
+          "SELECT nome, enderecos FROM cliente_book WHERE enderecos IS NOT NULL AND enderecos != '[]' AND enderecos != ''",
+        );
+        // Query do vínculo isolada num try próprio: se a tabela tarefa_enderecos
+        // não existir (migration 21 não aplicada — ex.: colisão de versionamento
+        // com mcm-v2, que compartilha o banco físico) ou estiver vazia, o
+        // cruzamento por ID só é pulado — NÃO aborta o carregamento das
+        // opções de endereço da empresa (antes, um Promise.all rejeitava e
+        // zerava taskAddresses, deixando o card sem nenhum endereço).
+        let vinculo: { metabase_address_id: string }[] = [];
+        try {
+          vinculo = await db.select<{ metabase_address_id: string }[]>(
             "SELECT metabase_address_id FROM tarefa_enderecos WHERE id_tarefa = ?",
             [task.id_tarefa],
-          ),
-        ]);
-        const match = rows.find((r) => companyMatches(task.empresa, [r.nome]));
-        if (match) setMatchedEmpresaNome(match.nome);
-        const addrs: ClienteAddress[] = match?.enderecos ? JSON.parse(match.enderecos) : [];
+          );
+        } catch { /* tabela ausente/indisponível — segue sem cruzamento por ID */ }
+
+        // ── Cruzamento por ID (GARANTIDO) — GLOBAL, independente de empresa ──
+        // O vínculo tarefa→endereço (tarefa_enderecos, Question 1430) dá um
+        // Address.Id GLOBALMENTE único no Metabase. A busca por esse ID tem
+        // que varrer TODOS os itens do caderno de clientes, não só os da
+        // empresa achada por fuzzy match — senão, quando o companyMatches
+        // erra a empresa (nome divergente, ou duas entradas pro mesmo
+        // cliente com grafias diferentes onde os IDs de endereço caíram na
+        // OUTRA entrada), o endereço certo — que existe sob outro nome de
+        // empresa — nunca era encontrado e caía no fallback errado. Essa é a
+        // causa real de "puxou endereço errado".
+        const addrId = vinculo[0]?.metabase_address_id;
+        let porId: ClienteAddress | undefined;
+        let porIdEnderecos: ClienteAddress[] | undefined; // lista da empresa dona do endereço casado
+        if (addrId) {
+          for (const r of rows) {
+            if (!r.enderecos) continue;
+            let list: ClienteAddress[];
+            try { list = JSON.parse(r.enderecos); } catch { continue; }
+            const hit = list.find((a) => a.metabase_address_ids?.includes(addrId));
+            if (hit) { porId = hit; porIdEnderecos = list; setMatchedEmpresaNome(r.nome); break; }
+          }
+        }
+
+        // Fallback fuzzy por nome de empresa — só quando NÃO houve match por ID.
+        const fuzzyMatch = porId ? undefined : rows.find((r) => companyMatches(task.empresa, [r.nome]));
+        if (fuzzyMatch) setMatchedEmpresaNome(fuzzyMatch.nome);
+        const fuzzyAddrs: ClienteAddress[] = fuzzyMatch?.enderecos ? JSON.parse(fuzzyMatch.enderecos) : [];
+
+        // Lista mostrada no card: a da empresa dona do endereço casado por ID
+        // (quando houve match global), senão a do fuzzy match.
+        const addrs = porIdEnderecos ?? fuzzyAddrs;
         setTaskAddresses(addrs);
+
+        // Diagnóstico (visível no DevTools/F12) pra distinguir remotamente a
+        // causa quando um endereço sai errado/vazio, já que não dá pra ver o
+        // banco da máquina do analista:
+        //  - "sem vinculo": tarefa_enderecos vazia/ausente pra esta tarefa
+        //    (migration 21 não aplicou, ou sync de vínculos não rodou).
+        //  - "vinculo nao casou": tem addrId mas nenhum endereço do caderno
+        //    tem esse ID (sincronizarEnderecos semanal ainda não trouxe, ou
+        //    IDs das Questions 1420/1430 não são o mesmo campo).
+        if (!porId) {
+          const motivo = !addrId ? "sem vinculo (tarefa_enderecos vazia p/ esta tarefa)"
+            : "vinculo nao casou com nenhum endereco do caderno";
+          console.warn(`[bid-endereco] tarefa ${task.id_tarefa} (${task.empresa}): ${motivo}. addrId=${addrId ?? "-"} | enderecos empresa=${addrs.length}`);
+        }
+
         if (addrs.length > 0) {
-          // Endereço GARANTIDO: cruza o ID do endereço vinculado a esta
-          // tarefa (tarefa_enderecos) contra a LISTA de metabase_address_ids
-          // de cada item do caderno de clientes — um endereço físico tem
-          // vários Address.Id de origem, então basta bater com qualquer um
-          // deles.
-          const addrId = vinculo[0]?.metabase_address_id;
-          const porId = addrId ? addrs.find((a) => a.metabase_address_ids?.includes(addrId)) : undefined;
           // Um vínculo confiável por ID sempre GANHA de um valor já
           // preenchido — mesmo que dispatchParams.local já tenha algo (de
           // um palpite fuzzy anterior, sem ID, gravado em localStorage antes
           // de existir esse cruzamento, ou de uma expansão anterior deste
           // mesmo card sem o vínculo ainda sincronizado). Sem essa
           // atualização, um endereço errado gravado uma vez nunca mais era
-          // corrigido automaticamente. Só entra o fallback fuzzy
-          // (primeiro-da-lista, não garantido) quando NADA foi preenchido
-          // ainda — nunca sobrescreve um campo já preenchido sem vínculo
-          // por ID (evita apagar edição manual do analista).
-          const chosen = porId ?? (!dispatchParams.local && !dispatchParams.mapsLink ? addrs[0] : undefined);
+          // corrigido automaticamente.
+          //
+          // Fallback SEM vínculo por ID: só auto-preenche quando é
+          // inequívoco — empresa com UM único endereço cadastrado. Se a
+          // empresa tem VÁRIOS endereços e não há vínculo por ID pra dizer
+          // qual é o desta tarefa, pegar o primeiro-da-lista é um chute que
+          // o analista tende a confiar (causa direta de "puxou endereço
+          // errado"). Nesse caso deixa vazio de propósito, pro analista
+          // preencher com atenção (o Input de Local continua editável).
+          // Nunca sobrescreve um campo já preenchido sem vínculo por ID
+          // (não apaga edição manual).
+          const podeFallback = !dispatchParams.local && !dispatchParams.mapsLink && addrs.length === 1;
+          const chosen = porId ?? (podeFallback ? addrs[0] : undefined);
           if (chosen && (porId ? selectedAddressId !== chosen.id : true)) {
             setEnderecoConfiavel(!!porId);
             setSelectedAddressId(chosen.id);
