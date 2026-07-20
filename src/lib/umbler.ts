@@ -41,26 +41,34 @@ export function umblerChatLink(chatId: string | null | undefined): string | null
   return `https://app-utalk.umbler.com/chats/${chatId}`;
 }
 
-// Corpo de resposta comum aos 2 endpoints de disparo — a suposição original
-// (schema do saacaptacao) era `chat.id` (camelCase). Como nenhum botão
-// "Conversa" nunca apareceu em produção (chatId sempre null), a API real
-// desta organização pode devolver um shape diferente (PascalCase .NET
-// comum na Umbler: `Chat.Id`, ou o id direto na raiz). Tenta as variantes
-// mais prováveis antes de desistir; loga o shape real uma única vez por
-// sessão pra confirmar qual delas é a certa (ou se é nenhuma).
+// Corpo de resposta dos 2 endpoints de disparo — shapes DIFERENTES,
+// confirmados na doc oficial (app-utalk.umbler.com/api/docs/v1/docs.json):
+// - POST /v1/chats/start-bot/ (usado no BID): resposta É o chat em si
+//   (schema BasicChatModel/ChatModel) — o id vem na RAIZ (`ModelBase.id`),
+//   nunca aninhado em `chat`. A suposição original (`body.chat.id`) sempre
+//   falhava aqui — por isso o botão "Conversa" nunca aparecia nos disparos
+//   de BID (chatbot), mesmo com o request funcionando.
+// - POST /v1/template-messages/simplified/ (usado no FUP): resposta é uma
+//   mensagem (SentMessageModel → MessageModel), cujo `chat` é uma
+//   referência `{ id }` (ChatIdReferenceModel) — aqui `body.chat.id` está
+//   correto.
 type UmblerDispatchResponse = Record<string, unknown>;
 
-let loggedUnknownShape = false;
-
 function pickChatId(body: UmblerDispatchResponse): string | null {
-  const chat = body?.chat ?? body?.Chat;
-  const fromChat = (chat as Record<string, unknown> | undefined)?.id
-    ?? (chat as Record<string, unknown> | undefined)?.Id;
+  // Checa `chat.id` primeiro: no shape de mensagem (template-messages),
+  // `body.id` também existe mas é o id da PRÓPRIA mensagem (MessagePartModel
+  // também herda id de ModelBase) — pegar a raiz primeiro pegaria o id
+  // errado. Só cai pra raiz quando não há `chat` aninhado (shape de chat
+  // puro, start-bot).
+  const chat = body?.chat as Record<string, unknown> | undefined;
+  const fromChat = chat?.id;
   if (typeof fromChat === "string") return fromChat;
-  const rootId = body?.id ?? body?.Id ?? body?.chatId ?? body?.ChatId;
+  const rootId = body?.id;
   if (typeof rootId === "string") return rootId;
   return null;
 }
+
+let loggedUnknownShape = false;
 
 async function extractChatId(res: Response): Promise<string | null> {
   try {
@@ -68,7 +76,7 @@ async function extractChatId(res: Response): Promise<string | null> {
     const chatId = pickChatId(body);
     if (!chatId && !loggedUnknownShape) {
       loggedUnknownShape = true;
-      console.warn("[umbler] resposta de disparo sem chat.id reconhecível — shape real:", body);
+      console.warn("[umbler] resposta de disparo sem chat.id reconhecível (shape mudou?) — corpo real:", body);
     }
     return chatId;
   } catch {
