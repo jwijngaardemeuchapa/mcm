@@ -1,11 +1,11 @@
 {
-  "version": "1.0.23",
+  "version": "1.0.24",
   "notes": "Ver página de Ajuda para novidades.",
-  "pub_date": "2026-07-20T07:15:00Z",
+  "pub_date": "2026-07-20T08:15:00Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFlybzRMc0JCR09ZRUM5QnA2MDlwUFAvV2pQMnUzSHY0eDB3RWNTK0g5dmI0N1lQRWZLVWw2MUJZelN5ZnJJWmliSUlWSndsb3NDck1YU0QzdnowcncwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NTQxNjUwCWZpbGU6TUNNXzEuMC4yM194NjQtc2V0dXAuZXhlCk40b0w1WFhCVTlQa0RvTzh6Vyt3Wm1ZeTYvT2dlMXBFTFowL1V6N0EzMWYrNmEwRS9MSVdybTFEUnR0Sm9DOXNXQ0FwMFcvZFRCNUg4dzVnYXBqc0NBPT0K",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.23/MCM_1.0.23_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFlXWk84TWUxblZ4Z0o2R2F6UG9SMllpK0tGVDZiNERTZEFOaHcyaFhvT1ZXOVFWYUhmUC9icVZzRDc5RlhjRmliUGg4Q0xnMlZUdkJHdUVmZmZzcHdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NTQ1MjU4CWZpbGU6TUNNXzEuMC4yNF94NjQtc2V0dXAuZXhlCkt3VTloVFNvWmJBdGZpeE96Uk1pYmRXOWd2d3U0UjAwT1pmTGtsUTBhK0hka2MxWEMwaFBLdXFkRTFYc3AxYy9TaTE2OEtNVmtWUFdjc3pDZEoxWUN3PT0K",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.24/MCM_1.0.24_x64-setup.exe"
     }
   }
 }

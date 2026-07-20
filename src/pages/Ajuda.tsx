@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.23</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.24</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,10 +767,8 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.23 — Novidades desta versão:</strong>{" "}
-              <strong>Fix — tela inicial travada</strong>: em alguns casos era preciso apertar ESC antes de conseguir clicar em "Entrar no painel" na tela de sincronização — corrigido.{" "}
-              <strong>Fix — BID: endereço da tarefa se autocorrige</strong>: quando o vínculo exato tarefa→endereço chega depois (ou um palpite antigo ficou salvo errado), o endereço agora é corrigido automaticamente em vez de ficar preso no valor antigo.{" "}
-              <strong>Umbler — diagnóstico do link de conversa</strong>: ajuste na leitura da resposta da API para o botão "Conversa" reconhecer mais formatos de retorno.
+              <strong>v1.0.24 — Novidades desta versão:</strong>{" "}
+              <strong>Fix — botão "Conversa" do Umbler no BID</strong>: o link direto pra conversa nunca aparecia nos disparos de BID (chatbot) — causa confirmada na documentação oficial da Umbler (o id da conversa vem em outro lugar da resposta pra esse tipo de disparo, diferente do FUP) — corrigido.
             </span>
           </div>
         )}
@@ -1006,7 +1004,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.23 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.24 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1041,7 +1039,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.23 · © 2026 Wijngaarde Design
+        MCM v1.0.24 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
