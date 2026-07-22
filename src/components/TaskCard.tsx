@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 import {
   MessageCircle,
   MessageSquare,
@@ -402,27 +403,41 @@ Precisamos de 1 substituto para esta tarefa.`;
     onRefresh();
   }
 
+  // Segue o padrão da planilha "Lista de Presença" (modelo fornecido pelo
+  // usuário): título mesclado A1:F1, campos Data/Empresa/Local/Responsável
+  // nas linhas 2-3, cabeçalho na linha 5, chapas numeradas a partir da 6.
   function exportCSV() {
-    const rows = task.chapas
-      .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
-      .map((c) => `${c.nome_chapa};${c.telefone_chapa ?? ""}`);
-    const csv = "Nome;Telefone\n" + rows.join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
+    const chapasValidas = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    const { operadorNome } = readSettings();
+
+    const wsData: (string | number)[][] = [
+      ["LISTA DE PRESENÇA", "", "", "", "", ""],
+      ["Data:", fmtSP(task.data_tarefa, "dd/MM/yyyy"), "Empresa:", task.empresa, "", ""],
+      ["Local da operação:", task.cidade_uf ?? "", "", "Responsável:", operadorNome || "", ""],
+      [],
+      ["Nº", "Nome", "CPF", "Horário de Entrada", "Horário de Saída", "Assinatura"],
+      ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", c.cpf ?? "", "", "", ""]),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+    ws["!cols"] = [{ wch: 6 }, { wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 30 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Lista de Presença");
+
     const slug = companyFilenameSlug(task.empresa);
     const time = fmtSP(task.data_tarefa, "HHmm");
-    a.download = `${slug}_${time}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const filename = `${slug}_${time}.xlsx`;
+    XLSX.writeFile(wb, filename);
+
     try {
       localStorage.setItem(csvExportKey(task.id_tarefa), new Date().toISOString());
     } catch {
       /* noop */
     }
     setCsvExportedAt(new Date().toISOString());
-    toast.success(`CSV exportado: ${a.download}`);
+    toast.success(`Lista de presença exportada: ${filename}`);
   }
 
   async function copyCpfConfirmados() {
@@ -1184,10 +1199,10 @@ Precisamos de 1 substituto para esta tarefa.`;
                   : "border-warning/60 text-warning bg-warning/10 hover:bg-warning/20"
               }`}
               onClick={exportCSV}
-              title={csvExportedAt ? `Exportado em ${fmtDateTime(csvExportedAt)} — clique para exportar novamente` : "FUP pendente — clique para exportar o CSV"}
+              title={csvExportedAt ? `Exportado em ${fmtDateTime(csvExportedAt)} — clique para exportar novamente` : "Exporta a lista de presença (nome e CPF dos alocados) para impressão e validação do cliente"}
             >
               {csvExportedAt ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
-              {csvExportedAt ? "CSV exportado · reexportar" : "Exportar CSV"}
+              {csvExportedAt ? "Lista de Presença exportada · reexportar" : "Lista de Presença"}
             </Button>
             <Button size="sm" variant="outline" className="gap-1.5" onClick={copyList}>
               <Copy className="h-3.5 w-3.5" /> Copiar Lista

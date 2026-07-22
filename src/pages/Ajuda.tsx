@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.26</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.27</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,9 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.26 — Novidades desta versão:</strong>{" "}
-              <strong>Consultor — um anexo só</strong>: não é mais necessário anexar um CSV separado de descrições/remessa — se o arquivo principal já tiver essas colunas, elas são lidas direto dele.{" "}
-              <strong>Fix — Consultor: link de tarefa quebrado</strong>: IDs grandes vinham com vírgula do Metabase (ex. "402,569") e o link "Abrir tarefa" cortava na vírgula, abrindo a tarefa errada — corrigido.
+              <strong>v1.0.27 — Novidades desta versão:</strong>{" "}
+              <strong>Lista de Presença</strong>: o botão de exportar do card de tarefa agora gera um XLSX no modelo de lista de presença (Nº, Nome, CPF, horários e assinatura), já preenchido com os alocados (confirmados ou não), pronto pra imprimir e o cliente validar no local.{" "}
+              <strong>Fix — endereço do BID vinha vazio</strong>: a sincronização dos endereços por empresa passou de semanal para diária, reduzindo de até 7 dias para até 1 dia o atraso entre um endereço novo aparecer na origem e ficar disponível pro preenchimento automático.
             </span>
           </div>
         )}
@@ -1005,7 +1005,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.26 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.27 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1040,7 +1040,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.26 · © 2026 Wijngaarde Design
+        MCM v1.0.27 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

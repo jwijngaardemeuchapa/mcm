@@ -805,18 +805,22 @@ export function devesSincronizarCarteira(): boolean {
   return lastDate < lastMonday;
 }
 
-/** Endereços: mesmo gate semanal (âncora segunda 00h) da Carteira. */
+/**
+ * Endereços: gate DIÁRIO (âncora hoje 00h) — antes era semanal (mesmo da
+ * Carteira), mas isso deixava o cruzamento por ID em tarefa_enderecos (que
+ * roda todo boot, janela de 30h) até 7 dias defasado em relação aos
+ * endereços novos, já que endereços são criados continuamente na origem.
+ * MCM-120 (confirmado): diagnóstico real mostrou 15/34 IDs recentes sem match porque o
+ * cliente_book só tinha sido resincronizado na segunda anterior.
+ */
 export function devesSincronizarEnderecos(): boolean {
   const last = localStorage.getItem("enderecos_last_sync");
   if (!last) return true;
   const lastDate = new Date(last);
   const now = new Date();
-  const dayOfWeek = now.getDay();
-  const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const lastMonday = new Date(now);
-  lastMonday.setDate(now.getDate() - daysSinceMonday);
-  lastMonday.setHours(0, 0, 0, 0);
-  return lastDate < lastMonday;
+  const hoje00h = new Date(now);
+  hoje00h.setHours(0, 0, 0, 0);
+  return lastDate < hoje00h;
 }
 
 /**
