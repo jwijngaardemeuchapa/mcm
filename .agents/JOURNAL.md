@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-07-22 — MCM — Release v1.0.27: Lista de Presença (XLSX) + fix sync diário de endereços (MCM-120)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-120 ✅
+**Commits:** `3b7a4cd`
+
+### Lista de Presença (TaskCard)
+Usuário forneceu um modelo real (`Lista_de_Presenca_Padrao.xlsx`: título mesclado, campos Data/Empresa/Local/Responsável, tabela Nº/Nome/CPF/Horário de Entrada/Horário de Saída/Assinatura). O botão "Exportar CSV" do card de tarefa virou "Lista de Presença" — gera um `.xlsx` (lib `xlsx`, já usada em outras telas) no mesmo layout, com Data/Empresa preenchidos automaticamente, Local (cidade/UF da tarefa) e Responsável (nome do operador em Integrações) também preenchidos, e a lista de alocados (confirmados ou não, excluindo só removidos) numerada com nome e CPF — pronta pra imprimir e o cliente validar no local (Entrada/Saída/Assinatura ficam em branco).
+
+### MCM-120 — endereço do BID vinha vazio: sync semanal defasada
+Usuário reportou que, depois do MCM-118 (fallback de endereço só quando inequívoco), o campo de endereço passou a vir vazio em quase toda tarefa. Como não há DevTools disponível na máquina do cliente (F12 não abre), o diagnóstico foi feito via scripts de inspeção direta do SQLite (Python/Node, escritos com apoio do Antigravity) rodando na própria máquina do cliente — não deu pra usar o console warning `[bid-endereco]` já embutido no código.
+
+**Achado:** `tarefa_enderecos` (vínculo tarefa→endereço) sincroniza todo boot (janela 30h) e tinha 53 linhas/34 IDs distintos, atualizados até 21/07. `cliente_book.enderecos` (lista de endereços por empresa, onde vivem os `metabase_address_ids`) só sincronizava 1x/semana (âncora segunda 00h, mesmo gate da Carteira) — 15/34 IDs (os mais recentes, `639327+`) não tinham match porque foram criados na origem depois da última sync semanal. Atraso máximo de até 7 dias entre "endereço existe" e "endereço aparece no cruzamento" — e as tarefas mais próximas (que o analista mais olha) são as com maior chance de bater justo nesse gap.
+
+**Fix:** `devesSincronizarEnderecos()` em `metabaseSync.ts` — âncora semanal → diária (hoje 00h). Sync é só merge/upsert (nunca apaga endereço existente), custo extra desprezível (1 query Metabase/dia a mais).
+
+**Correção imediata sem depender de release:** o botão manual de "Sincronizar Endereços" em Integrações já ignora essa trava — clicar nele resolve na hora, antes mesmo do release chegar na máquina do analista.
+
+**Documentado para o MV2:** comentário em MV2-3 (M1 — Data layer) registrando a lição — qualquer tabela ORIGEM de um cruzamento por ID precisa sincronizar com frequência igual ou maior que a tabela que a consome, senão o gap é silencioso (nunca dá erro, só retorna vazio).
+
+---
+
 ## 2026-07-20 — MCM — Release v1.0.26: Consultor — anexo único + fix link de tarefa (MCM-119)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-119 ✅
