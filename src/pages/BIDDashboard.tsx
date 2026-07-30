@@ -1135,6 +1135,15 @@ function BidTaskCard({
     })();
   }, [candidateView, leadsRegiaoLoaded, expanded, task.cidade_uf, occupiedPhoneSet, basePhoneSet, leadsSaacPhoneSet, novoPhoneSet]);
 
+  // allOccupiedChapas já exclui a tarefa atual (query com t.id_tarefa != ?) —
+  // é exatamente o cruzamento "ocupado em OUTRA tarefa" que os extras
+  // precisam (MCM-123), sem reabrir o problema do MCM-83 (extra sumindo por
+  // colisão de nome dentro da própria tarefa).
+  const allOccupiedNameSet = useMemo(
+    () => new Set(allOccupiedChapas.map((o) => normName(o.nome_norm))),
+    [allOccupiedChapas],
+  );
+
   // Derive ranked candidates whenever raw data, coords, occupied sets, or disparos change
   const candidates = useMemo<RankedCandidate[]>(() => {
     const cepPrefix = dispatchParams.localCep
@@ -1142,15 +1151,17 @@ function BidTaskCard({
       : null;
     return rawCandidates.map((c) => {
       // Extras autorizados (is_extra === 1, vindos de bid_chapas) são liberados
-      // explicitamente pelo operador para esta tarefa — nunca marcados como
-      // ocupados, mesmo que o nome já apareça no roster da própria tarefa ou de
-      // outra (occupiedNameSet inclui a tarefa atual). Sem isso a lista de
-      // autorizados some inteira ao filtrar "só extras" (MCM-83).
-      const isOccupied = c.is_extra !== 1 && (
-        (c.cpf != null && occupiedCpfSet.has(c.cpf.replace(/\D/g, ""))) ||
-        (c.telefone != null && occupiedPhoneSet.has(normalizePhone(c.telefone))) ||
-        occupiedNameSet.has(normName(c.nome))
-      );
+      // explicitamente pelo operador para ESTA tarefa (MCM-83: nunca ocupado
+      // por colisão de nome dentro da própria tarefa). Mas MCM-123: ainda
+      // assim precisam ser cruzados contra OUTRAS tarefas do mesmo dia —
+      // allOccupiedNameSet já é escopado assim (exclui a tarefa atual).
+      const isOccupied = c.is_extra === 1
+        ? allOccupiedNameSet.has(normName(c.nome))
+        : (
+          (c.cpf != null && occupiedCpfSet.has(c.cpf.replace(/\D/g, ""))) ||
+          (c.telefone != null && occupiedPhoneSet.has(normalizePhone(c.telefone))) ||
+          occupiedNameSet.has(normName(c.nome))
+        );
       let distKm: number | null = null;
       if (dispatchParams.localLat !== null && dispatchParams.localLng !== null && c.lat !== null && c.lng !== null)
         distKm = haversine(dispatchParams.localLat, dispatchParams.localLng, c.lat, c.lng);
@@ -1171,7 +1182,7 @@ function BidTaskCard({
       if (sortConfig.key === "situacao") return dir * (a.situacao || "").localeCompare(b.situacao || "");
       return b.score - a.score;
     });
-  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, occupiedPhoneSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache, sortConfig]);
+  }, [rawCandidates, occupiedCpfSet, occupiedNameSet, occupiedPhoneSet, allOccupiedNameSet, dispatchParams.localLat, dispatchParams.localLng, dispatchParams.localCep, taskDisparos, maxDistKm, leoCache, sortConfig]);
 
   const leoTierFilteredCandidates = useMemo(() => {
     if (!leoTierFilter || !leoCache || leoCache.size === 0) return candidates;
@@ -1234,6 +1245,25 @@ function BidTaskCard({
     } catch (e) {
       toast.error(errMsg(e));
     }
+  }
+
+  // CEP → preenche "Local" via ViaCEP quando ele estiver vazio (MCM-123) —
+  // mesmo mecanismo já usado em ClienteBook.tsx. Só complementa (nunca
+  // sobrescreve um endereço já digitado/vindo do vínculo tarefa_enderecos);
+  // ViaCEP não devolve número, então falta preencher isso manualmente.
+  async function handleLocalCepChange(raw: string) {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length !== 8) return;
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (data.erro) return;
+      const linha1 = [data.logradouro, data.bairro].filter(Boolean).join(", ");
+      const enderecoTxt = [linha1, data.localidade && data.uf ? `${data.localidade} - ${data.uf}` : (data.localidade || data.uf)]
+        .filter(Boolean).join(", ");
+      if (!enderecoTxt) return;
+      setDispatchParams((p) => (p.local ? p : { ...p, local: enderecoTxt }));
+    } catch { /* noop — ViaCEP é só um bônus de preenchimento, nunca bloqueante */ }
   }
 
   function handleMapsLinkChange(url: string) {
@@ -1804,7 +1834,7 @@ function BidTaskCard({
                     <Input
                       placeholder="00000-000"
                       value={dispatchParams.localCep}
-                      onChange={(e) => setDispatchParams((p) => ({ ...p, localCep: formatCep(e.target.value) }))}
+                      onChange={(e) => { setDispatchParams((p) => ({ ...p, localCep: formatCep(e.target.value) })); handleLocalCepChange(e.target.value); }}
                       className={`h-8 text-sm w-32 font-mono ${!dispatchParams.localCep ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}`}
                       maxLength={9}
                     />
