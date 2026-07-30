@@ -1,9 +1,19 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-30 (Sonnet 5, mesma sessão — v1.0.30 logo em seguida da v1.0.29)
-**Versão:** `1.0.30` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Data:** 2026-07-30 (Sonnet 5, mesma sessão — v1.0.31 logo em seguida da v1.0.29/30)
+**Versão:** `1.0.31` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `cf96248`.
+**Último commit:** `53c5fbf`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.29, v1.0.30 E v1.0.31
+
+Três versões seguidas nesta sessão sem assinatura. Mesmo runbook de sempre — só assinar a v1.0.31 (a mais alta) já resolve pro updater, não precisa repetir pra cada uma.
+
+## ✅ MCM-124 — card azul pra status "Em Andamento"
+
+Pedido rápido do usuário: sinalizar visualmente tarefas com `status_tarefa === "Em Andamento"`. `TaskCard.tsx`: borda + barra lateral + ring azuis (token `info`) + gradiente no cabeçalho, mesmo padrão condicional já usado pra overnight/urgente/validado (prioridade abaixo desses). Badge de texto já existia (teal, `StatusBadge`) — só somei o destaque do card.
 
 ---
 

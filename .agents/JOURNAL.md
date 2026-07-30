@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-07-30 — MCM — Release v1.0.31: card azul para status Em Andamento (MCM-124)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-124 ✅
+**Commits:** `53c5fbf`
+
+Usuário pediu sinalização visual pra tarefas com `status_tarefa === "Em Andamento"`. `TaskCard.tsx` ganhou borda + barra lateral esquerda + ring azuis (token `info`, o mesmo já usado em "Aguardando Início"/"Em Aberto") e um gradiente sutil no cabeçalho — mesmo padrão de encadeamento condicional já usado pra overnight/urgente/validado, com prioridade abaixo desses (se coexistirem, o mais crítico continua prevalecendo visualmente). O badge de texto "Em Andamento" já existia (cor teal, `StatusBadge`) e continua — a mudança soma destaque ao card sem duplicar o rótulo.
+
+---
+
 ## 2026-07-30 — MCM — Release v1.0.30: autofill Local via ViaCEP + cruzamento extras/ocupados (MCM-123)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-123 ✅
