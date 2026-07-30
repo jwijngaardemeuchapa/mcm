@@ -3842,7 +3842,28 @@ function ImportExtrasDialog({ task, onClose, onDone }: {
     setProgress(0);
     try {
       const db = await getDb();
-      await db.execute("DELETE FROM bid_chapas WHERE id_tarefa = ?", [task.id_tarefa]);
+      // Extras são exibidos por EMPRESA (companyMatches, tolerante a
+      // LTDA/acento) em qualquer tarefa aberta, não só na tarefa onde o
+      // upload foi feito (ver query de leitura acima, linhas ~822-839) —
+      // limpar só `WHERE id_tarefa = ?` deixava para trás os extras de
+      // uploads anteriores feitos a partir de OUTRA tarefa da mesma empresa,
+      // que a query de leitura então somava aos recém-importados (parecia
+      // "duplicar a lista" a cada novo upload). Precisa apagar por empresa,
+      // com o mesmo critério de match usado na leitura.
+      const existentes = await db.select<{ id: string; empresa: string | null; cidade: string | null }[]>(
+        "SELECT id, empresa, cidade FROM bid_chapas",
+      );
+      const cityUf = parseCidadeUf(task.cidade_uf);
+      const idsParaApagar = existentes
+        .filter((b) =>
+          (b.empresa && companyMatches(task.empresa, [b.empresa])) ||
+          (!b.empresa && cityUf && normalize(b.cidade ?? "") === normalize(cityUf.cidade)),
+        )
+        .map((b) => b.id);
+      if (idsParaApagar.length > 0) {
+        const ph = idsParaApagar.map(() => "?").join(",");
+        await db.execute(`DELETE FROM bid_chapas WHERE id IN (${ph})`, idsParaApagar);
+      }
       const now = new Date().toISOString();
       const CHUNK = 100;
       for (let i = 0; i < extRows.length; i += CHUNK) {
