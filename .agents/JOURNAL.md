@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-07-30 — MCM — v1.0.28 assinada (sessão paralela publicou sem assinatura, release nem existia ainda)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-121 (assinatura completada)
+**Commits:** `e64a155` (assina 1.0.28 + latest.json)
+
+Segunda sincronização com sessão paralela no mesmo dia — usuário avisou que ainda estava trabalhando na outra máquina. `git fetch` trouxe MCM-121 (entrada abaixo). Runbook padrão: build → assinado → `gh release create` (422 "tag já existe" — a outra sessão criou a release nos segundos entre meu `gh release view` vazio e a tentativa de create) → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
+
+**Files changed:** `latest.json`
+**Next:** nenhuma pendência de release. `handoff.md` atualizado.
+
+---
+
 ## 2026-07-29 — MCM — Release v1.0.28: Captação em massa + rastreio + filtro Leads Saac (MCM-121)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-121

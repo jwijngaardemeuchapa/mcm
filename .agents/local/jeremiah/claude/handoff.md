@@ -1,15 +1,17 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-29 (Sonnet 5, sessão seguinte)
-**Versão:** `1.0.28` publicada, **SEM assinatura** — build feito nesta máquina, que não tem a `tauri_update_key` (mesmo runbook de sempre precisa rodar na outra máquina).
+**Data:** 2026-07-29 (Sonnet 5)
+**Versão:** `1.0.28` publicada, **assinada e verificada** (MCM-121 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `5761f36`.
+**Último commit:** `e64a155` (assina 1.0.28 + latest.json).
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.28
+## ✅ Pendência anterior RESOLVIDA — v1.0.28 assinada
 
-Mesmo runbook de sempre (ver "Pendência #1 RESOLVIDA" mais abaixo, ou a seção equivalente da sessão anterior que assinou a 1.0.27 com sucesso nesta mesma máquina — `npx tauri signer sign` já configurado e funcionando aqui). Resumo: `git pull` → `npm run tauri build` → assina → `gh release upload v1.0.28 <exe+.sig> --clobber` → atualizar `latest.json` (version/url/signature) → push.
+Usuário pediu pra sincronizar de novo com o que a outra máquina tinha acabado de fazer ("estava trabalhando na outra máquina ainda a pouco"). `git fetch` trouxe MCM-121 (2 commits, sem conflito, fast-forward). Runbook padrão executado aqui: `git pull` → `npm run tauri build` → assinado (`npx tauri signer sign -f/-p`) → **a release nem existia ainda no GitHub** (só o build local da outra máquina, tag ainda não tinha virado release) — `gh release create` deu 422 "tag já existe" numa primeira tentativa (a outra sessão tinha acabado de criar a release momentos antes, só não aparecia ainda no `gh release view`) → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
+
+**Nota de processo:** timing apertado entre sessões (a outra máquina publicou a release exatamente enquanto eu investigava) pode fazer `gh release create` falhar com "tag já existe" mesmo que `gh release view` não tenha achado nada segundos antes — se acontecer, tratar como sinal de que a release já existe e ir direto pro `gh release upload --clobber`, não insistir no `create`.
 
 ## ✅ MCM-121 — Captação em massa (Leads Região) + rastreio de resposta + filtro Leads Saac
 
