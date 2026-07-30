@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-07-29 — MCM — Release v1.0.28: Captação em massa + rastreio + filtro Leads Saac (MCM-121)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-121
+**Commits:** `5761f36`
+
+### Captação — Leads Região
+Usuário confirmou o ID correto do template de Captação (`amijY_1q6IzzA09Q` — o antigo `agd7fmoTaSCc75vA`, hardcoded desde sempre, nunca funcionou: sempre dava 404 "channel mismatch", investigado e deixado em standby numa sessão anterior). Implementado:
+- **Fix do ID**: corrigido o default em `settings.ts` + migração automática do valor legado (o localStorage já podia ter o ID errado persistido de qualquer edição prévia em Integrações — só trocar o default não bastava) + campo editável em Integrações (não precisa mais de release pra trocar).
+- **Disparo em massa**: botão "Disparar Captação (N)" no topo da aba Leads Região — sequencial, pula quem já recebeu.
+- **Rastreio de conversa e resposta**: nova tabela `captacao_log` (migration v22, checado contra mcm-v2 antes — ela estava em 18, sem colisão) guarda `umbler_chat_id` de cada disparo (leads_regiao não são chapas nem estão em `bid_disparos`/`chapas`, não tinham onde gravar isso). Novo branch em `processFirestoreMessage` (`firestoreQueue.ts`) casa resposta recebida por telefone contra `captacao_log` pendente — badge "RESPONDEU"/"CAPTAÇÃO ENVIADA" por lead, botão "Conversa" (link Umbler Talk) quando já disparado. `RespostaEvent.tipo` ganhou o valor `"captacao"` (mais o label no toast do `useFirestoreQueue.ts`).
+
+### Leads Saac — filtro e dedup
+- Aba "Leads" do BID: por padrão só mostra `situacao` aprovada (`isApprovedSituacao` — chapa_ativado/candidato_apto). Antes mostrava tudo (acolhimento, novos, triagem, prazo_vencido, até bloqueados). Filtro manual "Todos status" continua disponível.
+- Dedup: quem já é chapa de verdade (cadastro geral ou `chapas_novos`) não aparece mais duplicado em Leads Saac — mesma lógica de exclusão que a aba "Novos" já usava, só que faltava aplicar no sentido contrário.
+- Badges da aba "Novos" reescritos pra clareza: "CADASTRO ORGÂNICO" vs "ORGÂNICO + LEAD SAAC" (antes "ORGÂNICO"/"NOVO", confuso).
+
+### Nota de teste
+`npx vitest run src/lib/firestoreQueue.test.ts` tem 4 falhas — confirmadas **pré-existentes** (`git stash` + rerun no `main` limpo reproduz as mesmas 4, incluindo uma que nem toca `processFirestoreMessage`). Não é regressão desta sessão; fora de escopo corrigir agora.
+
+**Adendo do usuário:** botão "Conversa" direto pra BID/FUP — já existia desde o MCM-114, só confirmado que sobreviveu aos merges.
+
+---
+
 ## 2026-07-29 — MCM — v1.0.27 assinada (sessão paralela de 22/07 tinha publicado sem assinatura)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-120 (assinatura completada)

@@ -1,9 +1,31 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-29 (Sonnet 5)
-**Versão:** `1.0.27` publicada, assinada e verificada (MCM-120 ✅). Sem pendência de release aberta.
+**Data:** 2026-07-29 (Sonnet 5, sessão seguinte)
+**Versão:** `1.0.28` publicada, **SEM assinatura** — build feito nesta máquina, que não tem a `tauri_update_key` (mesmo runbook de sempre precisa rodar na outra máquina).
 **Branch:** main
-**Último commit:** `fefe4e2` (assina 1.0.27 + latest.json).
+**Último commit:** `5761f36`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.28
+
+Mesmo runbook de sempre (ver "Pendência #1 RESOLVIDA" mais abaixo, ou a seção equivalente da sessão anterior que assinou a 1.0.27 com sucesso nesta mesma máquina — `npx tauri signer sign` já configurado e funcionando aqui). Resumo: `git pull` → `npm run tauri build` → assina → `gh release upload v1.0.28 <exe+.sig> --clobber` → atualizar `latest.json` (version/url/signature) → push.
+
+## ✅ MCM-121 — Captação em massa (Leads Região) + rastreio de resposta + filtro Leads Saac
+
+Usuário confirmou o ID correto do template de Captação (`amijY_1q6IzzA09Q`) — o antigo (`agd7fmoTaSCc75vA`, hardcoded desde sempre) nunca funcionou, sempre dava 404 "channel mismatch" (investigado numa sessão anterior, ficou em standby até o usuário confirmar o ID certo).
+
+**Implementado:**
+1. **Fix do template ID** — corrigido o default em `settings.ts` + **migração automática do valor legado**: como o `localStorage` já podia ter o ID errado persistido (de qualquer edição anterior em Integrações — o merge de settings sempre prioriza o valor salvo sobre o default do código), só trocar `SETTING_DEFAULTS` não bastava. Adicionei uma correção explícita em `readSettings()`: se o valor salvo for exatamente o ID antigo conhecido, substitui pelo novo. Também virou campo editável em Integrações (não precisa mais de release pra trocar se o Umbler recriar o template de novo).
+2. **Disparo em massa** — botão "Disparar Captação (N)" no topo da aba Leads Região do BID, sequencial, pula quem já recebeu (checa `captacaoStatus` local).
+3. **Rastreio de conversa e resposta** — nova tabela `captacao_log` (**migration v22** em `lib.rs` — checado `mcm-v2` antes, estava em 18, sem colisão). Leads região não são chapas nem estão em `bid_disparos`/`chapas`, então precisavam de tabela própria pra guardar `umbler_chat_id`. Novo branch em `processFirestoreMessage` (`firestoreQueue.ts`) casa resposta recebida por telefone contra `captacao_log` pendente (resposta NULL) — grava `resposta`/`data_resposta`. UI: badge "RESPONDEU"/"CAPTAÇÃO ENVIADA" por lead + botão "Conversa" (link direto pro chat no Umbler Talk, reusa `umblerChatLink`).
+4. **Leads Saac mais limpo** — aba "Leads" agora só mostra por padrão `situacao` aprovada (`isApprovedSituacao`: chapa_ativado/candidato_apto) — antes mostrava TUDO (acolhimento, novos, triagem, prazo_vencido, até bloqueados). Filtro manual "Todos status" continua lá pra quem quiser ver o resto. Dedup: quem já é chapa de verdade (cadastro geral ou `chapas_novos`) não aparece mais duplicado aqui — mesma exclusão que "Novos" já fazia, só faltava aplicar no sentido contrário. Badges da aba "Novos" reescritos ("CADASTRO ORGÂNICO" vs "ORGÂNICO + LEAD SAAC", antes "ORGÂNICO"/"NOVO" — confuso).
+
+**Adendo do usuário, já resolvido sem código novo:** pediu botão "Conversa" direto pra BID/FUP — já existia desde o MCM-114 (sessão de 18/07), só confirmei que sobreviveu a todos os merges desde então (`TaskCard.tsx` e `BIDDashboard.tsx`).
+
+**Nota de teste:** `npx vitest run src/lib/firestoreQueue.test.ts` — 4 falhas, confirmadas **pré-existentes** via `git stash` (mesmas falhas no `main` limpo, sem minhas mudanças). Não investiguei a causa raiz (fora do escopo pedido), só documentei que não é regressão minha.
+
+**Se o usuário perguntar de novo sobre endereço vazio (MCM-120):** ainda não recebi confirmação se resolveu depois do fix da sync diária — perguntar antes de investigar mais fundo.
 
 ---
 
