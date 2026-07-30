@@ -1,9 +1,21 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-29 (Sonnet 5)
-**Versão:** `1.0.28` publicada, **assinada e verificada** (MCM-121 ✅). Sem pendência de release aberta.
+**Data:** 2026-07-30 (Sonnet 5, sessão seguinte)
+**Versão:** `1.0.29` publicada, **SEM assinatura** — mesma pendência de sempre nesta máquina.
 **Branch:** main
-**Último commit:** `e64a155` (assina 1.0.28 + latest.json).
+**Último commit:** `921c721`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.29
+
+Mesmo runbook de sempre (ver seções abaixo — a outra máquina já assinou 1.0.27 e 1.0.28 com sucesso usando exatamente esse processo). Resumo: `git pull` → `npm run tauri build` → assina → `gh release upload v1.0.29 <exe+.sig> --clobber` → atualizar `latest.json` → push. **Nota de timing** (já aconteceu 2x): se `gh release create`/`upload` reclamar que a tag/release já existe, é sinal de que a outra máquina publicou quase ao mesmo tempo — ir direto pro `--clobber`, não insistir.
+
+## ✅ MCM-122 — fix: Busca Chapa (extras) duplicava a cada novo upload
+
+Usuário reportou que cada novo upload de "Busca Chapa" duplicava a lista de chapas extras em vez de substituir. Investigação rápida: extras (`bid_chapas`) são exibidos por EMPRESA (`companyMatches`, tolerante a LTDA/acento) em **qualquer** tarefa aberta da empresa — não só na tarefa onde o upload foi feito (`BIDDashboard.tsx`, query de leitura ~linha 822-839, sem WHERE nenhum, filtro é 100% client-side). Mas o `doImport()` do `ImportExtrasDialog` só apagava `WHERE id_tarefa = ?` — a tarefa específica do dialog aberto. Reimportar a partir de outra tarefa da mesma empresa (comum — "Busca Chapa" é reaberto tarefa a tarefa) deixava o lote anterior intacto, e a leitura (sem filtro por `id_tarefa`) somava os dois lotes.
+
+**Fix:** antes de inserir o novo lote, busca todos os `bid_chapas` existentes, filtra client-side com o MESMO critério da leitura (`companyMatches` contra `task.empresa`, fallback por cidade/UF só quando o registro antigo não tem empresa gravada) e apaga só esses IDs. Usuário confirmou nesta sessão que o escopo de extras é sempre por empresa (não por tarefa nem por região isoladamente) — fallback por região só serve pra registros legados sem empresa.
 
 ---
 

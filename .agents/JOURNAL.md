@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-07-30 — MCM — Release v1.0.29: fix Busca Chapa duplicando extras (MCM-122)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-122 ✅
+**Commits:** `921c721`
+
+Usuário reportou que cada novo upload de "Busca Chapa" (chapas extras) duplicava a lista anterior em vez de substituir. Causa: extras (`bid_chapas`) são exibidos por EMPRESA (`companyMatches`) em qualquer tarefa aberta, mas o import só apagava `WHERE id_tarefa = ?` — reimportar a partir de outra tarefa da mesma empresa (ou da mesma tarefa outro dia, `id_tarefa` novo) deixava o lote antigo intacto, e a leitura (que não filtra por `id_tarefa`) somava os dois. Fix: apaga por empresa (mesmo critério de match da leitura, fallback por cidade/UF só pra registros antigos sem empresa) antes de inserir o novo lote. Usuário confirmou que o escopo de extras é sempre por empresa.
+
+---
+
 ## 2026-07-30 — MCM — v1.0.28 assinada (sessão paralela publicou sem assinatura, release nem existia ainda)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-121 (assinatura completada)
