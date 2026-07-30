@@ -796,6 +796,8 @@ Precisamos de 1 substituto para esta tarefa.`;
           ? "border-warning/60 ring-2 ring-warning/30"
           : task.urgent
           ? "border-destructive/50 ring-1 ring-destructive/20"
+          : task.status_tarefa === "Em Andamento"
+          ? "border-info/50 border-l-4 border-l-info ring-1 ring-info/20"
           : "border-border"
       } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
@@ -803,6 +805,8 @@ Precisamos de 1 substituto para esta tarefa.`;
         className={`relative p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border bg-card ${
           isOvernight
             ? "bg-gradient-to-r from-overnight-soft to-card"
+            : task.status_tarefa === "Em Andamento"
+            ? "bg-gradient-to-r from-info/10 to-card"
             : "bg-gradient-to-r from-primary-soft/60 to-card"
         }`}
       >
