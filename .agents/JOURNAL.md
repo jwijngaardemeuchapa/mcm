@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-07-30 — MCM — Release v1.0.30: autofill Local via ViaCEP + cruzamento extras/ocupados (MCM-123)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-123 ✅
+**Commits:** `cf96248`
+
+Dois pedidos rápidos do usuário, feitos enquanto o build da v1.0.29 rodava em background:
+
+1. **CEP preenche Local automaticamente** — mesmo mecanismo já usado em `ClienteBook.tsx` (ViaCEP), agora também no campo "Local" do BID Dashboard: ao digitar um CEP de 8 dígitos, se "Local" estiver vazio, busca rua/bairro/cidade/UF e preenche. Nunca sobrescreve valor já digitado ou vindo do vínculo `tarefa_enderecos`. ViaCEP não devolve número da casa — falta complementar manualmente.
+2. **Extras cruzados contra ocupados em outra tarefa** — chapas extras (`is_extra=1`, upload "Busca Chapa") eram explicitamente isentos da checagem de ocupado (MCM-83, pra não sumir da lista por colisão de nome dentro da própria tarefa). Usuário pediu validação cruzada: agora extras checam contra `allOccupiedChapas` (a mesma query que já exclui a tarefa atual, usada em "Ver ocupados"), preservando a exceção original do MCM-83 só pra dentro da própria tarefa.
+
+**Nota de processo:** o build da v1.0.29 (fix do MCM-122) já tinha capturado o snapshot do `vite build` quando esses 2 pedidos chegaram — não dava pra incluir na mesma build. Deixei a v1.0.29 terminar e publicar normalmente, e abri a v1.0.30 só com essas 2 novidades.
+
+---
+
 ## 2026-07-30 — MCM — Release v1.0.29: fix Busca Chapa duplicando extras (MCM-122)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-122 ✅

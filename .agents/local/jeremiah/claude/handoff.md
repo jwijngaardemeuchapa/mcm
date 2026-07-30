@@ -1,9 +1,21 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-30 (Sonnet 5, sessão seguinte)
-**Versão:** `1.0.29` publicada, **SEM assinatura** — mesma pendência de sempre nesta máquina.
+**Data:** 2026-07-30 (Sonnet 5, mesma sessão — v1.0.30 logo em seguida da v1.0.29)
+**Versão:** `1.0.30` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `921c721`.
+**Último commit:** `cf96248`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.29 E v1.0.30
+
+Duas versões seguidas sem assinatura (chegaram pedidos novos enquanto o build da 1.0.29 rodava, virou uma v1.0.30 logo depois). Mesmo runbook de sempre, só rodar 2x (ou assinar a 1.0.30 e pular a 1.0.29 direto — o updater só importa a versão mais alta assinada).
+
+## ✅ MCM-123 — autofill Local via ViaCEP + extras cruzados contra ocupados
+
+Dois pedidos rápidos, chegaram no meio do build da v1.0.29:
+1. Campo "Local" do BID agora preenche sozinho via ViaCEP quando o CEP tem 8 dígitos e Local está vazio (mesmo mecanismo do `ClienteBook.tsx`). Não sobrescreve valor existente. Sem número de casa (ViaCEP não devolve).
+2. Extras (Busca Chapa) — antes NUNCA marcados como ocupados (MCM-83, evitava sumir por colisão de nome na própria tarefa). Usuário pediu cruzamento contra outras tarefas: agora usam `allOccupiedChapas` (já exclui a tarefa atual) — ocupados em OUTRA tarefa ficam de fora, mas a exceção original (própria tarefa) continua valendo.
 
 ---
 
