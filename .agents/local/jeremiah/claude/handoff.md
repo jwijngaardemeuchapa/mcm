@@ -1,9 +1,21 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-20 (Sonnet 5)
-**Versão:** `1.0.26` publicada, assinada e verificada (MCM-119 ✅). Sem pendência de release aberta.
+**Data:** 2026-07-29 (Sonnet 5)
+**Versão:** `1.0.27` publicada, assinada e verificada (MCM-120 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `ee13c99` (latest.json 1.0.26).
+**Último commit:** `fefe4e2` (assina 1.0.27 + latest.json).
+
+---
+
+## ✅ Sincronização com sessão paralela (outra máquina, 22/07) + assinatura de v1.0.27
+
+Usuário pediu pra puxar e sincronizar o que outra máquina tinha feito. `git fetch` trouxe 2 commits novos (`3b7a4cd`, `f862a0b`) — MCM-120, sem conflito, fast-forward puro. A outra sessão:
+
+1. **Exporta Lista de Presença (XLSX)** — botão de exportar do card de tarefa agora gera um XLSX no modelo de lista de presença (Nº/Nome/CPF/horários/assinatura), preenchido com os alocados (confirmados ou não), pra imprimir e o cliente validar no local. `TaskCard.tsx`.
+2. **Fix real, complementar ao MCM-118 desta sessão:** `devesSincronizarEnderecos()` (`metabaseSync.ts`) era semanal, mas `sincronizarTarefaEnderecos` (o vínculo por ID) roda todo boot — endereços recém-criados na origem podiam ficar até 7 dias sem aparecer em `cliente_book`, fazendo o cruzamento por ID falhar ("vinculo nao casou", exatamente o diagnóstico que o `console.warn` do MCM-118 foi desenhado pra capturar). Corrigido: sync de endereços passa a ser diária.
+3. **Release v1.0.27 publicada SEM assinatura** — nota no próprio release: "build sem assinatura (chave está em outra máquina). Não gera latest.json". Runbook padrão executado aqui (esta máquina tem `tauri_update_key`): rebuild → `npx tauri signer sign -f/-p` → `gh release upload --clobber` (exe) + upload do `.sig` → `latest.json` atualizado → verificado 200/302.
+
+**Nota de processo:** a outra sessão atualizou `JOURNAL.md` mas não `handoff.md` — só descobri o contexto completo lendo o JOURNAL e o corpo do release no GitHub. Se outra máquina rodar em paralelo de novo, sempre `git fetch` antes de assumir que sabe o estado do `main`, e conferir o JOURNAL mesmo que o handoff pareça desatualizado.
 
 ---
 

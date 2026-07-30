@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-07-29 — MCM — v1.0.27 assinada (sessão paralela de 22/07 tinha publicado sem assinatura)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-120 (assinatura completada)
+**Commits:** `fefe4e2` (assina 1.0.27 + latest.json)
+
+Usuário pediu pra sincronizar com o que outra máquina fez. `git fetch` trouxe MCM-120 (entrada abaixo, 22/07, sem conflito, fast-forward): export de Lista de Presença em XLSX no card de tarefa + fix real no gate de sync de endereços (semanal → diária — achado complementar ao MCM-118 desta sessão, mesma família de bug "vinculo nao casou"). O release v1.0.27 tinha sido publicado sem assinatura (nota no próprio release: chave em outra máquina, "não gera latest.json"). Runbook padrão executado aqui (esta máquina tem `tauri_update_key`): rebuild → assinado → `gh release upload --clobber` (exe) + `.sig` → `latest.json` atualizado → verificado 200/302.
+
+**Files changed:** `latest.json`
+**Next:** nenhuma pendência de release. `handoff.md` atualizado pra registrar esse contexto, que só estava no JOURNAL da sessão paralela (ela não tocou o handoff).
+
+---
+
 ## 2026-07-22 — MCM — Release v1.0.27: Lista de Presença (XLSX) + fix sync diário de endereços (MCM-120)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-120 ✅
