@@ -18,7 +18,7 @@ export type RespostaCode =
   | "interesse_nao";
 
 export type RespostaEvent = {
-  tipo: "fup" | "bid";
+  tipo: "fup" | "bid" | "captacao";
   chapa_nome: string;
   chapa_telefone: string | null;
   resposta: string;
@@ -366,6 +366,35 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
         id_tarefa: fup.id_tarefa,
         empresa: fup.empresa,
         disparo_id: null,
+        message_body: body,
+        received_at: now,
+      },
+    };
+  }
+
+  // 3. Captação (MCM-121) — leads_regiao não são chapas/tarefas, então o
+  // match é direto contra captacao_log por telefone, sem passar por
+  // bid_disparos/chapas. `resposta IS NULL` = ainda aguardando.
+  const captacaoRows = await db.select<{ id: string; nome: string; telefone: string }[]>(
+    `SELECT id, nome, telefone FROM captacao_log
+     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(telefone,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
+       AND resposta IS NULL
+     ORDER BY data_disparo DESC LIMIT 1`,
+    [pattern],
+  ).catch(() => []);
+  const captacao = captacaoRows[0];
+  if (captacao) {
+    await db.execute("UPDATE captacao_log SET resposta=?, data_resposta=? WHERE id=?", [code, now, captacao.id]);
+    return {
+      handled: true,
+      event: {
+        tipo: "captacao",
+        chapa_nome: captacao.nome,
+        chapa_telefone: captacao.telefone,
+        resposta: code,
+        id_tarefa: null,
+        empresa: null,
+        disparo_id: captacao.id,
         message_body: body,
         received_at: now,
       },

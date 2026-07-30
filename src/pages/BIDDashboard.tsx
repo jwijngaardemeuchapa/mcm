@@ -499,6 +499,7 @@ function BidTaskCard({
   const [batchState, setBatchState] = useState<BidBatchState>(() => bidDispatchQueue.getBatchState(task.id_tarefa));
   const [dispatchingIds, setDispatchingIds] = useState<Set<string>>(new Set());
   const [captacaoSendingIds, setCaptacaoSendingIds] = useState<Set<string>>(new Set());
+  const [captacaoBulkSending, setCaptacaoBulkSending] = useState(false);
   const [showOccupied, setShowOccupied] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -529,8 +530,12 @@ function BidTaskCard({
   const [leadsRegiaoLoading, setLeadsRegiaoLoading] = useState(false);
   const [leadsRegiaoLoaded, setLeadsRegiaoLoaded] = useState(false);
   const [leadsRegiaoCoords, setLeadsRegiaoCoords] = useState<Map<string, { lat: number; lng: number }>>(new Map());
+  // Rastreio de disparos do template de Captação (MCM-121) — chave é o
+  // telefone normalizado, casa com captacao_log independente de qual lead_id
+  // originou o disparo (mesmo padrão de identidade usado no resto do arquivo).
+  const [captacaoStatus, setCaptacaoStatus] = useState<Map<string, { chatId: string | null; resposta: string | null }>>(new Map());
   const [basePhoneSet, setBasePhoneSet] = useState<Set<string>>(new Set());
-  const [leadsBidStatusFilter, setLeadsBidStatusFilter] = useState<string>("__all__");
+  const [leadsBidStatusFilter, setLeadsBidStatusFilter] = useState<string>("__ativos__");
   const [negOpen, setNegOpen] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [editingDisparoId, setEditingDisparoId] = useState<string | null>(null);
@@ -1094,6 +1099,21 @@ function BidTaskCard({
             && !leadsSaacPhoneSet.has(phone) && !novoPhoneSet.has(phone);
         });
         setRawLeadsRegiao(semDuplicata);
+        // Status de captação (MCM-121) — carrega todo o log (tabela pequena,
+        // 1 telefone pode ter vários disparos ao longo do tempo) e mantém só
+        // o mais recente por telefone (ORDER BY garante isso no loop abaixo).
+        try {
+          const captacaoRows = await db.select<{ telefone: string; umbler_chat_id: string | null; resposta: string | null; data_disparo: string }[]>(
+            "SELECT telefone, umbler_chat_id, resposta, data_disparo FROM captacao_log ORDER BY data_disparo ASC",
+          );
+          const statusMap = new Map<string, { chatId: string | null; resposta: string | null }>();
+          for (const row of captacaoRows) {
+            const phone = normalizePhone(row.telefone);
+            if (!phone) continue;
+            statusMap.set(phone, { chatId: row.umbler_chat_id, resposta: row.resposta });
+          }
+          setCaptacaoStatus(statusMap);
+        } catch { /* tabela ainda não migrou nesta máquina — segue sem status */ }
         // Geocodifica os CEPs dos leads em background — usado só quando o
         // endereço da tarefa é garantido (enderecoConfiavel), pra refinar a
         // lista por distância real em vez de só cidade/UF em texto.
@@ -1307,7 +1327,7 @@ function BidTaskCard({
     if (!us.bearerToken) { toast.error("Umbler não configurado. Acesse Integrações."); return; }
     setCaptacaoSendingIds((prev) => new Set(prev).add(lead.id));
     try {
-      await sendUmblerFup({
+      const { chatId } = await sendUmblerFup({
         chapaNome: lead.nome,
         chapaTelefone: lead.telefone,
         dataTarefa: task.data_tarefa,
@@ -1316,11 +1336,42 @@ function BidTaskCard({
         overrideParams: [primeiroNome(lead.nome)],
         templateIdOverride: us.captacaoTemplateId,
       });
+      try {
+        const db = await getDb();
+        const now = new Date().toISOString();
+        await db.execute(
+          "INSERT INTO captacao_log (id,lead_id,nome,telefone,umbler_chat_id,data_disparo) VALUES (?,?,?,?,?,?)",
+          [uuid(), lead.id, lead.nome, lead.telefone, chatId, now],
+        );
+        const phone = normalizePhone(lead.telefone);
+        if (phone) setCaptacaoStatus((prev) => new Map(prev).set(phone, { chatId, resposta: null }));
+      } catch { /* tabela ainda não migrou nesta máquina — disparo já foi feito, só não fica rastreado */ }
       toast.success(`Captação enviada para ${lead.nome}`);
     } catch (e) {
       toast.error(`Falha ao enviar captação: ${errMsg(e)}`);
     } finally {
       setCaptacaoSendingIds((prev) => { const s = new Set(prev); s.delete(lead.id); return s; });
+    }
+  }
+
+  // Dispara Captação pra todos os leads região visíveis de uma vez (MCM-121)
+  // — pula quem já recebeu (tem chatId em captacaoStatus), pra não reenviar
+  // sem querer num segundo clique. Sequencial (mesmo padrão de sendCaptacao
+  // individual), sem fila dedicada — volume de leads região é pequeno.
+  async function handleDispatchAllCaptacao() {
+    const pendentes = leadsRegiaoVisible.filter((r) => {
+      if (!r.telefone) return false;
+      const phone = normalizePhone(r.telefone);
+      return !phone || !captacaoStatus.get(phone)?.chatId;
+    });
+    if (pendentes.length === 0) { toast.info("Todos os leads visíveis já receberam a captação."); return; }
+    setCaptacaoBulkSending(true);
+    try {
+      for (const r of pendentes) {
+        await sendCaptacao({ id: r.id, nome: r.nome, telefone: r.telefone });
+      }
+    } finally {
+      setCaptacaoBulkSending(false);
     }
   }
 
@@ -1458,10 +1509,23 @@ function BidTaskCard({
     for (const c of rawLeadsBid) if (c.situacao) s.add(c.situacao);
     return Array.from(s).sort();
   }, [rawLeadsBid]);
+  // Padrão: só ativado/apto (isApprovedSituacao) — esconde acolhimento, novos,
+  // triagem, prazo_vencido e bloqueados, que não são candidatos acionáveis
+  // agora. "__all__" no filtro manual continua mostrando todo mundo.
+  // Dedup: quem já é chapa de verdade (cadastro geral ou chapas_novos)
+  // aparece nas outras abas com dado completo — evita duplicata aqui.
   const leadsBidVisible = (leadsBidStatusFilter === "__all__"
     ? rawLeadsBid
-    : rawLeadsBid.filter((c) => c.situacao === leadsBidStatusFilter)
-  ).filter(matchesSearch);
+    : leadsBidStatusFilter === "__ativos__"
+      ? rawLeadsBid.filter((c) => isApprovedSituacao(c.situacao))
+      : rawLeadsBid.filter((c) => c.situacao === leadsBidStatusFilter)
+  )
+    .filter((c) => {
+      const phone = c.telefone ? normalizePhone(c.telefone) : "";
+      if (!phone) return true;
+      return !basePhoneSet.has(phone) && !novoPhoneSet.has(phone);
+    })
+    .filter(matchesSearch);
 
   const novosVisible = rawNovos.filter(matchesSearch);
 
@@ -2044,7 +2108,7 @@ function BidTaskCard({
                 ) : candidateView === "leads_bid" ? (
                   <span className="font-normal normal-case text-indigo-500/80">
                     {leadsBidLoaded
-                      ? `${leadsBidVisible.filter((c) => !c.bloqueio && !basePhoneSet.has(normalizePhone(c.telefone ?? ""))).length} leads disponíveis · ${leadsBidVisible.filter((c) => basePhoneSet.has(normalizePhone(c.telefone ?? ""))).length} já na base`
+                      ? `${leadsBidVisible.filter((c) => !c.bloqueio).length} leads Saac — quem já é chapa (cadastro geral ou Novos) não aparece aqui`
                       : "Carregando leads..."}
                   </span>
                 ) : candidateView === "leads_regiao" ? (
@@ -2098,10 +2162,11 @@ function BidTaskCard({
               </span>
               {candidateView === "leads_bid" && leadsBidLoaded && leadsBidStatuses.length > 0 && (
                 <Select value={leadsBidStatusFilter} onValueChange={setLeadsBidStatusFilter}>
-                  <SelectTrigger className="h-6 w-[140px] text-[10px] border-border/50">
+                  <SelectTrigger className="h-6 w-[160px] text-[10px] border-border/50">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__ativos__">Ativados/Aptos (padrão)</SelectItem>
                     <SelectItem value="__all__">Todos status</SelectItem>
                     {leadsBidStatuses.map((s) => (
                       <SelectItem key={s} value={s} className="capitalize">{s.replace(/_/g, " ")}</SelectItem>
@@ -2123,6 +2188,16 @@ function BidTaskCard({
                     <SelectItem value="999">Sem limite</SelectItem>
                   </SelectContent>
                 </Select>
+              )}
+              {candidateView === "leads_regiao" && leadsRegiaoLoaded && leadsRegiaoVisible.length > 0 && (
+                <Button
+                  size="sm"
+                  disabled={captacaoBulkSending}
+                  onClick={handleDispatchAllCaptacao}
+                  className="h-6 px-2 text-[10px] gap-1 bg-indigo-600 hover:bg-indigo-700 text-white"
+                >
+                  {captacaoBulkSending ? "Disparando..." : `Disparar Captação (${leadsRegiaoVisible.filter((r) => r.telefone && !captacaoStatus.get(normalizePhone(r.telefone))?.chatId).length})`}
+                </Button>
               )}
               {candidateView === "bloqueados" && blockedTipos.length > 1 && (
                 <Select value={blockedTipoFilter} onValueChange={(v) => { setBlockedTipoFilter(v); setBlockedMotivoFilter("__all__"); setShowAll(false); }}>
@@ -2449,9 +2524,11 @@ function BidTaskCard({
                               <span className="font-medium truncate">{c.nome}</span>
                               <span
                                 className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${isOrganico ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
-                                title="Cadastrado nos últimos ~15 dias"
+                                title={isOrganico
+                                  ? "Cadastro recente (últimos ~15 dias) direto na plataforma, sem passar pela captação Saac"
+                                  : "Cadastro recente (últimos ~15 dias) — a mesma pessoa também veio da captação Saac"}
                               >
-                                {isOrganico ? "ORGÂNICO" : "NOVO"}
+                                {isOrganico ? "CADASTRO ORGÂNICO" : "ORGÂNICO + LEAD SAAC"}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
@@ -2478,6 +2555,7 @@ function BidTaskCard({
                   <div className="divide-y divide-border/50">
                     {leadsRegiaoVisible.map((r) => {
                       const waLink = r.telefone ? `https://wa.me/${r.telefone.replace(/\D/g, "")}` : null;
+                      const captacao = r.telefone ? captacaoStatus.get(normalizePhone(r.telefone)) : undefined;
                       return (
                         <div key={r.id} className="grid grid-cols-[1fr_auto] items-center gap-2 px-3 py-2 text-xs hover:bg-muted/30 transition-colors">
                           <div className="min-w-0 flex flex-col gap-0.5">
@@ -2492,6 +2570,11 @@ function BidTaskCard({
                               {r.distance_km !== null && (
                                 <span className="px-1 py-0 rounded text-[9px] font-bold shrink-0 bg-muted text-muted-foreground">
                                   {r.distance_km.toFixed(1)} km
+                                </span>
+                              )}
+                              {captacao && (
+                                <span className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${captacao.resposta ? "bg-success/15 text-success" : "bg-indigo-500/15 text-indigo-600"}`}>
+                                  {captacao.resposta ? "RESPONDEU" : "CAPTAÇÃO ENVIADA"}
                                 </span>
                               )}
                             </div>
@@ -2512,13 +2595,21 @@ function BidTaskCard({
                                 WhatsApp
                               </a>
                             )}
+                            {captacao?.chatId && (
+                              <a href={umblerChatLink(captacao.chatId) ?? "#"} target="_blank" rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Abrir a conversa deste lead no Umbler Talk"
+                                className="h-6 px-2 rounded text-[10px] font-medium border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors flex items-center gap-1">
+                                <ExternalLink className="h-3 w-3" /> Conversa
+                              </a>
+                            )}
                             {r.telefone && (
                               <button type="button"
                                 disabled={captacaoSendingIds.has(r.id)}
                                 onClick={(e) => { e.stopPropagation(); sendCaptacao(r); }}
-                                title={`Enviar template Captação para ${primeiroNome(r.nome)}`}
+                                title={captacao ? `Reenviar template Captação para ${primeiroNome(r.nome)}` : `Enviar template Captação para ${primeiroNome(r.nome)}`}
                                 className="h-6 px-2 rounded text-[10px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50">
-                                {captacaoSendingIds.has(r.id) ? "..." : "Captação"}
+                                {captacaoSendingIds.has(r.id) ? "..." : captacao ? "Reenviar" : "Captação"}
                               </button>
                             )}
                           </div>

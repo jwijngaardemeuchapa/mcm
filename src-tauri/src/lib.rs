@@ -1214,6 +1214,30 @@ CREATE INDEX IF NOT EXISTS idx_tarefa_enderecos_addr ON tarefa_enderecos(metabas
 ",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Rastreio de disparos do template de Captação (Leads Região, MCM-121)
+      // — leads_regiao não são chapas nem estão em bid_disparos/chapas, então
+      // precisam de tabela própria pra guardar o umbler_chat_id e a resposta
+      // (processFirestoreMessage casa por telefone contra esta tabela).
+      // version 22: v1 estava em 21, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 22,
+      description: "captacao_log",
+      sql: "
+CREATE TABLE IF NOT EXISTS captacao_log (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL,
+  nome TEXT NOT NULL,
+  telefone TEXT NOT NULL,
+  umbler_chat_id TEXT,
+  data_disparo TEXT NOT NULL,
+  resposta TEXT,
+  data_resposta TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_captacao_log_telefone ON captacao_log(telefone);
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

@@ -76,7 +76,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
   agendaSortBy: "prazo",
-  umblerSettings: { bearerToken: "", fromPhone: "+55109997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "agd7fmoTaSCc75vA", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988 },
+  umblerSettings: { bearerToken: "", fromPhone: "+55109997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "amijY_1q6IzzA09Q", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988 },
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,
@@ -109,13 +109,22 @@ export function readSettings(): AppSettings {
       umblerSettings: (() => {
         const merged = { ...SETTING_DEFAULTS.umblerSettings, ...(parsed.umblerSettings ?? {}) };
         const d = SETTING_DEFAULTS.umblerSettings;
+        // ID antigo do template de Captação (404 "channel mismatch" — sempre
+        // errado, nunca funcionou). Como o campo já pode ter sido persistido
+        // no localStorage por qualquer edição anterior em Integrações, só
+        // trocar o valor em SETTING_DEFAULTS não basta (merge abaixo prioriza
+        // o valor salvo) — corrige explicitamente esse valor legado uma vez.
+        const ID_CAPTACAO_ANTIGO = "agd7fmoTaSCc75vA";
+        const captacaoTemplateId = (!merged.captacaoTemplateId || merged.captacaoTemplateId === ID_CAPTACAO_ANTIGO)
+          ? d.captacaoTemplateId
+          : merged.captacaoTemplateId;
         return {
           ...merged,
           fromPhone: merged.fromPhone || d.fromPhone,
           organizationId: merged.organizationId || d.organizationId,
           cancelTemplateId: merged.cancelTemplateId || d.cancelTemplateId,
           taskCancelTemplateId: merged.taskCancelTemplateId || d.taskCancelTemplateId,
-          captacaoTemplateId: merged.captacaoTemplateId || d.captacaoTemplateId,
+          captacaoTemplateId,
         };
       })(),
     };

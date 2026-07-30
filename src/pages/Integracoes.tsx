@@ -812,6 +812,24 @@ export default function Integracoes() {
             </p>
           </div>
 
+          {/* captacao template */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Template — Captação (Leads Região)
+            </label>
+            <Input
+              value={umblerSettings.captacaoTemplateId}
+              onChange={(e) => updateUmblerSetting({ captacaoTemplateId: e.target.value })}
+              placeholder="amijY_1q6IzzA09Q"
+              className="font-mono text-xs"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Ativa o botão <strong className="text-foreground">Captação</strong> na aba Leads Região do BID.
+              Único parâmetro enviado: <strong className="text-foreground">parâm. 1</strong> — primeiro nome do lead.
+              Se o Umbler recriar esse template (edição de template aprovado gera um ID novo), atualize o valor aqui — não precisa de release.
+            </p>
+          </div>
+
           {/* FUP bots */}
           <div className="space-y-3">
             <p className="text-xs font-semibold text-foreground">Bot FUP — Chatbot de follow-up</p>
