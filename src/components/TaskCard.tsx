@@ -1123,6 +1123,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 }
                 umblerReady={umblerReady}
                 cancelTemplateReady={cancelTemplateReady}
+                taskCancelTemplateReady={taskCancelTemplateReady}
               />
             ))}
           </div>
@@ -1679,6 +1680,7 @@ type RowProps = {
   onUndoOutcome: () => void;
   umblerReady?: boolean;
   cancelTemplateReady?: boolean;
+  taskCancelTemplateReady?: boolean;
   conf?: ConfiabilidadeStats | null;
 };
 
@@ -1696,6 +1698,7 @@ function ChapaRowView({
   onUndoOutcome,
   umblerReady,
   cancelTemplateReady,
+  taskCancelTemplateReady,
   conf,
 }: RowProps) {
   const navigate = useNavigate();
@@ -1707,11 +1710,16 @@ function ChapaRowView({
   const cancelSent = (() => {
     try { return !!localStorage.getItem(`umbler_cancel_${chapa.id}`); } catch { return false; }
   })();
+  const cancelTaskSent = (() => {
+    try { return !!localStorage.getItem(`umbler_cancel_task_${chapa.id}`); } catch { return false; }
+  })();
 
   // How many times this chapa was dispatched individually via Umbler
   const umblerCount = fupLog.filter((f) => f.canal === "umbler_talk" && f.chapa_id === chapa.id).length;
-  // How many times "sem resposta" was sent to this chapa
+  // How many times "sem resposta" foi disparado individualmente pra este chapa
   const cancelCount = fupLog.filter((f) => f.canal === "umbler_cancelamento" && f.chapa_id === chapa.id).length;
+  // How many times "tarefa cancelada" foi disparado individualmente pra este chapa
+  const cancelTaskCount = fupLog.filter((f) => f.canal === "umbler_cancelamento_tarefa" && f.chapa_id === chapa.id).length;
 
   const placeholder = !chapa.nome_chapa;
   const isNew =
@@ -1953,43 +1961,65 @@ function ChapaRowView({
               );
             })()}
 
-            {/* Sem Resposta — cancelamento por falta de resposta */}
-            {(cancelTemplateReady || cancelSent || cancelCount > 0) && chapa.telefone_chapa && (() => {
-              const isPending = pendingAction === "cancel";
-              const everSent = cancelCount > 0 || cancelSent;
+            {/* Cancelamento individual — "Sem resposta" (cancelTemplateId) ou
+                "Cancelar tarefa" (taskCancelTemplateId, mesmo template do
+                disparo em massa, mas pra 1 chapa só). Vira dropdown porque
+                antes só dava pra mandar "tarefa cancelada" em massa. */}
+            {(cancelTemplateReady || taskCancelTemplateReady || cancelSent || cancelCount > 0 || cancelTaskSent || cancelTaskCount > 0) && chapa.telefone_chapa && (() => {
+              const isPending = pendingAction === "cancel" || pendingAction === "cancel_task";
+              const everSentCancel = cancelCount > 0 || cancelSent;
+              const everSentTask = cancelTaskCount > 0 || cancelTaskSent;
+              const everSent = everSentCancel || everSentTask;
               const countLabel = cancelCount > 0 ? ` (${cancelCount}x)` : "";
+              const taskCountLabel = cancelTaskCount > 0 ? ` (${cancelTaskCount}x)` : "";
+
+              if (isPending) {
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => dispatchQueue.abortChapaJob(chapa.id)}
+                        className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border text-[11px] font-semibold transition-colors min-h-[28px] border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                        aria-label="Cancelar envio"
+                      >
+                        <X className="h-3 w-3" /><span>{countdown}s</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Clique para cancelar</TooltipContent>
+                  </Tooltip>
+                );
+              }
+
               return (
-                <Tooltip>
-                  <TooltipTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <button
-                      onClick={isPending ? () => dispatchQueue.abortChapaJob(chapa.id) : () => dispatchQueue.startChapaJob(chapa.id, "cancel", chapa as ChapaSnap, taskSnap)}
                       disabled={pendingAction === "fup"}
                       className={`inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border text-[11px] font-semibold transition-colors min-h-[28px] ${
-                        isPending
-                          ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
-                          : everSent
+                        everSent
                           ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-40 disabled:cursor-not-allowed"
                           : "border-border text-muted-foreground hover:border-destructive/40 hover:text-destructive/70 hover:bg-destructive/5 disabled:opacity-40 disabled:cursor-not-allowed"
                       }`}
-                      aria-label={isPending ? "Cancelar envio" : everSent ? "Reenviar sem resposta" : "Enviar template de sem resposta"}
+                      aria-label="Opções de cancelamento"
                     >
-                      {isPending ? (
-                        <><X className="h-3 w-3" /><span>{countdown}s</span></>
-                      ) : everSent ? (
-                        <><Check className="h-3 w-3" /><span>Sem resp.{countLabel}</span></>
-                      ) : (
-                        <><UserMinus className="h-3 w-3" /><span>Sem resp.</span></>
-                      )}
+                      {everSent ? <Check className="h-3 w-3" /> : <UserMinus className="h-3 w-3" />}
+                      <span>Cancelar</span>
+                      <ChevronDown className="h-3 w-3 opacity-60" />
                     </button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {isPending
-                      ? "Clique para cancelar"
-                      : everSent
-                      ? `Sem resposta disparado ${cancelCount > 0 ? `${cancelCount}x` : "anteriormente"} — clique para reenviar`
-                      : "Enviar template de cancelamento por falta de resposta — aguarda 1 min"}
-                  </TooltipContent>
-                </Tooltip>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {(cancelTemplateReady || everSentCancel) && (
+                      <DropdownMenuItem onClick={() => dispatchQueue.startChapaJob(chapa.id, "cancel", chapa as ChapaSnap, taskSnap)}>
+                        {everSentCancel ? `Sem resposta${countLabel} — reenviar` : "Sem resposta"}
+                      </DropdownMenuItem>
+                    )}
+                    {(taskCancelTemplateReady || everSentTask) && (
+                      <DropdownMenuItem onClick={() => dispatchQueue.startChapaJob(chapa.id, "cancel_task", chapa as ChapaSnap, taskSnap)}>
+                        {everSentTask ? `Cancelar tarefa${taskCountLabel} — reenviar` : "Cancelar tarefa"}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               );
             })()}
 

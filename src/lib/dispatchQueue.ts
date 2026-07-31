@@ -19,7 +19,7 @@ export type TaskCancelState =
   | null;
 
 export type ChapaJobState =
-  | { status: "countdown"; remaining: number; action: "fup" | "cancel" }
+  | { status: "countdown"; remaining: number; action: "fup" | "cancel" | "cancel_task" }
   | null;
 
 export type CustomMsgState =
@@ -190,10 +190,10 @@ class DispatchQueue {
       const meta = this.chapaMeta.get(chapaId);
       jobs.push({
         id: `chapa-${chapaId}`,
-        kind: st.action === "cancel" ? "chapaCancel" : "chapaFup",
+        kind: st.action === "fup" ? "chapaFup" : "chapaCancel",
         taskId: meta?.taskId ?? 0,
         titulo: meta?.empresa ?? "Tarefa",
-        descricao: `${st.action === "cancel" ? "Cancelamento" : "FUP"} — ${meta?.nome ?? "chapa"}`,
+        descricao: `${st.action === "fup" ? "FUP" : st.action === "cancel_task" ? "Tarefa cancelada" : "Sem resposta"} — ${meta?.nome ?? "chapa"}`,
         remaining: st.status === "countdown" ? st.remaining : null,
         progress: null,
         cancel: () => this.abortChapaJob(chapaId),
@@ -623,7 +623,7 @@ class DispatchQueue {
 
   // ---- Individual Chapa ----
 
-  startChapaJob(chapaId: string, action: "fup" | "cancel", chapa: ChapaSnap, task: TaskSnap) {
+  startChapaJob(chapaId: string, action: "fup" | "cancel" | "cancel_task", chapa: ChapaSnap, task: TaskSnap) {
     this.chapaMeta.set(chapaId, { nome: chapa.nome_chapa ?? "chapa", taskId: task.id_tarefa, empresa: task.empresa });
     this._clearChapaTimers(chapaId);
     this.chapaJobStates.set(chapaId, { status: "countdown", remaining: 60, action });
@@ -644,6 +644,8 @@ class DispatchQueue {
       this.chapaTimers.delete(chapaId);
       if (action === "fup") {
         this._executeChapaFup(chapaId, chapa, task);
+      } else if (action === "cancel_task") {
+        this._executeChapaCancelTask(chapaId, chapa, task);
       } else {
         this._executeChapaCancel(chapaId, chapa, task);
       }
@@ -742,6 +744,47 @@ class DispatchQueue {
     } catch { /* noop */ }
     try { localStorage.setItem(`umbler_cancel_${chapaId}`, "1"); } catch { /* noop */ }
     toast.success(`Cancelamento enviado para ${chapa.nome_chapa}`);
+    this.chapaJobStates.delete(chapaId);
+    this.notifyChapaJob(chapaId);
+    window.dispatchEvent(new CustomEvent("fup:refresh"));
+  }
+
+  // Cancelamento de TAREFA (taskCancelTemplateId, mesmo template do disparo
+  // em massa via _executeTaskCancel) mas individual — mesmos parâmetros
+  // (código da tarefa + data/horário). Canal próprio ("umbler_cancelamento_tarefa")
+  // pra não se confundir com "umbler_cancelamento" (sem resposta) nem com
+  // "umbler_cancelamento_geral" (o disparo em massa, sem chapa_id).
+  private async _executeChapaCancelTask(chapaId: string, chapa: ChapaSnap, task: TaskSnap) {
+    const { umblerSettings } = readSettings();
+    let chatId: string | null = null;
+    try {
+      const res = await sendUmblerFup({
+        chapaNome: chapa.nome_chapa!,
+        chapaTelefone: chapa.telefone_chapa!,
+        dataTarefa: task.data_tarefa,
+        empresa: task.empresa,
+        settings: umblerSettings,
+        templateIdOverride: umblerSettings.taskCancelTemplateId,
+        overrideParams: [String(task.id_tarefa), fmtTaskDateParam(task.data_tarefa)],
+      });
+      chatId = res.chatId;
+    } catch (e) {
+      toast.error(`Falha ao enviar cancelamento de tarefa: ${String(e)}`);
+      this.chapaJobStates.delete(chapaId);
+      this.notifyChapaJob(chapaId);
+      window.dispatchEvent(new CustomEvent("fup:refresh"));
+      return;
+    }
+    try {
+      const db = await getDb();
+      try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
+      await db.execute(
+        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [uuid(), task.id_tarefa, "umbler_cancelamento_tarefa", new Date().toISOString(), `Tarefa cancelada — ${chapa.nome_chapa}`, chapaId, chatId],
+      );
+    } catch { /* noop */ }
+    try { localStorage.setItem(`umbler_cancel_task_${chapaId}`, "1"); } catch { /* noop */ }
+    toast.success(`Cancelamento de tarefa enviado para ${chapa.nome_chapa}`);
     this.chapaJobStates.delete(chapaId);
     this.notifyChapaJob(chapaId);
     window.dispatchEvent(new CustomEvent("fup:refresh"));
