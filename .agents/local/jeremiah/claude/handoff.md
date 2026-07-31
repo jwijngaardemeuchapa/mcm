@@ -1,15 +1,15 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-30 (Sonnet 5, mesma sessão — v1.0.31 logo em seguida da v1.0.29/30)
-**Versão:** `1.0.31` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Data:** 2026-07-30 (Sonnet 5)
+**Versão:** `1.0.31` publicada, **assinada e verificada** (MCM-122/123/124 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `53c5fbf`.
+**Último commit:** `cc8220c` (assina 1.0.31 + latest.json).
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.29, v1.0.30 E v1.0.31
+## ✅ Pendência anterior RESOLVIDA — v1.0.31 assinada (pula 1.0.29/30 de propósito)
 
-Três versões seguidas nesta sessão sem assinatura. Mesmo runbook de sempre — só assinar a v1.0.31 (a mais alta) já resolve pro updater, não precisa repetir pra cada uma.
+Usuário pediu de novo pra sincronizar com a outra máquina. `git fetch` trouxe 3 releases seguidas sem assinatura (MCM-122/123/124). Confirmado o atalho que a própria sessão anterior já tinha registrado: só a versão mais alta (1.0.31) precisa ser assinada — o updater (`latest.json`) só aponta pra uma versão por vez, então 1.0.29 e 1.0.30 ficam com o `.exe` sem `.sig` no GitHub Release pra sempre (histórico, sem problema — ninguém atualiza pra elas via updater). Runbook padrão: build da 1.0.31 → assinado → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
 
 ## ✅ MCM-124 — card azul pra status "Em Andamento"
 

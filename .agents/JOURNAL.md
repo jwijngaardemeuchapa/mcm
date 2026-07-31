@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-07-30 — MCM — v1.0.31 assinada (3 releases seguidas da sessão paralela — 1.0.29/30 puladas de propósito)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-122, MCM-123, MCM-124 (assinatura completada)
+**Commits:** `cc8220c` (assina 1.0.31 + latest.json)
+
+Terceira sincronização com sessão paralela. `git fetch` trouxe 3 commits/releases seguidas (MCM-122 fix duplicação de extras, MCM-123 autofill ViaCEP + extras vs ocupados, MCM-124 card azul "Em Andamento" — entradas abaixo), todas sem assinatura. Como o updater só lê a versão mais alta do `latest.json`, assinei só a v1.0.31 — 1.0.29 e 1.0.30 ficam com release publicada mas sem `.sig` (intencional, sem impacto). Runbook padrão: build → assinado → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
+
+**Files changed:** `latest.json`
+**Next:** nenhuma pendência de release. `handoff.md` atualizado.
+
+---
+
 ## 2026-07-30 — MCM — Release v1.0.31: card azul para status Em Andamento (MCM-124)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-124 ✅
