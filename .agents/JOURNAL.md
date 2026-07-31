@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-07-30 — MCM — Release v1.0.32: cancelamento individual com dropdown (MCM-125)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-125 ✅
+**Commits:** `5365cad`
+
+Usuário: disparo individual por chapa só tinha "Sem resposta" (`cancelTemplateId`); "Cancelar tarefa" (`taskCancelTemplateId`) só existia em massa. Pedido: as duas opções também no individual, como dropdown.
+
+`dispatchQueue.ts`: ação do job de chapa ganhou `"cancel_task"` (antes só `"fup"|"cancel"`). Nova `_executeChapaCancelTask` — mesmo template e parâmetros (código da tarefa + data/hora) do disparo em massa (`_executeTaskCancel`), mas pra 1 chapa. Canal próprio em `fup_log` (`umbler_cancelamento_tarefa`), distinto de `umbler_cancelamento` (sem resposta individual) e `umbler_cancelamento_geral` (o disparo em massa, sem `chapa_id`).
+
+`TaskCard.tsx`: botão "Sem resp." virou dropdown "Cancelar" com os 2 itens, cada um com seu próprio contador/estado de reenvio ("Sem resposta (Nx) — reenviar" / "Cancelar tarefa (Nx) — reenviar"). Countdown de 60s e abort mantidos como antes — o dropdown só aparece quando não há disparo pendente; durante o countdown, o botão único de abort continua servindo pras duas ações.
+
+---
+
 ## 2026-07-30 — MCM — v1.0.31 assinada (3 releases seguidas da sessão paralela — 1.0.29/30 puladas de propósito)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-122, MCM-123, MCM-124 (assinatura completada)

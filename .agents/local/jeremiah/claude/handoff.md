@@ -1,9 +1,19 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-30 (Sonnet 5)
-**Versão:** `1.0.31` publicada, **assinada e verificada** (MCM-122/123/124 ✅). Sem pendência de release aberta.
+**Data:** 2026-07-30 (Sonnet 5, mesma sessão)
+**Versão:** `1.0.32` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `cc8220c` (assina 1.0.31 + latest.json).
+**Último commit:** `5365cad`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.32
+
+Mesmo runbook de sempre.
+
+## ✅ MCM-125 — cancelamento individual: dropdown "Sem resposta" / "Cancelar tarefa"
+
+Antes só dava pra cancelar 1 chapa por "sem resposta" (`cancelTemplateId`); "cancelar tarefa" (`taskCancelTemplateId`) só existia em massa. Usuário pediu as duas opções no individual. `dispatchQueue.ts` ganhou ação `"cancel_task"` + `_executeChapaCancelTask` (mesmo template/parâmetros do bulk, canal `umbler_cancelamento_tarefa` em `fup_log`). `TaskCard.tsx`: botão "Sem resp." virou dropdown "Cancelar" com as 2 opções, cada uma com contador próprio. Countdown/abort de 60s preservados (single button durante o countdown, dropdown só quando idle).
 
 ---
 
