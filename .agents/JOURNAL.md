@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-08-01 — MCM — v1.0.32 assinada (sessão paralela publicou sem assinatura)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-125 (assinatura completada)
+**Commits:** `abbb9b9` (assina 1.0.32 + latest.json)
+
+Quarta sincronização com sessão paralela. `git fetch` trouxe MCM-125 (entrada abaixo). Runbook padrão: pull → typecheck (baseline 13) → build → assinado → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
+
+**Files changed:** `latest.json`
+**Next:** nenhuma pendência de release. `handoff.md` atualizado.
+
+---
+
 ## 2026-07-30 — MCM — Release v1.0.32: cancelamento individual com dropdown (MCM-125)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-125 ✅

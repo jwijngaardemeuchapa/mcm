@@ -1,15 +1,15 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-07-30 (Sonnet 5, mesma sessão)
-**Versão:** `1.0.32` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Data:** 2026-08-01 (Sonnet 5)
+**Versão:** `1.0.32` publicada, **assinada e verificada** (MCM-125 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `5365cad`.
+**Último commit:** `abbb9b9` (assina 1.0.32 + latest.json).
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.32
+## ✅ Pendência anterior RESOLVIDA — v1.0.32 assinada
 
-Mesmo runbook de sempre.
+Usuário pediu "mesmo procedimento" pra sincronizar com a outra máquina de novo. `git fetch` trouxe MCM-125, sem conflito. Runbook padrão de sempre: `git pull` → typecheck (baseline 13 mantida) → `npm run tauri build` → assinado (`npx tauri signer sign -f/-p`) → release já existia com exe sem assinatura → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
 
 ## ✅ MCM-125 — cancelamento individual: dropdown "Sem resposta" / "Cancelar tarefa"
 
