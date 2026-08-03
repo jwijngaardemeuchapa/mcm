@@ -1,9 +1,19 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-01 (Sonnet 5, mesma sessão)
-**Versão:** `1.0.33` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Versão:** `1.0.34` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `8f6a821`.
+**Último commit:** `94596a7`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.34
+
+Mesmo runbook de sempre.
+
+## ✅ MCM-127 — intervalo entre disparos de Captação em massa
+
+Usuário reportou que a captação em massa (Leads Região + Recomendados) saía tudo de uma vez, sem o intervalo de 7s que o BID em massa já respeita. Extraída `sendCaptacaoSequencial` (mesmo countdown de 7s de `BidDispatchQueue._run`), reusada nos 2 pontos que disparavam em lote. Botão mostra "próximo em Ns" durante a espera.
 
 ---
 

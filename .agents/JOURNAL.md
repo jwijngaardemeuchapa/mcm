@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-08-01 — MCM — Release v1.0.34: fix intervalo entre disparos de Captação (MCM-127)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-127 ✅
+**Commits:** `94596a7`
+
+Usuário reportou que o disparo em massa do template de Captação (aba Leads Região e o disparo misto de Recomendados) estava saindo tudo de uma vez, sem o mesmo intervalo que o disparo em massa do BID já respeita (7s entre cada envio, `BidDispatchQueue._run`). Causa: os 2 pontos que disparavam captação em lote (`handleDispatchAllCaptacao` e o trecho `captacaoEligible` de `handleDispatchSelectedRecomendados`) faziam um loop sequencial simples sem nenhuma pausa.
+
+Fix: extraída `sendCaptacaoSequencial` — mesmo countdown de 7s do BID em massa — reusada nos 2 pontos. Botão "Disparar Captação" na aba Leads Região agora mostra "próximo em Ns" durante a espera, igual o disparo em massa do BID já mostra.
+
+---
+
 ## 2026-08-01 — MCM — Release v1.0.33: Em Andamento sobrepõe verde de validado (MCM-126)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-126 ✅
