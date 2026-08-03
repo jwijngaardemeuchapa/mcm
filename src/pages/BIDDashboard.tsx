@@ -500,6 +500,7 @@ function BidTaskCard({
   const [dispatchingIds, setDispatchingIds] = useState<Set<string>>(new Set());
   const [captacaoSendingIds, setCaptacaoSendingIds] = useState<Set<string>>(new Set());
   const [captacaoBulkSending, setCaptacaoBulkSending] = useState(false);
+  const [captacaoWaitSeconds, setCaptacaoWaitSeconds] = useState<number | null>(null);
   const [showOccupied, setShowOccupied] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1384,6 +1385,35 @@ function BidTaskCard({
     }
   }
 
+  // Disparo sequencial de Captação com o MESMO intervalo de 7s entre envios
+  // que o BID em massa já usa (BidDispatchQueue._run) — MCM-127: sem essa
+  // pausa, os disparos de captação saíam todos de uma vez, arriscando 429
+  // do Umbler igual um disparo em massa sem intervalo daria. Reusado tanto
+  // pelo botão dedicado da aba Leads Região quanto pelo disparo misto de
+  // Recomendados.
+  async function sendCaptacaoSequencial(items: { id: string; nome: string; telefone: string | null }[]) {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      await sendCaptacao(it);
+      if (i < items.length - 1) {
+        await new Promise<void>((resolve) => {
+          let remaining = 7;
+          setCaptacaoWaitSeconds(remaining);
+          const tick = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+              clearInterval(tick);
+              setCaptacaoWaitSeconds(null);
+              resolve();
+            } else {
+              setCaptacaoWaitSeconds(remaining);
+            }
+          }, 1000);
+        });
+      }
+    }
+  }
+
   // Dispara Captação pra todos os leads região visíveis de uma vez (MCM-121)
   // — pula quem já recebeu (tem chatId em captacaoStatus), pra não reenviar
   // sem querer num segundo clique. Sequencial (mesmo padrão de sendCaptacao
@@ -1397,11 +1427,10 @@ function BidTaskCard({
     if (pendentes.length === 0) { toast.info("Todos os leads visíveis já receberam a captação."); return; }
     setCaptacaoBulkSending(true);
     try {
-      for (const r of pendentes) {
-        await sendCaptacao({ id: r.id, nome: r.nome, telefone: r.telefone });
-      }
+      await sendCaptacaoSequencial(pendentes.map((r) => ({ id: r.id, nome: r.nome, telefone: r.telefone })));
     } finally {
       setCaptacaoBulkSending(false);
+      setCaptacaoWaitSeconds(null);
     }
   }
 
@@ -1437,8 +1466,14 @@ function BidTaskCard({
         },
       });
     }
-    for (const it of captacaoEligible) {
-      await sendCaptacao({ id: it._key, nome: it.nome, telefone: it.telefone });
+    if (captacaoEligible.length > 0) {
+      setCaptacaoBulkSending(true);
+      try {
+        await sendCaptacaoSequencial(captacaoEligible.map((it) => ({ id: it._key, nome: it.nome, telefone: it.telefone })));
+      } finally {
+        setCaptacaoBulkSending(false);
+        setCaptacaoWaitSeconds(null);
+      }
     }
     setSelectedIds(new Set());
   }
@@ -2226,7 +2261,9 @@ function BidTaskCard({
                   onClick={handleDispatchAllCaptacao}
                   className="h-6 px-2 text-[10px] gap-1 bg-indigo-600 hover:bg-indigo-700 text-white"
                 >
-                  {captacaoBulkSending ? "Disparando..." : `Disparar Captação (${leadsRegiaoVisible.filter((r) => r.telefone && !captacaoStatus.get(normalizePhone(r.telefone))?.chatId).length})`}
+                  {captacaoBulkSending
+                    ? (captacaoWaitSeconds !== null ? `próximo em ${captacaoWaitSeconds}s` : "Disparando...")
+                    : `Disparar Captação (${leadsRegiaoVisible.filter((r) => r.telefone && !captacaoStatus.get(normalizePhone(r.telefone))?.chatId).length})`}
                 </Button>
               )}
               {candidateView === "bloqueados" && blockedTipos.length > 1 && (
