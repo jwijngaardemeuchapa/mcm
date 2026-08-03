@@ -633,6 +633,9 @@ Precisamos de 1 substituto para esta tarefa.`;
       (c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente",
     );
   const isDone = confirmedAll && vStatus === "subido_meu_chapa";
+  // Tarefa "Em Andamento" nunca deve ficar verde (mesmo já validada/subida) —
+  // fica azul e o flag mostra "Em Andamento" em vez de "100% Validada".
+  const emAndamento = task.status_tarefa === "Em Andamento";
 
   const hasClienteNotes = !!clienteInfo && (
     clienteInfo.status_cliente !== "ativo" ||
@@ -747,23 +750,25 @@ Precisamos de 1 substituto para esta tarefa.`;
     return (
       <div
         data-task-card={task.id_tarefa}
-        className={`bg-card rounded-xl border border-border border-l-4 border-l-success shadow-card overflow-hidden transition-all duration-200 ${
-          animateCollapse ? "animate-fade-in" : ""
-        }`}
+        className={`bg-card rounded-xl border border-border shadow-card overflow-hidden transition-all duration-200 ${
+          emAndamento ? "border-l-4 border-l-info" : "border-l-4 border-l-success"
+        } ${animateCollapse ? "animate-fade-in" : ""}`}
       >
         <div className="min-h-[44px] px-4 py-2 flex items-center gap-3">
           {isOvernight && <Moon className="h-4 w-4 text-overnight shrink-0" aria-label="Overnight" />}
-          <BadgeCheck className="h-4 w-4 text-success shrink-0" aria-label="Validada" />
+          <BadgeCheck className={`h-4 w-4 shrink-0 ${emAndamento ? "text-info" : "text-success"}`} aria-label="Validada" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-sm text-muted-foreground truncate capitalize">
               {task.empresa.toLowerCase()} — {fmtTime(task.data_tarefa)}
             </span>
           </div>
-          <span className="text-xs font-semibold text-success shrink-0">
+          <span className={`text-xs font-semibold shrink-0 ${emAndamento ? "text-info" : "text-success"}`}>
             {confirmed}/{requested} ✅
           </span>
-          <span className="text-[12px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-success/15 text-success shrink-0 inline-flex items-center gap-1">
-            <BadgeCheck className="h-3 w-3" /> 100% Validada
+          <span className={`text-[12px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 inline-flex items-center gap-1 ${
+            emAndamento ? "bg-info/15 text-info" : "bg-success/15 text-success"
+          }`}>
+            <BadgeCheck className="h-3 w-3" /> {emAndamento ? "Em Andamento" : "100% Validada"}
           </span>
           {hasObs && (
             <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Contém observações" />
@@ -784,7 +789,9 @@ Precisamos de 1 substituto para esta tarefa.`;
     <div
       data-task-card={task.id_tarefa}
       className={`bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${
-        isDone
+        emAndamento && (isDone || fullyValidated)
+          ? "border-info/50 border-l-4 border-l-info ring-1 ring-info/20"
+          : isDone
           ? "border-success/60 border-l-4 border-l-success ring-1 ring-success/20"
           : fullyValidated
           ? "border-success/50 border-l-4 border-l-success ring-1 ring-success/15"
@@ -796,7 +803,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           ? "border-warning/60 ring-2 ring-warning/30"
           : task.urgent
           ? "border-destructive/50 ring-1 ring-destructive/20"
-          : task.status_tarefa === "Em Andamento"
+          : emAndamento
           ? "border-info/50 border-l-4 border-l-info ring-1 ring-info/20"
           : "border-border"
       } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
@@ -805,7 +812,7 @@ Precisamos de 1 substituto para esta tarefa.`;
         className={`relative p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border bg-card ${
           isOvernight
             ? "bg-gradient-to-r from-overnight-soft to-card"
-            : task.status_tarefa === "Em Andamento"
+            : emAndamento
             ? "bg-gradient-to-r from-info/10 to-card"
             : "bg-gradient-to-r from-primary-soft/60 to-card"
         }`}
@@ -983,10 +990,12 @@ Precisamos de 1 substituto para esta tarefa.`;
           )}
           {fullyValidated && (
             <span
-              className="inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-success text-success-foreground shadow-sm"
-              title="Todas as presenças foram marcadas"
+              className={`inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-1 rounded-md shadow-sm ${
+                emAndamento ? "bg-info text-info-foreground" : "bg-success text-success-foreground"
+              }`}
+              title={emAndamento ? "Todas as presenças foram marcadas — tarefa em andamento" : "Todas as presenças foram marcadas"}
             >
-              <BadgeCheck className="h-3.5 w-3.5" /> 100% Validada
+              <BadgeCheck className="h-3.5 w-3.5" /> {emAndamento ? "Em Andamento" : "100% Validada"}
             </span>
           )}
           {taskStarted ? (
