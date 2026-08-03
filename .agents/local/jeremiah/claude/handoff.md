@@ -1,9 +1,19 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-01 (Sonnet 5)
-**Versão:** `1.0.32` publicada, **assinada e verificada** (MCM-125 ✅). Sem pendência de release aberta.
+**Data:** 2026-08-01 (Sonnet 5, mesma sessão)
+**Versão:** `1.0.33` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `abbb9b9` (assina 1.0.32 + latest.json).
+**Último commit:** `8f6a821`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.33
+
+Mesmo runbook de sempre.
+
+## ✅ MCM-126 — Em Andamento sobrepõe verde de validado/100%
+
+Ajuste rápido em cima do MCM-124: o card azul de "Em Andamento" tinha prioridade MENOR que o verde de validado (`isDone`/`fullyValidated`) — uma tarefa em andamento mas já validada continuava verde. Usuário pediu o oposto: nunca verde quando "Em Andamento", sempre azul, chip vira "Em Andamento" em vez de "100% Validada". Ajustado nos 3 lugares do `TaskCard.tsx` (borda expandida, chip expandido, card minimizado).
 
 ---
 

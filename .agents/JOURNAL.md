@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-08-01 — MCM — Release v1.0.33: Em Andamento sobrepõe verde de validado (MCM-126)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-126 ✅
+**Commits:** `8f6a821`
+
+Ajuste em cima do MCM-124 (card azul pra "Em Andamento"): a prioridade original deixava verde (`isDone`/`fullyValidated`) acima do azul — uma tarefa em andamento mas já 100% validada continuava aparecendo verde com o chip "100% Validada". Usuário pediu o inverso: status "Em Andamento" nunca deve mostrar verde, mesmo já validada — sempre azul, com o chip trocado pra "Em Andamento".
+
+`TaskCard.tsx`, 3 pontos ajustados: borda do card expandido (`emAndamento && (isDone || fullyValidated)` intercepta antes das condições de verde, preservando a ordem de overnight/urgente/alerta que já vinha antes), o chip "100% Validada" no card expandido (agora `emAndamento ? "Em Andamento" : "100% Validada"`, cor azul/verde condicional), e o card minimizado/colapsado (borda lateral, ícone, contador e flag — mesmo tratamento).
+
+---
+
 ## 2026-08-01 — MCM — v1.0.32 assinada (sessão paralela publicou sem assinatura)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-125 (assinatura completada)
