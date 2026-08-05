@@ -38,10 +38,17 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
       
       const concluida = t.status_tarefa === "Concluído";
       const validada = (t.validacao_status ?? "aguardando") === "validacao_recebida";
+      // Em Andamento nunca fica verde (mesmo com fill ≥80%) — fica azul,
+      // mesmo tratamento do Cards/Panorama (MCM-128). Amarelo/vermelho não
+      // mudam — só o "tudo certo" verde é que vira "ainda em andamento".
+      const emAndamento = t.status_tarefa === "Em Andamento";
 
       let colorClass = "bg-destructive border-destructive/50 text-destructive-foreground";
-      if (fillPct >= 80) colorClass = "bg-success border-success/50 text-success-foreground";
-      else if (fillPct >= 50) colorClass = "bg-warning border-warning/50 text-warning-foreground";
+      if (fillPct >= 80) {
+        colorClass = emAndamento
+          ? "bg-info border-info/50 text-info-foreground"
+          : "bg-success border-success/50 text-success-foreground";
+      } else if (fillPct >= 50) colorClass = "bg-warning border-warning/50 text-warning-foreground";
       if (concluida) colorClass += " opacity-50 saturate-50";
 
       return {
