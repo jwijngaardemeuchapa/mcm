@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-08-05 — MCM — Release v1.0.35: azul do Em Andamento em Panorama e Timeline (MCM-128)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-128 ✅
+**Commits:** `2e63c2e`
+
+Usuário reportou que MCM-124/126 (card azul pra "Em Andamento") só cobriu a visão Cards — Panorama e Timeline (as outras 2 das 3 visões do Dashboard) continuavam mostrando verde pra tarefas em andamento já concluídas/validadas.
+
+`TaskPanorama.tsx`: linha (accentBorder/rowBg) e status chip ("Concluída"/"Validada") viram azul + "Em Andamento" quando `emAndamento && (isDone || fullyValidated)`, mesmo critério do TaskCard. Ícone de check no final da linha também.
+
+`TaskTimeline.tsx`: caso diferente — o bloco do Gantt colore por **fill rate** (verde ≥80%, amarelo 50-80%, vermelho <50%, legenda documentada em Ajuda), não por isDone/fullyValidated. Interceptado só o caso verde (fillPct ≥ 80) quando `emAndamento`, virando azul — amarelo/vermelho continuam representando fill rate baixo sem nenhuma mudança, preservando a legenda documentada pros casos que não são "tudo certo".
+
+---
+
 ## 2026-08-05 — MCM — v1.0.34 assinada (sessão paralela publicou 2 releases sem assinatura)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-126, MCM-127 (assinatura completada)
