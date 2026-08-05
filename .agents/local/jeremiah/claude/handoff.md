@@ -1,15 +1,15 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-01 (Sonnet 5, mesma sessão)
-**Versão:** `1.0.34` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Data:** 2026-08-05 (Sonnet 5)
+**Versão:** `1.0.34` publicada, **assinada e verificada** (MCM-126/127 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `94596a7`.
+**Último commit:** `1ff3a23` (assina 1.0.34 + latest.json).
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.34
+## ✅ Pendência anterior RESOLVIDA — v1.0.34 assinada (pula 1.0.33)
 
-Mesmo runbook de sempre.
+Usuário pediu "alguma atualização pra fazer release?" pra sincronizar com a outra máquina de novo. `git fetch` trouxe MCM-126 e MCM-127 (2 releases seguidas sem assinatura). Runbook padrão: pull → typecheck (baseline 13) → build da 1.0.34 (a mais alta, pula 1.0.33 de propósito — mesmo atalho já registrado nas entradas anteriores) → assinado → release já existia com exe sem assinatura → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
 
 ## ✅ MCM-127 — intervalo entre disparos de Captação em massa
 

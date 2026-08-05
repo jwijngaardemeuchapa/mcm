@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-08-05 — MCM — v1.0.34 assinada (sessão paralela publicou 2 releases sem assinatura)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-126, MCM-127 (assinatura completada)
+**Commits:** `1ff3a23` (assina 1.0.34 + latest.json)
+
+Quinta sincronização com sessão paralela. `git fetch` trouxe MCM-126 e MCM-127 (entradas abaixo). Runbook padrão: pull → typecheck (baseline 13) → build da 1.0.34 (mais alta, pula 1.0.33) → assinado → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
+
+**Files changed:** `latest.json`
+**Next:** nenhuma pendência de release. `handoff.md` atualizado.
+
+---
+
 ## 2026-08-01 — MCM — Release v1.0.34: fix intervalo entre disparos de Captação (MCM-127)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-127 ✅
