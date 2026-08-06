@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-08-06 — MCM — Release v1.0.37: Recomendados mostra só a leva da vez + badge EXTRA (MCM-130)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-130 ✅
+**Commits:** `46e1298`
+
+Usuário pediu, em cima da funcionalidade de "levas" que a sessão paralela tinha acabado de implementar pro disparo em massa (MCM-129): a aba Recomendados deve mostrar só o batch/leva da vez, não a lista inteira — e chapas extras (Busca Chapa) devem entrar nessa lógica, ordenados por tarefas já executadas.
+
+`recomendadosVisible = recomendados.slice(0, recomendadosWaveCap)` — cap com a MESMA fórmula do disparo em massa (`BidDispatchQueue._run`): `Math.min(40, Math.max(5, Math.ceil(vagas * bidWaveMultiplier)))`. Contador na aba mostra "N desta leva (de M ranqueados)".
+
+Investigando os extras: já entravam no ranking geral (`origin: "disponivel"`, o loop sobre `available` já inclui extras via `is_extra`), só que sem marcação visível — e a ordenação por tarefas dentro do tier já acontecia via `computeRecommendedScore` (soma `tarefas*2` antes do critério de aceite/leo). Adicionei o campo `isExtra` no `RecomendadoItem` + badge "EXTRA" (roxo) só pra deixar visível o que já era verdade — não precisou de lista separada nem mudança na fórmula de score.
+
+---
+
 ## 2026-08-06 — MCM — Release v1.0.36: disparo cadenciado em levas, CEP obrigatório, Recomendados reordenado, sync Bloqueios do Dia (MCM-129)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-129 ✅ (+ merge com MCM-128 da sessão paralela)
