@@ -1536,7 +1536,7 @@ function BidTaskCard({
         toast.error("Configure o Bot ID e o Trigger Name do BID (D0) em Integrações.");
         return;
       }
-      bidDispatchQueue.startBatch({
+      const started = bidDispatchQueue.startBatch({
         taskId: task.id_tarefa,
         empresa: task.empresa,
         dataTarefa: task.data_tarefa,
@@ -1552,6 +1552,11 @@ function BidTaskCard({
         quantidadeChapas: task.quantidade_chapas,
         waveMultiplier: readSettings().bidWaveMultiplier,
       });
+      // Espera o batch de BID (todas as levas) terminar ANTES de começar a
+      // Captação — sem isso os dois rodavam em paralelo (startBatch é
+      // fire-and-forget), embaralhando a cadência e a ordem combinada do
+      // ranking entre as duas origens de disparo.
+      if (started) await bidDispatchQueue.waitBatch(task.id_tarefa);
     }
     if (captacaoEligible.length > 0) {
       setCaptacaoBulkSending(true);
@@ -1764,7 +1769,16 @@ function BidTaskCard({
           normalize(it.nome).includes(searchNorm) ||
           (searchDigits && it.telefone && it.telefone.replace(/\D/g, "").includes(searchDigits)))
       : items;
-    return filtered.sort((a, b) => b.score - a.score);
+    // Leads Região sempre por último (pedido explícito do usuário) — nunca
+    // se cadastraram, então mesmo pontuando bem em distância/leo não devem
+    // furar na frente de quem já é chapa de alguma forma. Ordena por
+    // "é lead_regiao" primeiro (não-região vem antes), score dentro do grupo.
+    return filtered.sort((a, b) => {
+      const aRegiao = a.origin === "lead_regiao" ? 1 : 0;
+      const bRegiao = b.origin === "lead_regiao" ? 1 : 0;
+      if (aRegiao !== bRegiao) return aRegiao - bRegiao;
+      return b.score - a.score;
+    });
   }, [available, novosVisible, leadsBidVisible, leadsRegiaoComDist, basePhoneSet, occupiedPhoneSet, leadsSaacPhoneSet, novoPhoneSet, leoCache, dispatchParams.localLat, dispatchParams.localLng, maxDistKm, searchActive, searchNorm, searchDigits]); // eslint-disable-line
   const recomendadosLoading = candidatesLoading || !leadsBidLoaded || !novosLoaded || !leadsRegiaoLoaded;
   // MCM-130: só mostra a leva da vez, mesma fórmula do disparo em massa

@@ -897,6 +897,11 @@ class BidDispatchQueue {
   }
 
   private batchMeta = new Map<number, string>();
+  // Promise da leva atualmente rodando por tarefa — permite ao chamador
+  // aguardar o batch inteiro terminar (ver waitBatch), em vez de startBatch
+  // ser só fire-and-forget. Usado pra encadear disparo de bot (Recomendados)
+  // ANTES da captação de Leads Região, sem os dois rodarem em paralelo.
+  private batchRunPromises = new Map<number, Promise<void>>();
 
   startBatch(job: BidBatchJob): boolean {
     if (this.batchAborts.has(job.taskId)) return false;
@@ -904,8 +909,14 @@ class BidDispatchQueue {
     this.batchAborts.set(job.taskId, false);
     this.batchStates.set(job.taskId, { progress: { current: 0, total: job.candidates.length }, waitSeconds: null });
     this._notify(job.taskId);
-    this._run(job);
+    this.batchRunPromises.set(job.taskId, this._run(job));
     return true;
+  }
+
+  /** Aguarda o batch em andamento (todas as levas) da tarefa terminar. Resolve
+   *  na hora se não houver batch rodando. */
+  async waitBatch(taskId: number): Promise<void> {
+    await this.batchRunPromises.get(taskId);
   }
 
   abortBatch(taskId: number) {
