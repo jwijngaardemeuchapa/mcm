@@ -662,6 +662,76 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
 }
 
 /**
+ * Alterações de bloqueio DO DIA no cadastro geral (pedido do usuário) —
+ * complementa sincronizarRegistro (DROP+recreate da base inteira, só 2x/
+ * semana). Sem essa sync, alguém bloqueado hoje continua aparecendo como
+ * "Disponível" no BID por até ~3-4 dias, até o próximo sync completo.
+ *
+ * Requer uma Question SEPARADA no Metabase (metabaseBloqueiosHojeCardId),
+ * filtrada na ORIGEM pra só trazer quem teve o bloqueio alterado hoje — não
+ * dá pra fazer isso "ao vivo" a partir do app: o único jeito de consultar o
+ * Metabase daqui é `metabase_query_card(cardId)`, que executa uma Question
+ * já salva e configurada lá, sem parâmetro de data nem SQL ad-hoc. A Question
+ * em si (o filtro "só hoje") precisa existir no Metabase antes de ter um
+ * card ID pra configurar aqui.
+ *
+ * Diferente de sincronizarRegistro: NÃO apaga nada. Faz UPDATE por CPF nos
+ * registros já existentes em chapa_registry — se o CPF não estiver na base
+ * (chapa muito recente, ainda não passou pelo sync completo), a linha é
+ * ignorada aqui (chapas_novos/sincronizarChapas15d já cobre "gente nova").
+ */
+export async function sincronizarBloqueiosHoje(silent = false): Promise<boolean> {
+  const s = readSettings();
+  const cardId = s.metabaseBloqueiosHojeCardId;
+  if (!cardId) {
+    if (!silent) toast.error("Configure o ID da pergunta de Bloqueios do Dia em Integrações");
+    return false;
+  }
+  try {
+    const status = await invoke<{ configured: boolean }>("metabase_status");
+    if (!status.configured) {
+      if (!silent) toast.error("Metabase não configurado em Integrações");
+      return false;
+    }
+    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const db = await getDb();
+    const now = new Date().toISOString();
+
+    let updated = 0;
+    for (const row of rows) {
+      const k = Object.keys(row);
+      const g = (pat: RegExp) => k.find((c) => pat.test(c));
+      const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
+      const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
+      const cpf = dig(g(/^cpf$/i));
+      if (!cpf) continue;
+      const bloqueio = str(g(/bloqueio/i));
+      const motivo = str(g(/motivo/i));
+      const situacao = str(g(/situa/i));
+      const res = await db.execute(
+        `UPDATE chapa_registry SET bloqueio = ?, motivo_bloqueio = ?, situacao = COALESCE(?, situacao), importado_em = ?
+         WHERE cpf = ? AND (fonte IS NULL OR fonte = 'metabase')`,
+        [bloqueio, motivo, situacao, now, cpf],
+      );
+      if (res.rowsAffected) updated++;
+    }
+
+    localStorage.setItem("bloqueios_hoje_last_sync", now);
+    if (!silent) toast.success(`Bloqueios do dia sincronizados — ${updated} atualizados`);
+    return true;
+  } catch {
+    if (!silent) toast.error("Erro ao sincronizar bloqueios do dia");
+    return false;
+  }
+}
+
+export function devesSincronizarBloqueiosHoje(): boolean {
+  const last = localStorage.getItem("bloqueios_hoje_last_sync");
+  if (!last) return true;
+  return fmtSP(last, "yyyy-MM-dd") !== todayDateISO_SP();
+}
+
+/**
  * Sincroniza apenas os Leads Saac (Captação via Lovable API) — leve e
  * independente do cadastro geral. Faz DELETE+INSERT só de fonte='leads_saac'.
  */

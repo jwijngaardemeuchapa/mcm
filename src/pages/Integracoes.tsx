@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, sincronizarLeadsRegiao } from "@/lib/metabaseSync";
+import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, sincronizarLeadsRegiao, sincronizarBloqueiosHoje } from "@/lib/metabaseSync";
 import { fmtDateTime } from "@/lib/datetime";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirestoreDb, ensureAnonAuth, FIRESTORE_MESSAGES_COLLECTION, firebaseConfigPresent } from "@/lib/firebase";
@@ -217,6 +217,21 @@ function SincronizarChapas15dBtn() {
   );
 }
 
+function SincronizarBloqueiosHojeBtn() {
+  const [syncing, setSyncing] = useState(false);
+  async function handle() {
+    setSyncing(true);
+    await sincronizarBloqueiosHoje(false);
+    setSyncing(false);
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={handle} disabled={syncing} className="gap-1.5">
+      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+      Sincronizar agora
+    </Button>
+  );
+}
+
 function SincronizarLeadsRegiaoBtn() {
   const [syncing, setSyncing] = useState(false);
   async function handle() {
@@ -314,6 +329,10 @@ export default function Integracoes() {
   const [metabaseLeadsRegiaoCardIdInput, setMetabaseLeadsRegiaoCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseLeadsRegiaoCardId ? String(s.metabaseLeadsRegiaoCardId) : "";
+  });
+  const [metabaseBloqueiosHojeCardIdInput, setMetabaseBloqueiosHojeCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseBloqueiosHojeCardId ? String(s.metabaseBloqueiosHojeCardId) : "";
   });
   const [metabaseRegistroCardIdInput, setMetabaseRegistroCardIdInput] = useState(() => {
     const s = readSettings();
@@ -1396,6 +1415,31 @@ export default function Integracoes() {
             {localStorage.getItem("chapa_registry_imported_at") && (
               <p className="text-xs text-muted-foreground">
                 Última sync: {new Date(localStorage.getItem("chapa_registry_imported_at")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta — Bloqueios do Dia
+              <span className="ml-1 text-muted-foreground/60">(sync diário — Question SEPARADA, filtrada só por bloqueio/desbloqueio de HOJE; pega mudança na mesma hora, sem esperar o sync completo do Cadastro Geral acima, que só roda 2x/semana)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="ex: 1440"
+                value={metabaseBloqueiosHojeCardIdInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  setMetabaseBloqueiosHojeCardIdInput(v);
+                  writeSettings({ metabaseBloqueiosHojeCardId: v ? parseInt(v, 10) : undefined });
+                }}
+                className="max-w-[120px]"
+              />
+              <SincronizarBloqueiosHojeBtn />
+            </div>
+            {localStorage.getItem("bloqueios_hoje_last_sync") && (
+              <p className="text-xs text-muted-foreground">
+                Última sync: {new Date(localStorage.getItem("bloqueios_hoje_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </p>
             )}
           </div>

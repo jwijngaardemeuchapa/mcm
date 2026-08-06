@@ -817,7 +817,27 @@ export type BidBatchJob = {
   dataTarefa: string;
   candidates: BidBatchCandidate[];
   params: BidBatchParams;
+  // Vagas totais da tarefa — usado pra calcular o tamanho da leva e pra
+  // parar o disparo cedo se a tarefa fechar no meio do lote (ver _run).
+  quantidadeChapas: number;
+  // Múltiplo configurável (settings.bidWaveMultiplier) — leva = vagas
+  // restantes × este número. BIDDashboard sugere um valor calculado a
+  // partir da taxa de aceite real; o analista pode ajustar em Integrações.
+  waveMultiplier: number;
 };
+
+// Pausa entre levas de disparo em massa (5min pra começar, ajustável se o
+// usuário quiser testar 10min depois — pedido explícito de cadenciamento).
+const BID_WAVE_PAUSE_S = 5 * 60;
+
+async function countAlocados(taskId: number): Promise<number> {
+  const db = await getDb();
+  const [row] = await db.select<{ n: number }[]>(
+    `SELECT COUNT(*) as n FROM chapas WHERE id_tarefa = ? AND nome_chapa IS NOT NULL AND status_contato != 'removido'`,
+    [taskId],
+  );
+  return row?.n ?? 0;
+}
 
 export type BidDispatchRecord = {
   id: string;
@@ -903,8 +923,27 @@ class BidDispatchQueue {
     this._notify(taskId);
   }
 
+  // Contagem regressiva compartilhada (usada tanto entre envios de uma leva
+  // quanto entre levas) — resolve quando o tempo acaba ou o lote é abortado.
+  private async _wait(taskId: number, seconds: number, current: number, total: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let remaining = seconds;
+      this._patch(taskId, { current, total }, remaining);
+      const tick = setInterval(() => {
+        remaining--;
+        if (remaining <= 0 || this.batchAborts.get(taskId)) {
+          clearInterval(tick);
+          this._patch(taskId, { current, total }, null);
+          resolve();
+        } else {
+          this._patch(taskId, { current, total }, remaining);
+        }
+      }, 1000);
+    });
+  }
+
   private async _run(job: BidBatchJob) {
-    const { taskId, candidates } = job;
+    const { taskId } = job;
     const { umblerSettings } = readSettings();
     const localParam = job.params.sendMapsAsLocal && job.params.mapsLink
       ? job.params.mapsLink
@@ -914,72 +953,95 @@ class BidDispatchQueue {
     const bidBotIdToUse = isBidD1 ? umblerSettings.bidBotD1Id : umblerSettings.bidBotId;
     const bidTriggerToUse = isBidD1 ? umblerSettings.bidBotD1TriggerName : umblerSettings.bidBotTriggerName;
 
-    let dispatched = 0;
+    // Cadência (pedido do usuário): disparo em massa sem limite virava 150-
+    // 200 contatos de uma vez só — mesmo com o intervalo de 7s entre envios,
+    // isso manda oferta pra muito mais gente do que a tarefa precisa, sem
+    // dar tempo de ver a tarefa fechar antes de continuar. Agora dispara em
+    // LEVAS: cada leva é limitada a um múltiplo das vagas realmente em
+    // aberto (job.waveMultiplier — editável em Integrações, padrão 4x, piso
+    // 5, teto 40); entre levas, pausa BID_WAVE_PAUSE_S
+    // (5min) e reconsulta vagas — se a tarefa já fechou, para sozinho sem
+    // precisar do analista disparar de novo manualmente.
+    const totalSelecionados = job.candidates.length;
+    let offset = 0;
+    let dispatchedTotal = 0;
+    let filledEarly = false;
 
-    for (let i = 0; i < candidates.length; i++) {
+    while (offset < totalSelecionados) {
       if (this.batchAborts.get(taskId)) break;
 
-      this._patch(taskId, { current: i + 1, total: candidates.length }, null);
-      const candidate = candidates[i];
+      const alocadosAgora = await countAlocados(taskId);
+      const vagasRestantes = Math.max(0, job.quantidadeChapas - alocadosAgora);
+      if (vagasRestantes <= 0) { filledEarly = true; break; }
 
-      try {
-        const { chatId } = await startUmblerBot({
-          chapaTelefone: candidate.telefone,
-          settings: umblerSettings,
-          initialData: {
-            Data: job.params.dataParam || fmtTaskDateParam(job.dataTarefa),
-            Local: localParam,
-            Atividades: job.params.atividades,
-            "Diária": `R$ ${job.params.diaria}`,
-          },
-          botIdOverride: bidBotIdToUse,
-          triggerNameOverride: bidTriggerToUse,
-        });
-        const id = uuid();
-        const now = new Date().toISOString();
-        const paramsJson = JSON.stringify({
-          data: fmtTaskDateParam(job.dataTarefa),
-          local: localParam,
-          atividades: job.params.atividades,
-          diaria: job.params.diaria,
-        });
-        const db = await getDb();
-        // Não depender da ordem de carregamento com o boot do BIDDashboard —
-        // garante as colunas aqui também (idempotente, mesmo banco compartilhado).
-        try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN diaria TEXT"); } catch { /* exists */ }
-        try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
-        await db.execute(
-          "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-          [id, candidate.nome, candidate.telefone, taskId, job.empresa, job.dataTarefa, paramsJson, now, "aguardando", job.params.diaria, chatId],
-        );
-        const record: BidDispatchRecord = {
-          id, id_tarefa: taskId, chapa_nome: candidate.nome, chapa_telefone: candidate.telefone,
-          empresa: job.empresa, data_tarefa: job.dataTarefa, params_json: paramsJson,
-          data_disparo: now, status: "aguardando",
-        };
-        this.dispatchedSubs.forEach((cb) => cb(record));
-        toast.success(`BID disparado para ${candidate.nome}`);
-        dispatched++;
-      } catch (e) {
-        toast.error(`${candidate.nome}: ${humanizarErroUmbler(e)}`);
+      const waveCap = Math.min(40, Math.max(5, Math.ceil(vagasRestantes * job.waveMultiplier)));
+      const wave = job.candidates.slice(offset, offset + waveCap);
+
+      for (let i = 0; i < wave.length; i++) {
+        if (this.batchAborts.get(taskId)) break;
+
+        // Reconsulta vagas a cada envio dentro da leva — se a tarefa fechou
+        // no meio do caminho, para aqui em vez de continuar disparando.
+        const alocadosNow = await countAlocados(taskId);
+        if (alocadosNow >= job.quantidadeChapas) { filledEarly = true; break; }
+
+        const posGlobal = offset + i + 1;
+        this._patch(taskId, { current: posGlobal, total: totalSelecionados }, null);
+        const candidate = wave[i];
+
+        try {
+          const { chatId } = await startUmblerBot({
+            chapaTelefone: candidate.telefone,
+            settings: umblerSettings,
+            initialData: {
+              Data: job.params.dataParam || fmtTaskDateParam(job.dataTarefa),
+              Local: localParam,
+              Atividades: job.params.atividades,
+              "Diária": `R$ ${job.params.diaria}`,
+            },
+            botIdOverride: bidBotIdToUse,
+            triggerNameOverride: bidTriggerToUse,
+          });
+          const id = uuid();
+          const now = new Date().toISOString();
+          const paramsJson = JSON.stringify({
+            data: fmtTaskDateParam(job.dataTarefa),
+            local: localParam,
+            atividades: job.params.atividades,
+            diaria: job.params.diaria,
+          });
+          const db = await getDb();
+          // Não depender da ordem de carregamento com o boot do BIDDashboard —
+          // garante as colunas aqui também (idempotente, mesmo banco compartilhado).
+          try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN diaria TEXT"); } catch { /* exists */ }
+          try { await db.execute("ALTER TABLE bid_disparos ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
+          await db.execute(
+            "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            [id, candidate.nome, candidate.telefone, taskId, job.empresa, job.dataTarefa, paramsJson, now, "aguardando", job.params.diaria, chatId],
+          );
+          const record: BidDispatchRecord = {
+            id, id_tarefa: taskId, chapa_nome: candidate.nome, chapa_telefone: candidate.telefone,
+            empresa: job.empresa, data_tarefa: job.dataTarefa, params_json: paramsJson,
+            data_disparo: now, status: "aguardando",
+          };
+          this.dispatchedSubs.forEach((cb) => cb(record));
+          toast.success(`BID disparado para ${candidate.nome}`);
+          dispatchedTotal++;
+        } catch (e) {
+          toast.error(`${candidate.nome}: ${humanizarErroUmbler(e)}`);
+        }
+
+        if (i < wave.length - 1 && !this.batchAborts.get(taskId)) {
+          await this._wait(taskId, 7, posGlobal, totalSelecionados);
+        }
       }
 
-      if (i < candidates.length - 1 && !this.batchAborts.get(taskId)) {
-        await new Promise<void>((resolve) => {
-          let remaining = 7;
-          this._patch(taskId, { current: i + 1, total: candidates.length }, remaining);
-          const tick = setInterval(() => {
-            remaining--;
-            if (remaining <= 0 || this.batchAborts.get(taskId)) {
-              clearInterval(tick);
-              this._patch(taskId, { current: i + 1, total: candidates.length }, null);
-              resolve();
-            } else {
-              this._patch(taskId, { current: i + 1, total: candidates.length }, remaining);
-            }
-          }, 1000);
-        });
-      }
+      offset += wave.length;
+      if (filledEarly || this.batchAborts.get(taskId) || offset >= totalSelecionados) break;
+
+      // Pausa entre levas — dá tempo real da tarefa fechar antes de mandar
+      // a próxima leva (o while acima reconsulta vagas assim que ela acaba).
+      await this._wait(taskId, BID_WAVE_PAUSE_S, offset, totalSelecionados);
     }
 
     const aborted = !!this.batchAborts.get(taskId);
@@ -987,11 +1049,13 @@ class BidDispatchQueue {
     this.batchAborts.delete(taskId);
     this._notify(taskId);
 
-    if (dispatched > 1) {
+    if (dispatchedTotal > 1) {
       toast.success(
         aborted
-          ? `${dispatched} BIDs disparados · lote cancelado`
-          : `${candidates.length} BIDs disparados`,
+          ? `${dispatchedTotal} BIDs disparados · lote cancelado`
+          : filledEarly
+            ? `${dispatchedTotal} BIDs disparados · tarefa preenchida, restante cancelado`
+            : `${dispatchedTotal} BIDs disparados`,
       );
     }
   }

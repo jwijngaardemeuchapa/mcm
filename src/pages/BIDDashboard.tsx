@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { getDb, uuid, errMsg } from "@/lib/db";
-import { readSettings } from "@/lib/settings";
+import { readSettings, writeSettings } from "@/lib/settings";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync";
@@ -334,20 +334,20 @@ export type RecomendadoItem = {
 
 /**
  * Score unificado pra "Recomendados" — cruza as 4 origens (cadastro geral,
- * Novos, Leads Saac, Leads Região) numa ordem só, PRIORIZANDO conversão
- * (histórico real de aceite de BID via leo_cache) sobre o tier de origem.
+ * Novos, Leads Saac, Leads Região) numa ordem só. Ordem de prioridade
+ * explícita pedida pelo usuário: 1) situação aprovada no Saac (aptos ou
+ * ativados) — critério dominante; 2) quantidade de tarefas já executadas —
+ * desempata dentro e entre tiers vizinhos; 3) taxa de aceite de BID
+ * (histórico real via leo_cache) — mesmo peso do critério 2, reordena quem
+ * empataria nos dois primeiros.
  *
- * Diferença proposital de computeScore(): lá o tier de negócio (ativado>
- * aprovado) domina e leo só refina dentro do tier (+50/-40, marginal front
- * a 1000/500). Aqui o pedido é "focado em conversão" — um aprovado com 90%
- * de aceite histórico deve competir com/superar um ativado com só 1 tarefa
- * e sem sinal de aceite, não ficar sempre atrás por causa da magnitude do
- * tier. Por isso o bônus/penalidade de leo_cache aqui é da MESMA ordem de
- * grandeza que o tier, não um ajuste fino.
+ * Antes desta reordenação, "tarefas > 0" era o tier mais alto (acima até de
+ * aprovado no Saac) — invertido aqui pra bater com o pedido: aprovado no
+ * Saac vem primeiro, tarefas executadas é o segundo fator (soma sempre,
+ * não só dentro de um tier, pra desempatar mesmo entre dois aprovados).
  *
- * Exige >= 2 ofertas no leo_cache pra confiar no sinal (amostra mínima —
- * mesmo critério já usado no tier "baixa confiança" do BID, agora aplicado
- * simetricamente pro lado positivo).
+ * Exige >= 2 ofertas no leo_cache pra confiar no sinal de aceite (amostra
+ * mínima — mesmo critério já usado no tier "baixa confiança" do BID).
  */
 function computeRecommendedScore(
   origin: RecomendadoOrigin,
@@ -359,15 +359,19 @@ function computeRecommendedScore(
 ): number {
   let score = 0;
 
-  // Tier base por origem/histórico — ordem de grandeza inicial.
-  if (tarefas > 0) score += 1000 + Math.min(tarefas, 100);
-  else if (isApprovedSituacao(situacao)) score += 500;
+  // Critério 1 (dominante): situação aprovada no Saac (aptos/ativados).
+  if (isApprovedSituacao(situacao)) score += 1000;
+  else if (tarefas > 0) score += 500; // já trabalhou antes, mas não está aprovado agora
   else if (origin === "disponivel" || origin === "novo") score += 300;
   else if (origin === "lead_saac") score += 150;
   else score += 50; // lead_regiao: nunca nem tentou se cadastrar
 
-  // Conversão real (BID) — sinal mais forte de "vai aceitar de novo".
-  // Magnitude comparável ao tier: pode reordenar entre faixas próximas.
+  // Critério 2: quantidade de tarefas executadas — soma sempre (desempata
+  // dentro do próprio tier 1, entre dois aprovados, por exemplo), nunca
+  // ultrapassa o degrau de 500 entre tiers (teto 100 tarefas × 2 = 200).
+  score += Math.min(tarefas, 100) * 2;
+
+  // Critério 3: taxa de aceite de BID (histórico real, leo_cache).
   if (leo && leo.total_ofertas >= 2) {
     if (leo.passa_75pct) score += 600;
     else if (leo.pct_sim >= 0.4) score += 150;
@@ -425,6 +429,13 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
 // Chapas com interesse real mas que precisam de ação manual (sem app ou precisam de ajuda)
 const STATUS_MANUAL = ["nao_aceita_app", "precisa_ajuda"] as const;
 const STATUS_POSITIVO = ["interesse_sim", "aceita_app"] as const;
+
+// Limite por leva de disparo de Captação (Leads Região não tem "vagas" como
+// o BID, então o teto é fixo, não proporcional) — ver sendCaptacaoSequencial.
+const CAPTACAO_WAVE_CAP = 20;
+// Pausa entre levas — mesmo valor inicial do BID (5min pra começar, pedido
+// explícito do usuário, ajustável se quiser testar 10min depois).
+const CAPTACAO_WAVE_PAUSE_S = 5 * 60;
 
 // Prioridade de exibição na lista de respostas: o que exige ação fica no topo.
 // 0 = interesse/aceite · 1 = manual · 2 = negativo · 3 = aguardando
@@ -517,6 +528,10 @@ function BidTaskCard({
     return false;
   }
   const [maxDistKm, setMaxDistKm] = useState(30);
+  // Múltiplo de leva do disparo em massa (leva = vagas restantes × este
+  // valor) — editável direto aqui no painel do BID, pra ajuste rápido sem
+  // ir em Integrações. Mesmo setting global usado por bidDispatchQueue.
+  const [waveMultiplierInput, setWaveMultiplierInput] = useState(() => String(readSettings().bidWaveMultiplier));
   const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid" | "leads_regiao" | "novos" | "recomendados">("disponiveis");
   const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
@@ -592,6 +607,28 @@ function BidTaskCard({
     () => disparos.filter((d) => d.id_tarefa === task.id_tarefa),
     [disparos, task.id_tarefa],
   );
+
+  // Taxa de aceite INTERNA do MCM (resultado real registrado em bid_disparos,
+  // últimos 30 dias) — cruzada com a taxa da planilha do Leo (leoCache) pra
+  // sugerir quantos disparos fazem sentido por leva (ver "Análise BID" e o
+  // editor de múltiplo abaixo). Consulta ampla (não só desta tarefa) porque
+  // uma tarefa isolada não tem amostra suficiente pra ser confiável.
+  const [internalAcceptRate, setInternalAcceptRate] = useState<number | null>(null);
+  useEffect(() => {
+    if (!expanded) return;
+    (async () => {
+      try {
+        const db = await getDb();
+        const [row] = await db.select<{ pos: number; total: number }[]>(
+          `SELECT
+             SUM(CASE WHEN status IN ('interesse_sim','aceita_app') THEN 1 ELSE 0 END) as pos,
+             SUM(CASE WHEN status IN ('interesse_sim','aceita_app','interesse_nao','nao_aceita_app') THEN 1 ELSE 0 END) as total
+           FROM bid_disparos WHERE data_disparo >= datetime('now','-30 days')`,
+        );
+        if (row && row.total > 0) setInternalAcceptRate(row.pos / row.total);
+      } catch { /* noop — sugestão vira só a taxa do Leo, se disponível */ }
+    })();
+  }, [expanded]);
   // Respostas ordenadas por prioridade de ação (interesse/aceite no topo → aguardando no fim),
   // e dentro de cada grupo pela resposta mais recente primeiro.
   const sortedTaskDisparos = useMemo(
@@ -614,11 +651,18 @@ function BidTaskCard({
   const isBatchDispatching = !!batchState;
   const batchProgress = batchState?.progress ?? null;
   const waitSeconds = batchState?.waitSeconds ?? null;
+  // CEP precisa vir COMPLETO (8 dígitos), não só um prefixo — é o gatilho de
+  // handleLocalCepChange (ViaCEP + geocode) que preenche localLat/localLng
+  // quando o endereço não veio automático. Com só 5 dígitos aceitos antes,
+  // o disparo liberava mesmo sem coordenada real, e "Disponíveis" ficava
+  // vazio (caía no fallback grosseiro de prefixo de CEP em vez de raio em
+  // km de verdade). Pedido do usuário: obrigar o CEP completo fecha esse
+  // buraco — força o ViaCEP a rodar antes de liberar o disparo.
   const configReady = !!(
     (dispatchParams.sendMapsAsLocal ? dispatchParams.mapsLink : dispatchParams.local) &&
     dispatchParams.atividades &&
     dispatchParams.diaria &&
-    dispatchParams.localCep.replace(/\D/g, "").length >= 5
+    dispatchParams.localCep.replace(/\D/g, "").length === 8
   );
 
   // Load addresses when first expanded — uses JS fuzzy match to handle LTDA/SA/accent differences
@@ -723,6 +767,20 @@ function BidTaskCard({
               localLng: chosen.lng,
               localCep: p.localCep || formatCep(cepFromAddr),
             }));
+            // sincronizarEnderecos cria os endereços do caderno com lat/lng
+            // nulos — nada nunca voltava pra preencher isso depois. Endereço
+            // "puxado automaticamente" (por ID ou fuzzy) ficava sem
+            // coordenada pra sempre, então "hasCoords" ficava falso e
+            // Disponíveis caía no fallback de prefixo de CEP (muito mais
+            // restritivo que um raio real) mesmo com o endereço certo já
+            // preenchido. Geocodifica aqui, na mesma fila usada pros
+            // candidatos, sempre que falta coordenada mas há CEP.
+            if (chosen.lat === null && cepFromAddr) {
+              cepGeocoder.enqueue(cepFromAddr, (_cep, coords) => {
+                if (!coords) return;
+                setDispatchParams((p) => (p.localLat !== null ? p : { ...p, localLat: coords.lat, localLng: coords.lng }));
+              });
+            }
           }
         }
       } catch {
@@ -1252,9 +1310,25 @@ function BidTaskCard({
   // mesmo mecanismo já usado em ClienteBook.tsx. Só complementa (nunca
   // sobrescreve um endereço já digitado/vindo do vínculo tarefa_enderecos);
   // ViaCEP não devolve número, então falta preencher isso manualmente.
+  //
+  // ViaCEP também NÃO devolve lat/lng — preenchia só o texto do endereço,
+  // deixando localLat/localLng nulos pra sempre. Sem coordenada, "hasCoords"
+  // fica falso e "Disponíveis" cai no fallback de match por prefixo de CEP
+  // (5 primeiros dígitos iguais) em vez de raio real em km — prefixo de CEP
+  // é MUITO mais restritivo que um raio de 30km (bairros vizinhos já têm
+  // prefixos diferentes), então a lista saía vazia mesmo com candidato
+  // disponível perto. Fix: geocodifica o CEP da tarefa em paralelo (mesma
+  // fila cepGeocoder usada pros candidatos) pra popular localLat/localLng
+  // de verdade e a tarefa entrar no filtro por distância real.
   async function handleLocalCepChange(raw: string) {
     const digits = raw.replace(/\D/g, "");
     if (digits.length !== 8) return;
+    if (dispatchParams.localLat === null) {
+      cepGeocoder.enqueue(digits, (_cep, coords) => {
+        if (!coords) return;
+        setDispatchParams((p) => (p.localLat !== null ? p : { ...p, localLat: coords.lat, localLng: coords.lng }));
+      });
+    }
     try {
       const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
       const data = await res.json();
@@ -1385,39 +1459,49 @@ function BidTaskCard({
     }
   }
 
-  // Disparo sequencial de Captação com o MESMO intervalo de 7s entre envios
-  // que o BID em massa já usa (BidDispatchQueue._run) — MCM-127: sem essa
-  // pausa, os disparos de captação saíam todos de uma vez, arriscando 429
-  // do Umbler igual um disparo em massa sem intervalo daria. Reusado tanto
+  // Contagem regressiva compartilhada (entre envios de uma leva e entre levas).
+  async function captacaoWait(seconds: number) {
+    return new Promise<void>((resolve) => {
+      let remaining = seconds;
+      setCaptacaoWaitSeconds(remaining);
+      const tick = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(tick);
+          setCaptacaoWaitSeconds(null);
+          resolve();
+        } else {
+          setCaptacaoWaitSeconds(remaining);
+        }
+      }, 1000);
+    });
+  }
+
+  // Disparo em LEVAS de Captação — mesma lógica de cadenciamento do BID em
+  // massa (BidDispatchQueue._run): 7s entre cada envio dentro da leva, e
+  // CAPTACAO_WAVE_PAUSE_S (5min) entre levas, continuando sozinho até
+  // esgotar a lista — sem precisar do analista clicar de novo. Leads região
+  // não tem "vaga" pra fechar como o BID, então não há checagem de parada
+  // antecipada — só o teto fixo por leva (CAPTACAO_WAVE_CAP). Reusado tanto
   // pelo botão dedicado da aba Leads Região quanto pelo disparo misto de
   // Recomendados.
   async function sendCaptacaoSequencial(items: { id: string; nome: string; telefone: string | null }[]) {
-    for (let i = 0; i < items.length; i++) {
-      const it = items[i];
-      await sendCaptacao(it);
-      if (i < items.length - 1) {
-        await new Promise<void>((resolve) => {
-          let remaining = 7;
-          setCaptacaoWaitSeconds(remaining);
-          const tick = setInterval(() => {
-            remaining--;
-            if (remaining <= 0) {
-              clearInterval(tick);
-              setCaptacaoWaitSeconds(null);
-              resolve();
-            } else {
-              setCaptacaoWaitSeconds(remaining);
-            }
-          }, 1000);
-        });
+    let offset = 0;
+    while (offset < items.length) {
+      const wave = items.slice(offset, offset + CAPTACAO_WAVE_CAP);
+      for (let i = 0; i < wave.length; i++) {
+        await sendCaptacao(wave[i]);
+        if (i < wave.length - 1) await captacaoWait(7);
       }
+      offset += wave.length;
+      if (offset < items.length) await captacaoWait(CAPTACAO_WAVE_PAUSE_S);
     }
   }
 
-  // Dispara Captação pra todos os leads região visíveis de uma vez (MCM-121)
-  // — pula quem já recebeu (tem chatId em captacaoStatus), pra não reenviar
-  // sem querer num segundo clique. Sequencial (mesmo padrão de sendCaptacao
-  // individual), sem fila dedicada — volume de leads região é pequeno.
+  // Dispara Captação pra leads região visíveis (MCM-121) — pula quem já
+  // recebeu (tem chatId em captacaoStatus), pra não reenviar sem querer num
+  // segundo clique. Cadência e envio em levas ficam a cargo de
+  // sendCaptacaoSequencial (ver acima).
   async function handleDispatchAllCaptacao() {
     const pendentes = leadsRegiaoVisible.filter((r) => {
       if (!r.telefone) return false;
@@ -1464,6 +1548,8 @@ function BidTaskCard({
           diaria: dispatchParams.diaria,
           dataParam: dispatchParams.dataParam,
         },
+        quantidadeChapas: task.quantidade_chapas,
+        waveMultiplier: readSettings().bidWaveMultiplier,
       });
     }
     if (captacaoEligible.length > 0) {
@@ -1504,6 +1590,8 @@ function BidTaskCard({
         diaria: dispatchParams.diaria,
         dataParam: dispatchParams.dataParam,
       },
+      quantidadeChapas: task.quantidade_chapas,
+      waveMultiplier: readSettings().bidWaveMultiplier,
     });
     if (started) setSelectedIds(new Set());
   }
@@ -1873,9 +1961,9 @@ function BidTaskCard({
                       className={`h-8 text-sm w-32 font-mono ${!dispatchParams.localCep ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}`}
                       maxLength={9}
                     />
-                    {!dispatchParams.localCep && (
+                    {dispatchParams.localCep.replace(/\D/g, "").length !== 8 && (
                       <p className="text-[10px] text-destructive flex items-center gap-1">
-                        <AlertTriangle className="h-2.5 w-2.5" /> Informe o CEP para habilitar disparo
+                        <AlertTriangle className="h-2.5 w-2.5" /> CEP completo (8 dígitos) é obrigatório para habilitar o disparo
                       </p>
                     )}
                   </div>
@@ -2010,6 +2098,17 @@ function BidTaskCard({
               ? comHistorico.reduce((s, c) => s + (leoCache.get(normalizePhone(c.telefone!))?.pct_sim ?? 0), 0) / comHistorico.length
               : null;
             const disparosEst = avgPct && avgPct > 0 && vagas > 0 ? Math.ceil(vagas / avgPct) : null;
+            // Sugestão de múltiplo pra leva de disparo (pedido do usuário):
+            // cruza a taxa de aceite da planilha do Leo (avgPct, já calculado
+            // acima pros candidatos desta tarefa) com a taxa interna real do
+            // MCM (internalAcceptRate, últimos 30 dias, ver useEffect) — leva
+            // = vagas × múltiplo, então múltiplo = 1/taxa combinada.
+            const blendedRate = avgPct !== null && internalAcceptRate !== null
+              ? (avgPct + internalAcceptRate) / 2
+              : avgPct ?? internalAcceptRate;
+            const suggestedMultiplier = blendedRate && blendedRate > 0
+              ? Math.min(10, Math.max(1.5, +(1 / blendedRate).toFixed(1)))
+              : null;
             if (alta + media + baixa === 0) return null;
             return (
               <div className="px-4 py-2.5 border-b border-border bg-muted/20 space-y-1.5">
@@ -2078,6 +2177,39 @@ function BidTaskCard({
                     <span className="ml-auto text-[10px] text-muted-foreground/60 italic">
                       Para {vagas} vaga{vagas !== 1 ? "s" : ""}: ~{disparosEst} disparos estimados
                     </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 pt-1.5 mt-0.5 border-t border-border/50">
+                  <span className="text-[10px] text-muted-foreground shrink-0">Múltiplo por leva (disparo em massa):</span>
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    max="10"
+                    value={waveMultiplierInput}
+                    onChange={(e) => setWaveMultiplierInput(e.target.value)}
+                    onBlur={() => {
+                      const v = parseFloat(waveMultiplierInput.replace(",", "."));
+                      if (v && v > 0) writeSettings({ bidWaveMultiplier: v });
+                      else setWaveMultiplierInput(String(readSettings().bidWaveMultiplier));
+                    }}
+                    className="h-6 w-16 text-xs px-1.5"
+                  />
+                  <span className="text-[10px] text-muted-foreground">× vagas restantes por leva</span>
+                  {suggestedMultiplier !== null && (
+                    <button
+                      type="button"
+                      onClick={() => { setWaveMultiplierInput(String(suggestedMultiplier)); writeSettings({ bidWaveMultiplier: suggestedMultiplier }); }}
+                      className="ml-auto text-[10px] text-primary hover:underline shrink-0"
+                      title="Aplicar sugestão calculada"
+                    >
+                      sugestão: {suggestedMultiplier}x
+                      {internalAcceptRate !== null && avgPct !== null
+                        ? ` (MCM ${(internalAcceptRate * 100).toFixed(0)}% + Leo ${(avgPct * 100).toFixed(0)}%)`
+                        : internalAcceptRate !== null
+                          ? ` (MCM ${(internalAcceptRate * 100).toFixed(0)}%)`
+                          : ` (Leo ${((avgPct ?? 0) * 100).toFixed(0)}%)`}
+                    </button>
                   )}
                 </div>
               </div>

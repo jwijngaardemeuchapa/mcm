@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sun, Moon, Sunset, CheckCircle2, ArrowRight, Bell, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import logo from "@/assets/logo-meuchapa.png";
 import { invoke } from "@tauri-apps/api/core";
-import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao } from "@/lib/metabaseSync";
+import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao, sincronizarBloqueiosHoje, devesSincronizarBloqueiosHoje } from "@/lib/metabaseSync";
 import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
@@ -195,6 +195,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasTarefaEnderecosCardId = !!s.metabaseTarefaEnderecosCardId;
       const hasChapas15dCardId = !!s.metabaseChapas15dCardId;
       const hasLeadsRegiaoCardId = !!s.metabaseLeadsRegiaoCardId;
+      const hasBloqueiosHojeCardId = !!s.metabaseBloqueiosHojeCardId;
 
       let metabaseConfigured = false;
       try {
@@ -208,6 +209,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const hasTarefaEnderecos = hasTarefaEnderecosCardId && metabaseConfigured;
       const hasChapas15d = hasChapas15dCardId && metabaseConfigured;
       const hasLeadsRegiao = hasLeadsRegiaoCardId && metabaseConfigured;
+      const hasBloqueiosHoje = hasBloqueiosHojeCardId && metabaseConfigured;
       const hasRegistro = !!s.metabaseRegistroCardId && metabaseConfigured;
       const hasSaac = !!s.saacApiUrl && !!s.saacApiKey;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
@@ -219,6 +221,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const syncChapas15d = hasChapas15d && devesSincronizarChapas15d();
       const syncLeadsRegiao = hasLeadsRegiao && devesSincronizarLeadsRegiao();
       const syncRegistro = hasRegistro && devesSincronizarRegistro();
+      const syncBloqueiosHoje = hasBloqueiosHoje && devesSincronizarBloqueiosHoje();
       // Leo (respostas de BID via Google Sheets) — config própria em leo_config
       // (planilha + service account), não em settings/Metabase. Gate diário.
       const syncLeo = await devesSincronizarLeo().catch(() => false);
@@ -232,6 +235,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       if (syncChapas15d) jobs.push({ label: "Sincronizando chapas recentes", run: () => sincronizarChapas15d(true) });
       if (syncLeadsRegiao) jobs.push({ label: "Sincronizando leads regionais", run: () => sincronizarLeadsRegiao(true) });
       if (syncRegistro) jobs.push({ label: "Sincronizando cadastro", run: () => sincronizarRegistro(true) });
+      if (syncBloqueiosHoje) jobs.push({ label: "Sincronizando bloqueios do dia", run: () => sincronizarBloqueiosHoje(true) });
       if (hasSaac) jobs.push({ label: "Sincronizando leads", run: () => sincronizarLeadsSaac(true) });
       if (syncLeo) jobs.push({ label: "Sincronizando respostas BID (Leo)", run: () => sincronizarLeoAuto() });
 
