@@ -1,9 +1,19 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-05 (Sonnet 5)
-**Versão:** `1.0.34` publicada, **assinada e verificada** (MCM-126/127 ✅). Sem pendência de release aberta.
+**Data:** 2026-08-05 (Sonnet 5, mesma sessão)
+**Versão:** `1.0.35` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `1ff3a23` (assina 1.0.34 + latest.json).
+**Último commit:** `2e63c2e`.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.35
+
+Mesmo runbook de sempre.
+
+## ✅ MCM-128 — azul do "Em Andamento" também em Panorama e Timeline
+
+MCM-124/126 só tinham coberto a visão Cards (`TaskCard.tsx`). Usuário reportou que Panorama e Timeline continuavam verdes. `TaskPanorama.tsx`: mesmo critério (`emAndamento && (isDone || fullyValidated)` → azul + "Em Andamento"). `TaskTimeline.tsx`: caso diferente — cor é por fill rate (verde/amarelo/vermelho, legenda documentada), não por isDone/fullyValidated; interceptei só o caso verde (fillPct ≥80%) virando azul quando emAndamento, sem mexer no amarelo/vermelho (que ainda representam fill baixo normalmente).
 
 ---
 

@@ -186,15 +186,20 @@ function PanoramaRow({
     computeRow(task, threshold);
 
   const hasCsv = csvExported(task.id_tarefa);
+  // Em Andamento nunca fica verde, mesmo concluída/validada — fica azul
+  // (mesmo tratamento do TaskCard, MCM-128).
+  const emAndamento = task.status_tarefa === "Em Andamento";
 
   let accentBorder = "border-l-border";
   let rowBg = "";
   if (task.continuingFromYesterday) { accentBorder = "border-l-overnight"; rowBg = "bg-overnight/5"; }
+  else if (emAndamento && (isDone || fullyValidated)) { accentBorder = "border-l-info"; rowBg = "bg-info/[0.04]"; }
   else if (isDone) { accentBorder = "border-l-success"; rowBg = "bg-success/[0.04]"; }
   else if (fullyValidated) { accentBorder = "border-l-success"; }
   else if (showApproachAlert) { accentBorder = "border-l-warning"; rowBg = "bg-warning/5"; }
   else if (task.urgent) { accentBorder = "border-l-destructive"; rowBg = "bg-destructive/[0.04]"; }
   else if (task.is_overnight) { accentBorder = "border-l-overnight"; }
+  else if (emAndamento) { accentBorder = "border-l-info"; }
 
   const timeColor = isDone
     ? "text-muted-foreground"
@@ -206,7 +211,13 @@ function PanoramaRow({
 
   const vStatus = task.validacao_status ?? "aguardando";
   let statusNode: React.ReactNode;
-  if (isDone) {
+  if (emAndamento && (isDone || fullyValidated)) {
+    statusNode = (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-info">
+        <BadgeCheck className="h-3 w-3" /> Em Andamento
+      </span>
+    );
+  } else if (isDone) {
     statusNode = (
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-success">
         <BadgeCheck className="h-3 w-3" /> Concluída
@@ -287,7 +298,9 @@ function PanoramaRow({
             <Download className="h-3 w-3 text-warning opacity-60" />
           </span>
         )}
-        {!showApproachAlert && isDone && <Check className="h-3.5 w-3.5 text-success" />}
+        {!showApproachAlert && isDone && (
+          <Check className={`h-3.5 w-3.5 ${emAndamento ? "text-info" : "text-success"}`} />
+        )}
         {task.urgent && !isDone && !showApproachAlert && (
           <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
         )}
