@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-08-06 — MCM — Release v1.0.36: disparo cadenciado em levas, CEP obrigatório, Recomendados reordenado, sync Bloqueios do Dia (MCM-129)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-129 ✅ (+ merge com MCM-128 da sessão paralela)
+**Commits:** `8313880` (feat), `c933a6c` (merge, resolve colisão 1.0.35→1.0.36), `43cf44d` (assina + latest.json)
+
+**Sessão terminou sem revisão do usuário** — ele saiu pro trabalho no meio da conversa e autorizou explicitamente prosseguir e liberar release sozinho. Pedido em uma mensagem densa, organizado em 5 frentes:
+
+1. **Disparo em massa em levas** — `dispatchQueue.ts _run()` reescrito de "dispara tudo de uma vez" pra loop de levas (`vagas restantes × waveMultiplier`, editável, piso 5 teto 40), pausa de 5min entre levas (pedido explícito do usuário), reconsulta vagas a cada envio e para sozinho se a tarefa fechar — continua automaticamente pras próximas levas sem precisar o analista clicar de novo. Mesmo padrão em `sendCaptacaoSequencial` (Captação), teto fixo 20 (sem conceito de vaga).
+2. **Múltiplo editável + sugestão data-driven** — editor direto no painel do BID (pedido explícito, não só em Integrações), sugestão calculada cruzando taxa de aceite interna do MCM (`bid_disparos`, 30 dias) com a taxa da planilha do Leo (`leoCache`). ⚠️ Fórmula do blend e piso/teto são julgamento do agente, não validados pelo usuário.
+3. **CEP obrigatório (8 dígitos) — fix real do "Disponíveis vazio"** — achado que o preenchimento automático de endereço (tanto via ID/fuzzy match do `cliente_book` quanto via ViaCEP) preenchia texto mas nunca coordenada (`lat/lng`), fazendo "Disponíveis" cair num fallback de CEP-prefixo bem mais restritivo que raio real. Corrigido nos dois caminhos + CEP completo agora obrigatório pra liberar disparo.
+4. **Recomendados reordenado** — prioridade Saac aprovado > tarefas executadas > taxa de aceite BID (pedido explícito, inverte a ordem anterior).
+5. **Sync "Bloqueios do Dia"** — ⚠️ NÃO TESTADA (sem Metabase configurado nesta máquina). Implementada toda a parte do app (settings, sync UPDATE-por-CPF, gate diário, boot job, UI); precisa de uma Question nova no Metabase que só o usuário pode criar (o app só executa Questions já salvas via `metabase_query_card`, sem SQL ad-hoc).
+
+**Merge com sessão paralela:** MCM-128 (azul "Em Andamento" em Panorama/Timeline) chegou durante o trabalho, colisão de versão (as duas bumparam pra 1.0.35 independentemente) resolvida combinando as novidades e subindo pra 1.0.36.
+
+Release: build → assinado → `gh release create` + upload → `latest.json` → verificado 200/302. `npm run typecheck` baseline 13 mantida em toda a sessão.
+
+**Files changed:** `src/lib/dispatchQueue.ts`, `src/lib/settings.ts`, `src/lib/metabaseSync.ts`, `src/pages/BIDDashboard.tsx`, `src/pages/Integracoes.tsx`, `src/components/AppStartup.tsx`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** usuário precisa validar em produção (número de leva fez sentido? 5min foi suficiente?) e decidir sobre a Question de Bloqueios do Dia (agente cria com schema já mapeado, ou usuário cria e passa o card ID).
+
+---
+
 ## 2026-08-05 — MCM — Release v1.0.35: azul do Em Andamento em Panorama e Timeline (MCM-128)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-128 ✅

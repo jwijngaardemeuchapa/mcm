@@ -1,15 +1,42 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-05 (Sonnet 5, mesma sessão)
-**Versão:** `1.0.35` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Data:** 2026-08-06 (Sonnet 5)
+**Versão:** `1.0.36` publicada, assinada e verificada (MCM-129 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `2e63c2e`.
+**Último commit:** `43cf44d` (assina 1.0.36 + latest.json).
+
+**⚠️ Sessão terminou SEM o usuário revisar** — ele saiu pro trabalho no meio da conversa e autorizou explicitamente seguir sozinho ("pode ir fazendo o que for possivel... já faça a release, pois não vou estar aqui pra autorizar nada"). Tudo abaixo foi implementado e liberado sem review humano. **Ler com atenção antes de assumir que está tudo certo** — em especial os itens marcados ⚠️ abaixo, que têm decisões de design que o usuário não confirmou.
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.35
+## ✅ MCM-129 — Disparo cadenciado + CEP obrigatório + Recomendados reordenado + sync Bloqueios do Dia
 
-Mesmo runbook de sempre.
+Pedido em uma mensagem densa, múltiplos itens. Organizei assim:
+
+### 1. Disparo em massa em LEVAS (BID + Captação)
+Causa: `bidDispatchQueue._run` e a Captação em massa disparavam a seleção inteira de uma vez (~150-200 contatos reportados pelo usuário), só com 7s entre envios — sem checar se a tarefa já tinha fechado no meio do caminho. Reescrito `dispatchQueue.ts` `_run()`: agora é um `while` externo que monta uma LEVA por vez (`vagas restantes × waveMultiplier`, piso 5, teto 40), dispara essa leva (7s entre cada item, reconsultando vagas a cada envio — para na hora se a tarefa fechar), e se sobrar gente na seleção original e ainda houver vaga, **pausa `BID_WAVE_PAUSE_S` (5min — pedido explícito do usuário: "5 pra começar", ajustável depois pra 10 se ele quiser testar) e continua sozinho**, sem precisar o analista clicar de novo. Mesmo padrão em `sendCaptacaoSequencial` (BIDDashboard.tsx) pra Captação (Leads Região + Recomendados), mas com teto FIXO `CAPTACAO_WAVE_CAP=20` (leads região não tem "vaga" pra ancorar a proporção).
+
+### 2. Múltiplo de leva editável + sugestão data-driven (⚠️ ver nota)
+`settings.bidWaveMultiplier` (default 4, global). Editável em **dois lugares**: Integrações (não adicionei — faltou tempo, só ficou no painel do BID) e **direto no painel do BID** (pedido explícito: "este editor precisa ser direto no painel de bid para alteração rápida"), dentro do bloco "Análise BID" (só aparece quando há candidatos com dado de leo_cache). Sugestão calculada: `1 / taxa_combinada`, onde taxa_combinada cruza **(a)** taxa de aceite interna do MCM — `SUM(interesse_sim+aceita_app) / SUM(resolvidos)` em `bid_disparos`, últimos 30 dias, consulta nova (`internalAcceptRate`, useEffect ao expandir o card) — com **(b)** `avgPct` já existente (taxa média de `leoCache.pct_sim` dos candidatos visíveis, vem da planilha do Leo). Botão "usar sugestão: Nx (MCM X% + Leo Y%)" aplica direto.
+
+**⚠️ Não testado/validado com o usuário:** a fórmula do blend (média simples dos dois %) e os valores de piso/teto (5-40) são julgamento meu, não confirmados. Se o número sugerido parecer estranho na prática, é o primeiro lugar pra revisar.
+
+### 3. CEP obrigatório = fix real do "Disponíveis vazio"
+Achado nesta sessão (não só hipótese): quando o endereço não vem automático, `handleLocalCepChange` (ViaCEP, MCM-123) preenchia só o TEXTO do endereço, nunca `localLat`/`localLng` — sem coordenada, "Disponíveis" caía num fallback de match por prefixo de CEP (muito mais restritivo que raio em km) e frequentemente ficava vazio mesmo com gente disponível perto. **O MESMO bug existia no caminho "automático"** (cruzamento por ID/fuzzy match): `sincronizarEnderecos` cria os endereços do `cliente_book` com `lat: null` e nada nunca geocodificava depois — endereço "puxado automaticamente" podia ficar sem coordenada pra sempre. Corrigido nos dois lugares: ambos agora chamam `cepGeocoder.enqueue()` assim que há CEP mas falta coordenada. E `configReady` (gate que libera o botão de disparo) passou a exigir CEP **completo** (8 dígitos exatos, era só 5 antes) — força o ViaCEP/geocode a rodar antes de liberar.
+
+### 4. Recomendados reordenado
+Prioridade explícita pedida pelo usuário: 1º Saac aprovado (aptos/ativados) — antes disso, "tarefas > 0" vinha acima até de aprovado, invertido agora; 2º quantidade de tarefas executadas (soma sempre, não só dentro de um tier — desempata mesmo entre dois aprovados); 3º taxa de aceite de BID (leo_cache), mesmo peso de antes. `computeRecommendedScore()` em `BIDDashboard.tsx`.
+
+### 5. Sync "Bloqueios do Dia" (⚠️ NÃO TESTADA — sem key nesta máquina)
+Usuário pediu um "livepull" filtrado do Metabase pra pegar só bloqueios/desbloqueios do dia (sem esperar o sync completo do cadastro geral, que roda só 2x/semana). **Limitação real, expliquei isso no código e aqui**: o único jeito de consultar o Metabase daqui é `metabase_query_card(cardId)` — executa uma Question JÁ SALVA no Metabase, sem parâmetro de data nem SQL ad-hoc. Não dá pra fazer "ao vivo" sem uma Question nova lá, que **o usuário precisa criar** (não tenho acesso ao Metabase). Implementei toda a parte do app: `settings.metabaseBloqueiosHojeCardId`, `sincronizarBloqueiosHoje()` em `metabaseSync.ts` (UPDATE por CPF em `chapa_registry`, NÃO apaga nada — diferente do sync completo), gate diário, boot job, campo em Integrações. **Fica sem efeito até o usuário criar a Question e colar o card ID.** Esta máquina não tem Metabase configurado (`metabase_config.json` não existe aqui) — não consegui testar nem com uma Question de exemplo.
+
+**Próxima conversa, perguntar:** (1) o número sugerido de leva fez sentido na prática? (2) 5min de pausa entre levas foi suficiente, ou precisa mais/menos? (3) quer que eu crie a Question de Bloqueios do Dia com base no schema já mapeado nesta sessão (campo "Data do Bloqueio" mencionado em investigação anterior), ou prefere fazer você mesmo e me passar o card ID?
+
+---
+
+## ✅ Merge com sessão paralela — colisão de versão 1.0.35 dupla
+
+Enquanto eu trabalhava, a outra máquina publicou MCM-128 (azul "Em Andamento" em Panorama/Timeline) e bumpou pra 1.0.35 — mesma versão que eu tinha acabado de commitar aqui (bump independente, mesmo número por coincidência). `git push` rejeitado, `git merge origin/main` trouxe 1 conflito real em `Ajuda.tsx` (as duas seções de novidades concorrendo pelo mesmo texto "v1.0.35 — Novidades") — resolvido combinando as duas listas de novidades e bumpando pra **1.0.36** (não repetir "1.0.35" pra ninguém). `tauri.conf.json` não deu conflito textual (as duas mudanças coincidiram no MESMO valor "1.0.35"), ajustado manualmente pra 1.0.36 também. `cargo check`/`npm run typecheck` confirmados limpos pós-merge antes do build.
 
 ## ✅ MCM-128 — azul do "Em Andamento" também em Panorama e Timeline
 
