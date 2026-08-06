@@ -11,7 +11,7 @@ import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync
 import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
 import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink } from "@/lib/umbler";
-import { bidDispatchQueue, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
+import { bidDispatchQueue, BID_WAVE_SIZE, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
 import { companyMatches } from "@/lib/company";
@@ -431,11 +431,13 @@ const STATUS_CFG: Record<string, { label: string; cls: string }> = {
 const STATUS_MANUAL = ["nao_aceita_app", "precisa_ajuda"] as const;
 const STATUS_POSITIVO = ["interesse_sim", "aceita_app"] as const;
 
-// Limite por leva de disparo de Captação (Leads Região não tem "vagas" como
-// o BID, então o teto é fixo, não proporcional) — ver sendCaptacaoSequencial.
-const CAPTACAO_WAVE_CAP = 20;
-// Pausa entre levas — mesmo valor inicial do BID (5min pra começar, pedido
-// explícito do usuário, ajustável se quiser testar 10min depois).
+// Limite por leva de disparo de Captação — mesmo tamanho fixo do BID
+// (BID_WAVE_SIZE=30, pedido explícito do usuário: 30 em 30 a cada 5min,
+// mesmo mandando pra todos os contatos de uma vez). Leads Região não tem
+// "vagas" como o BID, então não há checagem de parada antecipada — só o
+// teto fixo por leva — ver sendCaptacaoSequencial.
+const CAPTACAO_WAVE_CAP = BID_WAVE_SIZE;
+// Pausa entre levas — mesmo valor do BID (5min).
 const CAPTACAO_WAVE_PAUSE_S = 5 * 60;
 
 // Prioridade de exibição na lista de respostas: o que exige ação fica no topo.
@@ -529,10 +531,6 @@ function BidTaskCard({
     return false;
   }
   const [maxDistKm, setMaxDistKm] = useState(30);
-  // Múltiplo de leva do disparo em massa (leva = vagas restantes × este
-  // valor) — editável direto aqui no painel do BID, pra ajuste rápido sem
-  // ir em Integrações. Mesmo setting global usado por bidDispatchQueue.
-  const [waveMultiplierInput, setWaveMultiplierInput] = useState(() => String(readSettings().bidWaveMultiplier));
   const [candidateView, setCandidateView] = useState<"disponiveis" | "bloqueados" | "leads_bid" | "leads_regiao" | "novos" | "recomendados">("disponiveis");
   const [rawBlocked, setRawBlocked] = useState<BidChapa[]>([]);
   const [blockedLoading, setBlockedLoading] = useState(false);
@@ -609,27 +607,6 @@ function BidTaskCard({
     [disparos, task.id_tarefa],
   );
 
-  // Taxa de aceite INTERNA do MCM (resultado real registrado em bid_disparos,
-  // últimos 30 dias) — cruzada com a taxa da planilha do Leo (leoCache) pra
-  // sugerir quantos disparos fazem sentido por leva (ver "Análise BID" e o
-  // editor de múltiplo abaixo). Consulta ampla (não só desta tarefa) porque
-  // uma tarefa isolada não tem amostra suficiente pra ser confiável.
-  const [internalAcceptRate, setInternalAcceptRate] = useState<number | null>(null);
-  useEffect(() => {
-    if (!expanded) return;
-    (async () => {
-      try {
-        const db = await getDb();
-        const [row] = await db.select<{ pos: number; total: number }[]>(
-          `SELECT
-             SUM(CASE WHEN status IN ('interesse_sim','aceita_app') THEN 1 ELSE 0 END) as pos,
-             SUM(CASE WHEN status IN ('interesse_sim','aceita_app','interesse_nao','nao_aceita_app') THEN 1 ELSE 0 END) as total
-           FROM bid_disparos WHERE data_disparo >= datetime('now','-30 days')`,
-        );
-        if (row && row.total > 0) setInternalAcceptRate(row.pos / row.total);
-      } catch { /* noop — sugestão vira só a taxa do Leo, se disponível */ }
-    })();
-  }, [expanded]);
   // Respostas ordenadas por prioridade de ação (interesse/aceite no topo → aguardando no fim),
   // e dentro de cada grupo pela resposta mais recente primeiro.
   const sortedTaskDisparos = useMemo(
@@ -1550,7 +1527,6 @@ function BidTaskCard({
           dataParam: dispatchParams.dataParam,
         },
         quantidadeChapas: task.quantidade_chapas,
-        waveMultiplier: readSettings().bidWaveMultiplier,
       });
       // Espera o batch de BID (todas as levas) terminar ANTES de começar a
       // Captação — sem isso os dois rodavam em paralelo (startBatch é
@@ -1597,7 +1573,6 @@ function BidTaskCard({
         dataParam: dispatchParams.dataParam,
       },
       quantidadeChapas: task.quantidade_chapas,
-      waveMultiplier: readSettings().bidWaveMultiplier,
     });
     if (started) setSelectedIds(new Set());
   }
@@ -1781,14 +1756,13 @@ function BidTaskCard({
     });
   }, [available, novosVisible, leadsBidVisible, leadsRegiaoComDist, basePhoneSet, occupiedPhoneSet, leadsSaacPhoneSet, novoPhoneSet, leoCache, dispatchParams.localLat, dispatchParams.localLng, maxDistKm, searchActive, searchNorm, searchDigits]); // eslint-disable-line
   const recomendadosLoading = candidatesLoading || !leadsBidLoaded || !novosLoaded || !leadsRegiaoLoaded;
-  // MCM-130: só mostra a leva da vez, mesma fórmula do disparo em massa
-  // (BidDispatchQueue._run — vagas restantes × bidWaveMultiplier, piso 5,
-  // teto 40). Extras já entram no ranking acima (origin "disponivel",
-  // isExtra=true) e ficam ordenados por tarefas executadas dentro do
-  // próprio tier (computeRecommendedScore soma tarefas*2 antes da leo) —
-  // sem lista à parte, é a mesma ordem geral, só limitada ao tamanho da leva.
-  const recomendadosWaveCap = Math.min(40, Math.max(5, Math.ceil(vagas * readSettings().bidWaveMultiplier)));
-  const recomendadosVisible = recomendados.slice(0, recomendadosWaveCap);
+  // MCM-130/132: só mostra a leva da vez — mesmo tamanho fixo do disparo em
+  // massa (BID_WAVE_SIZE=30, BidDispatchQueue._run). Extras já entram no
+  // ranking acima (origin "disponivel", isExtra=true) e ficam ordenados por
+  // tarefas executadas dentro do próprio tier (computeRecommendedScore soma
+  // tarefas*2 antes da leo) — sem lista à parte, é a mesma ordem geral, só
+  // limitada ao tamanho da leva.
+  const recomendadosVisible = recomendados.slice(0, BID_WAVE_SIZE);
 
   // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
   // leads_bid tem render próprio (lista simples, sem virtualizer).
@@ -2121,17 +2095,6 @@ function BidTaskCard({
               ? comHistorico.reduce((s, c) => s + (leoCache.get(normalizePhone(c.telefone!))?.pct_sim ?? 0), 0) / comHistorico.length
               : null;
             const disparosEst = avgPct && avgPct > 0 && vagas > 0 ? Math.ceil(vagas / avgPct) : null;
-            // Sugestão de múltiplo pra leva de disparo (pedido do usuário):
-            // cruza a taxa de aceite da planilha do Leo (avgPct, já calculado
-            // acima pros candidatos desta tarefa) com a taxa interna real do
-            // MCM (internalAcceptRate, últimos 30 dias, ver useEffect) — leva
-            // = vagas × múltiplo, então múltiplo = 1/taxa combinada.
-            const blendedRate = avgPct !== null && internalAcceptRate !== null
-              ? (avgPct + internalAcceptRate) / 2
-              : avgPct ?? internalAcceptRate;
-            const suggestedMultiplier = blendedRate && blendedRate > 0
-              ? Math.min(10, Math.max(1.5, +(1 / blendedRate).toFixed(1)))
-              : null;
             if (alta + media + baixa === 0) return null;
             return (
               <div className="px-4 py-2.5 border-b border-border bg-muted/20 space-y-1.5">
@@ -2200,39 +2163,6 @@ function BidTaskCard({
                     <span className="ml-auto text-[10px] text-muted-foreground/60 italic">
                       Para {vagas} vaga{vagas !== 1 ? "s" : ""}: ~{disparosEst} disparos estimados
                     </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 pt-1.5 mt-0.5 border-t border-border/50">
-                  <span className="text-[10px] text-muted-foreground shrink-0">Múltiplo por leva (disparo em massa):</span>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    min="1"
-                    max="10"
-                    value={waveMultiplierInput}
-                    onChange={(e) => setWaveMultiplierInput(e.target.value)}
-                    onBlur={() => {
-                      const v = parseFloat(waveMultiplierInput.replace(",", "."));
-                      if (v && v > 0) writeSettings({ bidWaveMultiplier: v });
-                      else setWaveMultiplierInput(String(readSettings().bidWaveMultiplier));
-                    }}
-                    className="h-6 w-16 text-xs px-1.5"
-                  />
-                  <span className="text-[10px] text-muted-foreground">× vagas restantes por leva</span>
-                  {suggestedMultiplier !== null && (
-                    <button
-                      type="button"
-                      onClick={() => { setWaveMultiplierInput(String(suggestedMultiplier)); writeSettings({ bidWaveMultiplier: suggestedMultiplier }); }}
-                      className="ml-auto text-[10px] text-primary hover:underline shrink-0"
-                      title="Aplicar sugestão calculada"
-                    >
-                      sugestão: {suggestedMultiplier}x
-                      {internalAcceptRate !== null && avgPct !== null
-                        ? ` (MCM ${(internalAcceptRate * 100).toFixed(0)}% + Leo ${(avgPct * 100).toFixed(0)}%)`
-                        : internalAcceptRate !== null
-                          ? ` (MCM ${(internalAcceptRate * 100).toFixed(0)}%)`
-                          : ` (Leo ${((avgPct ?? 0) * 100).toFixed(0)}%)`}
-                    </button>
                   )}
                 </div>
               </div>
