@@ -330,6 +330,7 @@ export type RecomendadoItem = {
   distance_km: number | null;
   score: number;
   leo?: LeoMetrics;
+  isExtra?: boolean;
 };
 
 /**
@@ -1524,7 +1525,7 @@ function BidTaskCard({
   // (nunca se cadastrou) — vai pro template de Captação, sequencial (função
   // já tem seu próprio loading/erro por item, sem fila dedicada).
   async function handleDispatchSelectedRecomendados() {
-    const selecionados = recomendados.filter((it) => selectedIds.has(it._key) && it.telefone);
+    const selecionados = recomendadosVisible.filter((it) => selectedIds.has(it._key) && it.telefone);
     if (selecionados.length === 0) return;
     const botEligible = selecionados.filter((it) => it.origin !== "lead_regiao");
     const captacaoEligible = selecionados.filter((it) => it.origin === "lead_regiao");
@@ -1722,7 +1723,7 @@ function BidTaskCard({
       const leo = leoFor(c.telefone);
       items.push({
         _key: c._key, origin: "disponivel", nome: c.nome, telefone: c.telefone,
-        distance_km: c.distance_km, leo,
+        distance_km: c.distance_km, leo, isExtra: c.is_extra === 1,
         score: computeRecommendedScore("disponivel", c.tarefas, c.situacao, c.distance_km, maxDistKm, leo),
       });
     }
@@ -1766,6 +1767,14 @@ function BidTaskCard({
     return filtered.sort((a, b) => b.score - a.score);
   }, [available, novosVisible, leadsBidVisible, leadsRegiaoComDist, basePhoneSet, occupiedPhoneSet, leadsSaacPhoneSet, novoPhoneSet, leoCache, dispatchParams.localLat, dispatchParams.localLng, maxDistKm, searchActive, searchNorm, searchDigits]); // eslint-disable-line
   const recomendadosLoading = candidatesLoading || !leadsBidLoaded || !novosLoaded || !leadsRegiaoLoaded;
+  // MCM-130: só mostra a leva da vez, mesma fórmula do disparo em massa
+  // (BidDispatchQueue._run — vagas restantes × bidWaveMultiplier, piso 5,
+  // teto 40). Extras já entram no ranking acima (origin "disponivel",
+  // isExtra=true) e ficam ordenados por tarefas executadas dentro do
+  // próprio tier (computeRecommendedScore soma tarefas*2 antes da leo) —
+  // sem lista à parte, é a mesma ordem geral, só limitada ao tamanho da leva.
+  const recomendadosWaveCap = Math.min(40, Math.max(5, Math.ceil(vagas * readSettings().bidWaveMultiplier)));
+  const recomendadosVisible = recomendados.slice(0, recomendadosWaveCap);
 
   // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
   // leads_bid tem render próprio (lista simples, sem virtualizer).
@@ -1795,7 +1804,7 @@ function BidTaskCard({
         : candidateView === "novos"
           ? novosVisible.filter((c) => c.telefone)
           : candidateView === "recomendados"
-            ? recomendados.filter((it) => it.telefone)
+            ? recomendadosVisible.filter((it) => it.telefone)
             : available.filter((c) => c.telefone);
     const allSel = pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
     setSelectedIds(allSel ? new Set() : new Set(pool.map((c) => c._key)));
@@ -2236,7 +2245,7 @@ function BidTaskCard({
                   onClick={() => { setCandidateView("recomendados"); setShowAll(false); }}
                   className={`px-2.5 py-1 transition-colors flex items-center gap-1 ${candidateView === "recomendados" ? "bg-gradient-to-r from-primary to-success text-white" : "text-muted-foreground hover:bg-muted/50"}`}>
                   <Star className="h-3 w-3" />
-                  Recomendados{recomendados.length > 0 ? ` (${recomendados.length})` : ""}
+                  Recomendados{recomendadosVisible.length > 0 ? ` (${recomendadosVisible.length}${recomendados.length > recomendadosVisible.length ? `/${recomendados.length}` : ""})` : ""}
                 </button>
                 <button type="button"
                   onClick={() => { setCandidateView("disponiveis"); setShowAll(false); }}
@@ -2278,7 +2287,7 @@ function BidTaskCard({
                   <span className="font-normal normal-case bg-gradient-to-r from-primary to-success bg-clip-text text-transparent font-semibold">
                     {recomendadosLoading
                       ? "Cruzando cadastro geral, Novos, Leads Saac e Leads Região..."
-                      : `${recomendados.length} candidatos ranqueados por conversão (histórico de aceite) + distância`}
+                      : `${recomendadosVisible.length} desta leva (de ${recomendados.length} ranqueados) — conversão (histórico de aceite) + distância`}
                   </span>
                 ) : candidateView === "disponiveis" ? (
                   <>
@@ -2548,9 +2557,9 @@ function BidTaskCard({
                     Nenhum candidato disponível em nenhuma das 4 listas para {task.cidade_uf || "esta cidade"}.
                   </div>
                 )}
-                {candidateView === "recomendados" && !recomendadosLoading && recomendados.length > 0 && (
+                {candidateView === "recomendados" && !recomendadosLoading && recomendadosVisible.length > 0 && (
                   <div className="divide-y divide-border/50">
-                    {recomendados.map((it, idx) => {
+                    {recomendadosVisible.map((it, idx) => {
                       const isDispatching = dispatchingIds.has(it._key) || captacaoSendingIds.has(it._key);
                       const originBadge = {
                         disponivel: { label: "CADASTRO", cls: "bg-primary/15 text-primary" },
@@ -2582,6 +2591,11 @@ function BidTaskCard({
                               <span className={`px-1 py-0 rounded text-[9px] font-bold shrink-0 ${originBadge.cls}`}>
                                 {originBadge.label}
                               </span>
+                              {it.isExtra && (
+                                <span className="px-1 py-0 rounded text-[9px] font-bold shrink-0 bg-purple-500/15 text-purple-600" title="Chapa extra (Busca Chapa) — ordenado por tarefas já executadas">
+                                  EXTRA
+                                </span>
+                              )}
                               {it.leo && it.leo.total_ofertas >= 2 && (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
