@@ -1,17 +1,21 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-06 (Sonnet 5, sessão seguinte)
-**Versão:** `1.0.37` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Data:** 2026-08-06 (Sonnet 5, mesma sessão)
+**Versão:** `1.0.38` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `46e1298`.
+**Último commit:** `bb9363c`.
 
-**Pendências herdadas da sessão anterior (ainda não confirmadas pelo usuário — perguntar antes de assumir):** (1) o número sugerido de leva fez sentido na prática? (2) 5min de pausa entre levas foi suficiente? (3) quer que eu crie a Question "Bloqueios do Dia" no Metabase (schema já mapeado), ou o usuário cria e passa o card ID? Essa sync fica sem efeito até isso ser resolvido.
+**Pendências herdadas de sessões anteriores (ainda não confirmadas pelo usuário — perguntar antes de assumir):** (1) o número sugerido de leva fez sentido na prática? (2) 5min de pausa entre levas foi suficiente? (3) quer que eu crie a Question "Bloqueios do Dia" no Metabase (schema já mapeado), ou o usuário cria e passa o card ID? Essa sync fica sem efeito até isso ser resolvido.
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.37
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.38
 
 Mesmo runbook de sempre.
+
+## ✅ MCM-131 — Leads Região sempre por último + BID/Captação sequenciais em Recomendados
+
+Usuário reportou 2 coisas no disparo misto de Recomendados: (1) Leads Região não ficavam garantidamente por último (score baixo mas não impossível de superar outros em casos extremos); (2) suspeita de que os disparos não respeitavam a ordem/cadência como em Disponíveis. Achado real no ponto 2: `handleDispatchSelectedRecomendados` disparava `bidDispatchQueue.startBatch(...)` sem aguardar (fire-and-forget) e seguia direto pra `sendCaptacaoSequencial` — os dois rodavam EM PARALELO, cada um com sua própria cadência de ~7s, embaralhando a ordem combinada de envio. Fix: sort de `recomendados` agora garante Leads Região por último (não depende só de score); `dispatchQueue.ts` ganhou `waitBatch(taskId)` (aguarda o batch — todas as levas — terminar), usado antes de iniciar a Captação. Agora é sequencial de verdade.
 
 ## ✅ MCM-130 — Recomendados mostra só a leva da vez + badge EXTRA
 

@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-08-06 — MCM — Release v1.0.38: Leads Região sempre por último + BID/Captação sequenciais (MCM-131)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-131 ✅
+**Commits:** `bb9363c`
+
+Usuário: "os leads por região devem ser os últimos, dos batches" + "acredito que os disparos não estão sendo cadenciados e enviados na fila de acordo com a ordem como nos disponíveis". Dois problemas reais, ambos no disparo misto de Recomendados:
+
+1. **Ordem não garantida.** Leads Região tinham score baixo (base 50), mas em casos de leo_cache ruim pra outro candidato (penalidade até -350) ou boa distância, teoricamente podiam superar um lead_saac/disponível no score puro. Fix: sort de `recomendados` agora separa por "é lead_regiao" primeiro (não-região sempre antes), score só desempata dentro do grupo — garantido, não depende mais de aritmética de score.
+
+2. **Causa raiz do "fora de cadência":** `handleDispatchSelectedRecomendados` chamava `bidDispatchQueue.startBatch(...)` (fire-and-forget — não aguardado) e seguia direto pra `await sendCaptacaoSequencial(...)` — o batch de bot (BID, com sua própria cadência em levas) e a sequência de Captação rodavam **em paralelo**, cada um pausando ~7s por conta própria, embaralhando a ordem/tempo real de envio combinado entre as duas origens. Fix: `dispatchQueue.ts` `startBatch` agora guarda a Promise do `_run(job)` num Map; novo método público `waitBatch(taskId)` aguarda o batch (todas as levas) terminar. `handleDispatchSelectedRecomendados` agora `await`s isso antes de iniciar a Captação — sequencial de verdade: todo o bot primeiro, Captação só depois.
+
+---
+
 ## 2026-08-06 — MCM — Release v1.0.37: Recomendados mostra só a leva da vez + badge EXTRA (MCM-130)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-130 ✅
