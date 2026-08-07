@@ -636,6 +636,8 @@ Precisamos de 1 substituto para esta tarefa.`;
   // Tarefa "Em Andamento" nunca deve ficar verde (mesmo já validada/subida) —
   // fica azul e o flag mostra "Em Andamento" em vez de "100% Validada".
   const emAndamento = task.status_tarefa === "Em Andamento";
+  // Mesma lógica para "Em Análise" — fica amarelo claro em vez de azul/verde.
+  const emAnalise = task.status_tarefa === "Em Análise";
 
   const hasClienteNotes = !!clienteInfo && (
     clienteInfo.status_cliente !== "ativo" ||
@@ -756,19 +758,19 @@ Precisamos de 1 substituto para esta tarefa.`;
       >
         <div className="min-h-[44px] px-4 py-2 flex items-center gap-3">
           {isOvernight && <Moon className="h-4 w-4 text-overnight shrink-0" aria-label="Overnight" />}
-          <BadgeCheck className={`h-4 w-4 shrink-0 ${emAndamento ? "text-info" : "text-success"}`} aria-label="Validada" />
+          <BadgeCheck className={`h-4 w-4 shrink-0 ${emAndamento ? "text-info" : emAnalise ? "text-analise" : "text-success"}`} aria-label="Validada" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-sm text-muted-foreground truncate capitalize">
               {task.empresa.toLowerCase()} — {fmtTime(task.data_tarefa)}
             </span>
           </div>
-          <span className={`text-xs font-semibold shrink-0 ${emAndamento ? "text-info" : "text-success"}`}>
+          <span className={`text-xs font-semibold shrink-0 ${emAndamento ? "text-info" : emAnalise ? "text-analise" : "text-success"}`}>
             {confirmed}/{requested} ✅
           </span>
           <span className={`text-[12px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0 inline-flex items-center gap-1 ${
-            emAndamento ? "bg-info/15 text-info" : "bg-success/15 text-success"
+            emAndamento ? "bg-info/15 text-info" : emAnalise ? "bg-analise/15 text-analise" : "bg-success/15 text-success"
           }`}>
-            <BadgeCheck className="h-3 w-3" /> {emAndamento ? "Em Andamento" : "100% Validada"}
+            <BadgeCheck className="h-3 w-3" /> {emAndamento ? "Em Andamento" : emAnalise ? "Em Análise" : "100% Validada"}
           </span>
           {hasObs && (
             <StickyNote className="h-3.5 w-3.5 text-muted-foreground shrink-0" aria-label="Contém observações" />
@@ -791,6 +793,8 @@ Precisamos de 1 substituto para esta tarefa.`;
       className={`bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${
         emAndamento && (isDone || fullyValidated)
           ? "border-info/50 border-l-4 border-l-info ring-1 ring-info/20"
+          : emAnalise && (isDone || fullyValidated)
+          ? "border-analise/50 border-l-4 border-l-analise ring-1 ring-analise/20"
           : isDone
           ? "border-success/60 border-l-4 border-l-success ring-1 ring-success/20"
           : fullyValidated
@@ -805,6 +809,8 @@ Precisamos de 1 substituto para esta tarefa.`;
           ? "border-destructive/50 ring-1 ring-destructive/20"
           : emAndamento
           ? "border-info/50 border-l-4 border-l-info ring-1 ring-info/20"
+          : emAnalise
+          ? "border-analise/50 border-l-4 border-l-analise ring-1 ring-analise/20"
           : "border-border"
       } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
@@ -814,6 +820,8 @@ Precisamos de 1 substituto para esta tarefa.`;
             ? "bg-gradient-to-r from-overnight-soft to-card"
             : emAndamento
             ? "bg-gradient-to-r from-info/10 to-card"
+            : emAnalise
+            ? "bg-gradient-to-r from-analise/10 to-card"
             : "bg-gradient-to-r from-primary-soft/60 to-card"
         }`}
       >
@@ -991,11 +999,15 @@ Precisamos de 1 substituto para esta tarefa.`;
           {fullyValidated && (
             <span
               className={`inline-flex items-center gap-1 text-[12px] font-bold uppercase tracking-wider px-2 py-1 rounded-md shadow-sm ${
-                emAndamento ? "bg-info text-info-foreground" : "bg-success text-success-foreground"
+                emAndamento
+                  ? "bg-info text-info-foreground"
+                  : emAnalise
+                  ? "bg-analise text-analise-foreground"
+                  : "bg-success text-success-foreground"
               }`}
-              title={emAndamento ? "Todas as presenças foram marcadas — tarefa em andamento" : "Todas as presenças foram marcadas"}
+              title={emAndamento ? "Todas as presenças foram marcadas — tarefa em andamento" : emAnalise ? "Todas as presenças foram marcadas — tarefa em análise" : "Todas as presenças foram marcadas"}
             >
-              <BadgeCheck className="h-3.5 w-3.5" /> {emAndamento ? "Em Andamento" : "100% Validada"}
+              <BadgeCheck className="h-3.5 w-3.5" /> {emAndamento ? "Em Andamento" : emAnalise ? "Em Análise" : "100% Validada"}
             </span>
           )}
           {taskStarted ? (

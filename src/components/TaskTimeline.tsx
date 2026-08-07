@@ -42,11 +42,14 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
       // mesmo tratamento do Cards/Panorama (MCM-128). Amarelo/vermelho não
       // mudam — só o "tudo certo" verde é que vira "ainda em andamento".
       const emAndamento = t.status_tarefa === "Em Andamento";
+      const emAnalise = t.status_tarefa === "Em Análise";
 
       let colorClass = "bg-destructive border-destructive/50 text-destructive-foreground";
       if (fillPct >= 80) {
         colorClass = emAndamento
           ? "bg-info border-info/50 text-info-foreground"
+          : emAnalise
+          ? "bg-analise border-analise/50 text-analise-foreground"
           : "bg-success border-success/50 text-success-foreground";
       } else if (fillPct >= 50) colorClass = "bg-warning border-warning/50 text-warning-foreground";
       if (concluida) colorClass += " opacity-50 saturate-50";

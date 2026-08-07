@@ -54,6 +54,9 @@
     --in-progress: 185 65% 38%;         /* teal — neutral-positive "working" state */
     --in-progress-foreground: 0 0% 100%;
 
+    --analise: 48 96% 50%;              /* amarelo claro — tarefa "Em Análise" */
+    --analise-foreground: 45 70% 15%;
+
     --border: 30 15% 88%;
     --input: 30 15% 90%;
     --ring: 22 92% 48%;
@@ -114,6 +117,8 @@
     --overnight-soft: 255 30% 22%;
     --in-progress: 185 60% 48%;
     --in-progress-foreground: 222 20% 10%;
+    --analise: 48 90% 55%;
+    --analise-foreground: 45 60% 12%;
     --primary-soft: 24 40% 18%;
     --surface: 225 20% 12%;
     --surface-muted: 222 20% 16%;
