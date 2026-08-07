@@ -817,17 +817,17 @@ export type BidBatchJob = {
   dataTarefa: string;
   candidates: BidBatchCandidate[];
   params: BidBatchParams;
-  // Vagas totais da tarefa — usado pra calcular o tamanho da leva e pra
-  // parar o disparo cedo se a tarefa fechar no meio do lote (ver _run).
+  // Vagas totais da tarefa — usado só pra parar o disparo cedo se a tarefa
+  // fechar no meio do lote (ver _run); não influencia mais o tamanho da leva.
   quantidadeChapas: number;
-  // Múltiplo configurável (settings.bidWaveMultiplier) — leva = vagas
-  // restantes × este número. BIDDashboard sugere um valor calculado a
-  // partir da taxa de aceite real; o analista pode ajustar em Integrações.
-  waveMultiplier: number;
 };
 
-// Pausa entre levas de disparo em massa (5min pra começar, ajustável se o
-// usuário quiser testar 10min depois — pedido explícito de cadenciamento).
+// Leva FIXA de 30 disparos a cada 5min (pedido explícito do usuário) — antes
+// era proporcional às vagas (vagas × multiplicador editável), simplificado
+// pra um valor único que vale mesmo quando o analista seleciona todos os
+// contatos de uma vez. O disparo ainda para sozinho se as vagas forem
+// preenchidas no meio do caminho (checagem independente do tamanho da leva).
+export const BID_WAVE_SIZE = 30;
 const BID_WAVE_PAUSE_S = 5 * 60;
 
 async function countAlocados(taskId: number): Promise<number> {
@@ -897,6 +897,11 @@ class BidDispatchQueue {
   }
 
   private batchMeta = new Map<number, string>();
+  // Promise da leva atualmente rodando por tarefa — permite ao chamador
+  // aguardar o batch inteiro terminar (ver waitBatch), em vez de startBatch
+  // ser só fire-and-forget. Usado pra encadear disparo de bot (Recomendados)
+  // ANTES da captação de Leads Região, sem os dois rodarem em paralelo.
+  private batchRunPromises = new Map<number, Promise<void>>();
 
   startBatch(job: BidBatchJob): boolean {
     if (this.batchAborts.has(job.taskId)) return false;
@@ -904,8 +909,14 @@ class BidDispatchQueue {
     this.batchAborts.set(job.taskId, false);
     this.batchStates.set(job.taskId, { progress: { current: 0, total: job.candidates.length }, waitSeconds: null });
     this._notify(job.taskId);
-    this._run(job);
+    this.batchRunPromises.set(job.taskId, this._run(job));
     return true;
+  }
+
+  /** Aguarda o batch em andamento (todas as levas) da tarefa terminar. Resolve
+   *  na hora se não houver batch rodando. */
+  async waitBatch(taskId: number): Promise<void> {
+    await this.batchRunPromises.get(taskId);
   }
 
   abortBatch(taskId: number) {
@@ -956,12 +967,11 @@ class BidDispatchQueue {
     // Cadência (pedido do usuário): disparo em massa sem limite virava 150-
     // 200 contatos de uma vez só — mesmo com o intervalo de 7s entre envios,
     // isso manda oferta pra muito mais gente do que a tarefa precisa, sem
-    // dar tempo de ver a tarefa fechar antes de continuar. Agora dispara em
-    // LEVAS: cada leva é limitada a um múltiplo das vagas realmente em
-    // aberto (job.waveMultiplier — editável em Integrações, padrão 4x, piso
-    // 5, teto 40); entre levas, pausa BID_WAVE_PAUSE_S
-    // (5min) e reconsulta vagas — se a tarefa já fechou, para sozinho sem
-    // precisar do analista disparar de novo manualmente.
+    // dar tempo de ver a tarefa fechar antes de continuar. Dispara em LEVAS
+    // fixas de BID_WAVE_SIZE (30), mesmo se o analista selecionar todos os
+    // contatos de uma vez; entre levas, pausa BID_WAVE_PAUSE_S (5min) e
+    // reconsulta vagas — se a tarefa já fechou, para sozinho sem precisar o
+    // analista disparar de novo manualmente.
     const totalSelecionados = job.candidates.length;
     let offset = 0;
     let dispatchedTotal = 0;
@@ -974,8 +984,7 @@ class BidDispatchQueue {
       const vagasRestantes = Math.max(0, job.quantidadeChapas - alocadosAgora);
       if (vagasRestantes <= 0) { filledEarly = true; break; }
 
-      const waveCap = Math.min(40, Math.max(5, Math.ceil(vagasRestantes * job.waveMultiplier)));
-      const wave = job.candidates.slice(offset, offset + waveCap);
+      const wave = job.candidates.slice(offset, offset + BID_WAVE_SIZE);
 
       for (let i = 0; i < wave.length; i++) {
         if (this.batchAborts.get(taskId)) break;

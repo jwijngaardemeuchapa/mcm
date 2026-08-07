@@ -60,12 +60,6 @@ export type AppSettings = {
   // pega bloqueio/desbloqueio no mesmo dia, sem esperar o próximo sync 2x/
   // semana do cadastro geral completo. Ver sincronizarBloqueiosHoje.
   metabaseBloqueiosHojeCardId?: number;
-  // Múltiplo usado pra calcular o tamanho da leva de disparo em massa do BID
-  // (leva = vagas restantes × este número, piso 5, teto 40 — ver
-  // BidDispatchQueue._run). Editável em Integrações; o BID mostra uma
-  // sugestão calculada a partir da taxa de aceite real (leo_cache + taxa
-  // interna de respostas do MCM) que o analista pode copiar pra cá.
-  bidWaveMultiplier: number;
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
@@ -98,7 +92,6 @@ export const SETTING_DEFAULTS: AppSettings = {
   firestoreEnabled: true,
   carteiraGruposAtivos: [],
   metabaseRegistroCardId: 1296,
-  bidWaveMultiplier: 4,
   autoCancelFupEnabled: false,
   autoCancelFupMinutes: 60,
   fupAutoDispatchBloqueioHoras: 4,

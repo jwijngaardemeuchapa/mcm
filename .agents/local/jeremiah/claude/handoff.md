@@ -1,11 +1,25 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-06 (Sonnet 5)
-**Versão:** `1.0.36` publicada, assinada e verificada (MCM-129 ✅). Sem pendência de release aberta.
+**Data:** 2026-08-06 (Sonnet 5, mesma sessão)
+**Versão:** `1.0.38` publicada, **SEM assinatura** — mesma pendência de sempre.
 **Branch:** main
-**Último commit:** `43cf44d` (assina 1.0.36 + latest.json).
+**Último commit:** `bb9363c`.
 
-**⚠️ Sessão terminou SEM o usuário revisar** — ele saiu pro trabalho no meio da conversa e autorizou explicitamente seguir sozinho ("pode ir fazendo o que for possivel... já faça a release, pois não vou estar aqui pra autorizar nada"). Tudo abaixo foi implementado e liberado sem review humano. **Ler com atenção antes de assumir que está tudo certo** — em especial os itens marcados ⚠️ abaixo, que têm decisões de design que o usuário não confirmou.
+**Pendências herdadas de sessões anteriores (ainda não confirmadas pelo usuário — perguntar antes de assumir):** (1) o número sugerido de leva fez sentido na prática? (2) 5min de pausa entre levas foi suficiente? (3) quer que eu crie a Question "Bloqueios do Dia" no Metabase (schema já mapeado), ou o usuário cria e passa o card ID? Essa sync fica sem efeito até isso ser resolvido.
+
+---
+
+## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.38
+
+Mesmo runbook de sempre.
+
+## ✅ MCM-131 — Leads Região sempre por último + BID/Captação sequenciais em Recomendados
+
+Usuário reportou 2 coisas no disparo misto de Recomendados: (1) Leads Região não ficavam garantidamente por último (score baixo mas não impossível de superar outros em casos extremos); (2) suspeita de que os disparos não respeitavam a ordem/cadência como em Disponíveis. Achado real no ponto 2: `handleDispatchSelectedRecomendados` disparava `bidDispatchQueue.startBatch(...)` sem aguardar (fire-and-forget) e seguia direto pra `sendCaptacaoSequencial` — os dois rodavam EM PARALELO, cada um com sua própria cadência de ~7s, embaralhando a ordem combinada de envio. Fix: sort de `recomendados` agora garante Leads Região por último (não depende só de score); `dispatchQueue.ts` ganhou `waitBatch(taskId)` (aguarda o batch — todas as levas — terminar), usado antes de iniciar a Captação. Agora é sequencial de verdade.
+
+## ✅ MCM-130 — Recomendados mostra só a leva da vez + badge EXTRA
+
+Em cima da funcionalidade de "levas" que a sessão anterior implementou pro disparo em massa (MCM-129), usuário pediu que a aba Recomendados também mostrasse só o batch da vez (mesma fórmula: `Math.min(40, Math.max(5, Math.ceil(vagas * bidWaveMultiplier)))`), e que extras (Busca Chapa) entrassem nessa lógica ordenados por tarefas executadas. `recomendadosVisible = recomendados.slice(0, recomendadosWaveCap)`. Extras já entravam no ranking geral e já ordenavam por tarefas dentro do tier (via `computeRecommendedScore`) — só faltava a marcação visual, adicionado `isExtra` + badge "EXTRA" roxo.
 
 ---
 
