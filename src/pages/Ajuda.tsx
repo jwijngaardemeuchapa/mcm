@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.39</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.40</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,10 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.39 — Novidades desta versão:</strong>{" "}
-              <strong>Fix — Leads Região sempre por último</strong>: no ranking de Recomendados, Leads Região agora ficam sempre depois de todas as outras origens, garantido — não dependem mais só do score.{" "}
-              <strong>Fix — disparo misto de Recomendados fora de ordem</strong>: o disparo de BID (bot) e o de Captação (Leads Região) rodavam em paralelo, embaralhando a cadência — agora o BID termina todas as levas antes da Captação começar.{" "}
-              <strong>Sync Bloqueios do Dia — pronta pra usar</strong>: cruzamento agora também por telefone (além de CPF), e a Question do Metabase já vem pré-configurada — não precisa colar o ID manualmente.
+              <strong>v1.0.40 — Novidades desta versão:</strong>{" "}
+              <strong>Cancelar Tarefa vira slide</strong>: o botão de cancelamento geral da tarefa (notifica todos os chapas) agora exige arrastar até o fim, em vez de um clique — elimina cancelamentos acidentais.{" "}
+              <strong>Status "Em Análise" ganha cor própria</strong>: tarefas em análise agora aparecem em amarelo claro (em vez de verde) nas 3 visões do dashboard — Cards, Panorama e Timeline — mesmo tratamento já usado para "Em Andamento".
             </span>
           </div>
         )}
@@ -1006,7 +1005,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.39 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.40 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1041,7 +1040,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.39 · © 2026 Wijngaarde Design
+        MCM v1.0.40 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
