@@ -675,10 +675,16 @@ export async function sincronizarRegistro(silent = false): Promise<boolean> {
  * em si (o filtro "só hoje") precisa existir no Metabase antes de ter um
  * card ID pra configurar aqui.
  *
- * Diferente de sincronizarRegistro: NÃO apaga nada. Faz UPDATE por CPF nos
- * registros já existentes em chapa_registry — se o CPF não estiver na base
- * (chapa muito recente, ainda não passou pelo sync completo), a linha é
- * ignorada aqui (chapas_novos/sincronizarChapas15d já cobre "gente nova").
+ * Diferente de sincronizarRegistro: NÃO apaga nada. Faz UPDATE nos registros
+ * já existentes em chapa_registry, casando por CPF **ou** telefone (qualquer
+ * um bate) — telefone é o campo mais usado pra cruzar candidato no resto do
+ * MCM (leo_cache, ocupação, dedup etc.), então serve de rede de segurança
+ * quando o CPF vier em formato diferente ou ausente. Telefone comparado em
+ * 3 variantes (dígitos crus, com/sem DDI 55) porque a formatação não é
+ * garantida igual entre a origem do Metabase e o que já está salvo. Se nem
+ * CPF nem telefone baterem (chapa muito recente, ainda não passou pelo sync
+ * completo), a linha é ignorada aqui — chapas_novos/sincronizarChapas15d já
+ * cobre "gente nova".
  */
 export async function sincronizarBloqueiosHoje(silent = false): Promise<boolean> {
   const s = readSettings();
@@ -704,14 +710,20 @@ export async function sincronizarBloqueiosHoje(silent = false): Promise<boolean>
       const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
       const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
       const cpf = dig(g(/^cpf$/i));
-      if (!cpf) continue;
+      const telBruto = dig(g(/telefone|celular|fone|phone/i));
+      if (!cpf && !telBruto) continue;
+      // 3 variantes do mesmo telefone, pra bater com qualquer formatação
+      // já salva (com DDI, sem DDI, ou exatamente como veio da origem).
+      const telSemDDI = telBruto && telBruto.startsWith("55") && telBruto.length >= 12 ? telBruto.slice(2) : telBruto;
+      const telComDDI = telBruto && !telBruto.startsWith("55") ? `55${telBruto}` : telBruto;
       const bloqueio = str(g(/bloqueio/i));
       const motivo = str(g(/motivo/i));
       const situacao = str(g(/situa/i));
       const res = await db.execute(
         `UPDATE chapa_registry SET bloqueio = ?, motivo_bloqueio = ?, situacao = COALESCE(?, situacao), importado_em = ?
-         WHERE cpf = ? AND (fonte IS NULL OR fonte = 'metabase')`,
-        [bloqueio, motivo, situacao, now, cpf],
+         WHERE (fonte IS NULL OR fonte = 'metabase')
+           AND (cpf = ? OR telefone = ? OR telefone = ? OR telefone = ?)`,
+        [bloqueio, motivo, situacao, now, cpf, telBruto, telSemDDI, telComDDI],
       );
       if (res.rowsAffected) updated++;
     }
