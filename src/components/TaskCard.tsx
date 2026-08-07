@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { SlideToConfirm } from "@/components/ui/slide-to-confirm";
 import {
   Dialog,
   DialogContent,
@@ -1411,7 +1412,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                     </TooltipContent>
                   </Tooltip>
                 )}
-                {taskCancelTemplateReady && (
+                {taskCancelTemplateReady && (taskCancelPending || taskCancelSent) && (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -1420,27 +1421,37 @@ Precisamos de 1 substituto para esta tarefa.`;
                         className={`gap-1.5 ${
                           taskCancelPending
                             ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
-                            : taskCancelSent
-                            ? "border-muted-foreground/20 text-muted-foreground/50 cursor-default"
-                            : "border-destructive/40 text-destructive hover:bg-destructive/10"
+                            : "border-muted-foreground/20 text-muted-foreground/50 cursor-default"
                         }`}
-                        onClick={taskCancelPending ? stopTaskCancelCountdown : taskCancelSent ? undefined : startTaskCancelCountdown}
+                        onClick={taskCancelPending ? stopTaskCancelCountdown : undefined}
                       >
                         {taskCancelPending ? (
                           <><X className="h-3.5 w-3.5" /><span>{taskCancelCountdown}s</span></>
-                        ) : taskCancelSent ? (
-                          <><Check className="h-3.5 w-3.5" /><span>Cancelamento enviado</span></>
                         ) : (
-                          <><XCircle className="h-3.5 w-3.5" /><span>Cancelar Tarefa</span></>
+                          <><Check className="h-3.5 w-3.5" /><span>Cancelamento enviado</span></>
                         )}
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       {taskCancelPending
                         ? "Clique para cancelar o disparo"
-                        : taskCancelSent
-                        ? "Notificação de cancelamento já enviada a todos os chapas"
-                        : "Notificar todos os chapas sobre o cancelamento desta tarefa — aguarda 1 min antes de disparar"}
+                        : "Notificação de cancelamento já enviada a todos os chapas"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                {taskCancelTemplateReady && !taskCancelPending && !taskCancelSent && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <SlideToConfirm
+                          onConfirm={startTaskCancelCountdown}
+                          label="Cancelar Tarefa"
+                          icon={<XCircle className="h-3.5 w-3.5" />}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Arraste até o fim para notificar todos os chapas sobre o cancelamento desta tarefa — aguarda 1 min antes de disparar
                     </TooltipContent>
                   </Tooltip>
                 )}
