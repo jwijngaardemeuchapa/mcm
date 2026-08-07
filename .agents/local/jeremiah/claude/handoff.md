@@ -1,11 +1,21 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-07 (Sonnet 5)
-**Versão:** `1.0.39` publicada, assinada e verificada (MCM-132 ✅). Sem pendência de release aberta.
+**Versão:** `1.0.40` publicada (não assinada — normal, feita nesta máquina). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `5d5dc1a` (assina 1.0.39 + latest.json).
+**Último commit:** `42df508` (bump v1.0.40).
 
-**Pendências RESOLVIDAS nesta sessão** (estavam em aberto na entrada anterior): (1) o multiplicador editável de leva foi **removido pela sessão paralela** (MCM-131.5, ver abaixo) — substituído por tamanho fixo `BID_WAVE_SIZE=30`, decisão mais recente, respeitada. (2) pausa de 5min entre levas — mantida como está, sem ajuste pedido. (3) Question "Bloqueios do Dia" — **usuário criou** no Metabase (card ID **1558**), testou (deu timeout, corrigido), e o ID já vem pré-configurado por padrão agora. (4) **Usuário confirmou que a query corrigida (CTE) rodou sem timeout** — sync "Bloqueios do Dia" está funcional de ponta a ponta, nada mais pendente aqui.
+**Pendências abertas para a próxima sessão:**
+1. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
+2. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.40 — Cancelar Tarefa vira slide + "Em Análise" amarelo (MCM-134)
+
+Retomando de onde a sessão anterior parou (leva fixa 30/5min já tinha sido commitada mas não versionada — acabou incluída em v1.0.39 pela sessão paralela antes de eu conseguir taguear). Nesta sessão: (1) confirmei via `git fetch`/diff que v1.0.39 já cobria a leva fixa + Bloqueios do Dia (question 1558) — nada a refazer. (2) implementei os 2 pedidos que ainda faltavam: botão "Cancelar Tarefa" (geral, notifica todos os chapas) virou slide-to-confirm (novo componente `src/components/ui/slide-to-confirm.tsx`, pointer events puro, sem lib externa — exige arraste ≥85% do track pra disparar `onConfirm`); status "Em Análise" ganhou amarelo claro (novo token `analise` em `index.css`/`tailwind.config.ts`) nas 3 visões (Cards/Panorama/Timeline) + `StatusBadge.tsx`, mesmo padrão de override do verde já usado pra "Em Andamento" (MCM-128). Merge com a sessão paralela (que rodou em paralelo de novo, releases 1.0.39 completo) sem conflitos — arquivos não colidiram. Build unsigned, tag e release GitHub feitos normalmente.
+
+**SQL entregue mas não usada** (a sessão paralela já tinha resolvido antes de eu terminar): dei ao usuário uma query própria pra "Bloqueios do Dia" baseada em `BlacklistHistory`/`CreatedDate`/`BlackListType` — ficou obsoleta assim que vi que a question 1558 já existia e funcionava. Mantida no JOURNAL de sessão anterior só como registro, não repassar de novo.
+
+**Ticket MCM-133 criado mas fora de escopo desta release** — é trabalho futuro, não implementado.
 
 ---
 

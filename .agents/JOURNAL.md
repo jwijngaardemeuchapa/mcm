@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-08-07 — MCM — Release v1.0.40: Cancelar Tarefa vira slide + "Em Análise" amarelo (MCM-134)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-134 ✅ (Feito) · MCM-133 criado (pendente — export CSV Recomendados)
+**Commits:** `147048f` (leva fixa 30/5min BID/Captação, já incluído em v1.0.39), `98079d9` (Em Análise amarelo), `da731d5` (slide-to-confirm Cancelar Tarefa), `42df508` (bump v1.0.40)
+
+### Leva de disparo em massa fixa (BID/Captação)
+- `dispatchQueue.ts`: novo `BID_WAVE_SIZE = 30` substitui o multiplicador editável por vagas restantes (piso 5/teto 40) — pedido explícito do usuário: sempre 30 em 30 a cada 5min, mesmo selecionando todos os contatos de uma vez.
+- Removido: UI "Múltiplo por leva" em BIDDashboard.tsx, `internalAcceptRate`, `waveMultiplierInput`, campo `bidWaveMultiplier` em settings.ts (zero referências restantes, confirmado via grep).
+- Auto-cancelamento ao detectar vagas preenchidas (`vagasRestantes <= 0` antes/durante cada leva) preservado sem alteração — já existia e funcionava.
+- `CAPTACAO_WAVE_CAP` unificado com `BID_WAVE_SIZE` (era 20, hardcoded separado).
+
+### Botão "Cancelar Tarefa" → slide-to-confirm
+- Novo componente reutilizável `src/components/ui/slide-to-confirm.tsx` (pointer events, sem libs externas) — exige arraste completo (≥85% do track) para disparar `onConfirm`, elimina cliques acidentais no cancelamento geral da tarefa (notifica todos os chapas).
+- Estados de countdown/abortar e "cancelamento enviado" continuam como `Button` normal — ações reversíveis ou somente leitura, sem risco de clique acidental.
+
+### Status "Em Análise" — amarelo claro nas 3 visões
+- Novo token semântico `analise` (CSS var `--analise`/`--analise-foreground` em `index.css`, mapeado em `tailwind.config.ts`) — amarelo claro, distinto de `warning` (âmbar) e `in-progress` (teal).
+- Aplicado com o mesmo padrão de override do verde já usado para "Em Andamento" (MCM-128): `TaskCard.tsx`, `TaskPanorama.tsx`, `TaskTimeline.tsx`, `StatusBadge.tsx`.
+
+### Pendências abertas (não implementadas nesta sessão)
+- **MCM-133**: exportar lista COMPLETA de Recomendados (sem corte de leva) em CSV, 2 colunas "Nome"/"Telefone".
+- **Cota de chapas por empresa**: usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem número limitado de chapas. Ainda não mapeado — provável campo em `core_api."Business"` (schema confirmado via query da question 1296: `User`, `WorkItem`, `WorkHeader`, `Address`, `UserLog`, `BlacklistHistory`, `Blacklist`, `BusinessId`), mas a tabela `Business` em si ainda não foi inspecionada. Usuário vai abrir o Table Metadata do Metabase e mandar print das colunas.
+
+**Next:** MCM-133 (export CSV Recomendados) e investigação da cota de chapas por empresa no Metabase (aguardando print das colunas de `Business`).
+
+---
+
 ## 2026-08-07 — MCM — Confirmação: sync "Bloqueios do Dia" (MCM-132) funcionando de ponta a ponta
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-132 (confirmação registrada)
