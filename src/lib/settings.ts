@@ -59,7 +59,7 @@ export type AppSettings = {
   // Question separada, filtrada por alterações do dia (não a base inteira) —
   // pega bloqueio/desbloqueio no mesmo dia, sem esperar o próximo sync 2x/
   // semana do cadastro geral completo. Ver sincronizarBloqueiosHoje.
-  metabaseBloqueiosHojeCardId?: number;
+  metabaseBloqueiosHojeCardId: number;
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
@@ -92,6 +92,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   firestoreEnabled: true,
   carteiraGruposAtivos: [],
   metabaseRegistroCardId: 1296,
+  metabaseBloqueiosHojeCardId: 1558,
   autoCancelFupEnabled: false,
   autoCancelFupMinutes: 60,
   fupAutoDispatchBloqueioHoras: 4,
