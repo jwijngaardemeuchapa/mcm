@@ -189,17 +189,21 @@ function PanoramaRow({
   // Em Andamento nunca fica verde, mesmo concluída/validada — fica azul
   // (mesmo tratamento do TaskCard, MCM-128).
   const emAndamento = task.status_tarefa === "Em Andamento";
+  // Mesma lógica para Em Análise — fica amarelo claro.
+  const emAnalise = task.status_tarefa === "Em Análise";
 
   let accentBorder = "border-l-border";
   let rowBg = "";
   if (task.continuingFromYesterday) { accentBorder = "border-l-overnight"; rowBg = "bg-overnight/5"; }
   else if (emAndamento && (isDone || fullyValidated)) { accentBorder = "border-l-info"; rowBg = "bg-info/[0.04]"; }
+  else if (emAnalise && (isDone || fullyValidated)) { accentBorder = "border-l-analise"; rowBg = "bg-analise/[0.04]"; }
   else if (isDone) { accentBorder = "border-l-success"; rowBg = "bg-success/[0.04]"; }
   else if (fullyValidated) { accentBorder = "border-l-success"; }
   else if (showApproachAlert) { accentBorder = "border-l-warning"; rowBg = "bg-warning/5"; }
   else if (task.urgent) { accentBorder = "border-l-destructive"; rowBg = "bg-destructive/[0.04]"; }
   else if (task.is_overnight) { accentBorder = "border-l-overnight"; }
   else if (emAndamento) { accentBorder = "border-l-info"; }
+  else if (emAnalise) { accentBorder = "border-l-analise"; }
 
   const timeColor = isDone
     ? "text-muted-foreground"
@@ -215,6 +219,12 @@ function PanoramaRow({
     statusNode = (
       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-info">
         <BadgeCheck className="h-3 w-3" /> Em Andamento
+      </span>
+    );
+  } else if (emAnalise && (isDone || fullyValidated)) {
+    statusNode = (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-analise">
+        <BadgeCheck className="h-3 w-3" /> Em Análise
       </span>
     );
   } else if (isDone) {
@@ -299,7 +309,7 @@ function PanoramaRow({
           </span>
         )}
         {!showApproachAlert && isDone && (
-          <Check className={`h-3.5 w-3.5 ${emAndamento ? "text-info" : "text-success"}`} />
+          <Check className={`h-3.5 w-3.5 ${emAndamento ? "text-info" : emAnalise ? "text-analise" : "text-success"}`} />
         )}
         {task.urgent && !isDone && !showApproachAlert && (
           <AlertTriangle className="h-3.5 w-3.5 text-destructive" />

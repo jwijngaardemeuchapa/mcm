@@ -6,7 +6,7 @@ const map: Record<string, { label: string; cls: string }> = {
   "Aguardando Início": { label: "Aguardando Início", cls: "bg-info/10 text-info border-info/30" },
   "Aguardando Aprovação": { label: "Aguardando Aprovação", cls: "bg-warning/15 text-warning border-warning/40" },
   "Em Aberto": { label: "Em Aberto", cls: "bg-info/10 text-info border-info/30" },
-  "Em Análise": { label: "Em Análise", cls: "bg-muted text-muted-foreground border-border" },
+  "Em Análise": { label: "Em Análise", cls: "bg-analise/15 text-analise border-analise/40" },
   "Em Andamento": { label: "Em Andamento", cls: "bg-in-progress/10 text-in-progress border-in-progress/30" },
   Finalizado: { label: "Finalizado", cls: "bg-muted text-muted-foreground border-border" },
 };

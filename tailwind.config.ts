@@ -60,6 +60,10 @@ export default {
           DEFAULT: "hsl(var(--in-progress))",
           foreground: "hsl(var(--in-progress-foreground))",
         },
+        analise: {
+          DEFAULT: "hsl(var(--analise))",
+          foreground: "hsl(var(--analise-foreground))",
+        },
         muted: {
           DEFAULT: "hsl(var(--muted))",
           foreground: "hsl(var(--muted-foreground))",
