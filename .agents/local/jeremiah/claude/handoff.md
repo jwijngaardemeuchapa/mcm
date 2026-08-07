@@ -5,7 +5,7 @@
 **Branch:** main
 **Último commit:** `5d5dc1a` (assina 1.0.39 + latest.json).
 
-**Pendências RESOLVIDAS nesta sessão** (estavam em aberto na entrada anterior): (1) o multiplicador editável de leva foi **removido pela sessão paralela** (MCM-131.5, ver abaixo) — substituído por tamanho fixo `BID_WAVE_SIZE=30`, decisão mais recente, respeitada. (2) pausa de 5min entre levas — mantida como está, sem ajuste pedido. (3) Question "Bloqueios do Dia" — **usuário criou** no Metabase (card ID **1558**), testou (deu timeout, corrigido), e o ID já vem pré-configurado por padrão agora.
+**Pendências RESOLVIDAS nesta sessão** (estavam em aberto na entrada anterior): (1) o multiplicador editável de leva foi **removido pela sessão paralela** (MCM-131.5, ver abaixo) — substituído por tamanho fixo `BID_WAVE_SIZE=30`, decisão mais recente, respeitada. (2) pausa de 5min entre levas — mantida como está, sem ajuste pedido. (3) Question "Bloqueios do Dia" — **usuário criou** no Metabase (card ID **1558**), testou (deu timeout, corrigido), e o ID já vem pré-configurado por padrão agora. (4) **Usuário confirmou que a query corrigida (CTE) rodou sem timeout** — sync "Bloqueios do Dia" está funcional de ponta a ponta, nada mais pendente aqui.
 
 ---
 
@@ -17,7 +17,7 @@ Sequência real desta sessão, direto do usuário testando a query que dei na se
 2. **Cruzamento por telefone.** Usuário perguntou se não seria mais fácil cruzar por telefone (é o campo mais usado pra match no resto do app). `sincronizarBloqueiosHoje` (`metabaseSync.ts`) agora tenta CPF **ou** telefone — telefone em 3 variantes (bruto, sem DDI 55, com DDI 55) pra cobrir qualquer formatação. SQL da Question também ganhou `u."Phone" AS "Telefone"`.
 3. **Card ID pré-configurado.** Usuário criou a Question de verdade — **ID 1558**. Virou `SETTING_DEFAULTS.metabaseBloqueiosHojeCardId = 1558` (era opcional sem default antes) — qualquer máquina nova já sincroniza sozinha assim que o Metabase estiver configurado, sem precisar colar o ID manualmente em Integrações.
 
-**⚠️ Ainda não confirmado:** se a query corrigida (a com CTE) realmente resolveu o timeout na prática — o usuário só relatou o erro da primeira versão, não confirmou se a segunda rodou. Perguntar na próxima conversa antes de assumir que a sync já está funcionando de ponta a ponta.
+**✅ Confirmado pelo usuário:** a query com CTE rodou sem timeout no Metabase. Sync "Bloqueios do Dia" funcional de ponta a ponta — nenhuma pendência restante neste item.
 
 ## ✅ Merge #2 com sessão paralela — decisão de reverter o multiplicador editável
 

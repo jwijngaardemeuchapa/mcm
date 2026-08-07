@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-08-07 — MCM — Confirmação: sync "Bloqueios do Dia" (MCM-132) funcionando de ponta a ponta
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-132 (confirmação registrada)
+**Commits:** nenhum (só confirmação, sem mudança de código)
+
+Usuário testou a query corrigida (CTE, ver entrada abaixo) no Metabase — rodou sem timeout. Fecha a pendência "Next" deixada na entrada anterior. Sync "Bloqueios do Dia" (card 1558) está funcional de ponta a ponta: query rápida, cruzamento por CPF/telefone, card ID pré-configurado por padrão em qualquer máquina nova.
+
+**Next:** nenhuma pendência conhecida no momento.
+
+---
+
 ## 2026-08-07 — MCM — Release v1.0.39: Bloqueios do Dia funcional (timeout corrigido, telefone, card ID pré-configurado) (MCM-132)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-132 ✅ (+ merge com MCM-130/131 da sessão paralela)
