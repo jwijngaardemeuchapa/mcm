@@ -1,17 +1,29 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-06 (Sonnet 5, mesma sessão)
-**Versão:** `1.0.38` publicada, **SEM assinatura** — mesma pendência de sempre.
+**Data:** 2026-08-07 (Sonnet 5)
+**Versão:** `1.0.39` publicada, assinada e verificada (MCM-132 ✅). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `bb9363c`.
+**Último commit:** `5d5dc1a` (assina 1.0.39 + latest.json).
 
-**Pendências herdadas de sessões anteriores (ainda não confirmadas pelo usuário — perguntar antes de assumir):** (1) o número sugerido de leva fez sentido na prática? (2) 5min de pausa entre levas foi suficiente? (3) quer que eu crie a Question "Bloqueios do Dia" no Metabase (schema já mapeado), ou o usuário cria e passa o card ID? Essa sync fica sem efeito até isso ser resolvido.
+**Pendências RESOLVIDAS nesta sessão** (estavam em aberto na entrada anterior): (1) o multiplicador editável de leva foi **removido pela sessão paralela** (MCM-131.5, ver abaixo) — substituído por tamanho fixo `BID_WAVE_SIZE=30`, decisão mais recente, respeitada. (2) pausa de 5min entre levas — mantida como está, sem ajuste pedido. (3) Question "Bloqueios do Dia" — **usuário criou** no Metabase (card ID **1558**), testou (deu timeout, corrigido), e o ID já vem pré-configurado por padrão agora.
 
 ---
 
-## ⚠️ PENDÊNCIA ATUAL — assinar v1.0.38
+## ✅ MCM-132 — Bloqueios do Dia: query corrigida (timeout) + cruzamento por telefone + card ID pré-configurado
 
-Mesmo runbook de sempre.
+Sequência real desta sessão, direto do usuário testando a query que dei na sessão anterior:
+
+1. **Timeout no Metabase.** A SQL original usava `LATERAL JOIN` a partir de `core_api."User"` (tabela grande) — pra CADA usuário, rodava a subconsulta de bloqueio antes de filtrar por data. Corrigido: CTE que filtra `BlacklistHistory` por `CreatedDate` **primeiro** (dataset pequeno, últimos 2 dias) com `ROW_NUMBER() OVER (PARTITION BY IdUser ORDER BY Id DESC)`, só DEPOIS junta com `User`. SQL final registrada no Jira (MCM-132) e no JOURNAL — se precisar repassar pro usuário, está lá.
+2. **Cruzamento por telefone.** Usuário perguntou se não seria mais fácil cruzar por telefone (é o campo mais usado pra match no resto do app). `sincronizarBloqueiosHoje` (`metabaseSync.ts`) agora tenta CPF **ou** telefone — telefone em 3 variantes (bruto, sem DDI 55, com DDI 55) pra cobrir qualquer formatação. SQL da Question também ganhou `u."Phone" AS "Telefone"`.
+3. **Card ID pré-configurado.** Usuário criou a Question de verdade — **ID 1558**. Virou `SETTING_DEFAULTS.metabaseBloqueiosHojeCardId = 1558` (era opcional sem default antes) — qualquer máquina nova já sincroniza sozinha assim que o Metabase estiver configurado, sem precisar colar o ID manualmente em Integrações.
+
+**⚠️ Ainda não confirmado:** se a query corrigida (a com CTE) realmente resolveu o timeout na prática — o usuário só relatou o erro da primeira versão, não confirmou se a segunda rodou. Perguntar na próxima conversa antes de assumir que a sync já está funcionando de ponta a ponta.
+
+## ✅ Merge #2 com sessão paralela — decisão de reverter o multiplicador editável
+
+Enquanto eu implementava o item acima, a outra máquina fez 3 releases (MCM-130, MCM-131, e um commit sem ticket) que **removeram o editor de múltiplo de leva que eu tinha acabado de construir** (settings `bidWaveMultiplier`, estado `internalAcceptRate`, UI "Múltiplo por leva" no painel do BID) e substituíram por um tamanho FIXO `BID_WAVE_SIZE = 30` (commit `147048f`, sem ticket vinculado). Tratei como decisão intencional e mais recente — não tentei reverter de volta. `git merge` não deu conflito textual (as regiões editadas por mim e por eles não colidiram exatamente), mas verifiquei manualmente com grep que não sobrou nenhum resquício do código morto (`internalAcceptRate`, `waveMultiplierInput` etc. — confirmado ausente) e rodei `npm run typecheck` (baseline 13 mantida) antes de seguir. Também trouxe: Recomendados agora mostra só a leva da vez (`BID_WAVE_SIZE`) com badge "EXTRA", Leads Região sempre por último no ranking (antes só dependia do score), e disparo de BID+Captação em Recomendados agora é sequencial (esperava `waitBatch` antes, rodavam em paralelo e embaralhavam a cadência).
+
+**Nota de processo:** dois merges nesta sessão só, ambos limpos (sem `<<<<<<<` sobrando) mas com mudanças de design real de um lado sendo descartadas pelo outro — vale sempre `grep` por nomes de variável/função específicos do que você construiu depois de um merge sem conflito reportado, não confiar só no "sem erro = sem problema". Um merge "limpo" no git não significa "sem decisão de produto perdida".
 
 ## ✅ MCM-131 — Leads Região sempre por último + BID/Captação sequenciais em Recomendados
 

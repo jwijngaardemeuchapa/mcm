@@ -3,6 +3,44 @@
 
 ---
 
+## 2026-08-07 — MCM — Release v1.0.39: Bloqueios do Dia funcional (timeout corrigido, telefone, card ID pré-configurado) (MCM-132)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-132 ✅ (+ merge com MCM-130/131 da sessão paralela)
+**Commits:** `7bed871` (fix telefone), merge, `8174a96` (bump + card ID default), `5d5dc1a` (assina + latest.json)
+
+Usuário testou a SQL de "Bloqueios do Dia" dada na sessão anterior (MCM-129) direto no Metabase:
+
+1. **Timeout.** A query original (`LATERAL JOIN` a partir de `core_api."User"`) rodava a subconsulta de bloqueio pra cada linha da tabela inteira de usuários antes de filtrar por data. Corrigida: CTE filtra `BlacklistHistory` por `CreatedDate` primeiro (`ROW_NUMBER() OVER (PARTITION BY IdUser ORDER BY Id DESC)`, últimos 2 dias — dataset pequeno), só depois junta com `User`.
+
+```sql
+WITH recentes AS (
+  SELECT blh."IdUser", blh."BlacklistReasonDescr", blh."CreatedDate", blh."BlackListType",
+         ROW_NUMBER() OVER (PARTITION BY blh."IdUser" ORDER BY blh."Id" DESC) AS rn
+  FROM core_api."BlacklistHistory" blh
+  WHERE blh."CreatedDate" >= (CURRENT_DATE - INTERVAL '2 days')
+)
+SELECT u."DocumentNumber" AS "CPF", u."Phone" AS "Telefone",
+  CASE WHEN r."BlackListType"='BloqueioTodos' THEN 'Bloqueado em tudo'
+       WHEN r."BlackListType"='Bloqueio' THEN 'Bloqueio parcial'
+       WHEN r."BlackListType"='DesbloqueioTodos' THEN 'Desbloqueado em tudo'
+       ELSE 'Desbloqueado' END AS "Bloqueio",
+  r."BlacklistReasonDescr" AS "Motivo Bloqueio", r."CreatedDate" AS "Data do Bloqueio"
+FROM recentes r JOIN core_api."User" u ON u."Id" = r."IdUser"
+WHERE r.rn = 1 ORDER BY r."CreatedDate" DESC
+```
+
+2. **Cruzamento por telefone** — usuário perguntou se não seria mais fácil cruzar por telefone (padrão de match usado no resto do MCM). `sincronizarBloqueiosHoje` agora tenta CPF OU telefone (3 variantes: bruto/sem DDI/com DDI).
+3. **Card ID pré-configurado** — usuário criou a Question real (ID **1558**), virou `SETTING_DEFAULTS.metabaseBloqueiosHojeCardId`, máquina nova já sincroniza sem configurar nada.
+
+**Merge #2 com sessão paralela:** MCM-130 (Recomendados só a leva da vez + badge EXTRA) e MCM-131 (Leads Região sempre por último + BID/Captação sequenciais em Recomendados) chegaram durante o trabalho, junto de um commit sem ticket que **reverteu o multiplicador editável de leva** que eu tinha construído na sessão anterior (settings `bidWaveMultiplier`, editor no painel do BID) por um tamanho fixo `BID_WAVE_SIZE=30` — tratado como decisão intencional mais recente, verificado sem código morto sobrando (grep + typecheck).
+
+Release: build → assinado → `gh release create` + upload → `latest.json` → verificado 200/302. `npm run typecheck` baseline 13 mantida.
+
+**Files changed:** `src/lib/metabaseSync.ts`, `src/lib/settings.ts`, `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** confirmar com o usuário se a query corrigida (CTE) realmente resolveu o timeout na prática — ele só reportou o erro da v1, não confirmou a v2 ainda.
+
+---
+
 ## 2026-08-06 — MCM — Release v1.0.38: Leads Região sempre por último + BID/Captação sequenciais (MCM-131)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-131 ✅
