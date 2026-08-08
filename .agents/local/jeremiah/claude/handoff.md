@@ -1,13 +1,22 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-07 (Sonnet 5)
-**Versão:** `1.0.40` publicada (não assinada — normal, feita nesta máquina). Sem pendência de release aberta.
+**Versão:** `1.0.41` publicada (não assinada — normal, feita nesta máquina). Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `42df508` (bump v1.0.40).
+**Último commit:** `2a4552f` (changelog v1.0.41).
 
 **Pendências abertas para a próxima sessão:**
-1. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
-2. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+1. **Validar v1.0.41 com dado real** — usuário ainda não confirmou se o painel "Ver Conversa" funcionou (mensagens apareceram? imagem/áudio renderizaram? envio funcionou?). Formato do envelope de resposta (`{messages:[...]}`) e nomes de campo (`file.fileName`/`file.name`) vieram de código de referência do projeto `saacaptacao`, **não de um payload capturado ao vivo** — se vier diferente, ajustar `fetchUmblerRecentMessages`/`parseUmblerMessage` em `src/lib/umbler.ts` com o print do erro ou payload real.
+2. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
+3. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.41 — Ver Conversa por chapa (BID/FUP) + resposta (MCM-135)
+
+Pedido específico do usuário nesta sessão: enxergar o chat (imagem, áudio, últimas mensagens) de cada chapa que recebeu BID/FUP, direto do MCM. Apontou `G:\Meu Drive\Utilidades\umbler_talk_schema.md` (mapeamento feito por outro projeto, `saacaptacao`, que já usa a mesma API Umbler Talk num board de Suporte em produção). Descoberta chave: o MCM **já capturava** `chat.id` de todo disparo (salvo em `fup_log.umbler_chat_id`, `umbler.ts`) — só virava link externo. Reaproveitei isso, sem precisar redesenhar telas.
+
+Implementado: `fetchUmblerRecentMessages()` em `umbler.ts` (`GET /v1/chats/{id}/relative-messages/`, fetch direto do frontend com bearer token, mesmo padrão dos outros disparos — sem proxy backend), componente `ChatSheet.tsx` (painel lateral com bolhas de texto/imagem/áudio+transcrição, aberto via botão "Conversa" em cada chapa em `TaskCard.tsx`, só busca ao abrir — nunca em background pra lista inteira) e composer de resposta no rodapé (`sendUmblerFreeText`, já existente, janela de 24h).
+
+**Processo de validação sem dado real capturado:** o formato de resposta desse endpoint não estava 100% documentado. Pedi ao usuário um prompt pra levar pro projeto `saacaptacao` (mesma conta Umbler `Z6tcYuFXi6pOKFCf`, já usa esse endpoint em produção). Resposta trouxe: (1) o bloqueio de plano documentado em 04/08/2026 era teste contra chat vazio, não limitação real — conta corporativa tem acesso completo, confirmado pelo usuário; (2) envelope `{messages:[...]}` e fallback `file.fileName`/`file.name` vêm do CÓDIGO de referência, não de payload capturado — ajustei o parser mas isso ainda não é 100% certeza. Tentei validar visualmente subindo `npm run tauri dev` (25min pra compilar 506 crates do zero, perfil dev nunca tinha rodado nesta máquina) — usuário preferiu interromper e testar direto na release buildada, depois de eu adicionar o composer de resposta que ele pediu no meio do processo.
 
 ## ✅ v1.0.40 — Cancelar Tarefa vira slide + "Em Análise" amarelo (MCM-134)
 

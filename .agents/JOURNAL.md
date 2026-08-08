@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-08-07 — MCM — Release v1.0.41: Ver Conversa por chapa (BID/FUP) + resposta (MCM-135)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-135 ✅ (Feito) · MCM-133 e cota de chapas por empresa seguem pendentes
+**Commits:** `3252b41` (WIP painel), `b376df8` (ajustes de parser pós-consulta ao saacaptacao), `1596584` (bump v1.0.41), `b8dd41b` (composer de resposta), `2a4552f` (changelog)
+
+### Contexto — pedido do usuário
+Usuário pediu especificamente nesta sessão: enxergar o chat de cada chapa (BID e FUP) dentro do MCM — imagem, áudio, últimas mensagens. Apontou um mapeamento feito por outro projeto (`saacaptacao`) na pasta `G:\Meu Drive\Utilidades\umbler_talk_schema.md`, que documenta a API do Umbler Talk usada por um board de Suporte já em produção lá.
+
+### Descoberta chave
+O MCM **já captura** `chat.id` de todo disparo BID/FUP (`umbler.ts`, salvo em `fup_log.umbler_chat_id`) — até agora só virava um link externo "abrir no Umbler". Isso reduziu bastante o escopo: não precisou redesenhar nada, só consumir um dado que já existia.
+
+### Implementação
+- `fetchUmblerRecentMessages()` em `umbler.ts` — `GET /v1/chats/{id}/relative-messages/?FromEventUTC=agora&Direction=TakeBefore`, mesmo padrão de fetch direto do frontend com bearer token dos outros disparos Umbler (sem proxy backend). Parse defensivo do envelope (`body.messages` prioritário) e ordenação explícita por `eventAtUTC` (não confia na ordem do array).
+- `ChatSheet.tsx` (novo) — painel lateral (Sheet) com bolhas de mensagem (texto/imagem/áudio+transcrição), aberto pelo botão "Conversa" na linha de cada chapa (`TaskCard.tsx`), só visível quando há um `umbler_chat_id` de disparo recente. Busca só ao abrir — nunca em background pra lista inteira (risco de rate limit).
+- Composer de resposta no rodapé do painel, usando `sendUmblerFreeText` (já existente) — funciona dentro da janela de 24h.
+
+### Processo — validação cruzada com outro projeto
+Antes de eu confiar no formato de resposta do endpoint (não documentado com 100% de certeza no schema.md), pedi ao usuário um prompt pra levar pro projeto `saacaptacao` (mesma conta Umbler, mesmo endpoint, já em produção lá). Resposta trouxe 2 achados importantes:
+1. **Falso alarme resolvido:** o bloqueio de plano documentado em 04/08/2026 (`hasMessagesBeforeAllowedOrganizationPlan: false`) era teste contra chat vazio, não limitação real da conta — usuário confirmou que a conta corporativa tem acesso completo.
+2. **Envelope confirmado por código de referência** (não por payload capturado): `{ messages: [...] }`, reordenei o parser pra priorizar essa chave. `file.fileName` ganhou fallback pra `file.name` (o próprio código de referência não tinha certeza de qual chave é usada).
+
+Testei subir o app localmente (`npm run tauri dev`) pra validação visual antes do release — usuário optou por pular esse passo e testar direto na release buildada. Build dev completo (perfil separado do release) levou 25min compilando 506 crates do zero; foi interrompido a pedido do usuário pra adicionar o composer de resposta antes de buildar a release de verdade.
+
+**Next:** usuário vai testar o painel "Conversa" com dado real na v1.0.41. Se o formato de resposta vier diferente do esperado (envelope, nomes de campo), ajustar `parseUmblerMessage`/`fetchUmblerRecentMessages` em `umbler.ts` com o print do erro/payload real. MCM-133 (export CSV Recomendados) e cota de chapas por empresa (aguardando print de `core_api."Business"` no Metabase) seguem pendentes.
+
+---
+
 ## 2026-08-07 — MCM — Release v1.0.40: Cancelar Tarefa vira slide + "Em Análise" amarelo (MCM-134)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-134 ✅ (Feito) · MCM-133 criado (pendente — export CSV Recomendados)
