@@ -172,6 +172,81 @@ export async function startUmblerBot({
   return { chatId: await extractChatId(res) };
 }
 
+// Últimas mensagens "vivas" de um chat — GET /v1/chats/{id}/relative-messages/.
+// NÃO é histórico retroativo completo: a conta tem plano limitado e
+// hasMessagesBeforeAllowedOrganizationPlan sempre vem false pra histórico
+// antigo (confirmado 04/08/2026, ver G:\Meu Drive\Utilidades\
+// umbler_talk_schema.md). Com FromEventUTC=agora + Direction=TakeBefore,
+// pega uma janela recente que sempre funciona — suficiente pra "últimas
+// mensagens", não uma conversa completa desde o início.
+export type UmblerMessage = {
+  id: string;
+  source: "Contact" | "Member" | "Bot" | string;
+  content: string | null;
+  messageType: string;
+  eventAtUTC: string;
+  fileUrl: string | null;
+  fileMimeType: string | null;
+  fileName: string | null;
+  transcription: string | null;
+  senderName: string | null;
+};
+
+function parseUmblerMessage(raw: Record<string, unknown>): UmblerMessage {
+  const file = raw.file as Record<string, unknown> | undefined;
+  const sentBy = raw.sentByOrganizationMember as Record<string, unknown> | undefined;
+  return {
+    id: String(raw.id ?? ""),
+    source: String(raw.source ?? "Contact"),
+    content: typeof raw.content === "string" ? raw.content : null,
+    messageType: String(raw.messageType ?? "Text"),
+    eventAtUTC: String(raw.eventAtUTC ?? ""),
+    fileUrl: typeof file?.url === "string" ? file.url : null,
+    fileMimeType: typeof file?.mimeType === "string" ? file.mimeType : null,
+    fileName: typeof file?.fileName === "string" ? file.fileName : null,
+    transcription: typeof file?.transcription === "string" ? file.transcription : null,
+    senderName: typeof sentBy?.name === "string" ? sentBy.name : null,
+  };
+}
+
+export async function fetchUmblerRecentMessages({
+  chatId,
+  settings,
+  take = 15,
+}: {
+  chatId: string;
+  settings: UmblerSettings;
+  take?: number;
+}): Promise<UmblerMessage[]> {
+  const params = new URLSearchParams({
+    organizationId: settings.organizationId,
+    Take: String(take),
+    Direction: "TakeBefore",
+    FromEventUTC: new Date().toISOString(),
+    IncludeMetadata: "false",
+  });
+  const res = await fetch(
+    `https://app-utalk.umbler.com/api/v1/chats/${chatId}/relative-messages/?${params.toString()}`,
+    { headers: { Accept: "application/json", Authorization: `Bearer ${settings.bearerToken}` } },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Umbler ${res.status}: ${text}`);
+  }
+  const body = await res.json();
+  // Shape do envelope não documentado com certeza — aceita array direto ou
+  // objeto com items/messages/data, na dúvida.
+  const list: unknown[] = Array.isArray(body)
+    ? body
+    : Array.isArray(body?.items) ? body.items
+    : Array.isArray(body?.messages) ? body.messages
+    : Array.isArray(body?.data) ? body.data
+    : [];
+  return list
+    .map((m) => parseUmblerMessage(m as Record<string, unknown>))
+    .sort((a, b) => a.eventAtUTC.localeCompare(b.eventAtUTC));
+}
+
 // Mensagem de texto livre — só funciona dentro da janela de 24h
 // (chapa confirmado já respondeu, então a janela está aberta).
 export async function sendUmblerFreeText({

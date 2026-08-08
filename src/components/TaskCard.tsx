@@ -70,7 +70,8 @@ import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate, taskTzLabel, minutesUntil } from "@/lib/datetime";
 import { isPrefup } from "@/lib/prefup";
 import { useUndo } from "@/lib/undo";
-import { readSettings, writeSettings } from "@/lib/settings";
+import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
+import { ChatSheet } from "@/components/ChatSheet";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
@@ -1146,6 +1147,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 umblerReady={umblerReady}
                 cancelTemplateReady={cancelTemplateReady}
                 taskCancelTemplateReady={taskCancelTemplateReady}
+                umblerSettings={umblerSettings}
               />
             ))}
           </div>
@@ -1713,6 +1715,7 @@ type RowProps = {
   umblerReady?: boolean;
   cancelTemplateReady?: boolean;
   taskCancelTemplateReady?: boolean;
+  umblerSettings: UmblerSettings;
   conf?: ConfiabilidadeStats | null;
 };
 
@@ -1731,6 +1734,7 @@ function ChapaRowView({
   umblerReady,
   cancelTemplateReady,
   taskCancelTemplateReady,
+  umblerSettings,
   conf,
 }: RowProps) {
   const navigate = useNavigate();
@@ -1752,6 +1756,14 @@ function ChapaRowView({
   const cancelCount = fupLog.filter((f) => f.canal === "umbler_cancelamento" && f.chapa_id === chapa.id).length;
   // How many times "tarefa cancelada" foi disparado individualmente pra este chapa
   const cancelTaskCount = fupLog.filter((f) => f.canal === "umbler_cancelamento_tarefa" && f.chapa_id === chapa.id).length;
+
+  // Disparo mais recente (qualquer canal — BID ou FUP) com um chat vinculado,
+  // pra abrir a conversa desse chapa (última mensagem, imagem, áudio).
+  const [chatSheetOpen, setChatSheetOpen] = useState(false);
+  const chapaChatEntries = fupLog.filter((f) => f.chapa_id === chapa.id && f.umbler_chat_id);
+  const latestChatEntry = chapaChatEntries.length > 0
+    ? chapaChatEntries.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b))
+    : null;
 
   const placeholder = !chapa.nome_chapa;
   const isNew =
@@ -1992,6 +2004,36 @@ function ChapaRowView({
                 </Tooltip>
               );
             })()}
+
+            {/* Conversa (BID/FUP) — abre painel com últimas mensagens do chat
+                vinculado ao disparo mais recente deste chapa. Badge de tempo
+                vem do log local (sem custo); mensagens de verdade só são
+                buscadas ao abrir o painel (evita estourar rate limit do
+                Umbler buscando ao vivo pra cada linha da lista). */}
+            {latestChatEntry && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setChatSheetOpen(true)}
+                      className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 text-[11px] font-semibold transition-colors min-h-[28px]"
+                      aria-label="Ver conversa"
+                    >
+                      <MessageCircle className="h-3 w-3" />
+                      <span>Conversa</span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver últimas mensagens — disparo mais recente {fmtDateTime(latestChatEntry.data_disparo)}</TooltipContent>
+                </Tooltip>
+                <ChatSheet
+                  open={chatSheetOpen}
+                  onOpenChange={setChatSheetOpen}
+                  chatId={latestChatEntry.umbler_chat_id ?? null}
+                  chapaNome={chapa.nome_chapa ?? "Chapa"}
+                  settings={umblerSettings}
+                />
+              </>
+            )}
 
             {/* Cancelamento individual — "Sem resposta" (cancelTemplateId) ou
                 "Cancelar tarefa" (taskCancelTemplateId, mesmo template do
