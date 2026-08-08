@@ -768,7 +768,7 @@ export default function Ajuda() {
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
               <strong>v1.0.41 — Novidades desta versão:</strong>{" "}
-              <strong>Ver Conversa por chapa (novo)</strong>: botão "Conversa" em cada chapa que já recebeu BID ou FUP — abre as últimas mensagens do WhatsApp (texto, imagem, áudio com player) direto do MCM, sem precisar abrir o Umbler Talk.
+              <strong>Ver Conversa por chapa (novo)</strong>: botão "Conversa" em cada chapa que já recebeu BID ou FUP — abre as últimas mensagens do WhatsApp (texto, imagem, áudio com player) e permite responder direto do MCM, sem precisar abrir o Umbler Talk.
             </span>
           </div>
         )}
