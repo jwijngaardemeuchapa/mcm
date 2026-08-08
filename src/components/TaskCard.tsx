@@ -2030,6 +2030,7 @@ function ChapaRowView({
                   onOpenChange={setChatSheetOpen}
                   chatId={latestChatEntry.umbler_chat_id ?? null}
                   chapaNome={chapa.nome_chapa ?? "Chapa"}
+                  chapaTelefone={chapa.telefone_chapa ?? null}
                   settings={umblerSettings}
                 />
               </>

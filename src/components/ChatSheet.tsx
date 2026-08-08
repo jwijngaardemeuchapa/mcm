@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw, Send } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -7,7 +7,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { fetchUmblerRecentMessages, umblerChatLink, type UmblerMessage } from "@/lib/umbler";
+import { Textarea } from "@/components/ui/textarea";
+import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, type UmblerMessage } from "@/lib/umbler";
 import { type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
 
@@ -16,16 +17,20 @@ type ChatSheetProps = {
   onOpenChange: (open: boolean) => void;
   chatId: string | null;
   chapaNome: string;
+  chapaTelefone: string | null;
   settings: UmblerSettings;
 };
 
 // Últimas mensagens de um chat do Umbler Talk — texto, imagem e áudio.
 // Busca só ao abrir (nunca em background pra toda a lista de chapas — ver
 // nota de rate limit em umbler.ts/fetchUmblerRecentMessages).
-export function ChatSheet({ open, onOpenChange, chatId, chapaNome, settings }: ChatSheetProps) {
+export function ChatSheet({ open, onOpenChange, chatId, chapaNome, chapaTelefone, settings }: ChatSheetProps) {
   const [messages, setMessages] = useState<UmblerMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   function load() {
     if (!chatId) return;
@@ -39,9 +44,27 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, settings }: C
 
   useEffect(() => {
     if (open && chatId) load();
-    if (!open) { setMessages([]); setError(null); }
+    if (!open) { setMessages([]); setError(null); setReply(""); setSendError(null); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, chatId]);
+
+  async function handleSend() {
+    const text = reply.trim();
+    if (!text || !chapaTelefone || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      await sendUmblerFreeText({ chapaTelefone, message: text, settings });
+      setReply("");
+      // Mensagem enviada pode demorar alguns segundos pra aparecer no
+      // relative-messages — recarrega em seguida, sem travar a UI.
+      load();
+    } catch (e) {
+      setSendError(humanizarErroUmbler(e));
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -83,6 +106,33 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, settings }: C
             <ChatBubble key={m.id} message={m} />
           ))}
         </div>
+        {chapaTelefone && (
+          <div className="border-t border-border p-3 space-y-2">
+            {sendError && (
+              <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-2 py-1.5">
+                {sendError}
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <Textarea
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+                placeholder="Responder ao chapa — só funciona se ele já respondeu nas últimas 24h"
+                className="min-h-9 h-9 max-h-24 resize-none text-xs"
+                disabled={sending}
+              />
+              <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleSend} disabled={sending || !reply.trim()}>
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );
