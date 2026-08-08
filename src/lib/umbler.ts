@@ -203,7 +203,9 @@ function parseUmblerMessage(raw: Record<string, unknown>): UmblerMessage {
     eventAtUTC: String(raw.eventAtUTC ?? ""),
     fileUrl: typeof file?.url === "string" ? file.url : null,
     fileMimeType: typeof file?.mimeType === "string" ? file.mimeType : null,
-    fileName: typeof file?.fileName === "string" ? file.fileName : null,
+    // Nome do arquivo: código de referência (saacaptacao) não tinha certeza
+    // se é `fileName` ou `name` e caía pros dois — mantém o mesmo fallback.
+    fileName: typeof file?.fileName === "string" ? file.fileName : typeof file?.name === "string" ? file.name : null,
     transcription: typeof file?.transcription === "string" ? file.transcription : null,
     senderName: typeof sentBy?.name === "string" ? sentBy.name : null,
   };
@@ -234,14 +236,21 @@ export async function fetchUmblerRecentMessages({
     throw new Error(`Umbler ${res.status}: ${text}`);
   }
   const body = await res.json();
-  // Shape do envelope não documentado com certeza — aceita array direto ou
-  // objeto com items/messages/data, na dúvida.
-  const list: unknown[] = Array.isArray(body)
+  // Shape do envelope: `{ messages: [...] }` é o que o código de referência
+  // (saacaptacao/umbler-chats-list) usa em produção — não confirmado contra
+  // payload real capturado, mas é a fonte mais confiável disponível. Mantém
+  // fallback pra array direto/items/data caso o formato varie.
+  const list: unknown[] = Array.isArray(body?.messages)
+    ? body.messages
+    : Array.isArray(body)
     ? body
     : Array.isArray(body?.items) ? body.items
-    : Array.isArray(body?.messages) ? body.messages
     : Array.isArray(body?.data) ? body.data
     : [];
+  // Ordena explicitamente por eventAtUTC — não confiar na ordem do array
+  // retornado pela API (o próprio código de referência assume oldest-first
+  // sem confirmação, e o parâmetro é Direction=TakeBefore, que sugere o
+  // contrário).
   return list
     .map((m) => parseUmblerMessage(m as Record<string, unknown>))
     .sort((a, b) => a.eventAtUTC.localeCompare(b.eventAtUTC));
