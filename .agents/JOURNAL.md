@@ -3,6 +3,18 @@
 
 ---
 
+## 2026-08-08 — MCM — v1.0.41 assinada + senha da chave de assinatura repassada
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** nenhum novo (assinatura de MCM-134/135)
+**Commits:** `365f939` (assina 1.0.41 + latest.json)
+
+Usuário pediu a release mais recente e a senha do `tauri_update_key` pra poder assinar na outra máquina também. Senha é string vazia (`""`, nunca foi configurada) — informado ao usuário, sem risco de segurança (não é segredo, é ausência de senha). `git pull` trouxe MCM-134 (slide-to-cancel + "Em Análise" amarelo) e MCM-135 (painel "Ver Conversa" por chapa via Umbler Talk + composer de resposta) da sessão paralela. Runbook padrão: typecheck (baseline 13) → build → assinado → `gh release upload --clobber` (exe) + `.sig` → `latest.json` → verificado 200/302.
+
+**Files changed:** `latest.json`
+**Next:** se a outra máquina já tiver o `tauri_update_key` copiado, ela pode passar a assinar sozinha — menos dependência desta máquina pra completar releases. Pendências reais seguem as mesmas do handoff (validar Ver Conversa com dado real, MCM-133 export CSV, cota de chapas por empresa aguardando schema de `Business`).
+
+---
+
 ## 2026-08-07 — MCM — Release v1.0.41: Ver Conversa por chapa (BID/FUP) + resposta (MCM-135)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-135 ✅ (Feito) · MCM-133 e cota de chapas por empresa seguem pendentes

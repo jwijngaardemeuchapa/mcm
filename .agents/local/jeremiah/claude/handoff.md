@@ -1,14 +1,20 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-07 (Sonnet 5)
-**Versão:** `1.0.41` publicada (não assinada — normal, feita nesta máquina). Sem pendência de release aberta.
+**Data:** 2026-08-08 (Sonnet 5)
+**Versão:** `1.0.41` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `2a4552f` (changelog v1.0.41).
+**Último commit:** `365f939` (assina 1.0.41 + latest.json).
 
-**Pendências abertas para a próxima sessão:**
+**Pendências abertas para a próxima sessão (sem mudança desde a entrada anterior — ainda não confirmadas pelo usuário):**
 1. **Validar v1.0.41 com dado real** — usuário ainda não confirmou se o painel "Ver Conversa" funcionou (mensagens apareceram? imagem/áudio renderizaram? envio funcionou?). Formato do envelope de resposta (`{messages:[...]}`) e nomes de campo (`file.fileName`/`file.name`) vieram de código de referência do projeto `saacaptacao`, **não de um payload capturado ao vivo** — se vier diferente, ajustar `fetchUmblerRecentMessages`/`parseUmblerMessage` em `src/lib/umbler.ts` com o print do erro ou payload real.
 2. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
 3. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.41 assinada + senha da chave de assinatura repassada ao usuário
+
+Usuário pediu a release da versão mais recente E a senha do `tauri_update_key` pra poder assinar releases na outra máquina também (reduz a dependência de sempre vir pra esta máquina assinar depois). **Respondido: a senha é uma string vazia** (`""`) — nunca foi definida senha real nesse arquivo, é por isso que todo comando de assinatura nesta sessão usa `-p ""`. Não é segredo sensível, é literalmente "sem senha". Se a outra máquina também tiver o arquivo `tauri_update_key` (copiado por fora do git, ver handoff de sessão anterior sobre como transferir com segurança), ela já pode assinar sozinha a partir de agora — reduz a necessidade destes ciclos de "buildar sem assinar aqui, vir assinar lá".
+
+Release: `git pull` (trouxe MCM-134/135, ver seção abaixo) → typecheck (baseline 13) → build → assinado → `gh release upload --clobber` (exe já existia sem assinatura) + `.sig` → `latest.json` → verificado 200/302.
 
 ## ✅ v1.0.41 — Ver Conversa por chapa (BID/FUP) + resposta (MCM-135)
 
