@@ -10,6 +10,7 @@ import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync";
 import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
+import { ChatSheet } from "@/components/ChatSheet";
 import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink } from "@/lib/umbler";
 import { bidDispatchQueue, BID_WAVE_SIZE, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
@@ -554,6 +555,7 @@ function BidTaskCard({
   const [negOpen, setNegOpen] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [editingDisparoId, setEditingDisparoId] = useState<string | null>(null);
+  const [chatSheetDisparo, setChatSheetDisparo] = useState<BidDisparo | null>(null);
   const [rawCandidates, setRawCandidates] = useState<BidChapa[]>([]);
   const [occupiedCpfSet, setOccupiedCpfSet] = useState<Set<string>>(new Set());
   const [occupiedNameSet, setOccupiedNameSet] = useState<Set<string>>(new Set());
@@ -3090,12 +3092,13 @@ function BidTaskCard({
                         </div>
                       )}
                       {d.umbler_chat_id && (
-                        <a href={umblerChatLink(d.umbler_chat_id) ?? "#"} target="_blank" rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setChatSheetDisparo(d); }}
                           className="h-6 px-2 rounded text-[10px] font-medium border border-border text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors flex items-center gap-1"
-                          title="Abrir a conversa deste disparo no Umbler Talk">
-                          <ExternalLink className="h-3 w-3" /> Conversa
-                        </a>
+                          title="Ver últimas mensagens deste disparo">
+                          <MessageCircle className="h-3 w-3" /> Conversa
+                        </button>
                       )}
                       <Button size="sm" variant="outline"
                         className="h-6 text-[10px] px-2"
@@ -3118,6 +3121,14 @@ function BidTaskCard({
         onClose={() => setNegOpen(false)}
         diaria={dispatchParams.diaria}
         quantidadeChapas={task.quantidade_chapas}
+      />
+      <ChatSheet
+        open={!!chatSheetDisparo}
+        onOpenChange={(o) => { if (!o) setChatSheetDisparo(null); }}
+        chatId={chatSheetDisparo?.umbler_chat_id ?? null}
+        chapaNome={chatSheetDisparo?.chapa_nome ?? "Chapa"}
+        chapaTelefone={chatSheetDisparo?.chapa_telefone ?? null}
+        settings={readSettings().umblerSettings}
       />
     </div>
   );

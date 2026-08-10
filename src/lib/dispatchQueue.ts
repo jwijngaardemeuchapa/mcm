@@ -437,6 +437,7 @@ class DispatchQueue {
 
     let sent = 0;
     const sentIds: string[] = [];
+    const sentChatIds = new Map<string, string | null>();
     const firstPassFailed: ChapaSnap[] = [];
 
     for (let i = 0; i < chapas.length; i++) {
@@ -450,7 +451,7 @@ class DispatchQueue {
       }
       const chapa = chapas[i];
       try {
-        await startUmblerBot({
+        const { chatId } = await startUmblerBot({
           chapaTelefone: chapa.telefone_chapa!,
           settings: umblerSettings,
           initialData: fupInitialData,
@@ -459,6 +460,7 @@ class DispatchQueue {
         });
         sent++;
         sentIds.push(chapa.id);
+        sentChatIds.set(chapa.id, chatId);
         await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
       } catch {
         firstPassFailed.push(chapa);
@@ -489,7 +491,7 @@ class DispatchQueue {
           }
           const chapa = firstPassFailed[i];
           try {
-            await startUmblerBot({
+            const { chatId } = await startUmblerBot({
               chapaTelefone: chapa.telefone_chapa!,
               settings: umblerSettings,
               initialData: fupInitialData,
@@ -498,6 +500,7 @@ class DispatchQueue {
             });
             sent++;
             sentIds.push(chapa.id);
+            sentChatIds.set(chapa.id, chatId);
             await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
           } catch {
             permanentFailed++;
@@ -514,7 +517,11 @@ class DispatchQueue {
     this.massFupStates.delete(taskId);
     this.massFupAborts.delete(taskId);
 
-    // canal_contato já foi marcado por chapa no loop acima; aqui só o resumo no log.
+    // canal_contato já foi marcado por chapa no loop acima; aqui grava o resumo
+    // (sem chapa_id — não conta pro badge por chapa, ver fupAllCount em
+    // TaskCard.tsx) e uma linha POR CHAPA com o chat_id — sem isso o botão
+    // "Conversa" nunca encontra o disparo de FUP em massa (só achava disparo
+    // individual, chapa por chapa via startChapaJob).
     try {
       if (sent > 0) {
         const db = await getDb();
@@ -525,6 +532,15 @@ class DispatchQueue {
           "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao) VALUES (?, ?, ?, ?, ?)",
           [uuid(), taskId, "umbler_talk", now, `FUP em massa — ${sent} enviado(s)${retryNote}${aborted ? " (cancelado)" : ""}${operador}`],
         );
+        try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
+        for (const id of sentIds) {
+          const chatId = sentChatIds.get(id) ?? null;
+          if (!chatId) continue;
+          await db.execute(
+            "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [uuid(), taskId, "umbler_talk", now, "Disparado via API (massa)", id, chatId],
+          );
+        }
         try { localStorage.setItem(`umbler_fup_all_${taskId}`, "1"); } catch { /* noop */ }
       }
     } catch { /* message already sent — ignore DB errors */ }
@@ -587,9 +603,10 @@ class DispatchQueue {
     const param2 = fmtTaskDateParam(task.data_tarefa);
     let sent = 0;
     let failed = 0;
+    const sentChatIds = new Map<string, string | null>();
     for (const chapa of chapas) {
       try {
-        await sendUmblerFup({
+        const { chatId } = await sendUmblerFup({
           chapaNome: chapa.nome_chapa!,
           chapaTelefone: chapa.telefone_chapa!,
           dataTarefa: task.data_tarefa,
@@ -599,16 +616,26 @@ class DispatchQueue {
           overrideParams: [param1, param2],
         });
         sent++;
+        sentChatIds.set(chapa.id, chatId);
       } catch {
         failed++;
       }
     }
     try {
       const db = await getDb();
+      const now = new Date().toISOString();
       await db.execute(
         "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao) VALUES (?, ?, ?, ?, ?)",
-        [uuid(), taskId, "umbler_cancelamento_geral", new Date().toISOString(), `Cancelamento geral — ${sent} enviado(s)`],
+        [uuid(), taskId, "umbler_cancelamento_geral", now, `Cancelamento geral — ${sent} enviado(s)`],
       );
+      try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
+      for (const [chapaId, chatId] of sentChatIds) {
+        if (!chatId) continue;
+        await db.execute(
+          "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [uuid(), taskId, "umbler_cancelamento_geral", now, "Cancelamento geral — disparado via API", chapaId, chatId],
+        );
+      }
     } catch { /* noop */ }
     try { localStorage.setItem(`umbler_task_cancel_${taskId}`, "1"); } catch { /* noop */ }
     this.taskCancelStates.delete(taskId);
