@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-08-10 — MCM — Release v1.0.42: fix "Conversa" ausente no BID e no FUP em massa (MCM-136)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-136 ✅ (Feito)
+**Commits:** `df709f6` (fix), `f0bcadc` (bump v1.0.42), `9a6af45` (assina + latest.json)
+
+### Bug reportado
+Logo após a v1.0.41 (painel "Ver Conversa", MCM-135), usuário testou e reportou: o botão "Conversa" não aparecia nem no BID nem no FUP.
+
+### Causa raiz — 2 problemas distintos
+1. **BID Dashboard usa `BidTaskCard`**, um componente PRÓPRIO em `BIDDashboard.tsx` (candidatos vêm de `disparos: BidDisparo[]`, estrutura de dados diferente de `task.chapas`) — não usa `TaskCard`/`ChapaRowView` (onde o botão foi implementado na v1.0.41). O botão nunca existiu na tela de BID. Descoberta: BID já tinha um link "abrir no Umbler" usando `d.umbler_chat_id` (de `bid_disparos`) — só precisava virar o mesmo botão/`ChatSheet`, sem mudar nada na captura de dado.
+2. **FUP em massa (`startMassFup`) e Cancelamento geral (`_executeTaskCancel`)**, em `dispatchQueue.ts`, descartavam o `chatId` retornado por `startUmblerBot`/`sendUmblerFup` — só gravavam UMA linha de resumo por tarefa em `fup_log` (sem `chapa_id`). Só o disparo individual (`startChapaJob`, botão por chapa) capturava `chapa_id`+`umbler_chat_id`. Ou seja: o botão "Conversa" só existia de fato pro caminho menos usado (disparo um-a-um), nunca pro fluxo principal ("FUP Todos").
+
+### Fix
+- `BIDDashboard.tsx`: `BidTaskCard` ganhou state `chatSheetDisparo` + botão "Conversa" na linha de cada disparo (troca do link externo por `<ChatSheet>`), settings via `readSettings().umblerSettings` (mesmo padrão já usado no resto do arquivo).
+- `dispatchQueue.ts`: `startMassFup` (2 passadas — envio + retry) e `_executeTaskCancel` agora capturam `chatId` por chapa num `Map` e, além da linha de resumo já existente, gravam 1 linha extra por chapa com `chapa_id`+`umbler_chat_id` (mesmo padrão do disparo individual). `fupAllCount` (TaskCard.tsx) continua correto porque filtra `!f.chapa_id` — só conta a linha de resumo, não as novas linhas por chapa.
+
+### Efeito colateral (desejado, não pedido)
+`DisparosUmbler.tsx` (página de estatísticas) conta `canal === "umbler_talk"` sem filtrar por `chapa_id` — antes subcontava disparos em massa (1 linha por lote de até 30+ chapas); agora conta corretamente 1 por chapa. Mencionado ao usuário, não escondido.
+
+**Next:** usuário vai validar a v1.0.42 nas telas de BID e FUP com dado real. MCM-133 (export CSV Recomendados) e cota de chapas por empresa (aguardando print de `core_api."Business"` no Metabase) seguem pendentes.
+
+---
+
 ## 2026-08-08 — MCM — v1.0.41 assinada + senha da chave de assinatura repassada
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** nenhum novo (assinatura de MCM-134/135)

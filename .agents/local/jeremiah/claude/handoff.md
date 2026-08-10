@@ -1,14 +1,20 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-08 (Sonnet 5)
-**Versão:** `1.0.41` publicada, **assinada e verificada**. Sem pendência de release aberta.
+**Data:** 2026-08-10 (Sonnet 5)
+**Versão:** `1.0.42` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `365f939` (assina 1.0.41 + latest.json).
+**Último commit:** `9a6af45` (assina 1.0.42 + latest.json).
 
-**Pendências abertas para a próxima sessão (sem mudança desde a entrada anterior — ainda não confirmadas pelo usuário):**
-1. **Validar v1.0.41 com dado real** — usuário ainda não confirmou se o painel "Ver Conversa" funcionou (mensagens apareceram? imagem/áudio renderizaram? envio funcionou?). Formato do envelope de resposta (`{messages:[...]}`) e nomes de campo (`file.fileName`/`file.name`) vieram de código de referência do projeto `saacaptacao`, **não de um payload capturado ao vivo** — se vier diferente, ajustar `fetchUmblerRecentMessages`/`parseUmblerMessage` em `src/lib/umbler.ts` com o print do erro ou payload real.
+**Pendências abertas para a próxima sessão:**
+1. **Validar v1.0.42 com dado real** — usuário reportou que "Conversa" não aparecia em BID/FUP na v1.0.41 (causa raiz + fix na entrada abaixo). Ainda precisa confirmar que agora aparece em AMBAS as telas com dado real (mensagens carregam? imagem/áudio renderizam? envio funciona?). Formato do envelope de resposta do endpoint Umbler (`{messages:[...]}`) segue não confirmado contra payload capturado ao vivo — se vier diferente, ajustar `fetchUmblerRecentMessages`/`parseUmblerMessage` em `src/lib/umbler.ts`.
 2. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
 3. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.42 — fix "Conversa" ausente no BID e no FUP em massa (MCM-136)
+
+Usuário testou a v1.0.41 e reportou que o botão "Conversa" não aparecia em nenhuma das duas telas. Investiguei e achei 2 causas DISTINTAS (não uma só): (1) BID Dashboard usa `BidTaskCard`, componente próprio, nunca tocado na v1.0.41 (que só mexeu em `TaskCard`/`ChapaRowView`, usado só no FUP) — bastou adicionar o mesmo botão lá, reaproveitando `bid_disparos.umbler_chat_id` que já existia (virava só um link externo "abrir no Umbler"); (2) no FUP, o botão existia mas só funcionava pro disparo INDIVIDUAL (um chapa por vez) — os fluxos principais, "FUP Todos" (`startMassFup`) e "Cancelamento geral" (`_executeTaskCancel`) em `dispatchQueue.ts`, descartavam o `chatId` retornado pela API e só gravavam 1 linha de resumo por tarefa (sem `chapa_id`), então `ChapaRowView` nunca achava nada pra mostrar. Fix: os 2 fluxos agora também gravam 1 linha por chapa com `chapa_id`+`umbler_chat_id`, além do resumo já existente (que continua intacto — `fupAllCount` filtra `!chapa_id`, não afetado). Efeito colateral bom: `DisparosUmbler.tsx` (estatísticas) agora conta certo os disparos de FUP em massa — antes subcontava.
+
+Release completa: fix → typecheck (baseline 13) → merge limpo com sessão paralela (que assinou a v1.0.41 nesse meio-tempo, sem conflito) → bump v1.0.42 → build → assinado (`npx tauri signer sign -f tauri_update_key -p ""` — senha vazia confirmada) → `gh release create` (exe + .sig) → `latest.json` → verificado 200/302 → Jira MCM-136.
 
 ## ✅ v1.0.41 assinada + senha da chave de assinatura repassada ao usuário
 
