@@ -1,14 +1,21 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-10 (Sonnet 5)
-**Versão:** `1.0.42` publicada, **assinada e verificada**. Sem pendência de release aberta.
+**Versão:** `1.0.43` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `9a6af45` (assina 1.0.42 + latest.json).
+**Último commit:** `d670ec4` (assina 1.0.43 + latest.json).
 
 **Pendências abertas para a próxima sessão:**
-1. **Validar v1.0.42 com dado real** — usuário reportou que "Conversa" não aparecia em BID/FUP na v1.0.41 (causa raiz + fix na entrada abaixo). Ainda precisa confirmar que agora aparece em AMBAS as telas com dado real (mensagens carregam? imagem/áudio renderizam? envio funciona?). Formato do envelope de resposta do endpoint Umbler (`{messages:[...]}`) segue não confirmado contra payload capturado ao vivo — se vier diferente, ajustar `fetchUmblerRecentMessages`/`parseUmblerMessage` em `src/lib/umbler.ts`.
-2. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
-3. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+1. **Validar v1.0.43 com dado real** — usuário ainda não confirmou o painel "Ver Conversa" (BID+FUP, v1.0.42) nem o aviso de janela de 24h (v1.0.43) rodando de verdade. Formato do envelope de resposta do endpoint Umbler (`{messages:[...]}`) segue não confirmado contra payload capturado ao vivo — se vier diferente, ajustar `fetchUmblerRecentMessages`/`parseUmblerMessage` em `src/lib/umbler.ts`.
+2. **MCM-137** — visão de comunicação dedicada por tarefa (não central global), com indicador de mensagem nova. Sem prioridade definida, capturado só pra não perder a ideia. Referência de UX: painel contextual estilo Amazon Q Business (ver comentário no ticket).
+3. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
+4. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.43 — janela de 24h + limites no Ver Conversa (MCM-138)
+
+Usuário pediu boas práticas pro painel de conversa e perguntou se a Umbler expõe algum campo pra saber se a janela de resposta de 24h do WhatsApp está aberta (notou que o painel da própria Umbler fica "inativo" quando fecha). Não existe esse campo documentado — é regra padrão da WhatsApp Business API, não algo específico dessa integração. Calculei localmente: `hoursSinceLastContactMessage()` em `ChatSheet.tsx`, a partir da última mensagem com `source === "Contact"` já presente nos dados buscados. Composer desabilitado + aviso proativo quando fechada (`windowOpen === false`), em vez de só descobrir ao tentar enviar. Também: label "Últimas 15 mensagens" explícito, e limite de 4096 caracteres na resposta.
+
+Discussão de produto: perguntei se fazia sentido um visualizador dedicado tipo "Central de Mensagens" cruzando todos os chats. Usuário preferiu manter o foco na TAREFA — uma visão de comunicação específica por tarefa, não uma central global — e trouxe referência ao Amazon Q Business (painel contextual "grudado" no que está sendo visto) como inspiração de posicionamento, não de IA generativa. Capturado como MCM-137, backlog sem prioridade.
 
 ## ✅ v1.0.42 — fix "Conversa" ausente no BID e no FUP em massa (MCM-136)
 

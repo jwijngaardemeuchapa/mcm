@@ -3,6 +3,30 @@
 
 ---
 
+## 2026-08-10 — MCM — Release v1.0.43: janela de 24h + limites no Ver Conversa (MCM-138)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-138 ✅ (Feito) · MCM-137 criado (backlog, visão de comunicação por tarefa)
+**Commits:** `d9034c0` (fix), `fc1981b` (bump v1.0.43), `d670ec4` (assina + latest.json)
+
+### Pedido do usuário
+Depois da v1.0.42 (fix "Conversa" ausente), usuário pediu boas práticas pro painel: limite pro chat, horário/quem enviou (já existia desde a v1.0.41), e perguntou se a Umbler expõe algum campo pra saber se a janela de 24h do WhatsApp está aberta — reportou que o próprio painel da Umbler fica "inativo" quando fecha.
+
+### Investigação
+Não existe campo assim documentado em `G:\Meu Drive\Utilidades\umbler_talk_schema.md` — é regra padrão da WhatsApp Business API (`Channel.ChannelType: "WhatsappApi"`), não algo Umbler-específico. Decisão: calcular localmente a partir da última mensagem com `source === "Contact"` nos dados que já buscamos — mesma coisa que o painel da Umbler provavelmente faz do lado deles.
+
+### Fix (`ChatSheet.tsx`)
+- `hoursSinceLastContactMessage()` — calcula horas desde a última mensagem do chapa; `windowOpen` = `null` (sem dado), `true`/`false`.
+- Composer desabilitado + aviso proativo (`bg-warning`) quando `windowOpen === false`, em vez de só descobrir ao tentar enviar e tomar erro do `sendUmblerFreeText`.
+- Label "Últimas 15 mensagens" explícito no cabeçalho (constante `TAKE`, antes só um número mágico no `fetchUmblerRecentMessages`).
+- `MAX_REPLY_LENGTH = 4096` — bloqueia envio + mostra contador de erro acima do limite.
+
+### Decisão de produto — visão futura (MCM-137, backlog)
+Perguntei se um visualizador dedicado fazia sentido como "Central de Mensagens" (cross-task, inbox global). Usuário preferiu: **foco continua na tarefa** — uma visão de comunicação específica por tarefa, não uma central global cruzando tudo. Trouxe referência de UX: painel contextual no espírito do Amazon Q Business (que "gruda" no que você está vendo, em vez de aba separada) — anotado como comentário no ticket, não as capacidades de IA generativa em si, só o padrão de posicionamento contextual. Indicador de mensagem nova (comparando última mensagem vs. última vez que o operador abriu) também fica pra essa entrega futura — precisa de tracking local de "visto", sem suporte nativo da Umbler pra isso nessa API.
+
+**Next:** MCM-133 (export CSV Recomendados), cota de chapas por empresa (aguardando print de `core_api."Business"`) e MCM-137 (visão de comunicação por tarefa, sem prioridade definida) seguem pendentes.
+
+---
+
 ## 2026-08-10 — MCM — Release v1.0.42: fix "Conversa" ausente no BID e no FUP em massa (MCM-136)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-136 ✅ (Feito)
