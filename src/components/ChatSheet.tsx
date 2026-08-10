@@ -21,6 +21,23 @@ type ChatSheetProps = {
   settings: UmblerSettings;
 };
 
+const TAKE = 15;
+// WhatsApp Business API fecha a janela de resposta livre 24h após a última
+// mensagem recebida DO contato — não é campo exposto por essa API da Umbler
+// (confirmado: não documentado em umbler_talk_schema.md), então calculamos
+// aqui do mesmo jeito que o próprio painel da Umbler provavelmente faz.
+const REPLY_WINDOW_HOURS = 24;
+// Limite prático de mensagem — WhatsApp não define um hard limit curto, mas
+// evita colar blocos gigantes por engano.
+const MAX_REPLY_LENGTH = 4096;
+
+function hoursSinceLastContactMessage(messages: UmblerMessage[]): number | null {
+  const contactMsgs = messages.filter((m) => m.source === "Contact" && m.eventAtUTC);
+  if (contactMsgs.length === 0) return null;
+  const last = contactMsgs[contactMsgs.length - 1]; // já ordenado por eventAtUTC asc
+  return (Date.now() - new Date(last.eventAtUTC).getTime()) / (1000 * 60 * 60);
+}
+
 // Últimas mensagens de um chat do Umbler Talk — texto, imagem e áudio.
 // Busca só ao abrir (nunca em background pra toda a lista de chapas — ver
 // nota de rate limit em umbler.ts/fetchUmblerRecentMessages).
@@ -36,7 +53,7 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, chapaTelefone
     if (!chatId) return;
     setLoading(true);
     setError(null);
-    fetchUmblerRecentMessages({ chatId, settings, take: 15 })
+    fetchUmblerRecentMessages({ chatId, settings, take: TAKE })
       .then(setMessages)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
@@ -48,9 +65,13 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, chapaTelefone
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, chatId]);
 
+  const hoursSinceContact = hoursSinceLastContactMessage(messages);
+  const windowOpen = hoursSinceContact === null ? null : hoursSinceContact < REPLY_WINDOW_HOURS;
+  const overLimit = reply.length > MAX_REPLY_LENGTH;
+
   async function handleSend() {
     const text = reply.trim();
-    if (!text || !chapaTelefone || sending) return;
+    if (!text || !chapaTelefone || sending || overLimit) return;
     setSending(true);
     setSendError(null);
     try {
@@ -71,7 +92,10 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, chapaTelefone
       <SheetContent side="right" className="w-full sm:max-w-md flex flex-col p-0">
         <SheetHeader className="p-4 border-b border-border">
           <div className="flex items-center justify-between gap-2">
-            <SheetTitle className="text-sm truncate">Conversa — {chapaNome}</SheetTitle>
+            <div className="min-w-0">
+              <SheetTitle className="text-sm truncate">Conversa — {chapaNome}</SheetTitle>
+              <p className="text-[10px] text-muted-foreground">Últimas {TAKE} mensagens</p>
+            </div>
             <div className="flex items-center gap-1 shrink-0">
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} title="Atualizar" disabled={loading}>
                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -108,6 +132,11 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, chapaTelefone
         </div>
         {chapaTelefone && (
           <div className="border-t border-border p-3 space-y-2">
+            {windowOpen === false && (
+              <div className="text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2 py-1.5">
+                Janela de 24h fechada — o chapa não responde há mais de 24h. Mensagem livre pode falhar; use um template pra reabrir a conversa.
+              </div>
+            )}
             {sendError && (
               <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-2 py-1.5">
                 {sendError}
@@ -123,14 +152,19 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, chapaTelefone
                     handleSend();
                   }
                 }}
-                placeholder="Responder ao chapa — só funciona se ele já respondeu nas últimas 24h"
+                placeholder={windowOpen === false ? "Janela de 24h fechada — envio pode falhar" : "Responder ao chapa"}
                 className="min-h-9 h-9 max-h-24 resize-none text-xs"
                 disabled={sending}
               />
-              <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleSend} disabled={sending || !reply.trim()}>
+              <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleSend} disabled={sending || !reply.trim() || overLimit}>
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
+            {overLimit && (
+              <p className="text-[10px] text-destructive">
+                Mensagem muito longa ({reply.length}/{MAX_REPLY_LENGTH}) — encurte pra poder enviar.
+              </p>
+            )}
           </div>
         )}
       </SheetContent>
