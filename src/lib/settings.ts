@@ -80,7 +80,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
   agendaSortBy: "prazo",
-  umblerSettings: { bearerToken: "", fromPhone: "+55109997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "amijY_1q6IzzA09Q", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988 },
+  umblerSettings: { bearerToken: "", fromPhone: "+5519997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "amijY_1q6IzzA09Q", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988 },
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,
@@ -130,9 +130,16 @@ export function readSettings(): AppSettings {
         const captacaoTemplateId = (!merged.captacaoTemplateId || merged.captacaoTemplateId === ID_CAPTACAO_ANTIGO)
           ? d.captacaoTemplateId
           : merged.captacaoTemplateId;
+        // fromPhone antigo tinha um "0" espúrio (+55109997435351 em vez de
+        // +5519997435351) — número nunca funcionou de verdade. Mesma lógica
+        // de correção de valor legado do captacaoTemplateId acima.
+        const FROM_PHONE_ANTIGO = "+55109997435351";
+        const fromPhone = (!merged.fromPhone || merged.fromPhone === FROM_PHONE_ANTIGO)
+          ? d.fromPhone
+          : merged.fromPhone;
         return {
           ...merged,
-          fromPhone: merged.fromPhone || d.fromPhone,
+          fromPhone,
           organizationId: merged.organizationId || d.organizationId,
           cancelTemplateId: merged.cancelTemplateId || d.cancelTemplateId,
           taskCancelTemplateId: merged.taskCancelTemplateId || d.taskCancelTemplateId,
