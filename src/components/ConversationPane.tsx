@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { ExternalLink, Loader2, RefreshCw, Send, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,7 +6,7 @@ import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umb
 import { type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
 
-const TAKE = 15;
+const TAKE = 30;
 // WhatsApp Business API fecha a janela de resposta livre 24h após a última
 // mensagem recebida DO contato — não é campo exposto por essa API da Umbler
 // (confirmado: não documentado em umbler_talk_schema.md), então calculamos
@@ -47,13 +47,26 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [reply, setReply] = useState("");
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    function scrollToBottom(smooth = false) {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    }
 
     function load() {
       if (!chatId) return;
       setLoading(true);
       setError(null);
       fetchUmblerRecentMessages({ chatId, settings, take: TAKE })
-        .then(setMessages)
+        .then((msgs) => {
+          setMessages(msgs);
+          // Chat sempre abre com o scroll no fim (mensagem mais recente) —
+          // precisa do próximo frame pra medir a altura já com as mensagens
+          // renderizadas.
+          requestAnimationFrame(() => scrollToBottom(false));
+        })
         .catch((e) => setError(e instanceof Error ? e.message : String(e)))
         .finally(() => setLoading(false));
     }
@@ -77,7 +90,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
 
     async function handleSend() {
       const text = reply.trim();
-      if (!text || !personTelefone || sending || overLimit) return;
+      if (!text || !personTelefone || sending || overLimit || windowOpen === false) return;
       setSending(true);
       setSendError(null);
       try {
@@ -113,7 +126,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
             )}
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
           {loading && messages.length === 0 && (
             <div className="flex items-center justify-center py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -137,7 +150,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
           <div className="border-t border-border p-2.5 space-y-2 shrink-0">
             {windowOpen === false && (
               <div className="text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2 py-1.5">
-                Janela de 24h fechada — o chapa não responde há mais de 24h. Mensagem livre pode falhar; use um template pra reabrir a conversa.
+                Janela de 24h fechada — o chapa não responde há mais de 24h. Envio de texto livre bloqueado; use um template (FUP/BID) pra reabrir a conversa.
               </div>
             )}
             {sendError && (
@@ -155,11 +168,11 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                     handleSend();
                   }
                 }}
-                placeholder={windowOpen === false ? "Janela de 24h fechada — envio pode falhar" : "Responder"}
+                placeholder={windowOpen === false ? "Janela de 24h fechada — use um template pra reabrir" : "Responder"}
                 className="min-h-9 h-9 max-h-24 resize-none text-xs"
-                disabled={sending}
+                disabled={sending || windowOpen === false}
               />
-              <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleSend} disabled={sending || !reply.trim() || overLimit}>
+              <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleSend} disabled={sending || !reply.trim() || overLimit || windowOpen === false}>
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
-  MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon,
+  MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GroupChatPicker } from "@/components/GroupChatPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,10 +39,6 @@ import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueu
 import { useChapaJobState, useTaskCancelState, useMassFupState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { type TaskWithChapas } from "@/components/TaskCard";
 
-const WIDTH_KEY = "task_detail_panel_width";
-const MIN_WIDTH = 480;
-const MAX_WIDTH = 1100;
-const DEFAULT_WIDTH = 760;
 const CLIENTE_KEY = "__cliente__";
 
 async function clipboardWrite(text: string, successMsg: string) {
@@ -78,19 +76,12 @@ type TaskDetailPanelProps = {
 };
 
 // Painel de tarefa — lista de chapas + grupo do cliente à esquerda, conversa
-// da pessoa selecionada à direita. Painel lateral fixo, redimensionável,
-// não-modal (o resto do dashboard continua clicável) — desenho pedido pelo
-// usuário, inspirado no padrão de painel contextual do Amazon Q (MCM-137).
+// da pessoa selecionada à direita. Tela cheia, slide-up ao abrir/slide-down
+// ao fechar (Radix Dialog customizado) — desenho pedido pelo usuário.
 export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPanelProps) {
   const navigate = useNavigate();
-  const [width, setWidth] = useState(() => {
-    try {
-      const saved = Number(localStorage.getItem(WIDTH_KEY));
-      return saved >= MIN_WIDTH && saved <= MAX_WIDTH ? saved : DEFAULT_WIDTH;
-    } catch { return DEFAULT_WIDTH; }
-  });
-  const [resizing, setResizing] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [customMsgOpen, setCustomMsgOpen] = useState(false);
   const [customMsgText, setCustomMsgText] = useState("");
@@ -228,25 +219,6 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task?.id_tarefa]);
 
-  useEffect(() => {
-    if (!resizing) return;
-    function onMove(e: MouseEvent) {
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, window.innerWidth - e.clientX));
-      setWidth(next);
-    }
-    function onUp() {
-      setResizing(false);
-      try { localStorage.setItem(WIDTH_KEY, String(width)); } catch { /* noop */ }
-    }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-    return () => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resizing]);
-
   const chatEntryByChapa = useMemo(() => {
     if (!task) return new Map<string, { umbler_chat_id: string | null; data_disparo: string }>();
     const map = new Map<string, { umbler_chat_id: string | null; data_disparo: string }>();
@@ -361,18 +333,14 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   }
 
   return (
-    <>
-      {open && (
-        <div
-          className="fixed inset-y-0 right-0 z-40 bg-card border-l border-border shadow-elevated flex flex-col"
-          style={{ width, transition: resizing ? "none" : "width 120ms ease-out" }}
+    <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Content
+          className="fixed inset-0 z-40 bg-card flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom data-[state=closed]:duration-200 data-[state=open]:duration-300"
+          onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          <div
-            onMouseDown={() => setResizing(true)}
-            className="absolute top-0 bottom-0 left-0 w-1.5 -translate-x-1/2 cursor-col-resize hover:bg-primary/30 z-10"
-            title="Arraste pra redimensionar"
-          />
-
+          <DialogPrimitive.Title className="sr-only">Detalhes da tarefa — {task?.empresa ?? ""}</DialogPrimitive.Title>
           {/* Header — informações da tarefa */}
           <div className="shrink-0 border-b border-border p-3">
             <div className="flex items-start gap-2">
@@ -530,23 +498,39 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground border-t border-border mt-1">
                     Cliente
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedKey(CLIENTE_KEY)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                      selectedKey === CLIENTE_KEY ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-muted/50 border-l-2 border-l-transparent"
+                  <div className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
+                      selectedKey === CLIENTE_KEY ? "bg-primary/10 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"
                     }`}
                   >
-                    <div className="h-6 w-6 rounded-full shrink-0 flex items-center justify-center bg-primary/10">
-                      <Users className="h-3 w-3 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] truncate">Grupo — {clienteInfo.nome}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {clienteInfo.umbler_group_chat_id ? "Vinculado" : "Não vinculado"}
-                      </p>
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (clienteInfo.umbler_group_chat_id) setSelectedKey(CLIENTE_KEY);
+                        else setGroupPickerOpen(true);
+                      }}
+                      className="flex-1 min-w-0 flex items-center gap-2 text-left hover:opacity-80"
+                    >
+                      <div className="h-6 w-6 rounded-full shrink-0 flex items-center justify-center bg-primary/10">
+                        <Users className="h-3 w-3 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] truncate">Grupo — {clienteInfo.nome}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {clienteInfo.umbler_group_chat_id ? "Vinculado — clique pra ver conversa" : "Não vinculado — clique pra buscar"}
+                        </p>
+                      </div>
+                    </button>
+                    {clienteInfo.umbler_group_chat_id && (
+                      <button
+                        type="button"
+                        onClick={() => setGroupPickerOpen(true)}
+                        className="h-6 w-6 shrink-0 inline-flex items-center justify-center rounded text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted transition-colors"
+                        title="Trocar grupo vinculado"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -753,8 +737,20 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </div>
-      )}
-    </>
+
+          {clienteInfo && (
+            <GroupChatPicker
+              open={groupPickerOpen}
+              onOpenChange={setGroupPickerOpen}
+              clienteId={clienteInfo.id}
+              clienteNome={clienteInfo.nome}
+              clienteTelefone={clienteInfo.telefone}
+              settings={umblerSettings}
+              onLinked={() => { reloadClienteInfo(); setSelectedKey(CLIENTE_KEY); }}
+            />
+          )}
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }

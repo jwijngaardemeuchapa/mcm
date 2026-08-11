@@ -22,6 +22,7 @@ import {
   Star,
   MessageCircle,
   Users,
+  RefreshCw,
 } from "lucide-react";
 import { getDb, uuid } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
@@ -482,6 +483,20 @@ export default function ClienteBook() {
                       </TooltipTrigger>
                       <TooltipContent>{e.umbler_group_chat_id ? "Ver conversa do grupo" : "Vincular grupo de WhatsApp"}</TooltipContent>
                     </Tooltip>
+                    {e.umbler_group_chat_id && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={(ev) => { ev.stopPropagation(); setGroupPickerFor(e); }}
+                            className="h-7 w-7 inline-flex items-center justify-center rounded text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted transition-colors"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Trocar grupo vinculado</TooltipContent>
+                      </Tooltip>
+                    )}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button

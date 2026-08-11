@@ -887,6 +887,21 @@ Precisamos de 1 substituto para esta tarefa.`;
                   </TooltipContent>
                 </Tooltip>
               )}
+              {clienteInfo?.umbler_group_chat_id && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => setClienteGroupPickerOpen(true)}
+                      className="shrink-0 h-5 w-5 inline-flex items-center justify-center rounded hover:bg-white/10 transition-colors text-muted-foreground/60"
+                      aria-label="Trocar grupo vinculado"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Trocar grupo vinculado</TooltipContent>
+                </Tooltip>
+              )}
               {hasClienteNotes && clienteInfo && (
                 <Tooltip>
                   <TooltipTrigger asChild>
