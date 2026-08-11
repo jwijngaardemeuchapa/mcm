@@ -4,7 +4,7 @@ import { getDb, placeholders } from "@/lib/db";
 import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
-import { TaskFullScreenView } from "@/components/TaskFullScreenView";
+import { TaskDetailPanel } from "@/components/TaskDetailPanel";
 import { TaskPanorama } from "@/components/TaskPanorama";
 import { TaskTimeline } from "@/components/TaskTimeline";
 import { ApproachingAlert } from "@/components/ApproachingAlert";
@@ -1753,35 +1753,19 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Overlay da Timeline: abre tarefa sem sair da visualização ── */}
-      {timelineOverlayTaskId !== null && (() => {
-        const overlayTask =
-          tasksForDisplay.find((t) => t.id_tarefa === timelineOverlayTaskId) ??
-          allDatesCards.find((t) => t.id_tarefa === timelineOverlayTaskId);
+      {/* ── Painel da Timeline: abre tarefa sem sair da visualização ── */}
+      {(() => {
+        const overlayTask = timelineOverlayTaskId !== null
+          ? tasksForDisplay.find((t) => t.id_tarefa === timelineOverlayTaskId) ??
+            allDatesCards.find((t) => t.id_tarefa === timelineOverlayTaskId) ?? null
+          : null;
         return (
-          <TaskFullScreenView
-            open
-            onOpenChange={(open) => { if (!open) setTimelineOverlayTaskId(null); }}
-            title={overlayTask?.empresa ?? "Tarefa"}
-            subtitle={overlayTask ? `${fmtTime(overlayTask.data_tarefa)} · ${overlayTask.cidade_uf ?? "—"}` : undefined}
-          >
-            {overlayTask ? (
-              <TaskCard
-                task={overlayTask}
-                onRefresh={() => {
-                  load();
-                }}
-                forceCollapse={null}
-                matchHighlight={false}
-                newChapaKeys={newChapaKeys}
-                confiabilidade={confiabilidade}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-10">
-                Tarefa não encontrada.
-              </p>
-            )}
-          </TaskFullScreenView>
+          <TaskDetailPanel
+            task={overlayTask}
+            open={timelineOverlayTaskId !== null}
+            onClose={() => setTimelineOverlayTaskId(null)}
+            onRefresh={() => load()}
+          />
         );
       })()}
     </>

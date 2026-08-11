@@ -73,6 +73,7 @@ import { useUndo } from "@/lib/undo";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { ChatSheet } from "@/components/ChatSheet";
 import { GroupChatPicker } from "@/components/GroupChatPicker";
+import { useClienteInfo } from "@/lib/useClienteInfo";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
@@ -173,20 +174,6 @@ function getCsvExportedAt(id: number): string | null {
   }
 }
 
-type ClienteInfo = {
-  id: string;
-  nome: string;
-  status_cliente: string;
-  particularidades: string | null;
-  exigencias: string | null;
-  pedidos: string | null;
-  observacoes: string | null;
-  contato_nome: string | null;
-  segmento: string | null;
-  telefone: string | null;
-  umbler_group_chat_id: string | null;
-};
-
 function fmtElapsed(min: number): string {
   if (min < 60) return `${min}min`;
   const h = Math.floor(min / 60);
@@ -282,7 +269,7 @@ export function TaskCard({
   const fupAllProgress = massFupState?.status === "sending" ? massFupState.progress : null;
   const taskCancelPending = taskCancelState?.status === "countdown";
   const taskCancelCountdown = taskCancelState?.status === "countdown" ? taskCancelState.remaining : 0;
-  const [clienteInfo, setClienteInfo] = useState<ClienteInfo | null>(null);
+  const [clienteInfo, reloadClienteInfo] = useClienteInfo(task.empresa);
   const [clienteChatOpen, setClienteChatOpen] = useState(false);
   const [clienteGroupPickerOpen, setClienteGroupPickerOpen] = useState(false);
 
@@ -734,23 +721,6 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
   }, [taskCancelState, task.id_tarefa]);
 
-  useEffect(() => {
-    getDb()
-      .then((db) =>
-        db.select<ClienteInfo[]>(
-          "SELECT id, nome, status_cliente, particularidades, exigencias, pedidos, observacoes, contato_nome, segmento, telefone, umbler_group_chat_id FROM cliente_book",
-        ),
-      )
-      .then((rows) => {
-        const e = normalizeCompany(task.empresa);
-        const match = rows.find((r) => {
-          const n = normalizeCompany(r.nome);
-          return e && n && (e === n || e.includes(n) || n.includes(e));
-        });
-        setClienteInfo(match ?? null);
-      })
-      .catch(() => {});
-  }, [task.empresa]);
 
   const showMinimized = isDone && !userExpanded;
   const hasObs = !!(task.observacoes && task.observacoes.trim().length > 0);
@@ -1736,7 +1706,7 @@ Precisamos de 1 substituto para esta tarefa.`;
             clienteNome={clienteInfo.nome}
             clienteTelefone={clienteInfo.telefone}
             settings={umblerSettings}
-            onLinked={(chatId) => setClienteInfo({ ...clienteInfo, umbler_group_chat_id: chatId })}
+            onLinked={() => reloadClienteInfo()}
           />
         </>
       )}

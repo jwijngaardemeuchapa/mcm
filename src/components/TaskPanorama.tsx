@@ -8,11 +8,12 @@ import {
   ChevronRight,
   Download,
 } from "lucide-react";
-import { TaskFullScreenView } from "./TaskFullScreenView";
-import { TaskCard, type TaskWithChapas } from "./TaskCard";
+import { TaskDetailPanel } from "./TaskDetailPanel";
+import { type TaskWithChapas } from "./TaskCard";
 import { FillRateBar } from "./FillRateBar";
 import { fmtTime, fmtSP, parseTaskDate, taskTzLabel } from "@/lib/datetime";
 import { todayDateISO_SP } from "@/lib/datetime";
+import { getDb } from "@/lib/db";
 
 function csvExported(id: number) {
   try {
@@ -63,6 +64,25 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
   const allForLookup = [...overnightTasks, ...tasks];
   const selectedTask =
     selectedId != null ? allForLookup.find((t) => t.id_tarefa === selectedId) ?? null : null;
+
+  // Efeito colateral (não visual): abrir a tarefa vinda de uma notificação de
+  // remoção já marca o chapa correspondente como removido — antes vivia
+  // dentro do TaskCard, movido pra cá pra não depender de qual container
+  // exibe os detalhes da tarefa (TaskDetailPanel não tem esse conceito).
+  useEffect(() => {
+    if (!autoRemoveChapaName || selectedId !== autoOpenTaskId || !selectedTask) return;
+    const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().trim().replace(/\s+/g, " ");
+    const match = selectedTask.chapas.find((c) => c.nome_chapa && norm(c.nome_chapa) === norm(autoRemoveChapaName));
+    if (!match) return;
+    getDb()
+      .then((db) => db.execute(
+        "UPDATE chapas SET status_contato = ?, data_remocao = ? WHERE id = ?",
+        ["removido", new Date().toISOString(), match.id],
+      ))
+      .then(() => onRefresh())
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRemoveChapaName, selectedId]);
 
   const todayISO = todayDateISO_SP();
   const byDate = new Map<string, TaskWithChapas[]>();
@@ -144,20 +164,12 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
         )}
       </div>
 
-      <TaskFullScreenView
+      <TaskDetailPanel
+        task={selectedTask}
         open={selectedId !== null}
-        onOpenChange={(o) => !o && setSelectedId(null)}
-        title={selectedTask?.empresa ?? "Tarefa"}
-        subtitle={selectedTask ? `${fmtTime(selectedTask.data_tarefa)} · ${selectedTask.cidade_uf ?? "—"}` : undefined}
-      >
-        {selectedTask && (
-          <TaskCard
-            task={selectedTask}
-            onRefresh={onRefresh}
-            autoRemoveChapaName={selectedId === autoOpenTaskId ? autoRemoveChapaName : undefined}
-          />
-        )}
-      </TaskFullScreenView>
+        onClose={() => setSelectedId(null)}
+        onRefresh={onRefresh}
+      />
     </>
   );
 }
