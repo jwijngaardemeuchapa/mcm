@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-08-11 — MCM — Release v1.0.47: volta tela cheia + fix grupo do cliente + chat 30 msgs (MCM-142)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-142 ✅ (Feito)
+**Commits:** `2739e54` (fix), `7d9634e` (bump v1.0.47), `49faed3` (assina + latest.json)
+
+### Contexto — usuário testando v1.0.46 em produção
+Pediu a release da v1.0.46 especificamente pra "testar na prática". Dois retornos rápidos:
+
+1. **Reversão de design**: "quero a visão tomando 'a tela toda' ao clicar na tarefa, ter o slide pra baixo" — volta explícita pro padrão tela-cheia (v1.0.44/45) que eu tinha substituído pelo painel lateral fixo na v1.0.46, a pedido do MESMO usuário uma sessão antes. Não questionei a reversão — só confirmei o pedido estava claro e apliquei. `TaskDetailPanel.tsx` reescrito com Radix Dialog customizado (`slide-in-from-bottom`/`slide-out-to-bottom`), removida a lógica de resize/largura por completo (sem sentido em tela cheia). Todo o CONTEÚDO interno (lista+conversa, ações, seções colapsáveis) ficou igual — só o container mudou.
+
+2. **Bug real, achado testando**: "onde fica o botão pra escolher o grupo, não encontrei" — no painel novo, clicar no grupo do cliente sem vínculo só selecionava a conversa (ficava vazia, `chatId=null`), nunca abria o `GroupChatPicker`. Bug introduzido na v1.0.46 (esqueci de portar esse trigger quando criei o painel). Corrigido nos 3 pontos de uso (TaskDetailPanel, ClienteBook, TaskCard) + adicionado botão "trocar grupo" (ícone refresh, visível só quando já vinculado) nos 3 lugares — usuário também pediu isso explicitamente ("já conserte o botão trocar grupo"), antes nem existia em lugar nenhum.
+
+### Chat — 3 ajustes pedidos juntos
+- `ConversationPane`: `TAKE` 15 → 30 mensagens.
+- Auto-scroll pro final ao carregar (`scrollRef` + `requestAnimationFrame` pra medir altura já com mensagens renderizadas).
+- Janela de 24h passou de "só avisa" pra "bloqueia de verdade" — composer e botão de enviar desabilitados quando `windowOpen === false`, não só um aviso visual que deixava tentar enviar mesmo assim.
+
+**Next:** usuário segue testando em produção. Formato de resposta de `GET /v1/chats/` (busca de grupo) ainda não confirmado contra payload real. MCM-140 (badge Novo), MCM-133 (CSV Recomendados completo), cota de chapas por empresa seguem pendentes.
+
+---
+
 ## 2026-08-11 — MCM — Release v1.0.46: painel de tarefa redesenhado (estilo Amazon Q) + CSV 3C (MCM-141)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-141 ✅ (Feito) · MCM-137 fase 1 essencialmente completa · MCM-140 aberto (bug badge "Novo")

@@ -1,17 +1,23 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-11 (Sonnet 5)
-**Versão:** `1.0.46` publicada, **assinada e verificada**. Sem pendência de release aberta.
+**Versão:** `1.0.47` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `168880b` (assina 1.0.46 + latest.json).
+**Último commit:** `49faed3` (assina 1.0.47 + latest.json).
 
 **Pendências abertas para a próxima sessão:**
-1. **Validar o painel novo (TaskDetailPanel) em produção** — usuário pediu a release especificamente pra "testar na prática". Redesenho grande (painel lateral fixo redimensionável, substitui tela cheia da v1.0.45) — conferir: resize funciona, todas as ações (confirmar/cancelar/FUP/mensagem/validação/observações/histórico) respondem certo, grupo do cliente aparece quando vinculado.
-2. **MCM-140** — badge "Novo" removido do painel (falso-positivo a cada sync), causa raiz não investigada. Hipótese registrada no ticket: `newChapaTimestampsRef`/`computeRefreshDiff` em `Dashboard.tsx`. Não fabricar fix sem reproduzir.
-3. **Validar busca de grupo do cliente com dado real** — formato de resposta de `GET /v1/chats/` (`searchUmblerGroupChats`/`fetchUmblerChatsPage`/`parseChatSummary` em `umbler.ts`) segue não confirmado contra payload real capturado.
+1. **Usuário segue testando em produção** — v1.0.47 corrigiu o que foi reportado até agora (painel voltou pra tela cheia, seletor de grupo funcionando, chat 30 msgs+autoscroll+bloqueio de 24h). Continuar de olho em novos retornos de teste.
+2. **MCM-140** — badge "Novo" removido (falso-positivo a cada sync), causa raiz não investigada. Hipótese no ticket: `newChapaTimestampsRef`/`computeRefreshDiff` em `Dashboard.tsx`. Não fabricar fix sem reproduzir.
+3. **Validar busca de grupo do cliente com dado real** — formato de resposta de `GET /v1/chats/` (`searchUmblerGroupChats`/`fetchUmblerChatsPage`/`parseChatSummary` em `umbler.ts`) segue não confirmado contra payload real. Usuário já testou o FLUXO do picker (achou o bug do trigger ausente), mas não confirmou ainda se os resultados da busca batem com o grupo certo.
 4. **Decidir sobre envio de mensagem pro grupo** — hoje desabilitado (`personTelefone=null` no `ConversationPane` do grupo, só visualização). `sendUmblerFreeText` não foi testado contra um chat de grupo.
-5. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" — DIFERENTE do CSV 3C da v1.0.46 (que é a aba Disponíveis, não Recomendados). Ticket criado, não implementado.
+5. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" — DIFERENTE do CSV 3C da v1.0.46 (aba Disponíveis). Ticket criado, não implementado.
 6. **Cota de chapas por empresa** — ainda não mapeado no schema. Falta inspecionar `core_api."Business"` no Metabase (usuário vai mandar print). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.47 — volta tela cheia + fix grupo do cliente + chat 30 msgs (MCM-142)
+
+Usuário testou a v1.0.46 em produção (pediu a release especificamente pra isso) e voltou com 2 coisas rápido: (1) reversão de design — "quero a tela toda... slide pra baixo" — voltei o `TaskDetailPanel` pro padrão tela-cheia (Radix Dialog, slide-up/down) que eu tinha substituído pelo painel lateral uma sessão antes, a pedido do MESMO usuário. Não questionei, só apliquei — o conteúdo interno (lista+conversa+ações) ficou idêntico, só o container mudou. (2) Bug real achado testando: clicar no grupo do cliente sem vínculo no painel novo não abria a busca (`GroupChatPicker`) — só selecionava uma conversa vazia. Eu tinha esquecido de portar esse trigger quando criei o `TaskDetailPanel` na v1.0.46. Corrigido nos 3 pontos de uso (painel, Caderno de Clientes, TaskCard antigo) + adicionado botão "trocar grupo" nos 3 lugares (não existia em nenhum antes, usuário pediu explicitamente).
+
+Junto: chat com 30 mensagens (era 15), auto-scroll pro final ao carregar, e janela de 24h passou de "só avisa" pra bloquear o envio de verdade.
 
 ## ✅ v1.0.46 — painel de tarefa redesenhado (estilo Amazon Q) + CSV 3C (MCM-141)
 
