@@ -1,13 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
-import { X, Users, Copy, ExternalLink, Check, AlertTriangle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ConversationPane } from "@/components/ConversationPane";
+import { SlideToConfirm } from "@/components/ui/slide-to-confirm";
 import { useClienteInfo } from "@/lib/useClienteInfo";
 import { useUndo } from "@/lib/undo";
 import { getDb, errMsg } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
 import { fmtTime } from "@/lib/datetime";
 import { toast } from "sonner";
+import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
+import { useChapaJobState, useTaskCancelState } from "@/lib/useDispatchJob";
 import { type TaskWithChapas } from "@/components/TaskCard";
 
 const WIDTH_KEY = "task_detail_panel_width";
@@ -58,6 +67,44 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   const umblerSettings = readSettings().umblerSettings;
   const [clienteInfo, reloadClienteInfo] = useClienteInfo(task?.empresa ?? "");
 
+  const umblerReady = !!(umblerSettings.bearerToken && umblerSettings.fromPhone && umblerSettings.organizationId);
+  const cancelTemplateReady = umblerReady && !!umblerSettings.cancelTemplateId;
+  const taskCancelTemplateReady = umblerReady && !!umblerSettings.taskCancelTemplateId;
+
+  const taskId = task?.id_tarefa;
+  const [taskCancelSent, setTaskCancelSent] = useState(false);
+  useEffect(() => {
+    if (taskId == null) return;
+    try { setTaskCancelSent(!!localStorage.getItem(`umbler_task_cancel_${taskId}`)); } catch { setTaskCancelSent(false); }
+  }, [taskId]);
+  const taskCancelState = useTaskCancelState(taskId ?? -1);
+  const taskCancelPending = taskCancelState?.status === "countdown";
+  const taskCancelCountdown = taskCancelState?.status === "countdown" ? taskCancelState.remaining : 0;
+  const prevTaskCancelStatus = useRef(taskCancelState?.status);
+  useEffect(() => {
+    const prev = prevTaskCancelStatus.current;
+    prevTaskCancelStatus.current = taskCancelState?.status;
+    if (prev === "countdown" && !taskCancelState && taskId != null) {
+      try { if (localStorage.getItem(`umbler_task_cancel_${taskId}`)) setTaskCancelSent(true); } catch { /* noop */ }
+    }
+  }, [taskCancelState, taskId]);
+
+  function startTaskCancelCountdown() {
+    if (!task) return;
+    const chapasWithPhone = task.chapas.filter(
+      (c) => c.telefone_chapa && c.nome_chapa && c.status_contato !== "removido",
+    ) as ChapaSnap[];
+    if (chapasWithPhone.length === 0) {
+      toast.error("Nenhum chapa com telefone cadastrado nesta tarefa");
+      return;
+    }
+    const taskSnap: TaskSnap = { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null };
+    dispatchQueue.startTaskCancel(task.id_tarefa, chapasWithPhone, taskSnap);
+  }
+  function stopTaskCancelCountdown() {
+    if (task) dispatchQueue.abortTaskCancel(task.id_tarefa);
+  }
+
   useEffect(() => {
     if (!open) { setSelectedKey(null); return; }
     // Ao abrir, seleciona automaticamente o primeiro chapa com conversa —
@@ -103,16 +150,21 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     return map;
   }, [task]);
 
+  const realChapas = task?.chapas.filter((c) => c.nome_chapa) ?? [];
+  const selectedChapa = task && selectedKey && selectedKey !== CLIENTE_KEY
+    ? realChapas.find((c) => c.id === selectedKey) ?? null
+    : null;
+
+  // Hooks continuam antes do early-return abaixo — precisam ser chamados
+  // sempre, na mesma ordem, mesmo quando task/selectedChapa são nulos.
+  const chapaJobState = useChapaJobState(selectedChapa?.id ?? "");
+
   if (!task) return null;
 
-  const realChapas = task.chapas.filter((c) => c.nome_chapa);
   const confirmedCount = task.chapas.filter((c) => c.status_contato === "confirmado").length;
   const requested = task.quantidade_chapas || task.chapas.length;
   const fillPct = requested > 0 ? Math.round((confirmedCount / requested) * 100) : 0;
 
-  const selectedChapa = selectedKey && selectedKey !== CLIENTE_KEY
-    ? realChapas.find((c) => c.id === selectedKey) ?? null
-    : null;
   const selectedChatId = selectedKey === CLIENTE_KEY
     ? clienteInfo?.umbler_group_chat_id ?? null
     : selectedChapa
@@ -124,6 +176,23 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   const selectedTelefone = selectedKey === CLIENTE_KEY
     ? null // envio pro grupo não confirmado ainda — só visualização
     : selectedChapa?.telefone_chapa ?? null;
+
+  const chapaPendingAction = chapaJobState?.action ?? null;
+  const chapaCountdown = chapaJobState?.remaining ?? 0;
+  const cancelCount = selectedChapa
+    ? task.fup_log.filter((f) => f.canal === "umbler_cancelamento" && f.chapa_id === selectedChapa.id).length
+    : 0;
+  const cancelTaskCount = selectedChapa
+    ? task.fup_log.filter((f) => f.canal === "umbler_cancelamento_tarefa" && f.chapa_id === selectedChapa.id).length
+    : 0;
+  const cancelSent = selectedChapa ? (() => {
+    try { return !!localStorage.getItem(`umbler_cancel_${selectedChapa.id}`); } catch { return false; }
+  })() : false;
+  const cancelTaskSent = selectedChapa ? (() => {
+    try { return !!localStorage.getItem(`umbler_cancel_task_${selectedChapa.id}`); } catch { return false; }
+  })() : false;
+  const everSentCancel = cancelCount > 0 || cancelSent;
+  const everSentTask = cancelTaskCount > 0 || cancelTaskSent;
 
   async function updateChapaStatus(chapaId: string, patch: Record<string, unknown>, label: string) {
     const chapa = task!.chapas.find((c) => c.id === chapaId);
@@ -197,10 +266,36 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
-            <div className="flex items-center gap-1.5 mt-2">
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
               <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1" onClick={copyConfirmedList}>
                 <Copy className="h-3 w-3" /> Copiar confirmados
               </Button>
+              {taskCancelTemplateReady && (taskCancelPending || taskCancelSent) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`h-7 text-[11px] gap-1 ${
+                    taskCancelPending
+                      ? "border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                      : "border-muted-foreground/20 text-muted-foreground/50 cursor-default"
+                  }`}
+                  onClick={taskCancelPending ? stopTaskCancelCountdown : undefined}
+                >
+                  {taskCancelPending ? (
+                    <><X className="h-3 w-3" /><span>{taskCancelCountdown}s</span></>
+                  ) : (
+                    <><Check className="h-3 w-3" /><span>Cancelamento enviado</span></>
+                  )}
+                </Button>
+              )}
+              {taskCancelTemplateReady && !taskCancelPending && !taskCancelSent && (
+                <SlideToConfirm
+                  onConfirm={startTaskCancelCountdown}
+                  label="Cancelar Tarefa"
+                  icon={<XCircle className="h-3.5 w-3.5" />}
+                  width={170}
+                />
+              )}
             </div>
           </div>
 
@@ -284,6 +379,49 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   >
                     <AlertTriangle className="h-3 w-3" /> Sem resposta
                   </Button>
+
+                  {selectedChapa.telefone_chapa && (cancelTemplateReady || taskCancelTemplateReady || everSentCancel || everSentTask) && (
+                    chapaPendingAction === "cancel" || chapaPendingAction === "cancel_task" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[11px] gap-1 border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                        onClick={() => dispatchQueue.abortChapaJob(selectedChapa.id)}
+                      >
+                        <X className="h-3 w-3" /> {chapaCountdown}s
+                      </Button>
+                    ) : (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={chapaPendingAction === "fup"}
+                            className={`h-6 text-[11px] gap-1 ${
+                              everSentCancel || everSentTask
+                                ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                                : ""
+                            }`}
+                          >
+                            {everSentCancel || everSentTask ? <Check className="h-3 w-3" /> : <UserMinus className="h-3 w-3" />}
+                            Cancelar <ChevronDown className="h-3 w-3 opacity-60" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {(cancelTemplateReady || everSentCancel) && (
+                            <DropdownMenuItem onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}>
+                              {everSentCancel ? `Sem resposta${cancelCount > 0 ? ` (${cancelCount}x)` : ""} — reenviar` : "Sem resposta (notificar chapa)"}
+                            </DropdownMenuItem>
+                          )}
+                          {(taskCancelTemplateReady || everSentTask) && (
+                            <DropdownMenuItem onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel_task", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}>
+                              {everSentTask ? `Cancelar tarefa${cancelTaskCount > 0 ? ` (${cancelTaskCount}x)` : ""} — reenviar` : "Cancelar tarefa (individual)"}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )
+                  )}
                 </div>
               )}
               {selectedKey ? (
