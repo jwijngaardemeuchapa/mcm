@@ -20,8 +20,13 @@ import {
   MapPin,
   ExternalLink,
   Star,
+  MessageCircle,
+  Users,
 } from "lucide-react";
 import { getDb, uuid } from "@/lib/db";
+import { readSettings } from "@/lib/settings";
+import { ChatSheet } from "@/components/ChatSheet";
+import { GroupChatPicker } from "@/components/GroupChatPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -91,6 +96,7 @@ type ClienteEntry = {
   pedidos: string | null;
   observacoes: string | null;
   enderecos: string | null;
+  umbler_group_chat_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -113,6 +119,7 @@ const EMPTY: Omit<ClienteEntry, "id" | "created_at" | "updated_at"> = {
   exigencias: null,
   pedidos: null,
   observacoes: null,
+  umbler_group_chat_id: null,
 };
 
 async function clipCopy(text: string, msg: string) {
@@ -154,6 +161,9 @@ export default function ClienteBook() {
   const [statusFilter, setStatusFilter] = useState("__all__");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ClienteEntry | null>(null);
+  const [groupPickerFor, setGroupPickerFor] = useState<ClienteEntry | null>(null);
+  const [groupChatOpenFor, setGroupChatOpenFor] = useState<ClienteEntry | null>(null);
+  const umblerSettings = readSettings().umblerSettings;
   const [form, setForm] = useState({ ...EMPTY });
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<ClienteEntry | null>(null);
@@ -254,6 +264,7 @@ export default function ClienteBook() {
       exigencias: e.exigencias,
       pedidos: e.pedidos,
       observacoes: e.observacoes,
+      umbler_group_chat_id: e.umbler_group_chat_id,
     });
     try {
       setFormEnderecos(e.enderecos ? JSON.parse(e.enderecos) : []);
@@ -451,6 +462,26 @@ export default function ClienteBook() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            if (e.umbler_group_chat_id) setGroupChatOpenFor(e);
+                            else setGroupPickerFor(e);
+                          }}
+                          className={`h-7 w-7 inline-flex items-center justify-center rounded transition-colors ${
+                            e.umbler_group_chat_id
+                              ? "text-primary hover:bg-primary/10"
+                              : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {e.umbler_group_chat_id ? <MessageCircle className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{e.umbler_group_chat_id ? "Ver conversa do grupo" : "Vincular grupo de WhatsApp"}</TooltipContent>
+                    </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
@@ -957,6 +988,28 @@ export default function ClienteBook() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {groupPickerFor && (
+        <GroupChatPicker
+          open={!!groupPickerFor}
+          onOpenChange={(o) => !o && setGroupPickerFor(null)}
+          clienteId={groupPickerFor.id}
+          clienteNome={groupPickerFor.nome}
+          clienteTelefone={groupPickerFor.telefone}
+          settings={umblerSettings}
+          onLinked={() => load()}
+        />
+      )}
+      {groupChatOpenFor && (
+        <ChatSheet
+          open={!!groupChatOpenFor}
+          onOpenChange={(o) => !o && setGroupChatOpenFor(null)}
+          chatId={groupChatOpenFor.umbler_group_chat_id}
+          chapaNome={`Grupo — ${groupChatOpenFor.nome}`}
+          chapaTelefone={null}
+          settings={umblerSettings}
+        />
+      )}
     </div>
   );
 }

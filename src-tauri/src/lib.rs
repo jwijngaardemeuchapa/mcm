@@ -1238,6 +1238,17 @@ CREATE INDEX IF NOT EXISTS idx_captacao_log_telefone ON captacao_log(telefone);
 ",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Chat de grupo do cliente no WhatsApp — persistido por empresa depois
+      // de uma busca (automática ou manual) na Umbler, pra não precisar
+      // re-buscar toda vez que abrir a tarefa (MCM-137 fase 2).
+      // version 23: v1 estava em 22, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 23,
+      description: "cliente_book_umbler_group_chat_id",
+      sql: "ALTER TABLE cliente_book ADD COLUMN umbler_group_chat_id TEXT;",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

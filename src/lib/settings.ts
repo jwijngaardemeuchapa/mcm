@@ -21,6 +21,11 @@ export type UmblerSettings = {
   bidBotD1Id: string;
   bidBotD1TriggerName: string;
   webhookPort: number;
+  // Canal usado pros grupos de WhatsApp com cliente — diferente do fromPhone
+  // (usado só pros chapas). Descoberto direto com o usuário, não documentado
+  // na Umbler — serve pra distinguir grupo de cliente vs. chat de chapa ao
+  // buscar por telefone (MCM-137 fase 2).
+  groupChannelPhone: string;
 };
 
 export type SonsSettings = {
@@ -80,7 +85,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
   agendaSortBy: "prazo",
-  umblerSettings: { bearerToken: "", fromPhone: "+5519997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "amijY_1q6IzzA09Q", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988 },
+  umblerSettings: { bearerToken: "", fromPhone: "+5519997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "amijY_1q6IzzA09Q", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988, groupChannelPhone: "+5511993730781" },
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,

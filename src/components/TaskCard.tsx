@@ -72,6 +72,7 @@ import { isPrefup } from "@/lib/prefup";
 import { useUndo } from "@/lib/undo";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { ChatSheet } from "@/components/ChatSheet";
+import { GroupChatPicker } from "@/components/GroupChatPicker";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
@@ -182,6 +183,8 @@ type ClienteInfo = {
   observacoes: string | null;
   contato_nome: string | null;
   segmento: string | null;
+  telefone: string | null;
+  umbler_group_chat_id: string | null;
 };
 
 function fmtElapsed(min: number): string {
@@ -280,6 +283,8 @@ export function TaskCard({
   const taskCancelPending = taskCancelState?.status === "countdown";
   const taskCancelCountdown = taskCancelState?.status === "countdown" ? taskCancelState.remaining : 0;
   const [clienteInfo, setClienteInfo] = useState<ClienteInfo | null>(null);
+  const [clienteChatOpen, setClienteChatOpen] = useState(false);
+  const [clienteGroupPickerOpen, setClienteGroupPickerOpen] = useState(false);
 
   const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
 
@@ -733,7 +738,7 @@ Precisamos de 1 substituto para esta tarefa.`;
     getDb()
       .then((db) =>
         db.select<ClienteInfo[]>(
-          "SELECT id, nome, status_cliente, particularidades, exigencias, pedidos, observacoes, contato_nome, segmento FROM cliente_book",
+          "SELECT id, nome, status_cliente, particularidades, exigencias, pedidos, observacoes, contato_nome, segmento, telefone, umbler_group_chat_id FROM cliente_book",
         ),
       )
       .then((rows) => {
@@ -887,6 +892,28 @@ Precisamos de 1 substituto para esta tarefa.`;
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
                     FUP automático agendado para {fupAgendarMinAntes}min antes da tarefa
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {clienteInfo && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (clienteInfo.umbler_group_chat_id) setClienteChatOpen(true);
+                        else setClienteGroupPickerOpen(true);
+                      }}
+                      className={`shrink-0 h-5 w-5 inline-flex items-center justify-center rounded hover:bg-white/10 transition-colors ${
+                        clienteInfo.umbler_group_chat_id ? "text-primary" : "text-muted-foreground/60"
+                      }`}
+                      aria-label={clienteInfo.umbler_group_chat_id ? "Conversa com o cliente" : "Vincular grupo de WhatsApp do cliente"}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    {clienteInfo.umbler_group_chat_id ? "Ver conversa do grupo com o cliente" : "Vincular grupo de WhatsApp do cliente"}
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -1692,6 +1719,27 @@ Precisamos de 1 substituto para esta tarefa.`;
         </DialogContent>
       </Dialog>
 
+      {clienteInfo && (
+        <>
+          <ChatSheet
+            open={clienteChatOpen}
+            onOpenChange={setClienteChatOpen}
+            chatId={clienteInfo.umbler_group_chat_id}
+            chapaNome={`Grupo — ${clienteInfo.nome}`}
+            chapaTelefone={null}
+            settings={umblerSettings}
+          />
+          <GroupChatPicker
+            open={clienteGroupPickerOpen}
+            onOpenChange={setClienteGroupPickerOpen}
+            clienteId={clienteInfo.id}
+            clienteNome={clienteInfo.nome}
+            clienteTelefone={clienteInfo.telefone}
+            settings={umblerSettings}
+            onLinked={(chatId) => setClienteInfo({ ...clienteInfo, umbler_group_chat_id: chatId })}
+          />
+        </>
+      )}
     </div>
   );
 }

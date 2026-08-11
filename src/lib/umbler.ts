@@ -287,3 +287,105 @@ export async function sendUmblerFreeText({
     throw new Error(`Umbler msg ${res.status}: ${text}`);
   }
 }
+
+// ── Busca de chat de grupo (cliente) por telefone/nome — MCM-137 fase 2 ──
+//
+// Não existe filtro de telefone documentado em GET /v1/chats/ (confirmado:
+// nem no OpenAPI oficial nem no manual da Umbler cobrem isso) — a única
+// forma confiável é paginar a listagem geral e cruzar localmente. Grupos de
+// cliente usam um canal PRÓPRIO (`groupChannelPhone`, diferente do
+// `fromPhone` usado pros chapas) — é esse canal que distingue "grupo de
+// cliente" de qualquer outro chat, não um campo tipo ContactType=Group
+// (nunca confirmado num payload real).
+
+export type UmblerChatSummary = {
+  id: string;
+  contactName: string;
+  contactPhone: string | null;
+  channelPhone: string | null;
+  lastMessagePreview: string | null;
+  lastMessageAtUTC: string | null;
+};
+
+function parseChatSummary(raw: Record<string, unknown>): UmblerChatSummary {
+  const contact = raw.contact as Record<string, unknown> | undefined;
+  const channel = raw.channel as Record<string, unknown> | undefined;
+  const lastMessage = raw.lastMessage as Record<string, unknown> | undefined;
+  return {
+    id: String(raw.id ?? ""),
+    contactName: typeof contact?.name === "string" ? contact.name : "",
+    contactPhone: typeof contact?.phoneNumber === "string" ? contact.phoneNumber : null,
+    channelPhone: typeof channel?.phoneNumber === "string" ? channel.phoneNumber : null,
+    lastMessagePreview: typeof lastMessage?.content === "string" ? lastMessage.content : null,
+    lastMessageAtUTC: typeof lastMessage?.eventAtUTC === "string" ? lastMessage.eventAtUTC : null,
+  };
+}
+
+// Uma página da listagem geral de chats — GET /v1/chats/ (seção 2 do
+// umbler_talk_schema.md). `ChatState=All` pra não perder grupo já resolvido.
+async function fetchUmblerChatsPage({
+  settings,
+  skip,
+  take,
+}: {
+  settings: UmblerSettings;
+  skip: number;
+  take: number;
+}): Promise<UmblerChatSummary[]> {
+  const params = new URLSearchParams({
+    organizationId: settings.organizationId,
+    ChatState: "All",
+    Take: String(take),
+    Skip: String(skip),
+  });
+  const res = await fetch(`https://app-utalk.umbler.com/api/v1/chats/?${params.toString()}`, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${settings.bearerToken}` },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Umbler ${res.status}: ${text}`);
+  }
+  const body = await res.json();
+  const list: unknown[] = Array.isArray(body) ? body
+    : Array.isArray(body?.items) ? body.items
+    : Array.isArray(body?.chats) ? body.chats
+    : [];
+  return list.map((c) => parseChatSummary(c as Record<string, unknown>));
+}
+
+// Busca os chats do canal de grupo (cliente), opcionalmente filtrando por
+// termo (nome ou telefone). Pagina até `maxPages` páginas de `pageSize` —
+// não existe forma de pedir só os chats de um canal específico ao servidor,
+// então filtra localmente depois de buscar.
+export async function searchUmblerGroupChats({
+  settings,
+  query,
+  maxPages = 5,
+  pageSize = 100,
+}: {
+  settings: UmblerSettings;
+  query?: string;
+  maxPages?: number;
+  pageSize?: number;
+}): Promise<UmblerChatSummary[]> {
+  const targetChannel = settings.groupChannelPhone.replace(/\D/g, "");
+  const q = query?.trim().toLowerCase() ?? "";
+  const qDigits = q.replace(/\D/g, "");
+  const results: UmblerChatSummary[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const chats = await fetchUmblerChatsPage({ settings, skip: page * pageSize, take: pageSize });
+    if (chats.length === 0) break;
+    for (const chat of chats) {
+      const channelDigits = (chat.channelPhone ?? "").replace(/\D/g, "");
+      if (!targetChannel || channelDigits !== targetChannel) continue;
+      if (q) {
+        const nameMatch = chat.contactName.toLowerCase().includes(q);
+        const phoneMatch = qDigits && (chat.contactPhone ?? "").replace(/\D/g, "").includes(qDigits);
+        if (!nameMatch && !phoneMatch) continue;
+      }
+      results.push(chat);
+    }
+    if (chats.length < pageSize) break; // última página
+  }
+  return results;
+}
