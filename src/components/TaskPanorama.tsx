@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Download,
 } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { TaskFullScreenView } from "./TaskFullScreenView";
 import { TaskCard, type TaskWithChapas } from "./TaskCard";
 import { FillRateBar } from "./FillRateBar";
 import { fmtTime, fmtSP, parseTaskDate, taskTzLabel } from "@/lib/datetime";
@@ -144,27 +144,20 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
         )}
       </div>
 
-      <Sheet open={selectedId !== null} onOpenChange={(o) => !o && setSelectedId(null)}>
-        <SheetContent
-          side="right"
-          className="w-full sm:w-[680px] sm:max-w-[90vw] p-0 overflow-y-auto"
-        >
-          <SheetHeader className="px-4 pt-4 pb-0">
-            <SheetTitle className="text-sm font-semibold text-muted-foreground">
-              Detalhes da tarefa
-            </SheetTitle>
-          </SheetHeader>
-          <div className="p-4">
-            {selectedTask && (
-              <TaskCard
-                task={selectedTask}
-                onRefresh={onRefresh}
-                autoRemoveChapaName={selectedId === autoOpenTaskId ? autoRemoveChapaName : undefined}
-              />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <TaskFullScreenView
+        open={selectedId !== null}
+        onOpenChange={(o) => !o && setSelectedId(null)}
+        title={selectedTask?.empresa ?? "Tarefa"}
+        subtitle={selectedTask ? `${fmtTime(selectedTask.data_tarefa)} · ${selectedTask.cidade_uf ?? "—"}` : undefined}
+      >
+        {selectedTask && (
+          <TaskCard
+            task={selectedTask}
+            onRefresh={onRefresh}
+            autoRemoveChapaName={selectedId === autoOpenTaskId ? autoRemoveChapaName : undefined}
+          />
+        )}
+      </TaskFullScreenView>
     </>
   );
 }

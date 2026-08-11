@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDb, placeholders } from "@/lib/db";
-import { toSP, todayDateISO_SP, fmtSP, parseTaskDate } from "@/lib/datetime";
+import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
+import { TaskFullScreenView } from "@/components/TaskFullScreenView";
 import { TaskPanorama } from "@/components/TaskPanorama";
 import { TaskTimeline } from "@/components/TaskTimeline";
 import { ApproachingAlert } from "@/components/ApproachingAlert";
@@ -1758,37 +1759,29 @@ export default function Dashboard() {
           tasksForDisplay.find((t) => t.id_tarefa === timelineOverlayTaskId) ??
           allDatesCards.find((t) => t.id_tarefa === timelineOverlayTaskId);
         return (
-          <Dialog
+          <TaskFullScreenView
             open
             onOpenChange={(open) => { if (!open) setTimelineOverlayTaskId(null); }}
+            title={overlayTask?.empresa ?? "Tarefa"}
+            subtitle={overlayTask ? `${fmtTime(overlayTask.data_tarefa)} · ${overlayTask.cidade_uf ?? "—"}` : undefined}
           >
-            <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
-              <DialogHeader className="px-5 pt-4 pb-3 border-b border-border shrink-0">
-                <DialogTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
-                  <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                  {overlayTask?.empresa ?? "Tarefa"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="overflow-y-auto flex-1 px-4 py-4">
-                {overlayTask ? (
-                  <TaskCard
-                    task={overlayTask}
-                    onRefresh={() => {
-                      load();
-                    }}
-                    forceCollapse={null}
-                    matchHighlight={false}
-                    newChapaKeys={newChapaKeys}
-                    confiabilidade={confiabilidade}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-10">
-                    Tarefa não encontrada.
-                  </p>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
+            {overlayTask ? (
+              <TaskCard
+                task={overlayTask}
+                onRefresh={() => {
+                  load();
+                }}
+                forceCollapse={null}
+                matchHighlight={false}
+                newChapaKeys={newChapaKeys}
+                confiabilidade={confiabilidade}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-10">
+                Tarefa não encontrada.
+              </p>
+            )}
+          </TaskFullScreenView>
         );
       })()}
     </>
