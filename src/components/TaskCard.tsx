@@ -1758,12 +1758,39 @@ function ChapaRowView({
   const cancelTaskCount = fupLog.filter((f) => f.canal === "umbler_cancelamento_tarefa" && f.chapa_id === chapa.id).length;
 
   // Disparo mais recente (qualquer canal — BID ou FUP) com um chat vinculado,
-  // pra abrir a conversa desse chapa (última mensagem, imagem, áudio).
+  // pra abrir a conversa desse chapa (última mensagem, imagem, áudio). Vale
+  // pra QUALQUER status do chapa, inclusive confirmado — a conversa não some
+  // só porque o chapa já confirmou presença.
   const [chatSheetOpen, setChatSheetOpen] = useState(false);
   const chapaChatEntries = fupLog.filter((f) => f.chapa_id === chapa.id && f.umbler_chat_id);
   const latestChatEntry = chapaChatEntries.length > 0
     ? chapaChatEntries.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b))
     : null;
+  const conversaTrigger = latestChatEntry && (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={() => setChatSheetOpen(true)}
+          className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 text-[11px] font-semibold transition-colors min-h-[28px]"
+          aria-label="Ver conversa"
+        >
+          <MessageCircle className="h-3 w-3" />
+          <span>Conversa</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Ver últimas mensagens — disparo mais recente {fmtDateTime(latestChatEntry.data_disparo)}</TooltipContent>
+    </Tooltip>
+  );
+  const conversaSheet = latestChatEntry && (
+    <ChatSheet
+      open={chatSheetOpen}
+      onOpenChange={setChatSheetOpen}
+      chatId={latestChatEntry.umbler_chat_id ?? null}
+      chapaNome={chapa.nome_chapa ?? "Chapa"}
+      chapaTelefone={chapa.telefone_chapa ?? null}
+      settings={umblerSettings}
+    />
+  );
 
   const placeholder = !chapa.nome_chapa;
   const isNew =
@@ -1892,6 +1919,8 @@ function ChapaRowView({
               <span className="font-normal opacity-80">· {canalLabel[chapa.canal_contato] ?? chapa.canal_contato}</span>
             )}
           </span>
+          {conversaTrigger}
+          {conversaSheet}
           <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} onContact3C={() => onContact(chapa, "ligacao_3c")} />
         </>
       ) : isNoResponse ? (
@@ -2006,35 +2035,11 @@ function ChapaRowView({
             })()}
 
             {/* Conversa (BID/FUP) — abre painel com últimas mensagens do chat
-                vinculado ao disparo mais recente deste chapa. Badge de tempo
-                vem do log local (sem custo); mensagens de verdade só são
-                buscadas ao abrir o painel (evita estourar rate limit do
-                Umbler buscando ao vivo pra cada linha da lista). */}
-            {latestChatEntry && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setChatSheetOpen(true)}
-                      className="inline-flex items-center justify-center gap-1 h-7 px-2 rounded-md border border-border text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 text-[11px] font-semibold transition-colors min-h-[28px]"
-                      aria-label="Ver conversa"
-                    >
-                      <MessageCircle className="h-3 w-3" />
-                      <span>Conversa</span>
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>Ver últimas mensagens — disparo mais recente {fmtDateTime(latestChatEntry.data_disparo)}</TooltipContent>
-                </Tooltip>
-                <ChatSheet
-                  open={chatSheetOpen}
-                  onOpenChange={setChatSheetOpen}
-                  chatId={latestChatEntry.umbler_chat_id ?? null}
-                  chapaNome={chapa.nome_chapa ?? "Chapa"}
-                  chapaTelefone={chapa.telefone_chapa ?? null}
-                  settings={umblerSettings}
-                />
-              </>
-            )}
+                vinculado ao disparo mais recente deste chapa. Mensagens de
+                verdade só são buscadas ao abrir o painel (evita estourar
+                rate limit do Umbler buscando ao vivo pra cada linha). */}
+            {conversaTrigger}
+            {conversaSheet}
 
             {/* Cancelamento individual — "Sem resposta" (cancelTemplateId) ou
                 "Cancelar tarefa" (taskCancelTemplateId, mesmo template do
