@@ -1,15 +1,21 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-10 (Sonnet 5)
-**Versão:** `1.0.43` publicada, **assinada e verificada**. Sem pendência de release aberta.
+**Data:** 2026-08-11 (Sonnet 5)
+**Versão:** `1.0.45` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `d670ec4` (assina 1.0.43 + latest.json).
+**Último commit:** `ee13b5c` (assina 1.0.45 + latest.json).
 
 **Pendências abertas para a próxima sessão:**
-1. **Validar v1.0.43 com dado real** — usuário ainda não confirmou o painel "Ver Conversa" (BID+FUP, v1.0.42) nem o aviso de janela de 24h (v1.0.43) rodando de verdade. Formato do envelope de resposta do endpoint Umbler (`{messages:[...]}`) segue não confirmado contra payload capturado ao vivo — se vier diferente, ajustar `fetchUmblerRecentMessages`/`parseUmblerMessage` em `src/lib/umbler.ts`.
-2. **MCM-137** — visão de comunicação dedicada por tarefa (não central global), com indicador de mensagem nova. Sem prioridade definida, capturado só pra não perder a ideia. Referência de UX: painel contextual estilo Amazon Q Business (ver comentário no ticket).
+1. **Validar busca de grupo com dado real** — usuário pediu a release especificamente pra testar numa máquina com dados de produção (não deu pra validar no `tauri dev` desta máquina). Formato de resposta de `GET /v1/chats/` (`searchUmblerGroupChats`/`fetchUmblerChatsPage`/`parseChatSummary` em `umbler.ts`) segue não confirmado contra payload real capturado — se vier diferente/vazio, ajustar o parser. Canal de grupo (`groupChannelPhone = +5511993730781`) foi confirmado pelo usuário, mas o resto do fluxo (paginação, cruzamento por nome) não.
+2. **Decidir sobre envio de mensagem pro grupo** — hoje desabilitado (`chapaTelefone=null` no ChatSheet do grupo, só visualização). `sendUmblerFreeText` não foi testado contra um chat de grupo — pode precisar de parâmetro diferente de `toPhone`.
 3. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
 4. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.45 — tarefa em tela cheia + grupo do cliente fase 2 + fixes (MCM-139)
+
+Pacote grande, usuário pediu explicitamente pra segurar a release do fix isolado do "Conversa some quando confirmado" e empacotar tudo antes de lançar ("vamos fazer a release após implementar o pacote completo"). Nova versão do fluxo desta sessão: (1) fix Conversa/confirmado; (2) tarefa em tela cheia (MCM-137 fase 1) — Panorama e Timeline já abriam a tarefa num Sheet/Dialog, só troquei o container pra `TaskFullScreenView.tsx` novo (slide-up), reaproveitando `TaskCard` inteiro; (3) grupo do cliente (MCM-137 fase 2, groundwork) — usuário esclareceu que "cliente" e "grupo" são a mesma coisa, e que grupos usam canal fixo `11 99373-0781` (diferente do canal dos chapas) — isso resolveu o ponto cego de como distinguir grupo na API. Sem filtro de telefone documentado em `GET /v1/chats/` (Swagger oficial só cobre AI Agents, manual em texto bloqueado por anti-bot), então a busca pagina a listagem geral e cruza localmente por canal+nome. Migração 23 (`cliente_book.umbler_group_chat_id`) persiste o vínculo por empresa, como o usuário pediu explicitamente ("precisa ser persistente um chat por empresa"). Novo `GroupChatPicker.tsx` (busca automática + manual); (4) fix fromPhone com "0" espúrio (usuário notou o número errado); (5) IDs de questions do Metabase pré-preenchidos (usuário mandou print de Integrações já configurado).
+
+Build de teste (`npm run tauri dev`) rodou nesta máquina antes da release, mas usuário não tinha dado de produção suficiente pra validar a busca de grupo de verdade — por isso pediu a release em vez de continuar testando local.
 
 ## ✅ v1.0.43 — janela de 24h + limites no Ver Conversa (MCM-138)
 

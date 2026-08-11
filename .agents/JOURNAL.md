@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-08-11 — MCM — Release v1.0.45: tarefa em tela cheia + grupo do cliente fase 2 + fixes (MCM-139)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-139 ✅ (Feito) · MCM-137 fase 2 em progresso (grupo ainda não validado com dado real)
+**Commits:** `75f4981`..`d827737`..`91195f9`..`aa41a75` (pacote), `1cbc100` (bump v1.0.45), `ee13b5c` (assina + latest.json)
+
+Usuário pediu pra segurar a release do fix isolado do "Conversa some quando confirmado" e empacotar tudo junto ("vamos fazer a release após implementar o pacote completo"). Pacote final:
+
+### 1. Fix — Conversa some quando confirmado
+Bloco de ações com o botão "Conversa" só existia no ramo "não confirmado" do card do chapa (`TaskCard.tsx`/`ChapaRowView`) — extraído em `conversaTrigger`/`conversaSheet`, reusado nos dois ramos.
+
+### 2. Tarefa em tela cheia (MCM-137 fase 1)
+Usuário trouxe referência de UX (Amazon Q Business — painel contextual "grudado" no que se está vendo) na sessão anterior. Pedido concreto: clicar numa tarefa no Panorama/Timeline abre em tela cheia com slide-up, botão fecha e volta. Descoberta que reduziu escopo: Panorama já abria a tarefa num `Sheet` lateral e Timeline num `Dialog` centralizado — ambos só precisavam trocar de container, não recriar a UI (`TaskCard` já tinha tudo, inclusive os botões "Conversa" da v1.0.41-44). Novo `TaskFullScreenView.tsx` (Radix Dialog customizado, `slide-in-from-bottom`) substitui os dois.
+
+### 3. Grupo do cliente no WhatsApp (MCM-137 fase 2, groundwork)
+Usuário esclareceu: "cliente" e "grupo" são a mesma coisa — chat com cliente É um grupo de WhatsApp. Confirmou que grupos usam um **canal fixo** (`11 99373-0781`), diferente do canal dos chapas — isso resolveu o maior ponto cego (como distinguir grupo de chapa na API, já que nunca confirmei um `ContactType=Group` real).
+
+Investigação de API antes de implementar: o Swagger oficial (`docs.json`) só documenta AI Agents, o manual em texto está bloqueado (403, anti-bot) — não existe filtro de telefone documentado em `GET /v1/chats/`. Solução: `searchUmblerGroupChats()` pagina a listagem geral e cruza localmente por `channel.phoneNumber` (canal) + nome/telefone do cliente.
+
+Implementado: migração 23 (`cliente_book.umbler_group_chat_id`, persiste o vínculo — pedido explícito do usuário, "precisa ser persistente um chat por empresa"), componente `GroupChatPicker.tsx` (busca automática por nome + busca manual pra refinar), wireado em `ClienteBook.tsx` (botão por linha) e `TaskCard.tsx` (ícone ao lado do nome da empresa, reaproveita o `clienteInfo` já resolvido por `task.empresa`). Composer de resposta desabilitado pro grupo (`chapaTelefone=null`) — sem confirmação de que `sendUmblerFreeText` funciona igual pra grupo.
+
+### 4. Fix — fromPhone com dígito espúrio
+Usuário notou: `+55109997435351` tinha um "0" a mais. Corrigido pra `+5519997435351`, com correção de valor legado persistido (mesmo padrão do `captacaoTemplateId`, ver JOURNAL 2026-06-24).
+
+### 5. IDs de questions pré-preenchidos
+Usuário mandou print de Integrações com os IDs já configurados — pré-preenchidos em `SETTING_DEFAULTS` (Fonte de Tarefas 1290, Próximas 30h 1289, Carteira 1291, Endereços 1420, Tarefa→Endereço 1430, Chapas Recentes 1425, Leads Regionais 983).
+
+**Next:** usuário vai testar a busca de grupo com dado real numa máquina com dados de produção (pediu release específica pra isso, não deu pra validar no `tauri dev` desta máquina). Formato de resposta de `GET /v1/chats/` segue não confirmado contra payload real — se vier diferente, ajustar `parseChatSummary`/`fetchUmblerChatsPage` em `umbler.ts`. Depois de validado: decidir sobre envio de mensagem pro grupo (fase seguinte). MCM-133 (export CSV Recomendados) e cota de chapas por empresa seguem pendentes, sem novidade.
+
+---
+
 ## 2026-08-10 — MCM — Release v1.0.43: janela de 24h + limites no Ver Conversa (MCM-138)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-138 ✅ (Feito) · MCM-137 criado (backlog, visão de comunicação por tarefa)
