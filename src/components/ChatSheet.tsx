@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Loader2, RefreshCw, Send } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw, Send, Bot } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -173,8 +173,23 @@ export function ChatSheet({ open, onOpenChange, chatId, chapaNome, chapaTelefone
 }
 
 function ChatBubble({ message }: { message: UmblerMessage }) {
+  // Mensagens de Bot não são conversa entre pessoas — vira um aviso de
+  // sistema centralizado, igual WhatsApp mostra mudança de assunto/grupo,
+  // em vez de balão como se fosse alguém falando.
+  if (message.source === "Bot") {
+    return (
+      <div className="flex flex-col items-center gap-0.5 py-1">
+        <span className="inline-flex items-center gap-1.5 max-w-[90%] text-[11px] text-muted-foreground bg-muted/50 rounded-full px-3 py-1 text-center">
+          <Bot className="h-3 w-3 shrink-0" />
+          <ChatBubbleContent message={message} />
+        </span>
+        <span className="text-[9px] text-muted-foreground">{fmtDateTime(message.eventAtUTC)}</span>
+      </div>
+    );
+  }
+
   const fromChapa = message.source === "Contact";
-  const label = fromChapa ? "Chapa" : message.source === "Bot" ? "Bot" : message.senderName ?? "Analista";
+  const label = fromChapa ? "Chapa" : (message.senderName || "Analista");
 
   return (
     <div className={`flex flex-col gap-1 ${fromChapa ? "items-start" : "items-end"}`}>
