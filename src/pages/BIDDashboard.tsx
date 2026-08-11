@@ -1579,6 +1579,28 @@ function BidTaskCard({
     if (started) setSelectedIds(new Set());
   }
 
+  // Exporta TODOS os disponíveis desta tarefa (não só os 40 visíveis na
+  // página) pro 3C — planilha simples Nome (primeiro nome)/Telefone. Já
+  // inclui leads Saac aptos/ativados, que entram no mesmo pool de
+  // "disponíveis" (rawCandidates com fonte='leads_saac', ver `available`).
+  function exportDisponiveisCsv() {
+    if (available.length === 0) return;
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? nome;
+    const rows = available
+      .filter((c) => c.telefone)
+      .map((c) => [primeiroNome(c.nome), c.telefone].map(esc).join(";"));
+    const csv = "Nome;Telefone\n" + rows.join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `disponiveis_3c_tarefa_${task.id_tarefa}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${rows.length} disponíveis exportados pro 3C`);
+  }
+
   function toggleSelect(key: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -2254,6 +2276,14 @@ function BidTaskCard({
                         onClick={(e) => { e.stopPropagation(); setShowAll((v) => !v); }}
                         className="font-normal normal-case text-primary hover:underline">
                         {showAll ? "mostrar menos" : `ver todos (${(useProximityFilter ? [...withinDist, ...unknownDist] : available).length})`}
+                      </button>
+                    )}
+                    {available.length > 0 && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); exportDisponiveisCsv(); }}
+                        title="Exportar CSV pro 3C (Nome, Telefone — todos os disponíveis desta tarefa, incluindo leads aptos/ativados)"
+                        className="font-normal normal-case text-muted-foreground hover:text-primary inline-flex items-center gap-1">
+                        <Download className="h-3 w-3" /> CSV 3C
                       </button>
                     )}
                   </>
