@@ -3,6 +3,38 @@
 
 ---
 
+## 2026-08-11 — MCM — Release v1.0.46: painel de tarefa redesenhado (estilo Amazon Q) + CSV 3C (MCM-141)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-141 ✅ (Feito) · MCM-137 fase 1 essencialmente completa · MCM-140 aberto (bug badge "Novo")
+**Commits:** `67f4f28`..`638aaec` (pacote, 6 commits), `6e6dba1` (bump v1.0.46), `168880b` (assina + latest.json)
+
+### Contexto — redesenho pedido pelo usuário
+Depois de eu já ter entregue a v1.0.45 (tela cheia com slide-up), usuário pediu pra mudar completamente a disposição: "algo aproximado com o Amazon Q". Investiguei o padrão real do Amazon Q Business (painel lateral fixo, não tela cheia) e propus um mockup (via ferramenta de visualização) ANTES de codificar — confirmado por perguntas estruturadas: painel lateral fixo (não modal, resto do dashboard clicável), lista de chapas + conversa lado a lado (não conversa sozinha, não detalhes no topo como antes).
+
+### Implementação — TaskDetailPanel.tsx
+Painel `position:fixed` na borda direita, redimensionável (drag na borda esquerda, largura salva em localStorage), SEM overlay/backdrop (diferente de Dialog/Sheet — dashboard continua interativo ao lado). Body em 2 colunas: lista compacta de chapas + grupo do cliente (esquerda), `ConversationPane` da pessoa selecionada (direita, extraído do `ChatSheet.tsx` pra reuso).
+
+Extrações pra DRY entre os 3 pontos de uso (ChatSheet, TaskCard, TaskDetailPanel): `ConversationPane.tsx` (mensagens+composer sem wrapper de Sheet) e `useClienteInfo.ts` (hook do cruzamento empresa↔cliente_book, antes duplicado inline no TaskCard).
+
+### Paridade de funcionalidade — mapeamento explícito com o usuário
+Levantei TUDO que existia no `TaskCard`/`ChapaRowView` antigo e não tinha sido portado ainda, apresentei em 3 categorias (ações por chapa, ações em massa, informação visual) e deixei o usuário decidir prioridade. Decisões:
+- **Editar telefone**: excluído do menu por pedido explícito ("ignorar").
+- **Badge "Novo"**: usuário reportou falso-positivo a cada sync — removido do painel novo, NÃO investigado a fundo (aberto MCM-140 separado, com hipótese registrada — `newChapaTimestampsRef` em Dashboard.tsx — mas sem fabricar fix sem reproduzir).
+- **Vagas em aberto**: virou só um número na linha de stats, sem renderizar linha por vaga.
+- **Ações em massa**: delegado ("inclua onde achar necessário") — adicionei FUP Todos, Mensagem personalizada (dialog com seleção), Confirmar todos, copiar CPFs.
+- **Histórico de FUP**: usuário pediu nome+horário de TODO disparo já feito na tarefa (não só resumo por canal) — seção colapsável nova.
+- **Resto** (Validação, Observações, fill rate, alertas, badges): delegado como "especialista em UI" — coloquei Validação/Observações como seções colapsáveis abaixo da lista de chapas (são por tarefa, não por pessoa — mantém a coluna de conversa focada só em comunicação), fill rate bar + alerta de aproximação no cabeçalho, badges overnight/"Ontem" ao lado do nome da empresa, código da tarefa (#id, copiável) na mesma linha — conforme pedido explícito do usuário.
+
+### Cancelamento — reaproveitado, não recriado
+Individual (dropdown Sem resposta/Cancelar tarefa, com countdown) e geral (SlideToConfirm) — mesma lógica do `TaskCard` (`dispatchQueue.startChapaJob`/`startTaskCancel`, hooks `useChapaJobState`/`useTaskCancelState`), só a UI que é nova. Bug de Rules of Hooks pego e corrigido durante a implementação (hook precisa ser chamado antes do early-return quando `task` é null).
+
+### CSV pro 3C (pedido separado, antes da release)
+Botão "CSV 3C" na aba Disponíveis do BID Dashboard, por tarefa — exporta TODOS os disponíveis (não só os 40 paginados), formato Nome (primeiro nome)/Telefone, mesmo padrão de CSV já usado em Cadastro (`;` delimitado, BOM UTF-8). Leads Saac aptos/ativados já entram automaticamente — mesmo pool `available` que os chapas do cadastro geral (`fonte='leads_saac'` vs `'metabase'`), confirmado lendo o código antes de implementar, sem precisar de lógica nova de inclusão.
+
+**Next:** usuário vai testar em produção (pediu a release especificamente pra isso — "vamos testar na prática"). MCM-140 (badge Novo), MCM-133 (export CSV Recomendados completo — pedido diferente do CSV 3C desta versão), cota de chapas por empresa seguem pendentes.
+
+---
+
 ## 2026-08-11 — MCM — Release v1.0.45: tarefa em tela cheia + grupo do cliente fase 2 + fixes (MCM-139)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-139 ✅ (Feito) · MCM-137 fase 2 em progresso (grupo ainda não validado com dado real)

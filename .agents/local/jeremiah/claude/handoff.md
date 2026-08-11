@@ -1,15 +1,27 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-11 (Sonnet 5)
-**Versão:** `1.0.45` publicada, **assinada e verificada**. Sem pendência de release aberta.
+**Versão:** `1.0.46` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `ee13b5c` (assina 1.0.45 + latest.json).
+**Último commit:** `168880b` (assina 1.0.46 + latest.json).
 
 **Pendências abertas para a próxima sessão:**
-1. **Validar busca de grupo com dado real** — usuário pediu a release especificamente pra testar numa máquina com dados de produção (não deu pra validar no `tauri dev` desta máquina). Formato de resposta de `GET /v1/chats/` (`searchUmblerGroupChats`/`fetchUmblerChatsPage`/`parseChatSummary` em `umbler.ts`) segue não confirmado contra payload real capturado — se vier diferente/vazio, ajustar o parser. Canal de grupo (`groupChannelPhone = +5511993730781`) foi confirmado pelo usuário, mas o resto do fluxo (paginação, cruzamento por nome) não.
-2. **Decidir sobre envio de mensagem pro grupo** — hoje desabilitado (`chapaTelefone=null` no ChatSheet do grupo, só visualização). `sendUmblerFreeText` não foi testado contra um chat de grupo — pode precisar de parâmetro diferente de `toPhone`.
-3. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" (cabeçalho exato). Ticket criado, não implementado.
-4. **Cota de chapas por empresa** — usuário quer mostrar/filtrar em Disponíveis quando uma empresa tem limite de chapas ativos. Ainda não mapeado no schema. Query da question 1296 (cadastro geral) que o usuário colou confirma `core_api."User"`, `"WorkItem"`, `"WorkHeader"`, `"Address"`, `"UserLog"`, `"BlacklistHistory"`, `"Blacklist"` (com `BusinessId`) — falta inspecionar a tabela `core_api."Business"` em si. Combinei com o usuário: ele vai abrir Admin → Table Metadata no Metabase e mandar print das colunas de `Business` (mesmo fluxo que usamos pra `BlacklistHistory`). **Não fabricar nomes de coluna sem essa confirmação.**
+1. **Validar o painel novo (TaskDetailPanel) em produção** — usuário pediu a release especificamente pra "testar na prática". Redesenho grande (painel lateral fixo redimensionável, substitui tela cheia da v1.0.45) — conferir: resize funciona, todas as ações (confirmar/cancelar/FUP/mensagem/validação/observações/histórico) respondem certo, grupo do cliente aparece quando vinculado.
+2. **MCM-140** — badge "Novo" removido do painel (falso-positivo a cada sync), causa raiz não investigada. Hipótese registrada no ticket: `newChapaTimestampsRef`/`computeRefreshDiff` em `Dashboard.tsx`. Não fabricar fix sem reproduzir.
+3. **Validar busca de grupo do cliente com dado real** — formato de resposta de `GET /v1/chats/` (`searchUmblerGroupChats`/`fetchUmblerChatsPage`/`parseChatSummary` em `umbler.ts`) segue não confirmado contra payload real capturado.
+4. **Decidir sobre envio de mensagem pro grupo** — hoje desabilitado (`personTelefone=null` no `ConversationPane` do grupo, só visualização). `sendUmblerFreeText` não foi testado contra um chat de grupo.
+5. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" — DIFERENTE do CSV 3C da v1.0.46 (que é a aba Disponíveis, não Recomendados). Ticket criado, não implementado.
+6. **Cota de chapas por empresa** — ainda não mapeado no schema. Falta inspecionar `core_api."Business"` no Metabase (usuário vai mandar print). **Não fabricar nomes de coluna sem essa confirmação.**
+
+## ✅ v1.0.46 — painel de tarefa redesenhado (estilo Amazon Q) + CSV 3C (MCM-141)
+
+Logo depois da v1.0.45 (tela cheia), usuário pediu pra mudar TUDO — "algo aproximado com o Amazon Q". Antes de codificar, propus um mockup via ferramenta de visualização e confirmei 3 decisões por perguntas estruturadas: painel lateral fixo (não modal — dashboard continua clicável ao lado, diferente do overlay anterior), lista de chapas+conversa lado a lado (não conversa sozinha), ações do chapa no topo da conversa. Build novo: `TaskDetailPanel.tsx` (fixed position, resize por drag na borda, largura salva), extraindo `ConversationPane.tsx` (do `ChatSheet.tsx`) e `useClienteInfo.ts` (do `TaskCard.tsx`) pra reuso sem duplicar entre os 3 pontos.
+
+Depois de entregar o esqueleto, usuário reportou faltar cancelamento (individual + geral) — adicionei reaproveitando a lógica exata do `TaskCard` antigo (`dispatchQueue`, mesmos hooks), só a UI é nova. Peguei e corrigi um bug de Rules of Hooks nesse meio-tempo (hook chamado depois de um early-return condicional).
+
+Daí fiz um levantamento explícito de TUDO que faltava vs. o `TaskCard` antigo (ações por chapa, ações em massa, informação visual) e deixei o usuário decidir prioridade — respostas: editar telefone fora, badge "Novo" fora (bug, MCM-140), vagas em aberto só como número, ações em massa "onde eu achar necessário", histórico completo (nome+horário de tudo), resto "aja como especialista em UI" (Validação/Observações como seções colapsáveis fora da coluna de conversa, fill rate bar, badges perto do nome da empresa e código da tarefa).
+
+Por fim, ANTES da release, usuário pediu export de CSV pro 3C — botão na aba Disponíveis do BID, por tarefa, todos os disponíveis (não só a página), Nome (primeiro nome)/Telefone. Descoberta que simplificou a implementação: leads Saac aptos/ativados já entram no mesmo pool `available` que os chapas do cadastro geral — não precisei de lógica de inclusão separada, só exportar o que já existia.
 
 ## ✅ v1.0.45 — tarefa em tela cheia + grupo do cliente fase 2 + fixes (MCM-139)
 
