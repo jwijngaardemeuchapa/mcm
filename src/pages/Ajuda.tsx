@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.46</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.47</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,11 +767,11 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.46 — Novidades desta versão:</strong>{" "}
-              <strong>Painel de tarefa redesenhado</strong>: agora abre num painel lateral fixo e redimensionável (não tela cheia) — lista de chapas e grupo do cliente à esquerda, conversa da pessoa selecionada à direita, com todas as ações (confirmar, cancelar, FUP, mensagem personalizada, validação, observações, histórico completo) no mesmo lugar.{" "}
-              <strong>Cancelamento no painel novo</strong>: individual (por chapa) e geral da tarefa (com slide-to-confirm), igual já existia antes.{" "}
-              <strong>Grupo do cliente no WhatsApp</strong>: busca automática + manual, vínculo salvo por empresa.{" "}
-              <strong>Exportar CSV pro 3C (novo)</strong>: botão "CSV 3C" na aba Disponíveis do BID exporta todos os disponíveis da tarefa (nome + telefone), incluindo leads Saac aptos/ativados.
+              <strong>v1.0.47 — Novidades desta versão:</strong>{" "}
+              <strong>Tarefa em tela cheia de novo</strong>: o painel volta a abrir em tela cheia (slide-up/slide-down), em vez do painel lateral da v1.0.46.{" "}
+              <strong>Fix — grupo do cliente</strong>: clicar no grupo sem vínculo agora abre a busca corretamente (antes só abria a conversa vazia); botão "trocar grupo" pra escolher outro se vinculou o errado.{" "}
+              <strong>Fix — janela de 24h no chat</strong>: agora bloqueia mesmo o envio quando a janela está fechada, não só avisa.{" "}
+              <strong>Chat mostra últimas 30 mensagens</strong> (era 15), com scroll já no final ao abrir.
             </span>
           </div>
         )}
@@ -1007,7 +1007,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.46 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.47 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1042,7 +1042,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.46 · © 2026 Wijngaarde Design
+        MCM v1.0.47 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
