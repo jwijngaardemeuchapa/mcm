@@ -84,7 +84,48 @@ ANALISTA — não confirmado em detalhe ainda qual campo identifica o analista
 equivalente na instância do bot). Precisa validar contra um payload real antes
 de desenhar a tela.
 
-### 3. Sessão de ocorrências (NOVO — 2026-08-12)
+### 3. Identidade visual — "visores de tirar o fôlego"
+
+Pedido do usuário (2026-08-12): a central deve ter telas "extremamente
+bonitas, interativas, cheias de efeitos, modernas" mas continuar útil
+(não só bonita à toa). **A base já foi aplicada no MCM local nesta mesma
+data** — reaproveitar direto na central quando ela existir:
+
+- Fonte **Fustat** (trocou Montserrat/IBM Plex Sans — "a mudança mais
+  estrutural da identidade" segundo o guia de marca).
+- Paleta oficial: `#e5490e` (laranja principal), `#fb7b2f` (laranja claro),
+  `#fb6104` (laranja vivo, ícones/destaques), `#efeee5` (off-white),
+  `#000000` (texto sempre preto). Convertidos pra HSL em
+  `src/index.css` (`--primary`, `--primary-glow`, `--primary-strong`).
+  Reaproveitar os MESMOS valores na central, não reconverter do zero.
+  **Fonte da verdade:** `G:\...\OneDrive\Meu Chapa\MEUCHAPA_Identidade
+  Social.pdf` — guia completo (27 páginas) com regras de CTA (sempre com
+  sombra), tratamento de elementos laranja (luz interna 10-30% + sombra),
+  variação de ângulo de gradiente permitida, tratamento de fotos
+  (sempre ambientadas, roupas laranja).
+- Tracking -0.02em em headings (regra "-20" do guia, SemiBold/Bold,
+  14-20pt).
+
+### 4. Logos de empresas-cliente
+
+Pedido do usuário: mostrar o logo de cada empresa-cliente (não só a
+inicial num círculo colorido, como o MCM faz hoje). Duas opções ainda
+não decididas:
+1. **Upload manual** — cliente sobe o logo uma vez (provavelmente na
+   tela de Carteira/cadastro do cliente), fica salvo e reaproveitado
+   em toda a UI que mostra aquela empresa.
+2. **Automatizar** — buscar logo automaticamente por algum serviço de
+   logo-por-domínio/CNPJ (ex: Clearbit Logo API, Brandfetch, ou scraping
+   do site do cliente se tiver URL cadastrada). Precisa avaliar custo/
+   confiabilidade antes de decidir — **não escolher fornecedor sem
+   validar com o usuário**, pode ter custo por request.
+
+Não fica claro ainda se isso é só pra central ou também vale a pena portar
+pro MCM local (ex: no lugar da inicial em círculo no header do
+`TaskDetailPanel`, que hoje é só a primeira letra do nome da empresa).
+**Perguntar ao usuário no início dessa feature.**
+
+### 5. Sessão de ocorrências (NOVO — 2026-08-12)
 
 Pedido do usuário: "uma sessão de ocorrências, para acompanhamento da
 liderança. Talvez tudo atrelado à tarefas. Para ser útil e didático." — ainda
