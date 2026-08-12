@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
-  MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw,
+  MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GroupChatPicker } from "@/components/GroupChatPicker";
@@ -57,6 +57,27 @@ const STATUS_LABEL: Record<string, string> = {
   cancelado: "Negou FUP",
   removido: "Removido",
 };
+
+function fmtElapsed(min: number): string {
+  if (min < 60) return `${min}min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+// Cor/ícone por status — cor conta a história antes de precisar ler o texto:
+// verde = resolvido, azul = aguardando resposta (já teve FUP), vermelho =
+// precisa de ação (nunca teve contato ou negou), âmbar = sem resposta,
+// cinza = removido.
+function chapaStatusMeta(status: string, hasDispatch: boolean) {
+  if (status === "confirmado") return { dot: "bg-success", text: "text-success", bg: "bg-success/10", border: "border-l-success" };
+  if (status === "nao_respondeu") return { dot: "bg-warning", text: "text-warning", bg: "bg-warning/10", border: "border-l-warning" };
+  if (status === "cancelado") return { dot: "bg-destructive", text: "text-destructive", bg: "bg-destructive/10", border: "border-l-destructive" };
+  if (status === "removido") return { dot: "bg-muted-foreground/40", text: "text-muted-foreground", bg: "bg-muted/40", border: "border-l-transparent" };
+  // pendente
+  if (hasDispatch) return { dot: "bg-info", text: "text-info", bg: "bg-info/10", border: "border-l-info" };
+  return { dot: "bg-destructive", text: "text-destructive", bg: "bg-destructive/5", border: "border-l-destructive/60" };
+}
 
 const CANAL_LABEL: Record<string, string> = {
   whatsapp_web: "WhatsApp",
@@ -232,6 +253,19 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     return map;
   }, [task]);
 
+  // Disparo mais recente por chapa (qualquer canal, com ou sem chat
+  // vinculado) — alimenta o contador "há Xmin" na lista.
+  const lastDispatchByChapa = useMemo(() => {
+    if (!task) return new Map<string, string>();
+    const map = new Map<string, string>();
+    for (const f of task.fup_log) {
+      if (!f.chapa_id) continue;
+      const cur = map.get(f.chapa_id);
+      if (!cur || f.data_disparo > cur) map.set(f.chapa_id, f.data_disparo);
+    }
+    return map;
+  }, [task]);
+
   const realChapas = task?.chapas.filter((c) => c.nome_chapa) ?? [];
   const selectedChapa = task && selectedKey && selectedKey !== CLIENTE_KEY
     ? realChapas.find((c) => c.id === selectedKey) ?? null
@@ -267,6 +301,12 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
 
   const chapaPendingAction = chapaJobState?.action ?? null;
   const chapaCountdown = chapaJobState?.remaining ?? 0;
+  const umblerCount = selectedChapa
+    ? task.fup_log.filter((f) => f.canal === "umbler_talk" && f.chapa_id === selectedChapa.id).length
+    : 0;
+  const umblerEverSent = selectedChapa
+    ? (selectedChapa.canal_contato === "umbler_talk" || umblerCount > 0)
+    : false;
   const cancelCount = selectedChapa
     ? task.fup_log.filter((f) => f.canal === "umbler_cancelamento" && f.chapa_id === selectedChapa.id).length
     : 0;
@@ -466,16 +506,18 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                 Chapas ({realChapas.length})
               </p>
               {realChapas.map((c) => {
-                const hasChat = chatEntryByChapa.has(c.id);
+                const lastDispatch = lastDispatchByChapa.get(c.id) ?? null;
                 const selected = selectedKey === c.id;
+                const meta = chapaStatusMeta(c.status_contato, !!lastDispatch);
+                const elapsedMin = lastDispatch ? Math.floor((Date.now() - new Date(lastDispatch).getTime()) / 60_000) : null;
                 return (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => setSelectedKey(c.id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
-                      selected ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-muted/50 border-l-2 border-l-transparent"
-                    }`}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors border-l-2 ${meta.border} ${
+                      selected ? "bg-primary/10" : `${meta.bg} hover:opacity-80`
+                    } ${c.status_contato === "removido" ? "opacity-50" : ""}`}
                   >
                     <div className={`h-6 w-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-semibold ${
                       selected ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
@@ -483,12 +525,16 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                       {c.nome_chapa!.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[13px] truncate ${selected ? "font-medium" : ""}`}>{c.nome_chapa}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{STATUS_LABEL[c.status_contato] ?? c.status_contato}</p>
+                      <p className={`text-[13px] truncate ${selected ? "font-medium" : ""} ${c.status_contato === "removido" ? "line-through" : ""}`}>{c.nome_chapa}</p>
+                      <p className={`text-[11px] truncate flex items-center gap-1 ${meta.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
+                        {STATUS_LABEL[c.status_contato] ?? c.status_contato}
+                        {c.status_contato === "pendente" && !lastDispatch && " — sem contato"}
+                        {elapsedMin !== null && c.status_contato !== "confirmado" && (
+                          <span className="text-muted-foreground">· há {fmtElapsed(elapsedMin)}</span>
+                        )}
+                      </p>
                     </div>
-                    {c.status_contato === "confirmado" && <Check className="h-3 w-3 text-success shrink-0" />}
-                    {c.status_contato === "nao_respondeu" && <AlertTriangle className="h-3 w-3 text-warning shrink-0" />}
-                    {!hasChat && <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 shrink-0" title="Sem conversa vinculada" />}
                   </button>
                 );
               })}
@@ -598,6 +644,34 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   >
                     <AlertTriangle className="h-3 w-3" /> Sem resposta
                   </Button>
+
+                  {selectedChapa.telefone_chapa && umblerReady && (
+                    chapaPendingAction === "fup" ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[11px] gap-1 border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                        onClick={() => dispatchQueue.abortChapaJob(selectedChapa.id)}
+                      >
+                        <X className="h-3 w-3" /> {chapaCountdown}s
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={chapaPendingAction === "cancel" || chapaPendingAction === "cancel_task"}
+                        className={`h-6 text-[11px] gap-1 ${
+                          umblerEverSent
+                            ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
+                            : "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"
+                        }`}
+                        onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "fup", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
+                      >
+                        {umblerEverSent ? <Check className="h-3 w-3" /> : <Send className="h-3 w-3" />}
+                        {umblerEverSent ? `Enviado${umblerCount > 0 ? ` (${umblerCount}x)` : ""}` : "Enviar Umbler"}
+                      </Button>
+                    )
+                  )}
 
                   {selectedChapa.telefone_chapa && (cancelTemplateReady || taskCancelTemplateReady || everSentCancel || everSentTask) && (
                     chapaPendingAction === "cancel" || chapaPendingAction === "cancel_task" ? (
