@@ -1,10 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { ExternalLink, Loader2, RefreshCw, Send, Bot } from "lucide-react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ChangeEvent } from "react";
+import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, type UmblerMessage } from "@/lib/umbler";
 import { type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
+
+const ATTACHMENT_ACCEPT = "image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx";
+const MAX_ATTACHMENT_BYTES = 16 * 1024 * 1024; // limite prático do WhatsApp pra mídia/documento
 
 const TAKE = 30;
 // WhatsApp Business API fecha a janela de resposta livre 24h após a última
@@ -47,7 +50,10 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [reply, setReply] = useState("");
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
+    const [pendingFile, setPendingFile] = useState<File | null>(null);
+    const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     function scrollToBottom(smooth = false) {
       const el = scrollRef.current;
@@ -76,9 +82,38 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
       setError(null);
       setReply("");
       setSendError(null);
+      clearAttachment();
       if (chatId) load();
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chatId]);
+
+    // Revoga a object URL de preview ao desmontar ou trocar de arquivo, senão vaza memória.
+    useEffect(() => {
+      return () => {
+        if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
+      };
+    }, [pendingPreviewUrl]);
+
+    function clearAttachment() {
+      setPendingFile((prev) => {
+        if (prev) setPendingPreviewUrl((url) => { if (url) URL.revokeObjectURL(url); return null; });
+        return null;
+      });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+
+    function handleAttachChange(e: ChangeEvent<HTMLInputElement>) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setSendError(`Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB) — limite de ${MAX_ATTACHMENT_BYTES / 1024 / 1024}MB.`);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      setSendError(null);
+      setPendingFile(file);
+      setPendingPreviewUrl(file.type.startsWith("image/") ? URL.createObjectURL(file) : null);
+    }
 
     useImperativeHandle(ref, () => ({
       fillReply: (text: string) => setReply((prev) => (prev ? `${prev}\n${text}` : text)),
@@ -90,12 +125,13 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
 
     async function handleSend() {
       const text = reply.trim();
-      if (!text || !personTelefone || sending || overLimit || windowOpen === false) return;
+      if ((!text && !pendingFile) || !personTelefone || sending || overLimit || windowOpen === false) return;
       setSending(true);
       setSendError(null);
       try {
-        await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, settings });
+        await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, file: pendingFile ?? undefined, settings });
         setReply("");
+        clearAttachment();
         // Mensagem enviada pode demorar alguns segundos pra aparecer no
         // relative-messages — recarrega em seguida, sem travar a UI.
         load();
@@ -161,7 +197,31 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                 {sendError}
               </div>
             )}
+            {pendingFile && (
+              <div className="flex items-center gap-2 bg-muted rounded-md px-2 py-1.5">
+                {pendingPreviewUrl ? (
+                  <img src={pendingPreviewUrl} alt={pendingFile.name} className="h-9 w-9 rounded object-cover shrink-0" />
+                ) : (
+                  <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+                <span className="text-[11px] truncate flex-1">{pendingFile.name}</span>
+                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={clearAttachment} disabled={sending} title="Remover anexo">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
             <div className="flex items-end gap-2">
+              <input ref={fileInputRef} type="file" accept={ATTACHMENT_ACCEPT} className="hidden" onChange={handleAttachChange} />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || windowOpen === false}
+                title="Anexar imagem, áudio ou documento"
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
               <Textarea
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
@@ -175,7 +235,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                 className="min-h-9 h-9 max-h-24 resize-none text-xs"
                 disabled={sending || windowOpen === false}
               />
-              <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleSend} disabled={sending || !reply.trim() || overLimit || windowOpen === false}>
+              <Button size="icon" className="h-9 w-9 shrink-0" onClick={handleSend} disabled={sending || (!reply.trim() && !pendingFile) || overLimit || windowOpen === false}>
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>

@@ -261,25 +261,49 @@ export async function fetchUmblerRecentMessages({
 export async function sendUmblerFreeText({
   chapaTelefone,
   message,
+  file,
   settings,
 }: {
   chapaTelefone: string;
   message: string;
+  // Anexo (imagem/áudio/documento) — enviado como multipart/form-data direto
+  // pro campo `File` do endpoint (confirmado no schema OpenAPI oficial:
+  // app-utalk.umbler.com/api/docs/v1/docs.json → CreateMessageSimplifiedModel
+  // aceita multipart/form-data com File binário). Não precisa de hospedagem
+  // externa — a Umbler recebe o binário na própria requisição.
+  file?: File;
   settings: UmblerSettings;
 }): Promise<void> {
-  const res = await fetch("https://app-utalk.umbler.com/api/v1/messages/simplified/", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${settings.bearerToken}`,
-    },
-    body: JSON.stringify({
-      toPhone: toInternationalPhone(chapaTelefone),
+  const toPhone = toInternationalPhone(chapaTelefone);
+  let body: BodyInit;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${settings.bearerToken}`,
+  };
+
+  if (file) {
+    const form = new FormData();
+    form.set("ToPhone", toPhone);
+    form.set("FromPhone", settings.fromPhone);
+    form.set("OrganizationId", settings.organizationId);
+    if (message) form.set("Message", message);
+    form.set("File", file, file.name);
+    body = form;
+    // Não define Content-Type: o browser gera o boundary do multipart sozinho.
+  } else {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify({
+      toPhone,
       fromPhone: settings.fromPhone,
       organizationId: settings.organizationId,
       message,
-    }),
+    });
+  }
+
+  const res = await fetch("https://app-utalk.umbler.com/api/v1/messages/simplified/", {
+    method: "POST",
+    headers,
+    body,
   });
 
   if (!res.ok) {
