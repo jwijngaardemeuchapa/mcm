@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-08-12 — MCM — Release v1.0.50: nome do arquivo CSV 3C traz empresa/tarefa/cidade/horário
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-145 (Feito)
+**Commits:** c030139, 00e72e9, 17132f4
+
+Pedido pequeno e direto: "eu preciso que o CSV da 3C seja o nome fantasia da empresa da tarefa, ID da tarefa, cidade e horario". Antes de mexer, perguntei se era pra virar colunas novas ou só o nome do arquivo (já que trocar as colunas destruiria a utilidade do CSV pro 3C — perderiam nome/telefone pra ligar). Resposta: só no nome do arquivo, colunas continuam Nome;Telefone. Filename final: `3C_{empresa}_{id_tarefa}_{cidade}_{horario}.csv` (sanitizado pra caracteres inválidos de filesystem, horário com `h` no lugar de `:`).
+
+Nota lateral: usuário também perguntou sobre um relatório de disparos de bots FUP da Umbler. Investigação rápida no Swagger oficial achou `GET /v1/bots/flowchart/botinstances/` (filtra por botId + startUTC/endUTC, `Behavior=CountAllAndGetSlice` devolve total sem paginar tudo) — endpoint não-estável mas funcional. Usuário pediu "levantamento pontual" (não feature no app), mas mudou de assunto pro CSV 3C antes de eu buscar os dados — **pendente, retomar se ele voltar a pedir**.
+
+Pipeline de release padrão seguido integralmente.
+
 ## 2026-08-12 — MCM — Release v1.0.49: seletor de carteira na barra superior (BID + FUP)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-144 (Feito)

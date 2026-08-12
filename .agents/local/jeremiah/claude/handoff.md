@@ -1,11 +1,13 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-12 (Sonnet 5)
-**Versão:** `1.0.49` publicada, **assinada e verificada**. Sem pendência de release aberta.
+**Versão:** `1.0.50` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `4dd966e` (latest.json → 1.0.49).
+**Último commit:** `17132f4` (latest.json → 1.0.50).
 
-**Não testado visualmente** — `CarteiraSelector` (novo nesta versão) só passou por typecheck + revisão de código, sem confirmação no app rodando de verdade. Se o usuário reportar algo estranho no filtro de carteira do header, começar por aí.
+**Não testado visualmente** — nem `CarteiraSelector` (v1.0.49) nem o novo nome de arquivo do CSV 3C (v1.0.50) foram confirmados rodando no app de verdade, só typecheck + revisão de código. Se o usuário reportar algo estranho em qualquer um dos dois, começar por aí.
+
+**Pendente — não esquecer:** usuário perguntou sobre relatório de disparos de bots FUP da Umbler (`GET /v1/bots/flowchart/botinstances/`, filtra por botId+período, endpoint não-estável mas funcional — achado documentado no JOURNAL de hoje). Pediu "levantamento pontual, todos os bots, de ontem, com números de disparo" mas mudou de assunto pro CSV antes de eu buscar. **Se ele retomar, já tenho o endpoint mapeado — só falta o bearer token/organizationId reais (estão em `readSettings().umblerSettings` dentro do app, não tenho acesso direto daqui) pra rodar a query.**
 
 **Pendências abertas para a próxima sessão:**
 1. **Webhook de tempo real (mensagem enviada/recebida atualiza a UI sozinha)** — pedido explícito do usuário, ainda não iniciado. Infra parcial já existe (`useFirestoreQueue.ts`/`firestoreQueue.ts`, projeto Firebase `fup-webhook-intermediary`), mas só correlaciona resposta de disparo pendente por telefone — não cobre chat aberto genérico nem correlação por `chatId`. **Falta achar onde roda o receptor do webhook** (não está neste repo) — perguntei ao usuário, ele não respondeu ainda (foi direto pro pedido de mídia).
@@ -14,6 +16,10 @@
 4. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" — DIFERENTE do CSV 3C da v1.0.46 (aba Disponíveis). Ticket criado, não implementado.
 5. **Cota de chapas por empresa** — ainda não mapeado no schema. Falta inspecionar `core_api."Business"` no Metabase (usuário vai mandar print). **Não fabricar nomes de coluna sem essa confirmação.**
 6. **PAUSADO A PEDIDO DO USUÁRIO — "Aprovação Prévia de Chapas" (feature nova).** Usuário quer que o BID Dashboard mostre SÓ os chapas pré-aprovados quando a empresa tiver essa lista configurada (+ badge indicando). Mandou print da tela real do admin do Meu Chapa (aba "Chapas Aprovados" dentro de "Aprovação Prévia de Chapas"): filtro por Empresa, tabela com Nome/Sobrenome/CPF/Telefone/Disponibilidade (Manhã/Tarde/Noite)/Data de Criação/Criado por. **Investigação exaustiva no Metabase não achou a tabela de origem:** varri os 2 schemas visíveis (`core_api`, 124 tabelas, e `mc_ia`, que está **vazio** — sem tabela/view/objeto nenhum) — nenhum bate com esse dado. Candidatos testados e descartados: `ApprovalOfficer` (define QUEM pode aprovar, não a lista), `CompanyConfigurations` (chave/valor por empresa, nenhuma chave relacionada), `ProfileMessageCompany.ChapaQty` (valor fixo 15/10 repetido em tudo, não é cota real), `UserWorkAvailabilitySlots` (disponibilidade do usuário, mas GLOBAL — sem `BusinessId`, não serve pro vínculo por empresa). **Conclusão:** o dado não está acessível pela conexão atual do Metabase — ou é outro banco/serviço não plugado nele, ou falta permissão. Usuário decidiu pausar. Se retomar: as 3 opções que ofereci foram (1) checar Admin→Databases no Metabase por uma SEGUNDA conexão de banco (não só schema), (2) exportar direto da tela do admin se ela tiver botão de CSV, (3) perguntar pro time de TI/dev do Meu Chapa onde esse dado mora de verdade. **Não repetir a varredura de schema do zero** — já foi feita, está documentada aqui.
+
+## ✅ v1.0.50 — nome do arquivo CSV 3C traz empresa/tarefa/cidade/horário (MCM-145)
+
+Pedido pequeno: "eu preciso que o CSV da 3C seja o nome fantasia da empresa da tarefa, ID da tarefa, cidade e horario". Perguntei se era pra virar colunas ou só nome de arquivo (importante — trocar colunas destruiria a utilidade pro 3C, que precisa de nome/telefone pra ligar). Resposta: só no nome do arquivo. Ficou `3C_{empresa}_{id_tarefa}_{cidade}_{horario}.csv`, colunas continuam Nome;Telefone.
 
 ## ✅ v1.0.49 — seletor de carteira na barra superior (MCM-144)
 
