@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ActiveDispatchesOverlay } from "./ActiveDispatchesOverlay";
@@ -11,10 +11,13 @@ import { useUndo } from "@/lib/undo";
 import { ThemeToggle } from "./ThemeToggle";
 import { CommandPalette } from "./CommandPalette";
 import { DailyBriefing } from "./DailyBriefing";
+import { CarteiraSelector } from "./CarteiraSelector";
 import { useKeyboardNav, type NavShortcut } from "@/lib/useKeyboardNav";
 import { useScheduledFup } from "@/lib/useScheduledFup";
 import { useForgetFupConfirmation } from "@/lib/useForgetFupConfirmation";
 import { AutoFupConfirmDialog } from "./AutoFupConfirmDialog";
+
+const CARTEIRA_SELECTOR_ROUTES = ["/bid", "/dashboard"];
 
 const NAV_SHORTCUTS: NavShortcut[] = [
   { key: "b", url: "/bid" },
@@ -35,6 +38,8 @@ const NAV_SHORTCUTS: NavShortcut[] = [
 ];
 
 export default function AppLayout() {
+  const location = useLocation();
+  const showCarteiraSelector = CARTEIRA_SELECTOR_ROUTES.includes(location.pathname);
   const [now, setNow] = useState(new Date());
   const [lastImport, setLastImport] = useState<string | null>(null);
   const { last, undo } = useUndo();
@@ -176,6 +181,7 @@ export default function AppLayout() {
                 )}
               </div>
             )}
+            {showCarteiraSelector && <CarteiraSelector />}
             <button
               onClick={() => setCmdOpen(true)}
               className="hidden md:flex items-center gap-2 h-8 px-3 rounded-md border border-border bg-background text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
