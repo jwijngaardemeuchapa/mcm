@@ -372,7 +372,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
           {/* App name */}
           <p
             style={{
-              fontFamily: "'Montserrat', sans-serif",
+              fontFamily: "'Fustat', sans-serif",
               color: TEXT_DIM,
               fontSize: "0.68rem",
               letterSpacing: "0.3em",

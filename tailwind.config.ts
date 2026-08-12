@@ -12,8 +12,11 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"IBM Plex Sans"', '"DM Sans"', 'system-ui', 'sans-serif'],
-        display: ['"DM Sans"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        // Identidade visual MeuChapa (2026-08-12): Montserrat → Fustat em
+        // toda a marca. Fallbacks antigos mantidos só como rede de segurança
+        // caso a fonte não carregue.
+        sans: ['"Fustat"', '"IBM Plex Sans"', 'system-ui', 'sans-serif'],
+        display: ['"Fustat"', '"DM Sans"', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -30,6 +33,7 @@ export default {
           foreground: "hsl(var(--primary-foreground))",
           glow: "hsl(var(--primary-glow))",
           soft: "hsl(var(--primary-soft))",
+          strong: "hsl(var(--primary-strong))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",

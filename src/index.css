@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Montserrat:wght@300;400;700;900&family=Comfortaa:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fustat:wght@200;300;400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=Comfortaa:wght@300;400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -20,10 +20,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 20% 18%;
 
-    /* Brand — MeuChapa orange (refined: deeper, less neon) */
-    --primary: 22 92% 48%;              /* #e85f00 */
+    /* Brand — MeuChapa oficial (Identidade Visual, 2026-08-12) */
+    --primary: 16 89% 48%;              /* #e5490e — laranja principal da marca */
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 30 100% 60%;
+    --primary-glow: 22 96% 58%;         /* #fb7b2f — laranja claro (secundária) */
+    --primary-strong: 23 97% 50%;       /* #fb6104 — laranja vivo (secundária, ícones/destaques) */
     --primary-soft: 28 85% 93%;         /* warm tint with real visual weight */
 
     --secondary: 210 30% 96%;
@@ -73,11 +74,13 @@
     --sidebar-border: 30 15% 90%;
     --sidebar-ring: 22 92% 48%;
 
-    /* Gradients & shadows */
-    --gradient-primary: linear-gradient(135deg, hsl(22 92% 48%), hsl(35 100% 56%));
+    /* Gradients & shadows — ângulo variável é permitido pela identidade
+       visual ("podemos variar o ângulo do gradiente conforme os posts"),
+       135deg é o padrão daqui. */
+    --gradient-primary: linear-gradient(135deg, hsl(16 89% 48%), hsl(22 96% 58%));
     --gradient-fill: linear-gradient(90deg, hsl(38 95% 52%), hsl(150 68% 38%));
     --shadow-card: 0 1px 2px hsl(30 30% 20% / 0.04), 0 4px 12px hsl(30 30% 20% / 0.04);
-    --shadow-elevated: 0 8px 24px hsl(22 92% 48% / 0.15);
+    --shadow-elevated: 0 8px 24px hsl(16 89% 48% / 0.18);
 
     /* Motion tokens */
     --dur-fast: 120ms;
@@ -96,8 +99,10 @@
     --card-foreground: 30 20% 95%;
     --popover: 225 20% 12%;
     --popover-foreground: 30 20% 95%;
-    --primary: 24 88% 58%;              /* softer orange in dark — less neon */
+    --primary: 18 90% 56%;              /* laranja da marca, aclarado pro fundo escuro */
     --primary-foreground: 0 0% 100%;
+    --primary-glow: 22 96% 62%;
+    --primary-strong: 23 97% 56%;
     --secondary: 222 15% 18%;
     --secondary-foreground: 30 20% 95%;
     --muted: 222 15% 18%;
@@ -138,7 +143,7 @@
 
 @layer base {
   * { @apply border-border; }
-  html { font-family: 'IBM Plex Sans', 'DM Sans', system-ui, sans-serif; font-size: 14px; }
+  html { font-family: 'Fustat', 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; }
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11", "ss01";
@@ -147,9 +152,11 @@
   }
   /* Minimum legible font-size across the entire app */
   .text-\[10px\], .text-\[11px\] { font-size: 12px !important; }
-  h1 { @apply text-2xl font-display font-semibold tracking-tight; }
-  h2 { @apply text-lg font-display font-semibold; }
-  h3 { @apply text-base font-display font-semibold; }
+  /* Tracking -20 é a diretriz da identidade visual MeuChapa pra títulos
+     (SemiBold/Bold, 14-20pt) — equivale a -0.02em nesse tamanho de fonte. */
+  h1 { @apply text-2xl font-display font-semibold; letter-spacing: -0.02em; }
+  h2 { @apply text-lg font-display font-semibold; letter-spacing: -0.02em; }
+  h3 { @apply text-base font-display font-semibold; letter-spacing: -0.02em; }
 }
 
 @layer components {
