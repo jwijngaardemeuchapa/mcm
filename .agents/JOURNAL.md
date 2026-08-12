@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-08-12 — MCM — Release v1.0.49: seletor de carteira na barra superior (BID + FUP)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-144 (Feito)
+**Commits:** 0e104c5, 7b5a0bd, 4dd966e
+
+Pedido direto do usuário: filtro de carteira por grupo (G1-G5), que já existia só na página `Carteira.tsx`, virar um seletor persistente na barra superior de ambos os dashboards (BID e FUP), sem precisar navegar até lá pra trocar.
+
+Antes de codar, mapeei o mecanismo existente: `carteiraGruposAtivos: string[]` em settings (`readSettings`/`writeSettings`), tabela `carteira` (nome_fantasia/cnpj/grupo), evento `window.dispatchEvent(new CustomEvent("carteira:changed"))` já consumido por `WatcherContext.tsx`, e o refresh de dados em ambos os dashboards já reagia a `fup:refresh` (usado por outras mutações). Isso significava que a UI nova só precisava reaproveitar a mesma setting + disparar os dois eventos — nenhuma mudança de schema ou lógica de filtro necessária.
+
+Implementado `CarteiraSelector.tsx` (Popover compacto com os mesmos pills G1-G5 da página Carteira, mesma contagem por grupo) e injetado no header global (`AppLayout.tsx`), mas condicionado por rota (`useLocation`, só em `/bid` e `/dashboard`) — o header é compartilhado por TODAS as páginas do app, então sem esse filtro apareceria em lugares onde não faz sentido (Configurações, Ajuda etc).
+
+**Nota:** não deu pra testar visualmente no browser MCP — app é Tauri com SQLite nativo (plugin não funciona em dev server puro), e o painel de preview deste ambiente não estava compositando frames pra screenshot. Validação ficou só em typecheck (baseline 13 erros mantido) + revisão de código; pedido ao usuário validar em produção.
+
+Pipeline de release padrão seguido integralmente.
+
 ## 2026-08-12 — MCM — Release v1.0.48: cores/timer/FUP individual, anexo de mídia no chat, fix busca de grupo
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-143 (Feito)
