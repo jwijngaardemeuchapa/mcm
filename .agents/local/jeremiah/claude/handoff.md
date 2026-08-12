@@ -1,6 +1,6 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-11 (Sonnet 5)
+**Data:** 2026-08-12 (Sonnet 5)
 **Versão:** `1.0.47` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
 **Último commit:** `49faed3` (assina 1.0.47 + latest.json).
@@ -12,6 +12,7 @@
 4. **Decidir sobre envio de mensagem pro grupo** — hoje desabilitado (`personTelefone=null` no `ConversationPane` do grupo, só visualização). `sendUmblerFreeText` não foi testado contra um chat de grupo.
 5. **MCM-133** — export CSV da lista COMPLETA de Recomendados (sem corte de leva), 2 colunas "Nome"/"Telefone" — DIFERENTE do CSV 3C da v1.0.46 (aba Disponíveis). Ticket criado, não implementado.
 6. **Cota de chapas por empresa** — ainda não mapeado no schema. Falta inspecionar `core_api."Business"` no Metabase (usuário vai mandar print). **Não fabricar nomes de coluna sem essa confirmação.**
+7. **PAUSADO A PEDIDO DO USUÁRIO — "Aprovação Prévia de Chapas" (feature nova).** Usuário quer que o BID Dashboard mostre SÓ os chapas pré-aprovados quando a empresa tiver essa lista configurada (+ badge indicando). Mandou print da tela real do admin do Meu Chapa (aba "Chapas Aprovados" dentro de "Aprovação Prévia de Chapas"): filtro por Empresa, tabela com Nome/Sobrenome/CPF/Telefone/Disponibilidade (Manhã/Tarde/Noite)/Data de Criação/Criado por. **Investigação exaustiva no Metabase não achou a tabela de origem:** varri os 2 schemas visíveis (`core_api`, 124 tabelas, e `mc_ia`, que está **vazio** — sem tabela/view/objeto nenhum) — nenhum bate com esse dado. Candidatos testados e descartados: `ApprovalOfficer` (define QUEM pode aprovar, não a lista), `CompanyConfigurations` (chave/valor por empresa, nenhuma chave relacionada), `ProfileMessageCompany.ChapaQty` (valor fixo 15/10 repetido em tudo, não é cota real), `UserWorkAvailabilitySlots` (disponibilidade do usuário, mas GLOBAL — sem `BusinessId`, não serve pro vínculo por empresa). **Conclusão:** o dado não está acessível pela conexão atual do Metabase — ou é outro banco/serviço não plugado nele, ou falta permissão. Usuário decidiu pausar. Se retomar: as 3 opções que ofereci foram (1) checar Admin→Databases no Metabase por uma SEGUNDA conexão de banco (não só schema), (2) exportar direto da tela do admin se ela tiver botão de CSV, (3) perguntar pro time de TI/dev do Meu Chapa onde esse dado mora de verdade. **Não repetir a varredura de schema do zero** — já foi feita, está documentada aqui.
 
 ## ✅ v1.0.47 — volta tela cheia + fix grupo do cliente + chat 30 msgs (MCM-142)
 
