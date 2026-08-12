@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Chan
 import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, type UmblerMessage } from "@/lib/umbler";
+import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
 import { type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
 
@@ -37,13 +37,16 @@ type ConversationPaneProps = {
   personName: string;
   personTelefone: string | null;
   settings: UmblerSettings;
+  // Grupo (cliente) tem várias pessoas do lado "Contact" — precisa resolver
+  // nome por mensagem em vez do rótulo genérico "Chapa" usado no 1:1.
+  isGroup?: boolean;
 };
 
 // Últimas mensagens de um chat do Umbler Talk — texto, imagem e áudio, mais
 // composer de resposta. Sem wrapper de Sheet/Dialog — usado tanto dentro de
 // um painel dedicado quanto (via ChatSheet) num Sheet lateral.
 export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationPaneProps>(
-  function ConversationPane({ chatId, personName, personTelefone, settings }, ref) {
+  function ConversationPane({ chatId, personName, personTelefone, settings, isGroup }, ref) {
     const [messages, setMessages] = useState<UmblerMessage[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -52,6 +55,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [sendError, setSendError] = useState<string | null>(null);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
+    const [contactNames, setContactNames] = useState<Record<string, string>>({});
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -72,9 +76,24 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
           // precisa do próximo frame pra medir a altura já com as mensagens
           // renderizadas.
           requestAnimationFrame(() => scrollToBottom(false));
+          if (isGroup) resolveGroupSenderNames(msgs);
         })
         .catch((e) => setError(e instanceof Error ? e.message : String(e)))
         .finally(() => setLoading(false));
+    }
+
+    // Grupo: a API só devolve o id de quem mandou (`senderContactId`), não o
+    // nome — resolve um por um (cache em `umbler.ts` evita repetir a mesma
+    // pessoa em reloads seguintes do mesmo chat).
+    function resolveGroupSenderNames(msgs: UmblerMessage[]) {
+      const ids = Array.from(new Set(
+        msgs.filter((m) => m.source === "Contact" && m.senderContactId).map((m) => m.senderContactId as string),
+      ));
+      for (const id of ids) {
+        resolveContactName(id, settings).then((name) => {
+          if (name) setContactNames((prev) => (prev[id] ? prev : { ...prev, [id]: name }));
+        });
+      }
     }
 
     useEffect(() => {
@@ -180,7 +199,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
             </div>
           )}
           {messages.map((m) => (
-            <ChatBubble key={m.id} message={m} />
+            <ChatBubble key={m.id} message={m} isGroup={isGroup} contactNames={contactNames} />
           ))}
         </div>
         </div>
@@ -252,7 +271,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
   },
 );
 
-function ChatBubble({ message }: { message: UmblerMessage }) {
+function ChatBubble({ message, isGroup, contactNames }: { message: UmblerMessage; isGroup?: boolean; contactNames?: Record<string, string> }) {
   // Mensagens de Bot não são conversa entre pessoas — vira um aviso de
   // sistema centralizado, igual WhatsApp mostra mudança de assunto/grupo,
   // em vez de balão como se fosse alguém falando.
@@ -269,7 +288,10 @@ function ChatBubble({ message }: { message: UmblerMessage }) {
   }
 
   const fromChapa = message.source === "Contact";
-  const label = fromChapa ? "Chapa" : (message.senderName || "Analista");
+  // Grupo: várias pessoas do lado do cliente — mostra o nome real (resolvido
+  // por id) em vez do rótulo genérico "Chapa", que só faz sentido no 1:1.
+  const groupSenderName = isGroup && message.senderContactId ? contactNames?.[message.senderContactId] : undefined;
+  const label = fromChapa ? (isGroup ? (groupSenderName ?? "…") : "Chapa") : (message.senderName || "Analista");
 
   return (
     <div className={`flex flex-col gap-1 ${fromChapa ? "items-start" : "items-end"}`}>

@@ -190,11 +190,17 @@ export type UmblerMessage = {
   fileName: string | null;
   transcription: string | null;
   senderName: string | null;
+  // Id do contato que enviou (campo `fromContact` do MessageModel, confirmado
+  // no Swagger oficial) — só a Umbler não devolve o NOME junto, só o id.
+  // Necessário pra grupo (várias pessoas do lado do cliente); em chat 1:1 com
+  // chapa não faz diferença, é sempre a mesma pessoa.
+  senderContactId: string | null;
 };
 
 function parseUmblerMessage(raw: Record<string, unknown>): UmblerMessage {
   const file = raw.file as Record<string, unknown> | undefined;
   const sentBy = raw.sentByOrganizationMember as Record<string, unknown> | undefined;
+  const fromContact = raw.fromContact as Record<string, unknown> | undefined;
   return {
     id: String(raw.id ?? ""),
     source: String(raw.source ?? "Contact"),
@@ -208,7 +214,32 @@ function parseUmblerMessage(raw: Record<string, unknown>): UmblerMessage {
     fileName: typeof file?.fileName === "string" ? file.fileName : typeof file?.name === "string" ? file.name : null,
     transcription: typeof file?.transcription === "string" ? file.transcription : null,
     senderName: typeof sentBy?.name === "string" ? sentBy.name : null,
+    senderContactId: typeof fromContact?.id === "string" ? fromContact.id : null,
   };
+}
+
+// Cache em memória (por sessão do app) — nome de contato não muda durante o
+// uso, evita re-resolver o mesmo id a cada reload do chat de grupo.
+const contactNameCache = new Map<string, string>();
+
+// GET /v1/contacts/{id}/ — confirmado no Swagger oficial. Resolve o nome de
+// quem mandou uma mensagem de grupo (a API só devolve o id em `fromContact`,
+// não o nome, na mensagem em si).
+export async function resolveContactName(contactId: string, settings: UmblerSettings): Promise<string | null> {
+  const cached = contactNameCache.get(contactId);
+  if (cached) return cached;
+  try {
+    const res = await fetch(`https://app-utalk.umbler.com/api/v1/contacts/${contactId}/`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${settings.bearerToken}` },
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    const name = typeof body?.name === "string" ? body.name : null;
+    if (name) contactNameCache.set(contactId, name);
+    return name;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchUmblerRecentMessages({

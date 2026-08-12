@@ -769,6 +769,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   personName={selectedName}
                   personTelefone={selectedTelefone}
                   settings={umblerSettings}
+                  isGroup={selectedKey === CLIENTE_KEY}
                 />
               ) : (
                 <div className="flex-1 flex items-center justify-center text-center p-6">
