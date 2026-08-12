@@ -4,6 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
   MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send, Download,
+  Clock, MapPin, UserCheck, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -71,13 +72,13 @@ function fmtElapsed(min: number): string {
 // precisa de ação (nunca teve contato ou negou), âmbar = sem resposta,
 // cinza = removido.
 function chapaStatusMeta(status: string, hasDispatch: boolean) {
-  if (status === "confirmado") return { dot: "bg-success", text: "text-success", bg: "bg-success/10", border: "border-l-success" };
-  if (status === "nao_respondeu") return { dot: "bg-warning", text: "text-warning", bg: "bg-warning/10", border: "border-l-warning" };
-  if (status === "cancelado") return { dot: "bg-destructive", text: "text-destructive", bg: "bg-destructive/10", border: "border-l-destructive" };
-  if (status === "removido") return { dot: "bg-muted-foreground/40", text: "text-muted-foreground", bg: "bg-muted/40", border: "border-l-transparent" };
+  if (status === "confirmado") return { dot: "bg-success", text: "text-success", bg: "bg-success/[0.07]", border: "border-l-success", avatar: "from-success to-success/70" };
+  if (status === "nao_respondeu") return { dot: "bg-warning", text: "text-warning", bg: "bg-warning/[0.07]", border: "border-l-warning", avatar: "from-warning to-warning/70" };
+  if (status === "cancelado") return { dot: "bg-destructive", text: "text-destructive", bg: "bg-destructive/[0.07]", border: "border-l-destructive", avatar: "from-destructive to-destructive/70" };
+  if (status === "removido") return { dot: "bg-muted-foreground/40", text: "text-muted-foreground", bg: "bg-muted/40", border: "border-l-transparent", avatar: "from-muted-foreground/50 to-muted-foreground/30" };
   // pendente
-  if (hasDispatch) return { dot: "bg-info", text: "text-info", bg: "bg-info/10", border: "border-l-info" };
-  return { dot: "bg-destructive", text: "text-destructive", bg: "bg-destructive/5", border: "border-l-destructive/60" };
+  if (hasDispatch) return { dot: "bg-info", text: "text-info", bg: "bg-info/[0.07]", border: "border-l-info", avatar: "from-info to-info/70" };
+  return { dot: "bg-destructive", text: "text-destructive", bg: "bg-destructive/[0.05]", border: "border-l-destructive/60", avatar: "from-destructive/80 to-destructive/50" };
 }
 
 const CANAL_LABEL: Record<string, string> = {
@@ -383,69 +384,88 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
         >
           <DialogPrimitive.Title className="sr-only">Detalhes da tarefa — {task?.empresa ?? ""}</DialogPrimitive.Title>
           {/* Header — informações da tarefa */}
-          <div className="shrink-0 border-b border-border p-3">
-            <div className="flex items-start gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors"
-                aria-label="Fechar"
-              >
-                <X className="h-4 w-4" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <p className="text-sm font-semibold text-foreground truncate capitalize">{task.empresa.toLowerCase()}</p>
-                  {task.is_overnight && (
-                    <span title="Overnight"><Moon className="h-3 w-3 text-overnight shrink-0" /></span>
-                  )}
-                  {task.continuingFromYesterday && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-overnight/15 text-overnight border border-overnight/30 shrink-0">
-                      Ontem
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => clipboardWrite(String(task.id_tarefa), `Código copiado: #${task.id_tarefa}`)}
-                    className="text-[10px] text-muted-foreground hover:text-primary shrink-0"
-                    title="Copiar código da tarefa"
-                  >
-                    #{task.id_tarefa}
-                  </button>
+          <div className="shrink-0 border-b border-border">
+            <div className="bg-gradient-primary text-primary-foreground px-4 pt-3.5 pb-3.5">
+              <div className="flex items-start gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg hover:bg-white/15 text-white/90 transition-colors"
+                  aria-label="Fechar"
+                >
+                  <X className="h-4.5 w-4.5" />
+                </button>
+                <div className="h-10 w-10 shrink-0 rounded-xl bg-white/20 backdrop-blur-sm text-white flex items-center justify-center text-base font-bold uppercase shadow-elevated">
+                  {task.empresa.trim().charAt(0)}
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  {fmtTime(task.data_tarefa)} · {task.cidade_uf ?? "—"} · {confirmedCount}/{requested} confirmados ({fillPct}%)
-                  {vacantCount > 0 && <> · {vacantCount} vaga{vacantCount !== 1 ? "s" : ""} em aberto</>}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-[17px] font-display font-bold text-white truncate capitalize">{task.empresa.toLowerCase()}</p>
+                    {task.is_overnight && (
+                      <span title="Overnight"><Moon className="h-3.5 w-3.5 text-white/90 shrink-0" /></span>
+                    )}
+                    {task.continuingFromYesterday && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 shrink-0">
+                        Ontem
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => clipboardWrite(String(task.id_tarefa), `Código copiado: #${task.id_tarefa}`)}
+                      className="text-[11px] font-mono text-white/75 hover:text-white shrink-0 transition-colors bg-white/10 rounded px-1.5 py-0.5"
+                      title="Copiar código da tarefa"
+                    >
+                      #{task.id_tarefa}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                    <span className="inline-flex items-center gap-1 text-xs text-white/85">
+                      <Clock className="h-3 w-3 shrink-0" /> {fmtTime(task.data_tarefa)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-xs text-white/85">
+                      <MapPin className="h-3 w-3 shrink-0" /> {task.cidade_uf ?? "—"}
+                    </span>
+                    {vacantCount > 0 && (
+                      <span className="text-xs text-white font-medium bg-white/15 rounded-full px-2 py-0.5">{vacantCount} vaga{vacantCount !== 1 ? "s" : ""} em aberto</span>
+                    )}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="text-[26px] font-display font-bold text-white leading-none tabular-nums">{fillPct}%</div>
+                  <div className="text-[10.5px] text-white/80 mt-0.5 flex items-center gap-1 justify-end">
+                    <UserCheck className="h-3 w-3 shrink-0" /> {confirmedCount}/{requested} confirmados
+                  </div>
+                </div>
+                <a
+                  href={`https://app.meu-chapa.com/admin/edit-task/${task.id_tarefa}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-lg hover:bg-white/15 text-white/90 transition-colors"
+                  title="Abrir no Meu Chapa"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
               </div>
-              <a
-                href={`https://app.meu-chapa.com/admin/edit-task/${task.id_tarefa}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-md hover:bg-muted text-muted-foreground transition-colors"
-                title="Abrir no Meu Chapa"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+
+              <div className="mt-3">
+                <FillRateBar confirmed={confirmedCount} requested={requested} heightClass="h-1.5" />
+              </div>
             </div>
 
-            <div className="mt-2">
-              <FillRateBar confirmed={confirmedCount} requested={requested} heightClass="h-1.5" />
-            </div>
+            <div className="px-4 pt-3 pb-3">
+              {showApproachAlert && (
+                <div className="mb-2.5 flex items-center gap-1.5 text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2.5 py-1.5">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  Tarefa em menos de 1h com preenchimento abaixo do esperado
+                </div>
+              )}
 
-            {showApproachAlert && (
-              <div className="mt-2 flex items-center gap-1.5 text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2 py-1">
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                Tarefa em menos de 1h com preenchimento abaixo do esperado
-              </div>
-            )}
-
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
               {(umblerReady || fupAllSent) && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className={`h-7 text-[11px] gap-1 ${fupAllPending ? "border-warning/50 bg-warning/10 text-warning" : ""}`}
+                  variant={fupAllPending ? "outline" : "default"}
+                  className={`h-7 text-[11px] gap-1 ${fupAllPending ? "border-warning/50 bg-warning/10 text-warning" : "shadow-elevated"}`}
                   onClick={fupAllPending ? () => dispatchQueue.abortMassFup(task.id_tarefa) : startFupAll}
                 >
                   {fupAllPending ? (
@@ -506,6 +526,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   width={170}
                 />
               )}
+              </div>
             </div>
           </div>
 
@@ -543,23 +564,21 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                     key={c.id}
                     type="button"
                     onClick={() => setSelectedKey(c.id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors border-l-2 ${meta.border} ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors border-l-[3px] ${meta.border} ${
                       selected ? "bg-primary/10" : `${meta.bg} hover:opacity-80`
                     } ${c.status_contato === "removido" ? "opacity-50" : ""}`}
                   >
-                    <div className={`h-6 w-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-semibold ${
-                      selected ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
-                    }`}>
+                    <div className={`h-7 w-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold text-white bg-gradient-to-br ${meta.avatar} shadow-sm`}>
                       {c.nome_chapa!.charAt(0).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[13px] truncate ${selected ? "font-medium" : ""} ${c.status_contato === "removido" ? "line-through" : ""}`}>{c.nome_chapa}</p>
-                      <p className={`text-[11px] truncate flex items-center gap-1 ${meta.text}`}>
+                      <p className={`text-[13px] truncate ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>{c.nome_chapa}</p>
+                      <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
                         {STATUS_LABEL[c.status_contato] ?? c.status_contato}
                         {c.status_contato === "pendente" && !lastDispatch && " — sem contato"}
                         {elapsedMin !== null && c.status_contato !== "confirmado" && (
-                          <span className="text-muted-foreground">· há {fmtElapsed(elapsedMin)}</span>
+                          <span className="text-muted-foreground font-normal">· há {fmtElapsed(elapsedMin)}</span>
                         )}
                       </p>
                     </div>
