@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-08-12 — MCM — Investigação: "Aprovação Prévia de Chapas" — schema não encontrado, pausado a pedido do usuário
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** nenhum ainda (feature não iniciada, só investigação de dado)
+**Commits:** nenhum (sem mudança de código, só documentação)
+
+Usuário pediu feature nova: BID Dashboard mostrar SÓ chapas pré-aprovados quando a empresa tiver essa lista (+ badge). Investigação de schema via query no Metabase, iterativa (usuário rodava, colava resultado):
+
+1. Busca por `%approv%`/`%prior%`/`%favorit%`/`%whitelist%` em todas as tabelas/colunas de `core_api` → só achou `ApprovalOfficer` (define quem APROVA, não a lista de aprovados).
+2. Listagem completa de `core_api` (124 tabelas) → candidatos testados por schema de coluna: `UserAllocation` (histórico de oferta BID, não whitelist), `CustomerWalletBusiness`/`BusinessOccurrences`/`TempChapaBlock` (nada a ver).
+3. Usuário mandou print real da tela do admin ("Aprovação Prévia de Chapas" → aba "Chapas Aprovados": Empresa, Nome/Sobrenome/CPF/Telefone/Disponibilidade/Data de Criação/Criado por) — confirmou que é uma feature real, não hipotética.
+4. `CompanyConfigurations` (chave/valor por empresa) → nenhuma chave real relacionada (são todas sobre EPI/peso/bloqueio/PIX/ASO). `ProfileMessageCompany.ChapaQty` → valor fixo 15/10 repetido em quase toda linha, não é cota real (também descarta hipótese pra outra pendência, cota de chapas por empresa).
+5. `UserWorkAvailabilitySlots` (bateu com "Disponibilidade" da tela) → sem `BusinessId`, é preferência GLOBAL do usuário, não vínculo por empresa.
+6. `information_schema.schemata` → existe um schema extra, `mc_ia`, além de `core_api`. Verificado com `information_schema.tables` E `pg_catalog.pg_class` diretamente: **está vazio**, sem tabela/view/objeto nenhum visível.
+
+**Conclusão:** o dado não está acessível pela conexão atual do Metabase. Ou é outro banco/serviço não plugado nele, ou falta permissão de leitura. Usuário decidiu pausar em vez de escolher um dos 3 caminhos oferecidos (checar 2ª conexão de banco no Metabase, exportar CSV direto da tela, perguntar pro time de TI/dev do Meu Chapa).
+
+**Files changed:** nenhum.
+**Next:** retomar quando o usuário trouxer novo caminho de dado (CSV exportado da tela, ou confirmação de outra conexão/schema, ou resposta do time de TI). Não repetir a varredura de schema — já documentada aqui e no handoff.
+
+---
+
 ## 2026-08-11 — MCM — Release v1.0.47: volta tela cheia + fix grupo do cliente + chat 30 msgs (MCM-142)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-142 ✅ (Feito)
