@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-08-12 — MCM — Release v1.0.48: cores/timer/FUP individual, anexo de mídia no chat, fix busca de grupo
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-143 (Feito)
+**Commits:** 6b5d9ee, 614a284, a57e52e, 6523a4b, 0fd5d51, dd3d5ca, a5a8462
+
+Continuação direta da v1.0.47. Testado em produção pelo usuário, que reportou falta de sinal visual de status na lista de chapas do painel de tarefa e pediu de volta o botão de FUP individual (existia no TaskCard antigo, não foi portado pro TaskDetailPanel):
+
+1. **Cores + contador de tempo + FUP individual** (6b5d9ee): `chapaStatusMeta()` dá cor por status (verde/azul/âmbar/vermelho/cinza) com borda + dot, não só texto. Contador "há Xmin/Xh" desde o disparo mais recente (`fup_log`). Botão "Enviar Umbler" (FUP individual) de volta na barra de ações.
+2. **Polimento de UX pedido pelo próprio usuário** (a57e52e): aplicadas as sugestões da análise geral que ele pediu — lista de chapas 220px→300px com legenda em tooltip, barra de ações simplificada (Confirmar + Enviar Umbler sempre visíveis, resto no menu "..."), renomeação "Sem resposta" (status local) vs "Notificar sem resposta" (dispara mensagem de verdade) pra acabar com a confusão de nomes idênticos, dropdown único "Copiar" no cabeçalho.
+3. **Envio de imagem/áudio/documento no chat** (6523a4b): usuário pediu suporte a mídia no composer. Investigação em 2 fases — primeiro achei só documentação de RECEBIMENTO no `umbler_talk_schema.md` (não tinha endpoint de envio documentado), aí perguntei ao usuário sobre hospedagem (ele sugeriu Firebase Storage, mas bateu no muro do plano pago Blaze). Puxei o Swagger oficial (`app-utalk.umbler.com/api/docs/v1/docs.json`, não documentado no schema resumido) e achei que `/v1/messages/simplified/` aceita `multipart/form-data` com o arquivo binário direto — **não precisa de nenhuma hospedagem externa**. Reverti todo o código de Storage e implementei envio direto.
+4. **Fix: busca de grupo do cliente sempre vazia** (0fd5d51): usuário reportou que a busca de grupo (GroupChatPicker, MCM-137 fase 2) não achava nenhum resultado. Causa raiz: o filtro comparava `channel.phoneNumber` com um `groupChannelPhone` que nunca existiu de verdade — grupo não tem canal próprio. Confirmado no mesmo Swagger oficial que o campo certo é `contact.contactType === "Group"`, filtrável direto via `ContactTypes=Group` em `GET /v1/chats/`. Também passou a usar `Searchtext` (busca server-side por nome) em vez de paginar tudo localmente.
+
+**Lição pra próxima vez que precisar confirmar algo da API Umbler**: `umbler_talk_schema.md` é um resumo curado, não a fonte completa — o Swagger oficial (`https://app-utalk.umbler.com/api/docs/v1/docs.json`) tem o schema OpenAPI completo e é acessível via `fetch` sem autenticação (só WebFetch direto dá 403 por causa de Cloudflare; via browser MCP + `javascript_tool` funciona). Checar lá ANTES de pedir pro usuário confirmar manualmente ou de inventar um formato.
+
+Pipeline de release padrão seguido integralmente (typecheck 13 erros baseline mantido, build, assinatura com senha vazia, tag, gh release, latest.json, verificação via curl, Jira MCM-143 → Feito).
+
 ## 2026-08-12 — MCM — Investigação: "Aprovação Prévia de Chapas" — schema não encontrado, pausado a pedido do usuário
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** nenhum ainda (feature não iniciada, só investigação de dado)
