@@ -1595,7 +1595,18 @@ function BidTaskCard({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `disponiveis_3c_tarefa_${task.id_tarefa}.csv`;
+    // Colunas seguem Nome;Telefone — os dados da tarefa (empresa/id/cidade/
+    // horário) vão só no nome do arquivo, não como coluna, a pedido do usuário.
+    const cityUf = parseCidadeUf(task.cidade_uf);
+    const sanitize = (v: string) => v.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
+    const horario = fmtTime(task.data_tarefa).replace(":", "h");
+    const filenameParts = [
+      sanitize(task.empresa),
+      String(task.id_tarefa),
+      cityUf ? sanitize(cityUf.cidade) : null,
+      horario,
+    ].filter(Boolean);
+    a.download = `3C_${filenameParts.join("_")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`${rows.length} disponíveis exportados pro 3C`);
