@@ -314,45 +314,45 @@ export async function sendUmblerFreeText({
 
 // ── Busca de chat de grupo (cliente) por telefone/nome — MCM-137 fase 2 ──
 //
-// Não existe filtro de telefone documentado em GET /v1/chats/ (confirmado:
-// nem no OpenAPI oficial nem no manual da Umbler cobrem isso) — a única
-// forma confiável é paginar a listagem geral e cruzar localmente. Grupos de
-// cliente usam um canal PRÓPRIO (`groupChannelPhone`, diferente do
-// `fromPhone` usado pros chapas) — é esse canal que distingue "grupo de
-// cliente" de qualquer outro chat, não um campo tipo ContactType=Group
-// (nunca confirmado num payload real).
+// Confirmado no Swagger oficial (app-utalk.umbler.com/api/docs/v1/docs.json):
+// GET /v1/chats/ tem um parâmetro `ContactTypes` (array de `ContactType`:
+// DirectMessage|Group|MemberDirectMessage|MemberGroup) que filtra grupo
+// DIRETO no servidor — não existe (e nunca existiu) um "canal próprio" pra
+// grupo, era engano da versão anterior: grupo usa o mesmo canal WhatsApp de
+// sempre, o que muda é `contact.contactType === "Group"`. Também dá pra
+// combinar com `Searchtext` pra busca por nome direto no servidor.
 
 export type UmblerChatSummary = {
   id: string;
   contactName: string;
   contactPhone: string | null;
-  channelPhone: string | null;
   lastMessagePreview: string | null;
   lastMessageAtUTC: string | null;
 };
 
 function parseChatSummary(raw: Record<string, unknown>): UmblerChatSummary {
   const contact = raw.contact as Record<string, unknown> | undefined;
-  const channel = raw.channel as Record<string, unknown> | undefined;
   const lastMessage = raw.lastMessage as Record<string, unknown> | undefined;
   return {
     id: String(raw.id ?? ""),
     contactName: typeof contact?.name === "string" ? contact.name : "",
     contactPhone: typeof contact?.phoneNumber === "string" ? contact.phoneNumber : null,
-    channelPhone: typeof channel?.phoneNumber === "string" ? channel.phoneNumber : null,
     lastMessagePreview: typeof lastMessage?.content === "string" ? lastMessage.content : null,
     lastMessageAtUTC: typeof lastMessage?.eventAtUTC === "string" ? lastMessage.eventAtUTC : null,
   };
 }
 
-// Uma página da listagem geral de chats — GET /v1/chats/ (seção 2 do
-// umbler_talk_schema.md). `ChatState=All` pra não perder grupo já resolvido.
-async function fetchUmblerChatsPage({
+// Uma página da listagem de chats de grupo — GET /v1/chats/, filtrado no
+// servidor por ContactTypes=Group. `ChatState=All` pra não perder grupo já
+// resolvido/fechado.
+async function fetchUmblerGroupChatsPage({
   settings,
+  searchText,
   skip,
   take,
 }: {
   settings: UmblerSettings;
+  searchText?: string;
   skip: number;
   take: number;
 }): Promise<UmblerChatSummary[]> {
@@ -362,6 +362,8 @@ async function fetchUmblerChatsPage({
     Take: String(take),
     Skip: String(skip),
   });
+  params.append("ContactTypes", "Group");
+  if (searchText) params.set("Searchtext", searchText);
   const res = await fetch(`https://app-utalk.umbler.com/api/v1/chats/?${params.toString()}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${settings.bearerToken}` },
   });
@@ -377,10 +379,9 @@ async function fetchUmblerChatsPage({
   return list.map((c) => parseChatSummary(c as Record<string, unknown>));
 }
 
-// Busca os chats do canal de grupo (cliente), opcionalmente filtrando por
-// termo (nome ou telefone). Pagina até `maxPages` páginas de `pageSize` —
-// não existe forma de pedir só os chats de um canal específico ao servidor,
-// então filtra localmente depois de buscar.
+// Busca os chats de grupo, opcionalmente filtrando por termo (nome ou
+// telefone). `Searchtext` já filtra nome no servidor; a checagem local cobre
+// telefone (não coberto por Searchtext) e serve de rede de segurança.
 export async function searchUmblerGroupChats({
   settings,
   query,
@@ -392,16 +393,13 @@ export async function searchUmblerGroupChats({
   maxPages?: number;
   pageSize?: number;
 }): Promise<UmblerChatSummary[]> {
-  const targetChannel = settings.groupChannelPhone.replace(/\D/g, "");
   const q = query?.trim().toLowerCase() ?? "";
   const qDigits = q.replace(/\D/g, "");
   const results: UmblerChatSummary[] = [];
   for (let page = 0; page < maxPages; page++) {
-    const chats = await fetchUmblerChatsPage({ settings, skip: page * pageSize, take: pageSize });
+    const chats = await fetchUmblerGroupChatsPage({ settings, searchText: query?.trim(), skip: page * pageSize, take: pageSize });
     if (chats.length === 0) break;
     for (const chat of chats) {
-      const channelDigits = (chat.channelPhone ?? "").replace(/\D/g, "");
-      if (!targetChannel || channelDigits !== targetChannel) continue;
       if (q) {
         const nameMatch = chat.contactName.toLowerCase().includes(q);
         const phoneMatch = qDigits && (chat.contactPhone ?? "").replace(/\D/g, "").includes(qDigits);
