@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-08-12 — MCM — Release v1.0.51: identidade visual MeuChapa (Fustat + paleta) + fix chat de grupo
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-146 (Feito)
+**Commits:** 33e6ccc, e20b7fa, 12c2536, 220b7a5, be9c90c
+
+Usuário pediu feedback geral de UI ("achei a interface insossa, não é bonita, não é funcional") + reportou bug real: mensagens de clientes em chat de grupo apareciam como "Chapa" (rótulo hardcoded pro chat 1:1, nunca diferenciava quem escreveu num grupo com várias pessoas). Corrigido resolvendo `fromContact.id` de cada mensagem via `GET /v1/contacts/{id}/` (confirmado no Swagger oficial — mensagem só traz o id, não o nome), com cache em memória.
+
+Antes de mexer na UI, montei um mockup via `mcp__visualize` (não dá pra rodar o app Tauri neste ambiente) mostrando 4 mudanças propostas pro header do `TaskDetailPanel` — usuário aprovou. No meio disso, anexou a identidade visual oficial da MeuChapa (PDF de 27 páginas + arquivos `.ttf` da fonte Fustat) e pediu pra aplicar em tudo. `pdftoppm` não estava disponível (sem `poppler-utils`), usei `pdftotext -layout` pra extrair o texto — a maior parte do PDF é visual sem texto extraível, mas as páginas 2-3 tinham o essencial: troca Montserrat→Fustat, paleta exata (#e5490e/#fb6104/#fb7b2f/#efeee5/#000000), regra de tracking -20 em títulos, CTA sempre com sombra.
+
+Apliquei a base primeiro (tokens CSS em `index.css`/`tailwind.config.ts` — cascateia pro app inteiro automaticamente por serem CSS custom properties), depois o header do `TaskDetailPanel` com os tokens corretos (gradiente da marca, fill rate em destaque, hierarquia de botões, avatares com gradiente por status).
+
+**Lição:** pra qualquer PDF de identidade visual/design system futuro, `pdftotext -layout` é suficiente quando o conteúdo relevante é texto (paletas em hex, regras escritas) — não precisa de `pdftoppm`/render de imagem pra isso, só pra ver mockups/exemplos visuais que o PDF não descreve em texto.
+
+Pipeline de release padrão seguido integralmente.
+
 ## 2026-08-12 — MCM — Release v1.0.50: nome do arquivo CSV 3C traz empresa/tarefa/cidade/horário
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-145 (Feito)

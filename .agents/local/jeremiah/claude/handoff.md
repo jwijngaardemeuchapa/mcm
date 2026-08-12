@@ -1,9 +1,40 @@
 # Handoff — Jeremiah / claude
 
 **Data:** 2026-08-12 (Sonnet 5)
-**Versão:** `1.0.50` publicada, **assinada e verificada**. Sem pendência de release aberta.
+**Versão:** `1.0.51` publicada, **assinada e verificada**. Sem pendência de release aberta.
 **Branch:** main
-**Último commit:** `17132f4` (latest.json → 1.0.50).
+**Último commit:** `be9c90c` (latest.json → 1.0.51 + prompt Lovable da Central).
+
+**EM ANDAMENTO — Aplicação Central (Lovable):** usuário decidiu partir pra
+construir a Central (`.agents/CENTRAL_APP_BACKLOG.md` tem todo o
+levantamento). Escrevi o prompt pra colar no Lovable:
+`.agents/LOVABLE_PROMPT_CENTRAL.md`. Decisões já fechadas com o usuário:
+v1 cobre 2 módulos (dashboard ao vivo de confirmações + lista de bloqueio
+BID), login pra liderança E analistas desde já, Supabase novo do zero (não
+reaproveita o do saacaptacao). **Direção de dado confirmada pelo usuário:**
+a Central é quem fala com Metabase/Firestore/Sheets — os MCMs locais, num
+passo FUTURO (fora de escopo agora), passam a ler da Central em vez de
+bater direto nessas fontes. Não é o contrário.
+
+Também dei uma recomendação de "3 camadas" (o que fica local vs nuvem vs
+migra depois) que ainda **não foi confirmada pelo usuário** — perguntei se
+queria registrar no backlog e não recebi resposta ainda antes da sessão
+ser interrompida. Resumo da proposta (repetir se ele confirmar, e aí sim
+registrar no `CENTRAL_APP_BACKLOG.md`):
+- **Nuvem agora:** sync Metabase (cadastro geral), sync Sheets (Leo),
+  métricas de disparo por bot, feed Firestore.
+- **Local sempre:** clique de enviar mensagem/FUP (precisa ser instantâneo),
+  estado de tela (seleção, composer, scroll), matching/score do BID, undo,
+  notificações desktop.
+- **Migra depois, com cuidado:** status real de chapa/tarefa (precisa
+  resolver conflito multi-analista), histórico de disparo (`fup_log`) —
+  aqui a direção é local→nuvem (MCM gera o evento no clique do analista,
+  empurra um append pra Central; diferente do resto, que é nuvem→local).
+
+**Próximo passo:** usuário ainda não colou o prompt no Lovable nem criou o
+projeto. Quando ele tiver a URL/credenciais do Supabase novo, a próxima
+etapa é decidir COMO o MCM local vai eventualmente consumir dali (não faz
+parte do escopo v1 do prompt, foi deixado assim de propósito).
 
 **Não testado visualmente** — nem `CarteiraSelector` (v1.0.49) nem o novo nome de arquivo do CSV 3C (v1.0.50) foram confirmados rodando no app de verdade, só typecheck + revisão de código. Se o usuário reportar algo estranho em qualquer um dos dois, começar por aí.
 
@@ -20,6 +51,10 @@
 ## ✅ v1.0.50 — nome do arquivo CSV 3C traz empresa/tarefa/cidade/horário (MCM-145)
 
 Pedido pequeno: "eu preciso que o CSV da 3C seja o nome fantasia da empresa da tarefa, ID da tarefa, cidade e horario". Perguntei se era pra virar colunas ou só nome de arquivo (importante — trocar colunas destruiria a utilidade pro 3C, que precisa de nome/telefone pra ligar). Resposta: só no nome do arquivo. Ficou `3C_{empresa}_{id_tarefa}_{cidade}_{horario}.csv`, colunas continuam Nome;Telefone.
+
+## ✅ v1.0.51 — identidade visual MeuChapa (Fustat + paleta) + fix chat de grupo (MCM-146)
+
+Usuário reportou UI "insossa" + bug real (chat de grupo mostrava "Chapa" pro remetente sem diferenciar quem escreveu — corrigido resolvendo nome via `GET /v1/contacts/{id}/`). Fiz mockup via `mcp__visualize` antes de mexer (não dá pra rodar o app Tauri neste ambiente pra ver de verdade), aprovado. No meio disso o usuário anexou a identidade visual oficial da marca (PDF 27 páginas) e pediu pra aplicar tudo: fonte Fustat (trocou Montserrat/IBM Plex Sans), paleta exata (#e5490e/#fb6104/#fb7b2f/#efeee5), tracking -0.02em. Aplicado na base (`index.css`/`tailwind.config.ts`, cascateia automático) + header do `TaskDetailPanel` redesenhado com os tokens certos.
 
 ## ✅ v1.0.49 — seletor de carteira na barra superior (MCM-144)
 
