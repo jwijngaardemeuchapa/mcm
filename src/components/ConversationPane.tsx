@@ -126,7 +126,8 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
             )}
           </div>
         </div>
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto min-h-0">
+        <div className="max-w-3xl mx-auto p-3 space-y-3">
           {loading && messages.length === 0 && (
             <div className="flex items-center justify-center py-10 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -146,8 +147,10 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
             <ChatBubble key={m.id} message={m} />
           ))}
         </div>
+        </div>
         {personTelefone && (
-          <div className="border-t border-border p-2.5 space-y-2 shrink-0">
+          <div className="border-t border-border p-2.5 shrink-0">
+          <div className="max-w-3xl mx-auto space-y-2">
             {windowOpen === false && (
               <div className="text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2 py-1.5">
                 Janela de 24h fechada — o chapa não responde há mais de 24h. Envio de texto livre bloqueado; use um template (FUP/BID) pra reabrir a conversa.
@@ -182,6 +185,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
               </p>
             )}
           </div>
+          </div>
         )}
       </div>
     );
@@ -210,7 +214,7 @@ function ChatBubble({ message }: { message: UmblerMessage }) {
   return (
     <div className={`flex flex-col gap-1 ${fromChapa ? "items-start" : "items-end"}`}>
       <div
-        className={`max-w-[85%] rounded-lg px-3 py-2 text-xs ${
+        className={`max-w-[70%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed ${
           fromChapa ? "bg-muted text-foreground" : "bg-primary/10 text-foreground"
         }`}
       >

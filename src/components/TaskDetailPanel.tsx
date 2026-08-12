@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
-  MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send,
+  MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { GroupChatPicker } from "@/components/GroupChatPicker";
 import {
   DropdownMenu,
@@ -440,17 +441,6 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
             )}
 
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1" onClick={copyConfirmedList}>
-                <Copy className="h-3 w-3" /> Copiar confirmados
-              </Button>
-              <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1" onClick={copyCpfConfirmados}>
-                <Copy className="h-3 w-3" /> Copiar CPFs
-              </Button>
-              {eligibleConfirmAll && (
-                <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1 border-success/40 text-success hover:bg-success/10" onClick={confirmAllPendentes}>
-                  <Check className="h-3 w-3" /> Confirmar todos
-                </Button>
-              )}
               {(umblerReady || fupAllSent) && (
                 <Button
                   size="sm"
@@ -470,6 +460,26 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   <MessageSquare className="h-3 w-3" /> Mensagem personalizada
                 </Button>
               )}
+              {eligibleConfirmAll && (
+                <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1 border-success/40 text-success hover:bg-success/10" onClick={confirmAllPendentes}>
+                  <Check className="h-3 w-3" /> Confirmar todos
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1">
+                    <Download className="h-3 w-3" /> Copiar <ChevronDown className="h-3 w-3 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={copyConfirmedList}>
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={copyCpfConfirmados}>
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> CPFs dos confirmados
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {taskCancelTemplateReady && (taskCancelPending || taskCancelSent) && (
                 <Button
                   size="sm"
@@ -501,10 +511,28 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
 
           {/* Corpo — lista + conversa */}
           <div className="flex-1 flex min-h-0">
-            <div className="w-[220px] shrink-0 border-r border-border overflow-y-auto">
-              <p className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                Chapas ({realChapas.length})
-              </p>
+            <div className="w-[300px] shrink-0 border-r border-border overflow-y-auto">
+              <div className="px-3 pt-2 pb-1 flex items-center justify-between">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Chapas ({realChapas.length})
+                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-help">
+                      <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-info" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-warning" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="text-xs space-y-0.5">
+                    <p><span className="text-success">●</span> Confirmado</p>
+                    <p><span className="text-info">●</span> Pendente — FUP já enviado</p>
+                    <p><span className="text-warning">●</span> Sem resposta</p>
+                    <p><span className="text-destructive">●</span> Sem contato ainda / negou FUP</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               {realChapas.map((c) => {
                 const lastDispatch = lastDispatchByChapa.get(c.id) ?? null;
                 const selected = selectedKey === c.id;
@@ -635,15 +663,6 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   >
                     <Check className="h-3 w-3" /> Confirmar
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 text-[11px] gap-1"
-                    onClick={() => updateChapaStatus(selectedChapa.id, { status_contato: "nao_respondeu" }, `não respondeu — ${selectedChapa.nome_chapa}`)}
-                    disabled={selectedChapa.status_contato === "nao_respondeu"}
-                  >
-                    <AlertTriangle className="h-3 w-3" /> Sem resposta
-                  </Button>
 
                   {selectedChapa.telefone_chapa && umblerReady && (
                     chapaPendingAction === "fup" ? (
@@ -673,47 +692,15 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                     )
                   )}
 
-                  {selectedChapa.telefone_chapa && (cancelTemplateReady || taskCancelTemplateReady || everSentCancel || everSentTask) && (
-                    chapaPendingAction === "cancel" || chapaPendingAction === "cancel_task" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-6 text-[11px] gap-1 border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
-                        onClick={() => dispatchQueue.abortChapaJob(selectedChapa.id)}
-                      >
-                        <X className="h-3 w-3" /> {chapaCountdown}s
-                      </Button>
-                    ) : (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={chapaPendingAction === "fup"}
-                            className={`h-6 text-[11px] gap-1 ${
-                              everSentCancel || everSentTask
-                                ? "border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20"
-                                : ""
-                            }`}
-                          >
-                            {everSentCancel || everSentTask ? <Check className="h-3 w-3" /> : <UserMinus className="h-3 w-3" />}
-                            Cancelar <ChevronDown className="h-3 w-3 opacity-60" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {(cancelTemplateReady || everSentCancel) && (
-                            <DropdownMenuItem onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}>
-                              {everSentCancel ? `Sem resposta${cancelCount > 0 ? ` (${cancelCount}x)` : ""} — reenviar` : "Sem resposta (notificar chapa)"}
-                            </DropdownMenuItem>
-                          )}
-                          {(taskCancelTemplateReady || everSentTask) && (
-                            <DropdownMenuItem onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel_task", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}>
-                              {everSentTask ? `Cancelar tarefa${cancelTaskCount > 0 ? ` (${cancelTaskCount}x)` : ""} — reenviar` : "Cancelar tarefa (individual)"}
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )
+                  {selectedChapa.telefone_chapa && (chapaPendingAction === "cancel" || chapaPendingAction === "cancel_task") && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[11px] gap-1 border-warning/50 bg-warning/10 text-warning hover:bg-warning/20"
+                      onClick={() => dispatchQueue.abortChapaJob(selectedChapa.id)}
+                    >
+                      <X className="h-3 w-3" /> {chapaCountdown}s
+                    </Button>
                   )}
 
                   <DropdownMenu>
@@ -725,10 +712,36 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem
+                        onClick={() => updateChapaStatus(selectedChapa.id, { status_contato: "nao_respondeu" }, `não respondeu — ${selectedChapa.nome_chapa}`)}
+                        disabled={selectedChapa.status_contato === "nao_respondeu"}
+                      >
+                        <AlertTriangle className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+                        Marcar sem resposta
+                      </DropdownMenuItem>
                       {selectedChapa.status_contato !== "pendente" && (
                         <DropdownMenuItem onClick={() => updateChapaStatus(selectedChapa.id, { status_contato: "pendente", data_contato: null }, `reabrir ${selectedChapa.nome_chapa}`)}>
                           Reabrir / desfazer
+                        </DropdownMenuItem>
+                      )}
+                      {selectedChapa.telefone_chapa && (cancelTemplateReady || everSentCancel) && (
+                        <DropdownMenuItem
+                          disabled={chapaPendingAction === "fup"}
+                          onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
+                        >
+                          <UserMinus className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+                          {everSentCancel ? `Notificar sem resposta${cancelCount > 0 ? ` (${cancelCount}x)` : ""} — reenviar` : "Notificar sem resposta"}
+                        </DropdownMenuItem>
+                      )}
+                      {selectedChapa.telefone_chapa && (taskCancelTemplateReady || everSentTask) && (
+                        <DropdownMenuItem
+                          disabled={chapaPendingAction === "fup"}
+                          onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel_task", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
+                          className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                        >
+                          <XCircle className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+                          {everSentTask ? `Cancelar tarefa${cancelTaskCount > 0 ? ` (${cancelTaskCount}x)` : ""} — reenviar` : "Cancelar tarefa (individual)"}
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={() => updateChapaStatus(selectedChapa.id, { canal_contato: "ligacao_3c", data_contato: new Date().toISOString() }, `contato 3C — ${selectedChapa.nome_chapa}`)}>
