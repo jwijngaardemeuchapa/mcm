@@ -365,11 +365,11 @@ não virar confusão"). 8 seções mapeadas:
 | Seção | Tipo | Status |
 |---|---|---|
 | **Dashboard Geral** | Overview cross-cutting (tarefas ativas, fill rate médio, confirmações, cancelamentos, ocorrências abertas, disparos de bot) | Já existe (feed Firestore + bot stats), falta reorganizar como overview de verdade |
-| **Analistas** | Overview (ranking: disparos, confirmações manuais, ocorrências registradas, última atividade) + Detalhe (linha do tempo por analista, tempo real) | A construir |
+| **Analistas** | Overview (ranking: disparos, confirmações manuais, ocorrências registradas, última atividade) + Detalhe (linha do tempo por analista, tempo real) | **Estrutura desenhada** (ver seção própria) — implementar só depois do gap de disparo fechado |
 | **Tarefas** | Overview (lista/fill rate) + Detalhe (ajudantes + ocorrências MCM + ocorrências Meu Chapa) | Já existe (Visão por Tarefa), falta ocorrências Meu Chapa |
-| **Fill Rate** | Tela dedicada, "extremamente didática" (pedido explícito) | A construir |
+| **Fill Rate** | Tela dedicada, "extremamente didática" (pedido explícito) | **Estrutura FECHADA** — Question 1534 confirmada, 9 painéis mapeados a partir do V1 real (ver seção própria) |
 | **OTIF** | Placeholder "em breve" só — sem dado ainda | A construir (só placeholder) |
-| **Métricas/Causas** | Ocorrências agrupadas por empresa / carteira (G1-G7) / tarefa — rastreamento de "por que o atendimento não foi feito" | A construir. **Futuro (não agora): IA gerando insights sobre essas métricas** |
+| **Métricas/Causas** | Ocorrências agrupadas por empresa / carteira (G1-G7) / tarefa — rastreamento de "por que o atendimento não foi feito" | Parcialmente desenhado — motivo formal já confirmado vindo da Question 1534 (mesma fonte do Fill Rate), motivo informal do MCM ainda é gap. **Futuro (não agora): IA gerando insights sobre essas métricas** |
 | **Bloqueio BID / Integrações / Auditoria** | Já existem | Sem mudança estrutural |
 
 ### Ocorrências — duas fontes distintas, não misturar
@@ -528,3 +528,50 @@ precisa fazer as duas coisas ao mesmo tempo, não uma ou outra:
 
 Não implementado ainda — fica registrado como correção de lógica pendente
 pra quando essa parte for construída.
+
+### Seção Fill Rate — estrutura fechada a partir do painel V1 real (2026-08-18)
+
+Usuário mandou print do painel atual (Metabase, "Question original 1534").
+V2 na Central reproduz a mesma estrutura, não reinventa do zero.
+
+**Fonte confirmada:** Metabase Question **1534**. ⚠️ Ela puxa histórico
+desde 2020 — a Central precisa aplicar um **filtro de data ao consultar**
+(não sincronizar os 6 anos inteiros toda vez), usando o mecanismo de
+parâmetro/Field Filter da API do Metabase (mesma chamada `POST /api/card/
+{cardId}/query/json` já usada por `syncMetabase()`/`syncTarefas()`, mas com
+`parameters` preenchendo o filtro de data — **confirmar o formato exato do
+parâmetro quando for implementar**, não fabricar sintaxe).
+
+**Filtros (iguais ao V1):** Tarefa, Período, Carteira, Grupo Econômico,
+Status das Tarefas, UF, Tipo de Trabalho, Motivo de Cancelamento.
+
+**9 painéis do V1, a reproduzir:**
+1. % Tarefas Finalizadas (donut Finalizado/Cancelado + total)
+2. Quantidade de Tarefas Canceladas (número)
+3. Fill Rate do Período (número grande)
+4. Fill Rate por Dia (barras + linha de Meta)
+5. Fill Rate Diário — Delta (Chapas) vs Chapas Solicitados (mostra o
+   "buraco" em número absoluto, não só %)
+6. Fill Rate por Carteira (G1-G7, ordenado, com Meta)
+7. Fill Rate por Região (UF, ordenado, com Meta)
+8. **Motivos de Cancelamento** (ex: "No Show chapa", "Base Indisponível",
+   "Região sem base de chapas", "Abandono de tarefa")
+9. Fill Rate por Mês (combo: atendidos/solicitados/fill rate %)
+
+**Achado importante, atualiza a seção Métricas/Causas:** o painel 8 prova
+que o **motivo formal de cancelamento já existe pronto no Metabase**
+(bate com `WorkCancelReason`/`WorkHeader.IdCancelReason` do guia de
+schema) — valores reais, não fabricados. Isso significa que
+"Métricas/Causas" **não depende só** do `motivo_remocao`/`bid_disparos.
+motivo_nao` do MCM local (motivo por ajudante individual) — a causa formal
+**no nível da tarefa inteira** já vem pronta do Meu Chapa via essa mesma
+Question 1534 (ou uma correlata). As duas fontes se complementam: motivo
+formal da plataforma (já existe) + motivo informal que só o analista sabe
+(gap do MCM, ainda por implementar — ver seção "Motivo de não atendimento"
+acima).
+
+**Implementação, quando vier sinal verde:** sync de Question 1534
+(filtrado por data) pra uma tabela granular na Central (linha por tarefa,
+com todas as dimensões: carteira, grupo econômico, status, UF, tipo de
+trabalho, motivo de cancelamento, data) — os 9 painéis viram todos queries
+locais em cima dessa tabela, sem re-consultar o Metabase por filtro.
