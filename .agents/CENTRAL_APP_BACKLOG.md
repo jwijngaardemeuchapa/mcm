@@ -194,9 +194,40 @@ citados:
 
 ## Estado atual (atualizado 2026-08-18)
 
-O MCM local **não mudou** — continua com sync direto no Metabase e consumo
-direto da fila Firestore, como sempre foi. A migração dos MCMs locais pra
-ler da Central é passo futuro, não iniciado.
+**Camada 1 — MIGRADA pra Tarefas e Cadastro Geral.** Pedido explícito do
+usuário: "o que estamos movendo pra a central, some das integrações do MCM
+e vai para o hub". Implementado nos dois repos no mesmo dia:
+
+- `src/lib/central.ts` (MCM) ganhou `pullTarefasFromCentral()` (monta linhas
+  no shape que `ingestTarefas()` já esperava do Metabase — nomes de campo
+  já batiam, zero mudança no parser) e `syncRegistroFromCentral()` (grava
+  direto em `chapa_registry`, sem o parser de coluna-por-regex antigo).
+- `sincronizarMetabase()`/`sincronizarRegistro()` em `metabaseSync.ts`
+  mantiveram nome/assinatura, só trocaram a fonte por dentro — todos os
+  call sites (`AppStartup.tsx`, `Dashboard.tsx`, `Integracoes.tsx`)
+  continuam funcionando sem alteração.
+- `Integracoes.tsx`: campos "ID da pergunta" removidos pra Tarefas do dia e
+  Cadastro Geral (ficam só na tela de Integrações da Central agora).
+  URL/API key do Metabase **continuam no MCM** — ainda usadas pelas 6
+  Questions NÃO centralizadas (carteira, endereços, tarefa→endereço,
+  chapas 15d, leads regionais, bloqueios do dia).
+- **Cuidado que quase passou batido:** os gates de sync automático no boot
+  (`AppStartup.tsx`, `hasMetabase`/`hasRegistro`) dependiam de
+  `metabaseTarefasCardId`/`metabaseRegistroCardId` estarem configurados
+  localmente. Como esses campos saíram da UI, uma instalação nova (sem
+  esses valores cacheados de uma sessão antiga) pararia de sincronizar
+  tarefas silenciosamente. Corrigido pra sempre tentar (a função já falha
+  graciosamente e silenciosa se a Central estiver fora do ar).
+
+**Outras 6 Questions do Metabase continuam direto do MCM local** (carteira,
+endereços, tarefa→endereço, chapas 15d, leads regionais, bloqueios do dia)
+— não fazem parte desta migração, decisão explícita de escopo (só o que já
+tinha sido centralizado no lado da Central: `chapa_registry` e
+`tarefas`/`tarefa_chapas`).
+
+Consumo direto da fila Firestore pelo MCM **não mudou** — continua
+funcionando em paralelo com o `syncFirestoreStatus()` da Central (que só
+lê, nunca apaga documento — ver seção de Camada 3 acima).
 
 **Repositório `central-hub` — já implementado pelo Lovable + eu (acesso
 direto via GitHub, mesmo fluxo do MCM):**
