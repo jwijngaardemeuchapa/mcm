@@ -18,17 +18,42 @@ ainda** — é backlog pra quando a decisão de arquitetura for tomada.
    "espelhariam" isso pro analista ver, ao invés de cada instalação consumir a
    fila raw sozinha.
 
-## Perguntas de arquitetura em aberto (não decidir sem discutir)
+## Arquitetura — divisão local × nuvem (confirmada com o usuário em 2026-08-12)
 
-- A central vira fonte de verdade (os MCMs locais só leem dela) ou só espelha
-  (cada MCM local ainda é dono do seu próprio dado, a central é read-only
-  agregado)? Isso muda toda a estratégia de sync/conflito.
-- Como resolver duas máquinas mexendo na mesma tarefa/chapa ao mesmo tempo?
-- Autenticação/isolamento por analista.
-- Vale começar pequeno (só 1-2 telas na central, sem migrar sync do Metabase/
-  Firebase ainda) pra validar a ideia antes de comprometer semanas na
-  arquitetura completa? (Foi a sugestão feita e não respondida ainda — decisão
-  de escopo do primeiro incremento segue em aberto.)
+Direção do dado confirmada: **a Central é quem fala com Metabase/Firestore/
+Sheets** — os MCMs locais, num passo futuro (fora de escopo do v1), passam a
+ler da Central em vez de bater direto nessas fontes. Não é o contrário.
+
+- **Nuvem (fonte de verdade), MCM local só lê:** sync do Metabase (cadastro
+  geral), sync da planilha do Leo (Sheets), métricas de disparo por bot,
+  feed de confirmações (Firestore).
+- **Local sempre** (não faz sentido mover — precisa ser instantâneo ou é
+  puro estado de UI): clique de enviar mensagem/FUP, estado de tela (seleção,
+  composer, scroll), matching/score do BID, undo, notificações desktop.
+- **Nuvem também — CONFIRMADO pelo usuário em 2026-08-12** (estava marcado
+  como "migra depois, com cuidado" na proposta original; usuário decidiu que
+  vale a pena resolver logo): **status real de chapa/tarefa** (confirmado,
+  sem resposta, comentários, validações) vira compartilhado na nuvem — o
+  motivo explícito foi "analistas podem compartilhar informações do que o
+  outro já disparou, confirmou, comentou, validou". Direção do dado aqui é
+  diferente do resto: o MCM local GERA o evento (é o analista clicando), e
+  empurra pra Central — não é a Central pré-populando do nada. Ainda em
+  aberto: isso entra no módulo v1 (dashboard ao vivo) ou é um módulo/fase
+  separada? **Não decidido ainda — perguntar antes de desenhar o schema.**
+- Ainda não resolvido: como tratar duas máquinas mexendo na mesma
+  tarefa/chapa ao mesmo tempo (conflito), uma vez que o status virar
+  compartilhado. Não fabricar estratégia de conflito sem discutir.
+
+## Usuário de desenvolvimento + auditoria (pedido em 2026-08-12)
+
+Requisito explícito do usuário: precisa existir um **usuário de
+desenvolvimento** com acesso a tudo e a todos (todos os analistas, todas as
+empresas, sem filtro de carteira/grupo), e um **log de histórico de TUDO**,
+organizado e persistente no banco — não é log que expira ou se apaga, é
+histórico permanente de toda mutação relevante (quem fez o quê, quando, valor
+antes/depois). Isso entrou no prompt do Lovable (`LOVABLE_PROMPT_CENTRAL.md`)
+como papel `dev` (terceiro papel, além de `lideranca`/`analista`) + tabela de
+auditoria genérica (trigger em cada tabela relevante, grava em `audit_log`).
 
 ## Features já mapeadas pra essa central
 

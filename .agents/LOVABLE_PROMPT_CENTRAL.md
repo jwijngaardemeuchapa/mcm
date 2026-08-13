@@ -26,11 +26,39 @@ Dois módulos na v1:
 ## Autenticação e papéis
 
 - Supabase Auth (email/senha é suficiente pra v1).
-- Dois papéis: `lideranca` e `analista`. Guardar em uma tabela `profiles`
-  (`id` referenciando `auth.users`, `role`, `nome`).
-- V1: ambos os papéis conseguem logar e ver as telas. Diferença de permissão
-  por papel (ex: só liderança edita configuração de integração) pode ficar
-  simples por enquanto — não precisa de RBAC elaborado ainda.
+- Três papéis: `lideranca`, `analista` e `dev`. Guardar em uma tabela
+  `profiles` (`id` referenciando `auth.users`, `role`, `nome`).
+- V1: `lideranca` e `analista` conseguem logar e ver as telas dos módulos.
+  Diferença de permissão entre esses dois pode ficar simples por enquanto
+  (ex: só liderança edita configuração de integração) — não precisa de RBAC
+  elaborado ainda.
+- `dev` é um papel à parte: **acesso irrestrito a tudo e a todos** (sem
+  filtro de carteira/grupo/empresa, vê dado de qualquer analista) e é o
+  único papel com acesso à tela de auditoria (ver abaixo). Não expor esse
+  papel na criação de conta normal — só atribuído manualmente no banco.
+
+## Auditoria — log de histórico persistente
+
+Requisito explícito: **todo dado relevante precisa de histórico completo,
+organizado e persistente** (nunca expira, nunca é limpo automaticamente) —
+quem fez o quê, quando, valor antes/depois.
+
+Implementar como uma tabela genérica `audit_log`:
+```
+id, table_name, row_id, action (insert/update/delete),
+actor_id (referencia profiles), actor_role, changed_at,
+old_data (jsonb, nullable), new_data (jsonb, nullable)
+```
+Popular via trigger de Postgres em CADA tabela de dado relevante (não só
+uma tabela específica — é auditoria genérica, cobre tudo que a Central
+armazenar: `chapa_registry`, `leo_metrics`, eventos do dashboard, etc, e
+qualquer tabela nova que for criada depois). Um trigger genérico reutilizável
+(`AFTER INSERT OR UPDATE OR DELETE`, grava `row_to_json(OLD)`/`row_to_json(NEW)`
+em `audit_log`) é melhor que replicar lógica em cada tabela.
+
+Tela de auditoria (só visível pro papel `dev`): lista cronológica filtrável
+por tabela, por ator, por período — mostrando o que mudou (diff simples
+old→new é suficiente, não precisa de UI sofisticada de diff visual na v1).
 
 ## Identidade visual — usar em TUDO, sem exceção
 
@@ -161,5 +189,13 @@ listener direto (`onSnapshot`) já que a config é pública.
   separada, decidida depois que a Central provar valor.
 - Não inventar credenciais/tokens/URLs de Metabase ou Umbler — deixar
   campos de configuração vazios/placeholder pra eu preencher depois.
-- Não construir RBAC granular — só o suficiente pra diferenciar liderança
-  de analista visualmente/funcionalmente quando fizer sentido óbvio.
+- Não construir RBAC granular pra liderança/analista — só o suficiente pra
+  diferenciar visualmente/funcionalmente quando fizer sentido óbvio. (O
+  papel `dev`, ao contrário, precisa mesmo ser irrestrito — ver seção de
+  Autenticação.)
+- **Não construir ainda** o status compartilhado de chapa/tarefa (quem
+  confirmou, comentou, validou) nem o histórico de disparo por analista
+  alimentado pelo MCM local — a direção foi confirmada (é isso que vai
+  acontecer), mas o schema/módulo específico ainda não foi desenhado.
+  Fica pra uma próxima rodada de prompt, depois que os 2 módulos da v1
+  estiverem no ar.
