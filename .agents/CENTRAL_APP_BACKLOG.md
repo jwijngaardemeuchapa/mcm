@@ -443,9 +443,22 @@ tarefa na própria Central, não é um campo que volta pro MCM). O MCM só
 precisa saber que existe um motivo pendente pra abrir o dialog e mandar o
 texto pra Central — não guarda cópia local.
 
-**Ainda em aberto (menor, mas real):** o upsert atual de `tarefa_chapas`
-(por `external_key`, nunca deleta linha antiga) pode estar preservando
-ajudantes que já saíram da lista real no Meu Chapa — precisa confirmar se a
-contagem "ao vivo" bate com a realidade ou se vai exigir um passo de limpeza
-(marcar/remover linhas que sumiram de um sync pro outro) antes dessa
-comparação funcionar direito.
+**Correção de lógica pedida pelo usuário (2026-08-18):** `tarefa_chapas`
+precisa fazer as duas coisas ao mesmo tempo, não uma ou outra:
+1. **Memorizar todo mundo que passou pela tarefa** — nunca apagar linha
+   (histórico completo, quem foi escalado em algum momento, mesmo que
+   depois tenha saído).
+2. **Obedecer a quantidade REAL** pra fins de contagem/comparação — cada
+   linha precisa indicar se ainda está ativa na lista do Meu Chapa naquele
+   sync ou não (algo tipo `ainda_na_lista boolean` + `removido_em
+   timestamptz`, atualizado a cada sync comparando com a lista mais
+   recente), pra dar `COUNT(*) WHERE ainda_na_lista` como o headcount atual
+   de verdade, sem perder quem já saiu.
+3. **Guardar o snapshot da contagem nos dois momentos que importam**: exatas
+   linhas ativas quando `status_tarefa` vira "Em Andamento" e quando vira
+   "Finalizado" — não é pra recalcular depois, é pra registrar no instante
+   da virada (ex: `tarefas.headcount_em_andamento`/`headcount_finalizado`,
+   preenchidos uma única vez, na primeira sync que ver aquele status).
+
+Não implementado ainda — fica registrado como correção de lógica pendente
+pra quando essa parte for construída.
