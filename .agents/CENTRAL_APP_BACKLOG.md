@@ -422,12 +422,30 @@ motivo de verdade) — mesma direção Central→MCM já usada pra status
 via polling (mesmo padrão de `applyCentralStatusLocally`) — é o analista
 quem sabe o motivo real, não o gestor.
 
-**Ainda em aberto, não fabricar sem confirmar quando for implementar:**
-- Precisa de uma nova sincronização Central←Metabase pra trazer o headcount
-  REAL em andamento (via `WorkItem`), separado do que já é sincronizado
-  hoje (`tarefas.quantidade_chapas`, que é só o pedido original) — é uma
-  Question nova do Metabase, não fabricar nome/card sem o usuário
-  confirmar.
-- Onde o motivo fica salvo — campo em `tarefas` (MCM local, depois empurrado
-  pra Central) ou direto numa tabela na Central (já que é a Central quem
-  detecta a condição)?
+**Fonte do dado — CONFIRMADO (2026-08-18), sem Question nova:** a Question
+de "tarefas do dia" que a Central já sincroniza (`metabaseTarefasCardId`,
+`syncTarefas()` em `sync.server.ts`) **já traz o status** (`Em Análise`,
+`Aguardando Início`, `Em Andamento`, `Finalizado` — capturado no campo
+`status_tarefa`). Não precisa de Question nova nem de nova sincronização.
+Lógica de detecção fica só com o que já existe:
+- `tarefas.quantidade_chapas` = pedido original (fixo, "Quantidade de
+  Chapas" da Question)
+- Contagem de linhas em `tarefa_chapas` pra aquele `id_tarefa` no momento em
+  que `status_tarefa` vira "Em Andamento" = headcount real naquele instante
+  (a Question já lista os ajudantes efetivamente vinculados, não muda de
+  fonte)
+- Se a contagem atual < `quantidade_chapas` no momento da virada de status,
+  a Central marca a tarefa como "precisa de motivo".
+
+**Onde o motivo fica salvo — CONFIRMADO:** direto numa tabela na Central
+("para o registro dos cards" — ou seja, aparece junto com o card/detalhe da
+tarefa na própria Central, não é um campo que volta pro MCM). O MCM só
+precisa saber que existe um motivo pendente pra abrir o dialog e mandar o
+texto pra Central — não guarda cópia local.
+
+**Ainda em aberto (menor, mas real):** o upsert atual de `tarefa_chapas`
+(por `external_key`, nunca deleta linha antiga) pode estar preservando
+ajudantes que já saíram da lista real no Meu Chapa — precisa confirmar se a
+contagem "ao vivo" bate com a realidade ou se vai exigir um passo de limpeza
+(marcar/remover linhas que sumiram de um sync pro outro) antes dessa
+comparação funcionar direito.
