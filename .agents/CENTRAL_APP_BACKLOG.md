@@ -575,3 +575,39 @@ acima).
 com todas as dimensões: carteira, grupo econômico, status, UF, tipo de
 trabalho, motivo de cancelamento, data) — os 9 painéis viram todos queries
 locais em cima dessa tabela, sem re-consultar o Metabase por filtro.
+
+### Seção Métricas/Causas — estrutura fechada (2026-08-18)
+
+Rollup de todas as fontes de "motivo" mapeadas até agora — vale listar por
+maturidade, porque isso define o que dá pra mostrar desde já vs o que
+depende de outro gap fechar primeiro:
+
+| Fonte | O que é | Maturidade |
+|---|---|---|
+| Motivo formal de cancelamento (Question 1534, `WorkCancelReason`) | "No Show chapa", "Base Indisponível", "Região sem base de chapas", "Abandono de tarefa" — nível da tarefa inteira | **Disponível assim que Fill Rate for implementado** (mesma sync) |
+| Ocorrências Meu Chapa (`WorkExtracts`, 44 tipos) | Avaria, No-show, Abandono etc., registrado formalmente por analista na plataforma | Precisa de Question nova (não fabricar nome) |
+| Motivo de não atendimento (MCM, texto livre) | Tarefa entra em andamento com menos gente do que quando surgiu | Desenhado, não implementado |
+| **Motivo de remoção de chapa** | Por que um ajudante específico foi removido | **Duas fontes possíveis, não uma** (refinado pelo usuário): `chapas.motivo_remocao` (MCM local, informal) **E** possivelmente um registro formal no **log geral do sistema oficial do Meu Chapa** — mesma tabela não confirmada que já apareceu na seção Tarefas ("log de ações do analista dentro do Meu Chapa" — criação, remoção, alocação, ajuste de valor). **Mesma pendência: usuário precisa confirmar no Metabase se essa tabela existe antes de desenhar essa parte.** |
+| Motivo BID negado (`bid_disparos.motivo_nao`) | "Em cima da hora", "Localização", "Valor" etc. | Gap — BID inteiro fora da Central ainda |
+
+**Estrutura da tela:** agrupamento por empresa / carteira (G1-G7) / tarefa,
+cada grupo com contagem + breakdown por tipo de motivo. Drill-down pra lista
+de tarefas específicas, linkando pro detalhe (já existe em Tarefas).
+Filtros reaproveitados do Fill Rate (período, carteira, empresa, UF, tipo
+de trabalho) — não precisa desenhar filtro novo.
+
+**Sequenciamento:** nasce com dado real desde o dia 1 (motivo formal de
+cancelamento vem de graça com o Fill Rate), fica incompleta nas outras 4
+fontes até cada gap fechar — mas não é uma tela vazia como seria Analistas
+hoje.
+
+## Estado do mapeamento geral — 2026-08-18
+
+Das 8 seções da Central, 7 têm estrutura desenhada (algumas já
+implementadas, outras só desenhadas aguardando gaps de MCM). Só **OTIF**
+continua como placeholder puro, sem desenho — não foi pedido ainda.
+Próximo passo fica a critério do usuário: implementar algum dos gaps de MCM
+já desenhados (evento de disparo, motivo de não atendimento), confirmar as
+pendências que dependem dele (existência da tabela de log geral do Meu
+Chapa, formato do parâmetro de data da Question 1534), ou seguir mapeando
+algo novo.
