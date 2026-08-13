@@ -430,24 +430,28 @@ como estava.
 **Overview** (uma linha por analista, filtro de período hoje/7d/30d):
 nome (do cadastro manual acima), confirmações manuais (`tarefa_chapas.
 status_changed_by` onde `status_source='mcm_manual'` — **já disponível
-hoje**), disparos feitos (**gap, não empurrado ainda**), ocorrências
-registradas (**gap, Meu Chapa ainda não sincronizado**), última atividade.
+hoje**), disparos feitos (**CORRIGIDO 2026-08-18: também já disponível
+hoje**, via parse de `bot_dispatches.bot_title` no padrão `FUP_<NOME>`/
+`BID_<NOME>` — ver `umbler_botinstances_endpoint.md` — não precisa de
+nenhuma mudança no MCM), ocorrências registradas (**ainda gap, Meu Chapa
+não sincronizado**), última atividade.
 
 **Detalhe** (clicar num analista): linha do tempo cronológica das mesmas
 fontes, filtrada por ele.
 
-**Decisão de sequenciamento:** a seção nasceria capenga se construída hoje
-(só confirmação manual como fonte completa) — **registrar a estrutura, mas
-não implementar ainda**. Ordem natural: fechar o gap de "disparo" (já
-estava pausado, aguardando o usuário testar a Camada 3 atual) antes de
-montar essa tela de verdade.
+**Decisão de sequenciamento — ATUALIZADA (2026-08-18):** a seção NÃO
+nasceria mais tão capenga quanto eu tinha registrado — duas das três fontes
+(confirmação manual + disparos) já estão disponíveis hoje sem depender de
+nenhum gap de MCM. Só "ocorrências registradas" continua faltando. Dá pra
+considerar implementar a seção Analistas **antes** do gap de "Evento de
+disparo" fechar, diferente do que eu tinha concluído antes.
 
 ### Cruzamento com o MCM (o que cada seção da Central precisa do lado local)
 
 | Seção da Central | Depende de mudança no MCM? | Detalhe |
 |---|---|---|
 | Dashboard Geral | Não | Central já puxa tudo direto |
-| Analistas — overview | **Sim, gap** | "Disparos feitos" não é empurrado hoje — Camada 3 só manda status final (confirmado/cancelado), nunca o momento do envio (mesmo gap já registrado acima, "Evento de disparo") |
+| Analistas — overview | **CORRIGIDO 2026-08-18: "Disparos feitos" NÃO precisa de mudança no MCM** | Achado em `G:\Meu Drive\Utilidades\umbler_botinstances_endpoint.md`: cada analista de FUP/BID tem bot dedicado, nomeado `FUP_<NOME>`/`BID_<NOME>` — o próprio `bot_dispatches.bot_title` (já sincronizado hoje) já identifica o analista via parse de regex (`/^(FUP\|BID)_(.+?)\s*\|\s*(D0\|D1)/i`). Não precisa esperar o gap de "Evento de disparo" fechar pra essa métrica específica — as outras (confirmação manual, ocorrências) continuam dependendo dos gaps já registrados |
 | Analistas — identidade | Não (resolvido via Integrações da Central) | Ver seção acima |
 | Tarefas — ocorrências Meu Chapa | Não | Vem direto do Metabase, sem passar pelo MCM |
 | Fill Rate | Sim, indireto | Depende da Camada 3 estar completa — hoje só reflete confirmado/cancelado, não estados intermediários (FUP enviado, aguardando) |
