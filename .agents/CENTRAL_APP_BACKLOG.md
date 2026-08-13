@@ -611,3 +611,15 @@ já desenhados (evento de disparo, motivo de não atendimento), confirmar as
 pendências que dependem dele (existência da tabela de log geral do Meu
 Chapa, formato do parâmetro de data da Question 1534), ou seguir mapeando
 algo novo.
+
+**2026-08-18 — investigação em andamento (usuário):** vai procurar o log
+geral de ações do Meu Chapa no Metabase; se não achar lá, cogita conexão
+**direta no banco Postgres real** (fora do Metabase) — "os dados existem,
+certeza". Se isso for adiante, é um caminho de integração diferente do que
+usamos em todo o resto do projeto: hoje TUDO passa pela API do Metabase
+(`/api/card/{cardId}/query/json`, sempre com Question já publicada). Conexão
+direta no Postgres exigiria credenciais de banco (host/porta/usuário/senha
+ou connection string) como uma fonte NOVA e distinta na tela de Integrações
+da Central — não a mesma URL/apiKey do Metabase. **Não fabricar formato de
+credencial nem desenhar isso agora — só registrar que pode virar necessário,
+dependendo do que o usuário achar.**
