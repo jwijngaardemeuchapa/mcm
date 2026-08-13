@@ -315,3 +315,72 @@ verde explícito — quando vier, provavelmente precisa de: nova tabela
 momento do disparo quanto da resposta (não só no resultado final), e
 extensão do endpoint `/api/public/hooks/chapa-status` (ou um novo) pra
 aceitar eventos de disparo além de status final.
+
+## Mapa geral da Central (planejamento, 2026-08-18 — SÓ DESENHO, NADA IMPLEMENTADO)
+
+Usuário pediu pra montar a estrutura completa antes de continuar
+adicionando telas soltas ("vamos montar a estrutura... vamos por partes pra
+não virar confusão"). 8 seções mapeadas:
+
+| Seção | Tipo | Status |
+|---|---|---|
+| **Dashboard Geral** | Overview cross-cutting (tarefas ativas, fill rate médio, confirmações, cancelamentos, ocorrências abertas, disparos de bot) | Já existe (feed Firestore + bot stats), falta reorganizar como overview de verdade |
+| **Analistas** | Overview (ranking: disparos, confirmações manuais, ocorrências registradas, última atividade) + Detalhe (linha do tempo por analista, tempo real) | A construir |
+| **Tarefas** | Overview (lista/fill rate) + Detalhe (ajudantes + ocorrências MCM + ocorrências Meu Chapa) | Já existe (Visão por Tarefa), falta ocorrências Meu Chapa |
+| **Fill Rate** | Tela dedicada, "extremamente didática" (pedido explícito) | A construir |
+| **OTIF** | Placeholder "em breve" só — sem dado ainda | A construir (só placeholder) |
+| **Métricas/Causas** | Ocorrências agrupadas por empresa / carteira (G1-G7) / tarefa — rastreamento de "por que o atendimento não foi feito" | A construir. **Futuro (não agora): IA gerando insights sobre essas métricas** |
+| **Bloqueio BID / Integrações / Auditoria** | Já existem | Sem mudança estrutural |
+
+### Ocorrências — duas fontes distintas, não misturar
+
+| | Ocorrências do MCM | Ocorrências Meu Chapa |
+|---|---|---|
+| Fonte | `audit_log` da Central (trigger em `tarefa_chapas`) | `WorkExtracts` no Postgres do Meu Chapa (guia: `G:\Meu Drive\Utilidades\guia_estrutura_metabase_meuchapa.md`, seção 9) |
+| O que registra | Confirmação/cancelamento feito no MCM ou via bot Umbler | Ocorrência formal registrada por analista na plataforma (44 tipos: No-show, Avaria, Abandono etc.) |
+| Já temos? | Sim | Não — precisa de uma Question NOVA no Metabase (join `WorkExtracts`+`OccurrenceTypes`+`Business`+`User`) e tabela nova na Central |
+| Campos confirmados no guia | — | `WorkheaderId` (=`id_tarefa`), `OccurrenceTypes.Title` (tipo), `Business.FantasyName`, `Amount` (valor), `CreatedAt`, `OccurrenceStatus` (Aberto/Concluído), `Carrier`, `Notes`, `Nf`, `Reverted`, analista via `ResponsibleId` join `User` filtrado por `ProfileType IN ('Admin','Super')` |
+
+**Dentro do card de tarefa aberto:** seção de ocorrências Meu Chapa carregada
+**só sob clique** (lazy load) — pedido explícito do usuário, "acredito que é
+muita informação pra ser puxada o tempo todo". Além disso, o usuário quer
+(no último estágio de detalhe) o **log de ações do analista dentro do Meu
+Chapa** — criação de tarefa, remoção, alocação de chapas, ajuste de valor —
+parecido com o `audit_log` do MCM, só que do lado da plataforma principal.
+**Essa tabela NÃO está documentada no guia de schema** (só existe `UserLog`,
+que é sobre cadastro de chapa, não ações sobre `WorkHeader`). **Não
+fabricar nome de tabela — usuário precisa confirmar no Metabase se algo
+tipo `WorkHeaderLog`/`%Audit%`/`%History%` existe antes de desenhar essa
+parte.**
+
+### Identidade do analista — decidido
+
+**Usar o `User.Id` do próprio Meu Chapa** (o mesmo `ResponsibleId` já
+confirmado no guia pra ocorrências, com `ProfileType IN ('Admin','Super')`)
+como identificador canônico — reaproveita a lógica que a empresa já usa em
+vez de inventar um ID novo. Alternativa aceita: ID do agente na Umbler.
+Mapeamento ("nome → ID Meu Chapa / ID Umbler") fica **curado manualmente na
+tela de Integrações da Central** pelo usuário — não é algo que o MCM local
+descobre sozinho. Hoje `operadorNome` no MCM é texto livre; o mapeamento por
+nome na Central é frágil a erro de digitação, mas foi a opção escolhida por
+enquanto (sem mudança de código no MCM pra isso).
+
+### Cruzamento com o MCM (o que cada seção da Central precisa do lado local)
+
+| Seção da Central | Depende de mudança no MCM? | Detalhe |
+|---|---|---|
+| Dashboard Geral | Não | Central já puxa tudo direto |
+| Analistas — overview | **Sim, gap** | "Disparos feitos" não é empurrado hoje — Camada 3 só manda status final (confirmado/cancelado), nunca o momento do envio (mesmo gap já registrado acima, "Evento de disparo") |
+| Analistas — identidade | Não (resolvido via Integrações da Central) | Ver seção acima |
+| Tarefas — ocorrências Meu Chapa | Não | Vem direto do Metabase, sem passar pelo MCM |
+| Fill Rate | Sim, indireto | Depende da Camada 3 estar completa — hoje só reflete confirmado/cancelado, não estados intermediários (FUP enviado, aguardando) |
+| OTIF | — | Placeholder, sem dado |
+| **Métricas/Causas** | **Sim, gap NOVO (não mapeado antes de hoje)** | O motivo real de "não atendido" mora no MCM local: `chapas.motivo_remocao` (quando o analista sinaliza remoção) e `bid_disparos.motivo_nao` (motivos fixos do BID: "Em cima da hora", "Localização da Tarefa", "Valor da Tarefa", "Não uso mais o App", "Outro"). **Nenhum dos dois é empurrado pra Central hoje** — só status, nunca motivo |
+| Bloqueio BID / Integrações / Auditoria | Não | Central-only |
+
+**Decisão do usuário (2026-08-18): só registrar esses gaps no backlog por
+agora, não implementar nada ainda** (nem o motivo, nem o resto do
+planejamento) — o mapeamento completo estava sendo fechado primeiro.
+Próximo passo, quando retomar: escolher qual seção detalhar primeiro
+(Analistas, Fill Rate ou Métricas/Causas) e desenhar o schema específico
+dela antes de codar.
