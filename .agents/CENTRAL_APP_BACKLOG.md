@@ -192,6 +192,17 @@ citados:
 - Schema da nova tabela na Central (`payment_requests` ou similar) e do
   novo endpoint — desenhar só quando o campo de valor estiver confirmado.
 
+**Pista forte encontrada (2026-08-18):** o guia de schema (seção 11,
+`FinancialTransaction`) já mapeia exatamente isso — `TaskPrice` (valor,
+fator ×100), `IdWorkHeader`/`IdWorkItem` (liga na tarefa/chapa),
+`DateSentToBank`/`SentToBank` (pago ou não), `IdRequestPayment` (pode já
+ser o conceito formal de "solicitação de pagamento" no banco principal —
+se for, vale alinhar com ele em vez de criar um conceito paralelo).
+Usuário pediu um prompt pra levar no outro sistema que gerou a query de
+referência original e confirmar os detalhes — ver
+`.agents/PROMPT_PAGAMENTOS_CHAPA.md`. **Aguardando resposta antes de
+desenhar o schema de verdade.**
+
 ## Estado atual (atualizado 2026-08-18)
 
 **Camada 1 — MIGRADA pra Tarefas e Cadastro Geral.** Pedido explícito do
