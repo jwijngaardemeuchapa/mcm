@@ -178,30 +178,66 @@ citados:
   Central que gera, é o MCM que empurra.
 - **Onde no MCM:** dentro do `TaskDetailPanel.tsx`, junto dos outros botões
   de ação da tarefa (Copiar, FUP Todos etc) — não uma tela separada.
-- **Valor:** confirmado que existe no Metabase, mas o usuário não lembra
-  qual Question/coluna — **precisa perguntar de novo quando for
-  implementar, não presumir que é a mesma Question de tarefas (card 1290).**
-  Mesma disciplina de "Data de Criação": pedir export/print da Question
-  real antes de escrever qualquer parser.
+
+**FECHADO (2026-08-18) — fonte do valor confirmada.** O usuário encontrou e
+documentou a definição real da Metabase **Question #1557** ("Análise
+Pagamentos - Suporte"), fonte `core_api.FinancialTransaction`, já em uso
+produtivo por outro sistema (`saacaptacao`/SAAC) — ver
+`G:\Meu Drive\Utilidades\pagamentos_chapa_por_tarefa.md` para o documento
+completo. Resumo do que fica valendo pra esta feature:
+
+- **Como consultar:** `POST /api/card/1557/query` filtrando por telefone do
+  chapa via **Field Filter** — `target: ["dimension", ["template-tag",
+  "telefone"]]` (usar `"variable"` no lugar de `"dimension"` ignora o filtro
+  silenciosamente e devolve as 200 linhas mais recentes de TODOS os chapas,
+  sem erro — cuidado documentado, testar contra isso).
+- **Telefone sem o `55`:** `core_api.User.Phone` guarda só os 11 dígitos;
+  mandar com `55` na frente faz o filtro `string/contains` nunca bater
+  (retorna zero linhas silenciosamente, parece "chapa sem histórico" mas é
+  bug de formato). Normalizar antes de chamar.
+- **Colunas de resposta (já com alias da própria Question):** `valor` (=
+  `TaskPrice`, **já vem dividido por 100, em reais — não dividir de novo**),
+  `enviado_banco` (= `SentToBank`, booleano — **true = pago, false =
+  pendente**), `data_envio_banco` (= `DateSentToBank`, null enquanto
+  pendente), `data_criacao` (= `CreatedDate`, só informativo), `id_tarefa`
+  (= `IdWorkHeader`, **é o campo pra agrupar "pagamento por tarefa"** — vem
+  null nas linhas de envelope, ver dedup abaixo).
+- **Recebido vs a receber:** somar `valor` filtrando por `enviado_banco`
+  (`true`→recebido, `false`→a receber). Sem filtro de período fixo — a
+  Question devolve só as ~200 transações mais recentes por chamada.
+- **Regra de dedup reconfirmada:** sempre excluir linhas de "envelope"
+  (`id_tarefa`/`IdWorkHeader` NULL, representam a remessa bancária inteira,
+  não uma tarefa) — já validada em produção a **96,7%** (5.518 de 6.185
+  envelopes com filha capturada na mesma janela de 30 dias) pelo outro
+  sistema.
+
+**CORREÇÃO no guia principal aplicada:** a seção 11 do
+`guia_estrutura_metabase_meuchapa.md` dizia que `SentToBank` "sempre `true`
+nas amostras vistas... não confirma se existe `false`" — **isso estava
+errado**, `false` existe e é usado ativamente em produção pra calcular "a
+receber" (corrigido no próprio arquivo).
 
 **Ainda em aberto, não fabricar sem confirmar:**
-- Qual Question/coluna do Metabase tem o valor (pendente, ver acima).
-- O que a solicitação produz do lado da Central — só um registro pra
+- Se `IdRequestPayment` é de fato o conceito formal de "solicitação de
+  pagamento" do banco principal — a Question #1557 não expõe essa coluna
+  (foi cortada/não usada pelo SAAC), então isso continua sem resposta. Dado
+  que o fluxo decidido aqui é um registro **interno da Central** (não
+  precisa se casar com o pipeline real de pagamento do Meu Chapa), essa
+  pendência deixou de bloquear o design — só voltaria a importar se algum
+  dia quisermos que a "solicitação" gerada pelo MCM reflita de volta no
+  sistema real de pagamento.
+- 3 pendências específicas da reconstrução SQL não testada (só relevantes
+  se algum dia precisarmos bater direto no Postgres em vez do Metabase):
+  tolerância de formato de telefone no `WHERE`, se `SentToBank` ou
+  `DateSentToBank IS NOT NULL` é o sinal mais confiável de "pago", e se o
+  limite de 200 linhas/`ORDER BY ... DESC` é uma constraint real da Question
+  ou só comportamento observado.
+- O que a solicitação produz do lado da Central além do registro — só
   visualização (lista com status solicitado/pago?), ou também dispara algo
   (notificação, export)? Não perguntado ainda.
 - Schema da nova tabela na Central (`payment_requests` ou similar) e do
-  novo endpoint — desenhar só quando o campo de valor estiver confirmado.
-
-**Pista forte encontrada (2026-08-18):** o guia de schema (seção 11,
-`FinancialTransaction`) já mapeia exatamente isso — `TaskPrice` (valor,
-fator ×100), `IdWorkHeader`/`IdWorkItem` (liga na tarefa/chapa),
-`DateSentToBank`/`SentToBank` (pago ou não), `IdRequestPayment` (pode já
-ser o conceito formal de "solicitação de pagamento" no banco principal —
-se for, vale alinhar com ele em vez de criar um conceito paralelo).
-Usuário pediu um prompt pra levar no outro sistema que gerou a query de
-referência original e confirmar os detalhes — ver
-`.agents/PROMPT_PAGAMENTOS_CHAPA.md`. **Aguardando resposta antes de
-desenhar o schema de verdade.**
+  novo endpoint — agora **pode ser desenhado**, já que o campo de valor está
+  confirmado (falta só decidir o ponto acima antes de fechar o schema).
 
 ## Estado atual (atualizado 2026-08-18)
 
