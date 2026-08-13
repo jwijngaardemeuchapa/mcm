@@ -217,6 +217,30 @@ nas amostras vistas... não confirma se existe `false`" — **isso estava
 errado**, `false` existe e é usado ativamente em produção pra calcular "a
 receber" (corrigido no próprio arquivo).
 
+**Novos requisitos do usuário (2026-08-18):**
+
+- **Badge de status real de envio ao banco ("perfumaria" — nice-to-have,
+  não bloqueia a v1):** o sistema oficial do Meu Chapa tem um passo manual
+  de "enviar para pagamento" que dispara o envio de fato ao banco. Seria
+  útil quem aprova pagamentos na Central ver, na lista de solicitações, se
+  aquele pagamento **já foi de fato clicado/enviado** no sistema oficial —
+  não só que a solicitação existe no lado do MCM/Central. Fonte provável:
+  `FinancialTransaction.SentToBank`/`DateSentToBank` (via Question #1557,
+  cruzando por `IdWorkHeader`/telefone) — mas como o próprio usuário
+  qualificou isso como "perfumaria", **não é requisito da v1**, entra como
+  melhoria de exibição pra quando a base da feature já estiver rodando.
+- **Central precisa expor a lista de solicitações**, com:
+  - Filtro por **grupo** (ainda não especificado se é carteira, empresa, ou
+    outro agrupamento — **perguntar ao usuário quando for desenhar a tela**,
+    não presumir).
+  - Filtro por **data**.
+  - Exibir **detalhes de valor** por solicitação (linha por ajudante,
+    igual ao formato já mapeado da Question #1557: nome, telefone, valor).
+- **Solicitação do MCM precisa incluir um campo "motivo"** — texto livre,
+  preenchido pelo analista ao gerar a solicitação (mesmo padrão do "motivo
+  de não atendimento" já desenhado em outra seção deste documento: campo
+  livre, sem lista fechada de opções).
+
 **Ainda em aberto, não fabricar sem confirmar:**
 - Se `IdRequestPayment` é de fato o conceito formal de "solicitação de
   pagamento" do banco principal — a Question #1557 não expõe essa coluna
@@ -232,12 +256,12 @@ receber" (corrigido no próprio arquivo).
   `DateSentToBank IS NOT NULL` é o sinal mais confiável de "pago", e se o
   limite de 200 linhas/`ORDER BY ... DESC` é uma constraint real da Question
   ou só comportamento observado.
-- O que a solicitação produz do lado da Central além do registro — só
-  visualização (lista com status solicitado/pago?), ou também dispara algo
-  (notificação, export)? Não perguntado ainda.
-- Schema da nova tabela na Central (`payment_requests` ou similar) e do
-  novo endpoint — agora **pode ser desenhado**, já que o campo de valor está
-  confirmado (falta só decidir o ponto acima antes de fechar o schema).
+- O que define "grupo" no filtro da lista da Central — não especificado
+  ainda.
+- Schema da nova tabela na Central (`payment_requests` ou similar,
+  precisando agora de um campo `motivo`) e do novo endpoint — agora **pode
+  ser desenhado**, já que o campo de valor está confirmado (falta só
+  decidir o ponto do "grupo" acima antes de fechar o schema de filtros).
 
 ## Estado atual (atualizado 2026-08-18)
 
