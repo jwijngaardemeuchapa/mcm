@@ -385,34 +385,51 @@ Próximo passo, quando retomar: escolher qual seção detalhar primeiro
 (Analistas, Fill Rate ou Métricas/Causas) e desenhar o schema específico
 dela antes de codar.
 
-### Motivo de não atendimento — gatilho de detecção (refinado 2026-08-18)
+### Motivo de não atendimento — gatilho de detecção (refinado 2026-08-18, 2ª rodada)
 
-Usuário especificou COMO capturar o motivo, não só que precisa existir:
-**detecção automática no MCM local**, não é o analista tendo que lembrar de
-preencher algo por conta própria. Gatilho:
+**Correção importante de conceito, feita pelo usuário:** o fill rate do MCM
+(`confirmedCount / requested`, baseado em `chapas.status_contato='confirmado'`)
+**NÃO é o fill rate real da empresa.** O fill rate real — o que interessa pra
+"Métricas/Causas" — é baseado em **quantos ajudantes efetivamente
+compareceram** na tarefa em andamento ou finalização, que é exatamente a
+métrica de Fill Rate já documentada no guia de schema (`WorkItem`/
+`WorkHeader.OriginalWorkersQty`, seção 6 do guia) — vem do lado do Meu
+Chapa (via Metabase), não do `status_contato` local do MCM. Confirmação no
+MCM é um proxy/sinal antecipado, não a métrica de verdade.
 
-- Tarefa está **"em andamento"** — horário (`data_tarefa`) já chegou/passou
-  e a tarefa continua `ativo=1` (não finalizada/fechada)
-- **E** `confirmedCount < requested` (fill rate incompleto) — a tarefa
-  começou com menos ajudantes confirmados do que foi solicitado
+**Gatilho de detecção (refinado):** dialog automático (não manual) quando a
+tarefa **entra em andamento com MENOS ajudantes do que tinha quando
+surgiu/foi lançada** — ou seja, compara o headcount original (na criação da
+tarefa) com o headcount real no momento em que ela entra em andamento. Fica
+diferente do que eu tinha registrado antes (que comparava com
+`confirmedCount` do MCM) — o número certo de comparação é o **real**, vindo
+do Meu Chapa.
 
-Quando as duas condições batem, o MCM deve permitir (ou pedir) que o
-analista registre um motivo — é um motivo **no nível da tarefa como um
-todo** ("por que essa tarefa está desguarnecida"), diferente do
-`motivo_remocao` que já existe (esse é por chapa individual, quando um
-específico é removido).
+**"A central pode monitorar isso"** — usuário indicou que a **Central** é
+quem tem condição de fazer essa detecção (ela já sincroniza `tarefas` do
+Metabase com o headcount original, e pode sincronizar também o headcount
+real via `WorkItem` conforme a tarefa progride). Isso muda a arquitetura da
+detecção: não é o MCM comparando contra o próprio `confirmedCount` local,
+é a Central comparando dado real contra dado real, e então **sinalizando**
+de alguma forma pro MCM mostrar o dialog pro analista (autor que sabe o
+motivo de verdade) — mesma direção Central→MCM já usada pra status
+(`applyCentralStatusLocally`), aplicada a um novo tipo de sinal.
 
-**Em aberto, não fabricar sem confirmar quando for implementar:**
-- É um campo novo (`tarefas.motivo_nao_atendimento` ou tabela própria de
-  ocorrências do MCM) ou reaproveita algo que já existe?
-- O registro é automático (dialog/alerta aparece sozinho quando a condição
-  bate) ou manual (aparece um botão/indicador, mas o analista decide se
-  preenche)? Repare que `TaskDetailPanel.tsx` já tem `showApproachAlert`
-  (tarefa <1h com fill abaixo do esperado) — pode ser o mesmo gatilho
-  reaproveitado, ou pode ser um conceito novo e mais amplo (esse é só
-  "menos de 1h", o pedido agora parece ser "a qualquer momento que já
-  estiver em andamento").
-- Motivo é texto livre ou lista fixa (tipo `MOTIVOS_VALIDOS` do BID)?
-- Isso vira uma "ocorrência do MCM" formal (mesmo conceito que já alimenta
-  `audit_log`→Central) ou um campo separado só pra essa finalidade
-  específica?
+**Motivo: texto livre**, confirmado ("razão do não atendimento").
+
+**Ainda em aberto, não fabricar sem confirmar quando for implementar:**
+- Onde o dialog aparece de fato — no MCM (`TaskDetailPanel.tsx`, já que é
+  onde o analista trabalha e sabe o motivo real) recebendo um sinal
+  "precisa de motivo" da Central via polling (mesmo padrão de
+  `applyCentralStatusLocally`)? Ou a Central mostra isso direto pra quem
+  estiver overview a tarefa? **Minha leitura é que faz mais sentido no MCM
+  — o gestor não sabe o motivo, quem sabe é o analista — mas não foi
+  confirmado explicitamente.**
+- Precisa de uma nova sincronização Central←Metabase pra trazer o headcount
+  REAL em andamento (via `WorkItem`), separado do que já é sincronizado
+  hoje (`tarefas.quantidade_chapas`, que é só o pedido original) — é uma
+  Question nova do Metabase, não fabricar nome/card sem o usuário
+  confirmar.
+- Onde o motivo fica salvo — campo em `tarefas` (MCM local, depois empurrado
+  pra Central) ou direto numa tabela na Central (já que é a Central quem
+  detecta a condição)?
