@@ -316,6 +316,46 @@ momento do disparo quanto da resposta (não só no resultado final), e
 extensão do endpoint `/api/public/hooks/chapa-status` (ou um novo) pra
 aceitar eventos de disparo além de status final.
 
+### Gap "Evento de disparo" — desenho fechado (2026-08-18, mapeamento pra IMPLEMENTAR)
+
+**Tamanho real do gap, confirmado no código:** não é um ponto de código só —
+são **7 call sites diferentes** de `INSERT INTO fup_log` espalhados em
+`dispatchQueue.ts`, um pra cada tipo de disparo. Canais confirmados em uso:
+`umbler_talk` (FUP individual/massa), `umbler_custom` (mensagem
+personalizada), `umbler_cancelamento` (notificar sem resposta),
+`umbler_cancelamento_tarefa` (cancelamento individual),
+`umbler_cancelamento_geral` (cancelamento de tarefa inteira). Em cada um
+desses 7 pontos, `operadorNome` **já está disponível no escopo** (usado hoje
+pra compor o texto de `observacao` local) — não precisa buscar de novo, só
+reaproveitar.
+
+**Desenho:**
+1. **Nova tabela na Central**, append-only (não é status mutável como
+   `tarefa_chapas` — um chapa pode receber vários disparos ao longo do
+   tempo, cada um é um evento próprio): `dispatch_events` — `id_tarefa`,
+   `telefone_chapa`/`cpf`/`nome_chapa`, `canal` (mesmo vocabulário acima),
+   `analista`, `disparado_em`, `observacao` (espelha o que já vai pro
+   `fup_log` local).
+2. **Novo endpoint** `POST /api/public/hooks/chapa-dispatch` (mesmo padrão
+   apikey de `chapa-status.ts`/`sync-sources.ts`) — só INSERT, sem precisar
+   achar/casar linha existente (diferente de `chapa-status`, que faz UPDATE
+   num registro que já existe).
+3. **MCM:** novo helper `pushDispatchEventToCentral(...)` em
+   `src/lib/central.ts` (mesmo padrão best-effort de
+   `pushChapaStatusToCentral` — nunca bloqueia o envio local se a Central
+   estiver fora do ar), chamado nos 7 pontos de `dispatchQueue.ts` junto do
+   `INSERT INTO fup_log` já existente.
+
+**O que isso desbloqueia**, uma vez implementado: fecha a coluna "disparos
+feitos" da seção Analistas (item pausado acima), dá pro Dashboard Geral e
+Fill Rate mostrarem o estado intermediário "aguardando resposta" (não só
+confirmado/cancelado/pendente), e é pré-requisito citado explicitamente
+antes de destravar a seção Analistas.
+
+**Ainda não implementado — só desenhado.** Próximo passo quando o usuário
+sinalizar: criar a migration da tabela nova + o endpoint na Central, depois
+os 7 pontos de push no MCM.
+
 ## Mapa geral da Central (planejamento, 2026-08-18 — SÓ DESENHO, NADA IMPLEMENTADO)
 
 Usuário pediu pra montar a estrutura completa antes de continuar
