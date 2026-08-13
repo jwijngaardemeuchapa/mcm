@@ -384,3 +384,35 @@ planejamento) — o mapeamento completo estava sendo fechado primeiro.
 Próximo passo, quando retomar: escolher qual seção detalhar primeiro
 (Analistas, Fill Rate ou Métricas/Causas) e desenhar o schema específico
 dela antes de codar.
+
+### Motivo de não atendimento — gatilho de detecção (refinado 2026-08-18)
+
+Usuário especificou COMO capturar o motivo, não só que precisa existir:
+**detecção automática no MCM local**, não é o analista tendo que lembrar de
+preencher algo por conta própria. Gatilho:
+
+- Tarefa está **"em andamento"** — horário (`data_tarefa`) já chegou/passou
+  e a tarefa continua `ativo=1` (não finalizada/fechada)
+- **E** `confirmedCount < requested` (fill rate incompleto) — a tarefa
+  começou com menos ajudantes confirmados do que foi solicitado
+
+Quando as duas condições batem, o MCM deve permitir (ou pedir) que o
+analista registre um motivo — é um motivo **no nível da tarefa como um
+todo** ("por que essa tarefa está desguarnecida"), diferente do
+`motivo_remocao` que já existe (esse é por chapa individual, quando um
+específico é removido).
+
+**Em aberto, não fabricar sem confirmar quando for implementar:**
+- É um campo novo (`tarefas.motivo_nao_atendimento` ou tabela própria de
+  ocorrências do MCM) ou reaproveita algo que já existe?
+- O registro é automático (dialog/alerta aparece sozinho quando a condição
+  bate) ou manual (aparece um botão/indicador, mas o analista decide se
+  preenche)? Repare que `TaskDetailPanel.tsx` já tem `showApproachAlert`
+  (tarefa <1h com fill abaixo do esperado) — pode ser o mesmo gatilho
+  reaproveitado, ou pode ser um conceito novo e mais amplo (esse é só
+  "menos de 1h", o pedido agora parece ser "a qualquer momento que já
+  estiver em andamento").
+- Motivo é texto livre ou lista fixa (tipo `MOTIVOS_VALIDOS` do BID)?
+- Isso vira uma "ocorrência do MCM" formal (mesmo conceito que já alimenta
+  `audit_log`→Central) ou um campo separado só pra essa finalidade
+  específica?
