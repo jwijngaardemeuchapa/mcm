@@ -365,6 +365,32 @@ descobre sozinho. Hoje `operadorNome` no MCM é texto livre; o mapeamento por
 nome na Central é frágil a erro de digitação, mas foi a opção escolhida por
 enquanto (sem mudança de código no MCM pra isso).
 
+**Investigado e descartado (2026-08-18):** cogitou-se puxar a lista de
+atendentes direto da API da Umbler (evitaria digitação manual). **Confirmado
+no Swagger oficial que não existe esse endpoint** — só `GET
+/v1/members/online/` (lista só quem está logado no momento, não é roster
+estável) e `GET /v1/organizations/{id}/member/{memberId}/` (busca um membro
+específico, mas exige já saber o ID). Sem "listar todos os membros"
+documentado, a opção viável é mesmo o cadastro manual — confirmado, segue
+como estava.
+
+### Seção Analistas — estrutura desenhada (2026-08-18)
+
+**Overview** (uma linha por analista, filtro de período hoje/7d/30d):
+nome (do cadastro manual acima), confirmações manuais (`tarefa_chapas.
+status_changed_by` onde `status_source='mcm_manual'` — **já disponível
+hoje**), disparos feitos (**gap, não empurrado ainda**), ocorrências
+registradas (**gap, Meu Chapa ainda não sincronizado**), última atividade.
+
+**Detalhe** (clicar num analista): linha do tempo cronológica das mesmas
+fontes, filtrada por ele.
+
+**Decisão de sequenciamento:** a seção nasceria capenga se construída hoje
+(só confirmação manual como fonte completa) — **registrar a estrutura, mas
+não implementar ainda**. Ordem natural: fechar o gap de "disparo" (já
+estava pausado, aguardando o usuário testar a Camada 3 atual) antes de
+montar essa tela de verdade.
+
 ### Cruzamento com o MCM (o que cada seção da Central precisa do lado local)
 
 | Seção da Central | Depende de mudança no MCM? | Detalhe |
