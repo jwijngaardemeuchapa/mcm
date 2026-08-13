@@ -6,27 +6,22 @@ import { getDb, uuid } from "./db";
 import { companyMatches } from "./company";
 import { normalize } from "./normalize";
 import { fmtSP, todayDateISO_SP } from "./datetime";
+import { pullTarefasFromCentral, syncRegistroFromCentral } from "./central";
 
+// Tarefas e Cadastro Geral (chapa_registry) pararam de vir direto do
+// Metabase por máquina — a Central agora é quem fala com o Metabase (1x),
+// os MCMs locais leem dela. Nome da função ficou igual de propósito, todos
+// os call sites (AppStartup, Dashboard, Integracoes) continuam funcionando
+// sem mudança — só o "de onde vem o dado" trocou por dentro.
 export async function sincronizarMetabase(silent = false): Promise<boolean> {
-  const s = readSettings();
-  const cardId = s.metabaseTarefasCardId;
-  if (!cardId) {
-    if (!silent) toast.error("Configure o ID da pergunta do Metabase em Integrações");
-    return false;
-  }
   try {
-    const status = await invoke<{ configured: boolean }>("metabase_status");
-    if (!status.configured) {
-      if (!silent) toast.error("Metabase não configurado em Integrações");
-      return false;
-    }
-    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
+    const rows = await pullTarefasFromCentral();
     const result = await ingestTarefas(rows);
     localStorage.setItem("metabase_last_sync", new Date().toISOString());
-    if (!silent) toast.success(`Sync concluído — ${result.tarefas} tarefas, ${result.chapas} chapas`);
+    if (!silent) toast.success(`Sync concluído (via Central) — ${result.tarefas} tarefas, ${result.chapas} chapas`);
     return true;
   } catch {
-    if (!silent) toast.error("Erro ao sincronizar com Metabase");
+    if (!silent) toast.error("Erro ao sincronizar tarefas com a Central");
     return false;
   }
 }
@@ -510,153 +505,22 @@ export function devesSincronizarLeadsRegiao(): boolean {
   return lastDate < lastMonday;
 }
 
+// Cadastro geral parou de vir direto do Metabase por máquina — a Central
+// sincroniza 1x e os MCMs locais leem dela (mesma disciplina de
+// sincronizarMetabase() acima). O parser antigo de coluna-por-regex (pra
+// tolerar variação de header num export cru do Metabase) não é mais
+// necessário aqui — quem faz esse trabalho agora é a Central
+// (`syncMetabase()` em sync.server.ts do repo central-hub), e o dado que
+// chega já vem normalizado. Lógica de escrita local ficou em
+// `syncRegistroFromCentral()` (central.ts), reaproveitando a mesma tabela.
 export async function sincronizarRegistro(silent = false): Promise<boolean> {
-  const s = readSettings();
-  const cardId = s.metabaseRegistroCardId;
-  if (!cardId) {
-    if (!silent) toast.error("Configure o ID da pergunta de Cadastro em Integrações");
-    return false;
-  }
   try {
-    const status = await invoke<{ configured: boolean }>("metabase_status");
-    if (!status.configured) {
-      if (!silent) toast.error("Metabase não configurado em Integrações");
-      return false;
-    }
-    const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
-    const db = await getDb();
-    const now = new Date().toISOString();
-
-    // Ensure 'fonte' column exists (safe alter)
-    try { await db.execute("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'"); } catch { /* already exists */ }
-    // Ensure index exists
-    try { await db.execute("CREATE INDEX IF NOT EXISTS idx_registry_fonte ON chapa_registry(fonte)"); } catch { /* exists */ }
-
-    await db.execute("DELETE FROM chapa_registry WHERE fonte IS NULL OR fonte = 'metabase'");
-
-    // 1) Parse + dedup. cpf deixou de ser PRIMARY KEY (migração v16), mas duplicatas
-    // ainda poluem o BID e inflam a base — dedup por cpf (ou nome quando sem cpf).
-    //
-    // Detecção de coluna: se a pergunta do Metabase tiver MAIS DE UMA coluna que
-    // "pareça" telefone (ex.: "Telefone" + "Telefone Indicador"/"Telefone Recrutador"),
-    // um regex único (`telefone|celular|fone`) pode pegar a coluna errada para a base
-    // inteira — sintoma: nome de uma pessoa com telefone de outra. `pick()` tenta
-    // padrões exatos primeiro e detecta ambiguidade para alertar o operador.
-    let ambiguousPhoneCols: string[] | null = null;
-    let ambiguousNameCols: string[] | null = null;
-    const pick = (...patterns: RegExp[]) => {
-      for (const pat of patterns) {
-        const match = k0.find((c) => pat.test(c));
-        if (match) return match;
-      }
-      return undefined;
-    };
-    let k0: string[] = [];
-    const parsed: unknown[][] = [];
-    const seen = new Set<string>();
-    for (const row of rows) {
-      const k = Object.keys(row);
-      k0 = k;
-      const g = (pat: RegExp) => k.find((c) => pat.test(c));
-      const str = (key: string | undefined) => key ? String(row[key] ?? "").trim() || null : null;
-      const dig = (key: string | undefined) => key ? String(row[key] ?? "").replace(/\D/g, "") || null : null;
-      const num = (key: string | undefined) => key ? parseInt(String(row[key] ?? "0")) || 0 : 0;
-      // "Nome do Chapa" nunca pode cair para "Nome da Mãe" — mesmo como fallback.
-      // A pergunta de Cadastro Geral tem as duas colunas; se "Nome do Chapa" vier
-      // vazio/omitido nessa linha (APIs costumam omitir campos nulos do JSON), o
-      // regex genérico /nome/i pegaria "Nome da Mãe" para aquela linha específica,
-      // mantendo o telefone real do chapa — produz nome feminino (da mãe) com
-      // telefone do próprio chapa (geralmente homem). Exclusão explícita evita isso.
-      const nomeCol = k.find((c) => /^nome do chapa$/i.test(c))
-        ?? k.find((c) => /^nome$/i.test(c))
-        ?? k.find((c) => /nome/i.test(c) && !/m[ãa]e/i.test(c));
-      const nome = str(nomeCol) ?? "";
-      if (!nome) continue;
-      const telCol = pick(/^telefone$/i, /^celular$/i, /^fone$/i, /telefone|celular|fone/i);
-      if (ambiguousPhoneCols === null) {
-        const allPhoneLike = Array.from(new Set(k.filter((c) => /telefone|celular|fone/i.test(c))));
-        ambiguousPhoneCols = allPhoneLike.length > 1 ? allPhoneLike : [];
-      }
-      if (ambiguousNameCols === null) {
-        // "Nome da Mãe" é um caso conhecido e tratado (excluído acima) — não conta
-        // como ambiguidade a alertar. Só preocupa se houver OUTRA coluna "nome"
-        // além de "Nome do Chapa"/"Nome" que não seja a mãe.
-        const allNameLike = Array.from(new Set(k.filter((c) => /nome/i.test(c) && !/m[ãa]e/i.test(c))));
-        ambiguousNameCols = allNameLike.length > 1 ? allNameLike : [];
-      }
-      const cpf = dig(pick(/^cpf$/i));
-      const dedupKey = cpf || `nome:${nome.toLowerCase().replace(/\s+/g, " ")}`;
-      if (seen.has(dedupKey)) continue;
-      seen.add(dedupKey);
-      parsed.push([
-        cpf,
-        nome,
-        dig(telCol),
-        str(g(/^cidade$/i)),
-        str(g(/bairro/i)),
-        str(g(/^estado$|^uf$/i)),
-        str(g(/^rua$|^endere/i)),
-        dig(g(/^cep$/i)),
-        str(g(/^n[uú]mero$|^num$/i)),
-        num(g(/tarefas|qtd/i)),
-        str(g(/primeira/i)),
-        str(g(/[uú]ltima/i)),
-        str(g(/situa/i)),
-        str(g(/bloqueio/i)),
-        str(g(/motivo/i)),
-        str(g(/^aso$/i)),
-        now,
-        "metabase",
-      ]);
-    }
-
-    // Alerta visível (sem precisar de DevTools): se a pergunta do Metabase tem mais
-    // de uma coluna candidata a telefone ou nome, o regex pode estar pegando a
-    // coluna errada para a base inteira — sintoma relatado: nome de mulher com
-    // telefone de homem. Mostra qual coluna foi de fato usada para conferência.
-    if (ambiguousPhoneCols && ambiguousPhoneCols.length > 1) {
-      toast.warning(
-        `Cadastro: ${ambiguousPhoneCols.length} colunas parecem telefone (${ambiguousPhoneCols.join(", ")}). Usando "${ambiguousPhoneCols[0]}". Confira se está certo em Integrações.`,
-        { duration: 15000 },
-      );
-    }
-    if (ambiguousNameCols && ambiguousNameCols.length > 1) {
-      toast.warning(
-        `Cadastro: ${ambiguousNameCols.length} colunas parecem nome (${ambiguousNameCols.join(", ")}). Usando "${ambiguousNameCols[0]}". Confira se está certo em Integrações.`,
-        { duration: 15000 },
-      );
-    }
-
-    // 2) Insert resiliente por chunk: um chunk que falhe não derruba o sync inteiro
-    // (antes o catch externo engolia tudo em silêncio).
-    const CHUNK = 30;
-    let count = 0;
-    let failed = 0;
-    const ROW_PH = "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-    for (let i = 0; i < parsed.length; i += CHUNK) {
-      const chunk = parsed.slice(i, i + CHUNK);
-      const ph = Array(chunk.length).fill(ROW_PH).join(",");
-      const vals = chunk.flat();
-      try {
-        await db.execute(
-          `INSERT INTO chapa_registry (cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte) VALUES ${ph}`,
-          vals,
-        );
-        count += chunk.length;
-      } catch (e) {
-        failed += chunk.length;
-        console.error("Falha ao inserir chunk de cadastro", e);
-      }
-    }
-
-    localStorage.setItem("chapa_registry_imported_at", now);
-    if (!silent) {
-      if (failed > 0) toast.warning(`Cadastro: ${count} importados, ${failed} falharam`);
-      else toast.success(`Cadastro sincronizado — ${count} chapas`);
-    }
+    const count = await syncRegistroFromCentral();
+    localStorage.setItem("chapa_registry_imported_at", new Date().toISOString());
+    if (!silent) toast.success(`Cadastro sincronizado (via Central) — ${count} chapas`);
     return true;
   } catch {
-    if (!silent) toast.error("Erro ao sincronizar cadastro de chapas");
+    if (!silent) toast.error("Erro ao sincronizar cadastro de chapas com a Central");
     return false;
   }
 }

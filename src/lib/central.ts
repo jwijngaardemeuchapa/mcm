@@ -96,3 +96,128 @@ export async function applyCentralStatusLocally(): Promise<number> {
   }
   return updated;
 }
+
+// ── Camada 1: MCM lê tarefas e cadastro geral DA CENTRAL, não mais direto
+// do Metabase. A Central é quem fala com o Metabase agora (reduz de 16
+// chamadas redundantes pra 1). Ver CENTRAL_APP_BACKLOG.md no repo da
+// Central pro levantamento completo. ──
+
+type CentralTarefaChapaRow = {
+  id_tarefa: number;
+  nome_chapa: string | null;
+  telefone_chapa: string | null;
+  cpf: string | null;
+};
+
+type CentralTarefaRow = {
+  id_tarefa: number;
+  data_tarefa: string | null;
+  cidade_uf: string | null;
+  empresa: string | null;
+  cnpj: string | null;
+  status_tarefa: string | null;
+  quantidade_chapas: number | null;
+};
+
+// Monta linhas no mesmo formato "uma linha por ajudante escalado" que
+// ingestTarefas() já espera do Metabase — os nomes de campo batem
+// (id_tarefa/empresa/nome_chapa/telefone_chapa/cpf/etc já são snake_case
+// nas duas pontas), então dá pra reaproveitar ingestTarefas() sem alterar
+// uma linha dele.
+export async function pullTarefasFromCentral(): Promise<Record<string, unknown>[]> {
+  const [tarefasRes, chapasRes] = await Promise.all([
+    fetch(
+      `${CENTRAL_SUPABASE_URL}/rest/v1/tarefas?select=id_tarefa,data_tarefa,cidade_uf,empresa,cnpj,status_tarefa,quantidade_chapas&ativo=eq.true`,
+      { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
+    ),
+    fetch(
+      `${CENTRAL_SUPABASE_URL}/rest/v1/tarefa_chapas?select=id_tarefa,nome_chapa,telefone_chapa,cpf`,
+      { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
+    ),
+  ]);
+  if (!tarefasRes.ok || !chapasRes.ok) throw new Error("Central indisponível ao buscar tarefas");
+  const tarefas = (await tarefasRes.json()) as CentralTarefaRow[];
+  const chapas = (await chapasRes.json()) as CentralTarefaChapaRow[];
+
+  const tarefaById = new Map(tarefas.map((t) => [t.id_tarefa, t]));
+  const rows: Record<string, unknown>[] = [];
+  for (const c of chapas) {
+    const t = tarefaById.get(c.id_tarefa);
+    if (!t) continue;
+    rows.push({
+      id_tarefa: t.id_tarefa,
+      data_tarefa: t.data_tarefa,
+      cidade_uf: t.cidade_uf,
+      empresa: t.empresa,
+      cnpj: t.cnpj,
+      status_tarefa: t.status_tarefa,
+      quantidade_chapas: t.quantidade_chapas,
+      nome_chapa: c.nome_chapa,
+      telefone_chapa: c.telefone_chapa,
+      cpf: c.cpf,
+    });
+  }
+  // Tarefas sem nenhum ajudante escalado ainda não entram (ingestTarefas só
+  // cria a tarefa a partir de uma linha com chapa) — mesma limitação que já
+  // existia sincronizando direto do Metabase.
+  return rows;
+}
+
+type CentralChapaRegistryRow = {
+  external_id: string | null;
+  nome: string | null;
+  telefone: string | null;
+  cpf: string | null;
+  cidade: string | null;
+  bairro: string | null;
+  estado: string | null;
+  rua: string | null;
+  cep: string | null;
+  numero_casa: string | null;
+  tarefas: number | null;
+  data_primeira_tarefa: string | null;
+  data_ultima_tarefa: string | null;
+  situacao: string | null;
+  bloqueio_tudo: boolean | null;
+  motivo_bloqueio: string | null;
+  aso: string | null;
+};
+
+// Cadastro geral de chapas — grava direto em chapa_registry local, sem
+// passar pelo parser de coluna-por-regex (esse existe só pra tolerar as
+// variações de nome de coluna de um export cru do Metabase; aqui os dois
+// lados já são schemas normalizados que eu controlo).
+export async function syncRegistroFromCentral(): Promise<number> {
+  const res = await fetch(
+    `${CENTRAL_SUPABASE_URL}/rest/v1/chapa_registry?select=external_id,nome,telefone,cpf,cidade,bairro,estado,rua,cep,numero_casa,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio_tudo,motivo_bloqueio,aso`,
+    { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
+  );
+  if (!res.ok) throw new Error("Central indisponível ao buscar cadastro geral");
+  const rows = (await res.json()) as CentralChapaRegistryRow[];
+  if (rows.length === 0) return 0;
+
+  const db = await getDb();
+  try { await db.execute("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'"); } catch { /* já existe */ }
+  await db.execute("DELETE FROM chapa_registry WHERE fonte IS NULL OR fonte = 'metabase'");
+
+  const now = new Date().toISOString();
+  const CHUNK = 30;
+  const COLS = "(cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte)";
+  const ROW_PH = "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+  let count = 0;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const ph = Array(chunk.length).fill(ROW_PH).join(",");
+    const vals = chunk.flatMap((r) => [
+      r.cpf, r.nome, r.telefone, r.cidade, r.bairro, r.estado, r.rua, r.cep, r.numero_casa,
+      r.tarefas ?? 0, r.data_primeira_tarefa, r.data_ultima_tarefa, r.situacao,
+      r.bloqueio_tudo ? "Bloqueado em tudo" : "Desbloqueado em tudo", r.motivo_bloqueio, r.aso,
+      now, "metabase",
+    ]);
+    try {
+      await db.execute(`INSERT INTO chapa_registry ${COLS} VALUES ${ph}`, vals);
+      count += chunk.length;
+    } catch { /* chunk isolado — um erro não derruba o resto */ }
+  }
+  return count;
+}
