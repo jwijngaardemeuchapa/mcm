@@ -634,3 +634,64 @@ ou connection string) como uma fonte NOVA e distinta na tela de Integrações
 da Central — não a mesma URL/apiKey do Metabase. **Não fabricar formato de
 credencial nem desenhar isso agora — só registrar que pode virar necessário,
 dependendo do que o usuário achar.**
+
+## ACHADO: `WorkLog` — resolve a pendência do "log geral do Meu Chapa" (2026-08-18)
+
+Usuário achou a tabela no Metabase (existe de verdade, **já está no
+Metabase**, não precisa de conexão direta no Postgres pra essa parte
+específica — a investigação acima pode ser encerrada só pra isso).
+Confirmado via CSV real exportado (`query_result_2026-08-13T23_07_19...csv`,
+4.652 linhas de amostra).
+
+**Colunas confirmadas:** `ID, IdLogType, IdWorkHeader, IdWorkItem,
+IdLoggedUser, IdWorkStatus, Notes, JsonLog, CreatedDate`. ⚠️ `IdWorkHeader`
+e `IdLoggedUser` vêm formatados com vírgula de milhar no export CSV (ex:
+`"464,945"`) — mesmo cuidado de sempre tirar tudo que não é dígito antes de
+usar, igual já fazemos com CPF.
+
+**`IdLogType` — 12 valores distintos vistos na amostra, decodificados pelo
+texto de `Notes`/`JsonLog` (não é enum oficial documentado em lugar nenhum,
+decodificação por amostra — mesma disciplina de sempre, mas com confiança
+alta pelo texto ser autoexplicativo):**
+
+| `IdLogType` | Frequência na amostra | O que é |
+|---|---|---|
+| 1 | 152 | Criação da tarefa (payload completo tipo WorkHeader: JobType, Business, endereço, veículo, quantidade de vagas) |
+| 4 | 267 | "Status change" (genérico, sem texto de/para) |
+| 5 | 227 | "Alteração de Status: De X para Y" (texto legível, com de/para) |
+| 6 | 3.131 (**a maioria, ~67%**) | Pipeline financeiro interno (equalização de carteira digital, criação de `FinancialTransaction`, `[FinishWork]`) — inclui até stack trace de erro quando falha. **Ruído de sistema, não ação humana** — pra uma visão didática, provavelmente filtrar/agrupar isso, não listar cru |
+| 7 | 83 | Comentário adicionado — **quando é cancelamento, traz `WorkCancelReasonId`/`WorkCancelReasonDescription` no JSON — é o evento formal de motivo de cancelamento, complementar a `WorkHeader.IdCancelReason`** |
+| 8 | 30 | Mudança de motorista |
+| 10 | 143 | Alteração de endereço |
+| 12 | 8 | Alteração de Status (variante com `Obs`) |
+| 18 | 70 | Alteração de preço (ex: "R$1421.36 para R$1421.3605") |
+| 25 | 26 | Alteração manual de markup |
+| 31 | 226 | "Job - Finalizado o envio de ofertas da tarefa" — **evento de BID**, fim do envio de ofertas |
+| 34 | 289 | `[WorkCycle] Registered for date` — registro de ciclo de trabalho (JSON: `registeredBy`, `businessId`, `workDate`) — possível evento de alocação/escala |
+
+**`IdWorkStatus`** aparece em cada linha (valor do status NAQUELE momento do
+log) — valores vistos incluem `0,2,3,4,5,8` nas amostras diretas, mas
+**não decodificado por completo contra o catálogo `WorkStatus`** (guia só
+confirma `5`=Finalizado, `6`=Cancelado) — não fabricar o resto do mapeamento
+sem checar.
+
+### O que isso resolve
+
+1. **Seção Tarefas — "log de ações do analista dentro do Meu Chapa"**
+   (lazy-load, só sob clique): fonte confirmada, é `WorkLog` filtrado por
+   `IdWorkHeader = id_tarefa`. Recomendação: **filtrar/esconder `IdLogType
+   6` por padrão** (ruído de pipeline financeiro) e mostrar os outros tipos
+   como timeline legível, usando `Notes` como texto principal.
+2. **Seção Métricas/Causas — "motivo de remoção formal"**: parcialmente
+   resolvido — `IdLogType 7` (comentário com motivo de cancelamento) é uma
+   fonte real, mas é sobre a **tarefa inteira** sendo cancelada, não
+   necessariamente sobre um ajudante específico sendo removido dela. Ainda
+   não confirmado se existe uma linha de `WorkLog` (ou outro `IdLogType`
+   não visto na amostra de 4.652 linhas) específica pra "chapa X removido
+   da tarefa Y" — **pode não existir tão granular, ou pode estar em algum
+   `IdLogType` fora da amostra. Não fabricar — se precisar dessa
+   granularidade específica, pedir amostra maior ou perguntar direto.**
+
+**Não implementado ainda** — fica registrado como fonte confirmada, pronta
+pra usar quando as seções Tarefas/Métricas-Causas forem construídas de
+verdade.

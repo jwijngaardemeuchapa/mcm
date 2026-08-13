@@ -33,9 +33,10 @@ cada remessa bancária gera uma linha "envelope" (`IdTransactionTed`/
 `IdRequestPayment` preenchidos, `IdWorkHeader` nulo) e uma ou mais linhas
 "filhas" (`IdParent` apontando pro envelope, `IdWorkHeader`/`IdWorkItem`
 preenchidos). Testei somar só as linhas com `IdWorkHeader IS NOT NULL`
-(sem nem tocar no valor do envelope) e bateu ~97% com os envelopes na
-mesma janela de 30 dias — os 3% de diferença eram só filhos fora da janela
-de data, não erro estrutural.
+(sem nem tocar no valor do envelope) e bateu 96,7% com os envelopes na
+mesma janela de 30 dias (5.518 de 6.185 envelopes tinham filho capturado
+nessa janela) — os 3,3% de diferença eram só filhos fora da janela de
+data, não erro estrutural.
 
 ## O que preciso confirmar/entender melhor com vocês
 
