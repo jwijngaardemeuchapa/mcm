@@ -417,14 +417,12 @@ motivo de verdade) — mesma direção Central→MCM já usada pra status
 
 **Motivo: texto livre**, confirmado ("razão do não atendimento").
 
+**Onde o dialog aparece — CONFIRMADO (2026-08-18):** no MCM
+(`TaskDetailPanel.tsx`), recebendo um sinal "precisa de motivo" da Central
+via polling (mesmo padrão de `applyCentralStatusLocally`) — é o analista
+quem sabe o motivo real, não o gestor.
+
 **Ainda em aberto, não fabricar sem confirmar quando for implementar:**
-- Onde o dialog aparece de fato — no MCM (`TaskDetailPanel.tsx`, já que é
-  onde o analista trabalha e sabe o motivo real) recebendo um sinal
-  "precisa de motivo" da Central via polling (mesmo padrão de
-  `applyCentralStatusLocally`)? Ou a Central mostra isso direto pra quem
-  estiver overview a tarefa? **Minha leitura é que faz mais sentido no MCM
-  — o gestor não sabe o motivo, quem sabe é o analista — mas não foi
-  confirmado explicitamente.**
 - Precisa de uma nova sincronização Central←Metabase pra trazer o headcount
   REAL em andamento (via `WorkItem`), separado do que já é sincronizado
   hoje (`tarefas.quantidade_chapas`, que é só o pedido original) — é uma
