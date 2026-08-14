@@ -3,6 +3,48 @@
 
 ---
 
+## 2026-08-19 — Central — CRÍTICO: escalonamento de privilégio via signup + leak de credenciais, corrigidos + guia de segurança/volumetria
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-150 (A fazer — pendência manual no Supabase Dashboard)
+**Commits (repo `central-hub`):** cf8ecb9 (fix), 8d12d34 (SECURITY_VOLUMETRY_GUIDE.md)
+
+Usuário pediu deepsearch de boas práticas de segurança/volumetria pra apps
+lowcode, mesmo tratamento dado ao `DESIGN_GUIDE.md`. Pesquisa achou a
+vulnerabilidade real e documentada CVE-2025-48757 (170+ apps Lovable
+expostos por RLS/role trust mal configurado) — antes de só documentar,
+auditei as migrations reais do `central-hub` contra esse padrão e encontrei
+dois problemas exploráveis de verdade:
+
+1. `handle_new_user()` confiava em `raw_user_meta_data->>'role'` vindo do
+   próprio payload de signup — a API pública do Supabase Auth aceita
+   `data` arbitrário, então qualquer pessoa com a publishable key (pública
+   por natureza) podia se cadastrar direto como `role: 'dev'` (acesso
+   irrestrito, incluindo audit log geral) sem passar pela UI do app.
+2. `integration_config` (credenciais reais de Metabase/Sheets/Umbler) tinha
+   `SELECT ... USING (true)` — qualquer autenticado lia os segredos.
+
+Corrigido na migration `20260819090000_fix_role_escalation_and_secrets_leak.sql`:
+todo signup novo nasce sempre `analista`, `integration_config` restrito a
+`lideranca`/`dev`. Rebase feito sobre 9 commits que o Lovable já tinha
+publicado em paralelo (rodou o prompt estrutural de UI do dia anterior) —
+sem conflito.
+
+Depois do fix, documentado o resto da pesquisa em
+`central-hub/.agents/SECURITY_VOLUMETRY_GUIDE.md`: checklist por
+severidade (bloqueador/alta/hardening), volumetria (índice em coluna de
+RLS, paginação por cursor, connection pooling), anti-padrões específicos
+de app gerado por IA.
+
+**Pendência que só o usuário resolve:** revisar no Supabase Dashboard se o
+cadastro público deve continuar aberto ou virar convite-only — o fix já
+aplicado fecha o escalonamento de privilégio, mas não impede cadastro
+não-convidado em si.
+
+**Next:** revisar os 9 commits "Changes"/"Consolidou design core" que o
+Lovable gerou rodando o `PROMPT_LOVABLE_ESTRUTURAL_UI.md`.
+
+---
+
 ## 2026-08-18 — Central — Guia de design + prompt estrutural de UI pro Lovable
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-149 (A fazer)
