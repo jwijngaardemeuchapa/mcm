@@ -665,6 +665,32 @@ com todas as dimensões: carteira, grupo econômico, status, UF, tipo de
 trabalho, motivo de cancelamento, data) — os 9 painéis viram todos queries
 locais em cima dessa tabela, sem re-consultar o Metabase por filtro.
 
+### 7. Página pública de Fill Rate (NOVO — 2026-08-18, registrar só, implementação futura)
+
+Pedido do usuário: uma página de Fill Rate **pública** na Central, com as
+métricas principais (seguindo os princípios do `DESIGN_GUIDE.md` — hero
+number, hierarquia clara, nada de wall of numbers), **já filtrada pro mês
+atual por padrão**, mostrando **todas as Carteiras** (G1-G7) juntas — não
+uma carteira por vez como o painel interno.
+
+**Relação com a seção Fill Rate acima:** reusa a mesma fonte de dado
+(Question 1534, mesma tabela granular sincronizada) — é uma **segunda
+tela**, mais enxuta e voltada pra visualização rápida/compartilhável, não
+substitui o painel interno completo de 9 painéis com todos os filtros.
+Provavelmente um subconjunto dos painéis (ex: Fill Rate do Período + Fill
+Rate por Carteira, os dois "hero" mais diretos), não os 9 completos.
+
+**Não fabricar ainda, perguntar quando for implementar:**
+- O que "pública" significa de fato — rota sem autenticação (fora do
+  `_authenticated/`), ou só um link com filtro padrão pra quem já tem
+  login? Impacto direto em segurança/RLS do Supabase, não presumir.
+- Quais métricas exatas entram no subconjunto "principais" (dos 9 painéis
+  do V1) — perguntar ou propor 2-3 opções com mockup antes de implementar.
+
+**Dependência:** só pode ser construída depois que a sincronização
+granular da Question 1534 (seção Fill Rate acima) estiver implementada —
+sem tabela local, não tem o que essa página consultar.
+
 ### Seção Métricas/Causas — estrutura fechada (2026-08-18)
 
 Rollup de todas as fontes de "motivo" mapeadas até agora — vale listar por
