@@ -3,6 +3,37 @@
 
 ---
 
+## 2026-08-18 — Central — Guia de design + prompt estrutural de UI pro Lovable
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-149 (A fazer)
+**Commits (repo `central-hub`):** 9183cce (DESIGN_GUIDE.md), a341388 (PROMPT_LOVABLE_ESTRUTURAL_UI.md)
+
+Usuário pediu que a UI da Central fosse "bonita, elegante, parecer caro...
+EXTREMAMENTE DIDÁTICO", com hierarquia visual e design thinking, mas
+evoluindo a identidade já existente (`src/styles.css`), não substituindo.
+Criado `central-hub/.agents/DESIGN_GUIDE.md`: princípios de Stephen Few
+(dashboard de monitoramento at-a-glance), Tufte (data-ink ratio), Dieter
+Rams, Steve Krug, NN Group e Refactoring UI, todos ligados aos
+tokens/utilities já existentes (`surface-panel`, `brand-block`,
+`animate-rise`, padrão do `StatCard.tsx`) — não propõe nada novo, disciplina
+o que já existe. Inclui checklist prático e anti-padrões.
+
+Antes de implementar features novas (Analistas, Fill Rate V2, solicitação
+de pagamento), criado um prompt estrutural pro Lovable
+(`PROMPT_LOVABLE_ESTRUTURAL_UI.md`): extrair 3 primitivos reutilizáveis
+(`FilterBar`, `EmptyState`, `LoadingState`, hoje duplicados ad-hoc em
+`dashboard.tsx`), auditar as telas existentes contra o `DESIGN_GUIDE.md`, e
+corrigir o texto do card "Quebra por analista" (a justificativa de que o
+dado não existe ficou errada depois do achado do `bot_title`, de uma
+sessão anterior). Prompt ainda não executado pelo Lovable — próximo passo é
+o usuário colar no chat do projeto.
+
+**Next:** rodar o prompt no Lovable, revisar o resultado, e então seguir
+"por partes" com os prompts de feature (usuário pediu explicitamente pra
+não ir tudo de uma vez).
+
+---
+
 ## 2026-08-12 — MCM — Release v1.0.51: identidade visual MeuChapa (Fustat + paleta) + fix chat de grupo
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-146 (Feito)
