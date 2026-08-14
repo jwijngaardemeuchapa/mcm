@@ -163,6 +163,17 @@ sem detalhamento nenhum (o que conta como ocorrência? quem registra? é
 manual ou puxado de algum sync existente?). **Não fabricar schema — perguntar
 ao usuário na próxima sessão que tocar nisso.**
 
+### 6. Aba de solicitação de pagamento de tarefa — ✅ IMPLEMENTADO (2026-08-19)
+
+Botão "Solicitar pagamento" no `TaskDetailPanel` (MCM), tabela
+`solicitacoes_pagamento` + endpoint + tela `/solicitacoes` (liderança/dev)
+na Central. Ver `.agents/JOURNAL.md` de ambos os repos pro detalhe
+completo. Pendente só: aplicar a migration em produção (rodar
+`PROMPT_LOVABLE_APLICAR_MIGRATIONS.md`) e o filtro por grupo/Carteira
+(não fabricado — Central ainda não sincroniza Carteira).
+
+<details><summary>Levantamento original (histórico)</summary>
+
 ### 6. Aba de solicitação de pagamento de tarefa (NOVO — 2026-08-18)
 
 Pedido do usuário, registrar na lista (não implementar ainda). Requisitos
@@ -276,6 +287,8 @@ receber" (corrigido no próprio arquivo).
   da empresa) e do novo endpoint — todos os campos necessários já estão
   confirmados, então isso **pode ser desenhado** na próxima sessão que tocar
   nesta feature.
+
+</details>
 
 ## Estado atual (atualizado 2026-08-18)
 
@@ -499,6 +512,16 @@ específico, mas exige já saber o ID). Sem "listar todos os membros"
 documentado, a opção viável é mesmo o cadastro manual — confirmado, segue
 como estava.
 
+### Seção Analistas — ✅ IMPLEMENTADO (2026-08-19, overview)
+
+Rota `/analistas` na Central: confirmações manuais + disparos FUP/BID por
+período (hoje/7d/30d), agregado client-side sem migration nova. Coluna
+"Ocorrências" ainda placeholder (gap real, Meu Chapa não sincronizado —
+ver abaixo). Detalhe por analista (linha do tempo) ainda não implementado,
+fica como próximo passo dessa seção.
+
+<details><summary>Levantamento original (histórico)</summary>
+
 ### Seção Analistas — estrutura desenhada (2026-08-18)
 
 **Overview** (uma linha por analista, filtro de período hoje/7d/30d):
@@ -519,6 +542,8 @@ nasceria mais tão capenga quanto eu tinha registrado — duas das três fontes
 nenhum gap de MCM. Só "ocorrências registradas" continua faltando. Dá pra
 considerar implementar a seção Analistas **antes** do gap de "Evento de
 disparo" fechar, diferente do que eu tinha concluído antes.
+
+</details>
 
 ### Cruzamento com o MCM (o que cada seção da Central precisa do lado local)
 
