@@ -43,6 +43,27 @@ não-convidado em si.
 **Next:** revisar os 9 commits "Changes"/"Consolidou design core" que o
 Lovable gerou rodando o `PROMPT_LOVABLE_ESTRUTURAL_UI.md`.
 
+**Atualização 2026-08-19 — CONFIRMADO E FECHADO (MCM-150 → Feito):**
+revisão dos commits do Lovable achou outro problema real: `tarefas`/
+`tarefa_chapas` retornavam 404 na API REST do Supabase de produção — as
+migrations de 18/08 em diante (incluindo o fix de segurança acima) nunca
+tinham sido aplicadas de verdade, só commitadas no GitHub (eu não tenho
+`SUPABASE_ACCESS_TOKEN` neste ambiente pra rodar `supabase db push`
+sozinho). Criado `PROMPT_LOVABLE_APLICAR_MIGRATIONS.md`, usuário rodou no
+Lovable. Confirmado depois, direto no Supabase: `tarefas`/`tarefa_chapas`
+agora respondem 200, `handle_new_user()` sem nenhuma referência a
+`raw_user_meta_data->>'role'`, e a policy de `integration_config` é
+`integration_config_select_lideranca_dev` (a `USING (true)` antiga não
+existe mais). **Lição:** commit no GitHub não é sinônimo de "aplicado no
+banco" neste projeto — sempre confirmar contra a API REST de produção
+antes de considerar uma migration entregue, não assumir sync automático.
+
+Aproveitando o mesmo prompt, implementada também a seção **Analistas**
+(overview) no `central-hub` — agrega confirmações manuais
+(`tarefa_chapas.status_changed_by`) e disparos (`bot_dispatches.bot_title`,
+regex `FUP_`/`BID_<NOME>`) por período, sem migration nova. Só passou a
+funcionar de verdade depois da aplicação das migrations pendentes acima.
+
 ---
 
 ## 2026-08-18 — Central — Guia de design + prompt estrutural de UI pro Lovable
