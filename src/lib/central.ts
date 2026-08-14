@@ -32,6 +32,29 @@ export async function pushChapaStatusToCentral(params: {
   }
 }
 
+// Empurra uma solicitação de pagamento gerada no TaskDetailPanel — fica
+// registrada na Central pra liderança/dev verem (não é a Central que gera).
+// Diferente de pushChapaStatusToCentral, aqui um erro é reportado ao
+// analista (não é best-effort silencioso): a solicitação só existe se
+// chegou na Central, não tem "cópia local" de fallback.
+export async function pushPaymentRequestToCentral(params: {
+  id_tarefa: number;
+  empresa: string | null;
+  motivo: string;
+  itens: { nome: string; telefone: string; valor: number }[];
+}): Promise<void> {
+  const { operadorNome } = readSettings();
+  const res = await fetch(`${CENTRAL_APP_URL}/api/public/hooks/payment-request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+    body: JSON.stringify({ ...params, criado_por: operadorNome || null }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? "Falha ao enviar solicitação pra Central");
+  }
+}
+
 export type CentralChapaStatus = {
   id_tarefa: number;
   telefone_chapa: string | null;

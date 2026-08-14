@@ -3,6 +3,40 @@
 
 ---
 
+## 2026-08-19 — MCM + Central — Solicitação de pagamento de tarefa (item 6 do backlog)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits (repo `central-hub`):** 53c7ae8 (tabela + endpoint + tela), bb57441 (prompt de migration)
+**Files changed (repo `mcm`):** `src/lib/central.ts`, `src/components/TaskDetailPanel.tsx`
+
+Usuário pediu pra implementar direto (sem passar por prompt do Lovable)
+tudo que desse pra fazer sozinho. Fluxo completo: botão "Solicitar
+pagamento" no `TaskDetailPanel` (aparece junto de FUP Todos/Copiar),
+seleciona um ou todos os ajudantes ativos da tarefa, valor por ajudante
+(input manual — não há fonte automática de valor confirmada no MCM ainda,
+ver `PROMPT_PAGAMENTOS_CHAPA.md`/Question #1557 no `guia_estrutura_
+metabase_meuchapa.md` pra uma futura automação) e motivo em texto livre.
+`pushPaymentRequestToCentral()` novo em `central.ts` — diferente de
+`pushChapaStatusToCentral`, aqui erro é reportado ao analista (não é
+best-effort silencioso, a solicitação só existe se chegou na Central).
+
+Lado Central: tabela `solicitacoes_pagamento` (migration
+`20260819100000_solicitacoes_pagamento.sql`), endpoint público
+`/api/public/hooks/payment-request` (mesmo padrão de `chapa-status.ts`),
+tela `/solicitacoes` restrita a liderança/dev com KPI de total solicitado,
+filtro por período/empresa, detalhe expansível por ajudante.
+
+**Pendência real, não fabricada:** filtro por "grupo" (Carteira G1-G7)
+ficou de fora — a Central não sincroniza Carteira ainda, só existe como
+tabela local no MCM (`sincronizarCarteira()`). Registrado no
+`CENTRAL_APP_BACKLOG.md`.
+
+**Next:** rodar o prompt de migration pendente no Lovable
+(`PROMPT_LOVABLE_APLICAR_MIGRATIONS.md`) — a tabela ainda não existe em
+produção até isso rodar (mesma lição da sessão anterior: commit no GitHub
+não aplica sozinho).
+
+---
+
 ## 2026-08-19 — Central — CRÍTICO: escalonamento de privilégio via signup + leak de credenciais, corrigidos + guia de segurança/volumetria
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-150 (A fazer — pendência manual no Supabase Dashboard)
