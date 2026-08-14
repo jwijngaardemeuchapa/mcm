@@ -230,9 +230,14 @@ receber" (corrigido no próprio arquivo).
   qualificou isso como "perfumaria", **não é requisito da v1**, entra como
   melhoria de exibição pra quando a base da feature já estiver rodando.
 - **Central precisa expor a lista de solicitações**, com:
-  - Filtro por **grupo** (ainda não especificado se é carteira, empresa, ou
-    outro agrupamento — **perguntar ao usuário quando for desenhar a tela**,
-    não presumir).
+  - **Filtro por grupo — FECHADO (2026-08-18):** confirmado pelo usuário
+    como "G1, G2, G3...", que é exatamente o conceito já mapeado no guia de
+    schema como `CustomerWallet` (Carteira) — ver seção "Grupo interno de
+    analistas (G1–G7)" em `guia_estrutura_metabase_meuchapa.md`. Cada
+    empresa tem uma `CustomerWallet.Name` (`G1`...`G7`); a Central já
+    sincroniza tarefas por Carteira (Camada 1), então esse filtro reusa um
+    campo que já existe no dado sincronizado — não precisa de nova
+    integração.
   - Filtro por **data**.
   - Exibir **detalhes de valor** por solicitação (linha por ajudante,
     igual ao formato já mapeado da Question #1557: nome, telefone, valor).
@@ -240,6 +245,16 @@ receber" (corrigido no próprio arquivo).
   preenchido pelo analista ao gerar a solicitação (mesmo padrão do "motivo
   de não atendimento" já desenhado em outra seção deste documento: campo
   livre, sem lista fechada de opções).
+- **Métrica de valor pago, visível e filtrável (NOVO — 2026-08-18):** o
+  usuário quer um registro visível de quanto já foi pago no dia/mês (e por
+  extensão, dentro de qualquer intervalo de data escolhido no filtro acima)
+  — um total agregado, não só a lista linha-a-linha. Soma direta de `valor`
+  das solicitações com `enviado_banco = true` dentro do período/grupo
+  filtrado (mesma lógica de "recebido" já mapeada pra Question #1557,
+  aplicada aqui ao lado da Central em vez de por chapa). Fica como um
+  card/KPI acima ou ao lado da lista — dado que o filtro por grupo e data já
+  existe pro nível de linha, o KPI é só uma agregação do mesmo dataset
+  filtrado, não precisa de fonte nova.
 
 **Ainda em aberto, não fabricar sem confirmar:**
 - Se `IdRequestPayment` é de fato o conceito formal de "solicitação de
@@ -256,12 +271,11 @@ receber" (corrigido no próprio arquivo).
   `DateSentToBank IS NOT NULL` é o sinal mais confiável de "pago", e se o
   limite de 200 linhas/`ORDER BY ... DESC` é uma constraint real da Question
   ou só comportamento observado.
-- O que define "grupo" no filtro da lista da Central — não especificado
-  ainda.
 - Schema da nova tabela na Central (`payment_requests` ou similar,
-  precisando agora de um campo `motivo`) e do novo endpoint — agora **pode
-  ser desenhado**, já que o campo de valor está confirmado (falta só
-  decidir o ponto do "grupo" acima antes de fechar o schema de filtros).
+  precisando agora de um campo `motivo` e de referenciar a `Carteira`/grupo
+  da empresa) e do novo endpoint — todos os campos necessários já estão
+  confirmados, então isso **pode ser desenhado** na próxima sessão que tocar
+  nesta feature.
 
 ## Estado atual (atualizado 2026-08-18)
 
