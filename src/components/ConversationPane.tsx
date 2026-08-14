@@ -58,6 +58,9 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [contactNames, setContactNames] = useState<Record<string, string>>({});
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // Blob URLs criadas só pro eco otimista (ver handleSend) — revogadas
+    // assim que o próximo load() troca a lista inteira por dados reais.
+    const optimisticUrlsRef = useRef<string[]>([]);
 
     function scrollToBottom(smooth = false) {
       const el = scrollRef.current;
@@ -71,6 +74,8 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
       setError(null);
       fetchUmblerRecentMessages({ chatId, settings, take: TAKE })
         .then((msgs) => {
+          for (const url of optimisticUrlsRef.current) URL.revokeObjectURL(url);
+          optimisticUrlsRef.current = [];
           setMessages(msgs);
           // Chat sempre abre com o scroll no fim (mensagem mais recente) —
           // precisa do próximo frame pra medir a altura já com as mensagens
@@ -113,6 +118,14 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
       };
     }, [pendingPreviewUrl]);
 
+    // Revoga qualquer blob URL de eco otimista que ainda não tenha sido
+    // limpa por um load() bem-sucedido, ao desmontar o painel.
+    useEffect(() => {
+      return () => {
+        for (const url of optimisticUrlsRef.current) URL.revokeObjectURL(url);
+      };
+    }, []);
+
     function clearAttachment() {
       setPendingFile((prev) => {
         if (prev) setPendingPreviewUrl((url) => { if (url) URL.revokeObjectURL(url); return null; });
@@ -144,11 +157,43 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
 
     async function handleSend() {
       const text = reply.trim();
-      if ((!text && !pendingFile) || !personTelefone || sending || overLimit || windowOpen === false) return;
+      const fileSent = pendingFile;
+      if ((!text && !fileSent) || !personTelefone || sending || overLimit || windowOpen === false) return;
       setSending(true);
       setSendError(null);
       try {
-        await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, file: pendingFile ?? undefined, settings });
+        await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, file: fileSent ?? undefined, settings });
+        // Eco otimista: o GET relative-messages pode demorar alguns segundos
+        // pra devolver a mensagem recém-enviada — sem isso, imagem/áudio
+        // enviados ficavam sem NENHUM preview até o reload seguinte pegar a
+        // versão definitiva (bug reportado: "chat não mostra preview de
+        // imagem enviada"). Usa uma blob URL própria — a de pendingPreviewUrl
+        // já é revogada por clearAttachment() logo abaixo.
+        if (fileSent) {
+          const url = URL.createObjectURL(fileSent);
+          optimisticUrlsRef.current.push(url);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `local-${Date.now()}`,
+              source: "Member",
+              content: text || null,
+              messageType: fileSent.type.startsWith("image/")
+                ? "Image"
+                : fileSent.type.startsWith("audio/")
+                  ? "Audio"
+                  : "Document",
+              eventAtUTC: new Date().toISOString(),
+              fileUrl: url,
+              fileMimeType: fileSent.type || null,
+              fileName: fileSent.name,
+              transcription: null,
+              senderName: null,
+              senderContactId: null,
+            },
+          ]);
+          requestAnimationFrame(() => scrollToBottom(true));
+        }
         setReply("");
         clearAttachment();
         // Mensagem enviada pode demorar alguns segundos pra aparecer no
