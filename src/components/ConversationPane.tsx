@@ -3,7 +3,7 @@ import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText } f
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
-import { type UmblerSettings } from "@/lib/settings";
+import { readSettings, type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
 
 const ATTACHMENT_ACCEPT = "image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx";
@@ -168,32 +168,34 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
         // enviados ficavam sem NENHUM preview até o reload seguinte pegar a
         // versão definitiva (bug reportado: "chat não mostra preview de
         // imagem enviada"). Usa uma blob URL própria — a de pendingPreviewUrl
-        // já é revogada por clearAttachment() logo abaixo.
-        if (fileSent) {
-          const url = URL.createObjectURL(fileSent);
-          optimisticUrlsRef.current.push(url);
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-${Date.now()}`,
-              source: "Member",
-              content: text || null,
-              messageType: fileSent.type.startsWith("image/")
-                ? "Image"
-                : fileSent.type.startsWith("audio/")
-                  ? "Audio"
-                  : "Document",
-              eventAtUTC: new Date().toISOString(),
-              fileUrl: url,
-              fileMimeType: fileSent.type || null,
-              fileName: fileSent.name,
-              transcription: null,
-              senderName: null,
-              senderContactId: null,
-            },
-          ]);
-          requestAnimationFrame(() => scrollToBottom(true));
-        }
+        // já é revogada por clearAttachment() logo abaixo. Também cobre
+        // mensagem só-texto agora: a Umbler não devolve o nome de quem
+        // enviou via essa API simples (sentByOrganizationMember vem vazio),
+        // então sem isso o remetente aparecia como "Analista" genérico —
+        // aqui a gente SABE quem mandou (o operador desta máquina).
+        const { operadorNome } = readSettings();
+        const optimistic: UmblerMessage = {
+          id: `local-${Date.now()}`,
+          source: "Member",
+          content: text || null,
+          messageType: fileSent
+            ? fileSent.type.startsWith("image/")
+              ? "Image"
+              : fileSent.type.startsWith("audio/")
+                ? "Audio"
+                : "Document"
+            : "Text",
+          eventAtUTC: new Date().toISOString(),
+          fileUrl: fileSent ? URL.createObjectURL(fileSent) : null,
+          fileMimeType: fileSent?.type || null,
+          fileName: fileSent?.name ?? null,
+          transcription: null,
+          senderName: operadorNome || null,
+          senderContactId: null,
+        };
+        if (fileSent && optimistic.fileUrl) optimisticUrlsRef.current.push(optimistic.fileUrl);
+        setMessages((prev) => [...prev, optimistic]);
+        requestAnimationFrame(() => scrollToBottom(true));
         setReply("");
         clearAttachment();
         // Mensagem enviada pode demorar alguns segundos pra aparecer no

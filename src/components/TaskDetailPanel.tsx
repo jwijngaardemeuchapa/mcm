@@ -387,6 +387,14 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) copiado(s)`);
   }
 
+  // Só nomes, sem telefone e sem CPF — pedido explícito do usuário.
+  function copyNamesOnly() {
+    const ativos = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    if (ativos.length === 0) { toast.error("Nenhum ajudante nesta tarefa"); return; }
+    const lines = ativos.map((c) => c.nome_chapa);
+    clipboardWrite(lines.join("\n"), `${ativos.length} nome(s) copiado(s)`);
+  }
+
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -506,6 +514,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={copyNamesOnly}>
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Só nomes
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={copyAllList}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone de todos
                   </DropdownMenuItem>
