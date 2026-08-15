@@ -3,6 +3,42 @@
 
 ---
 
+## 2026-08-19 — MCM — Release v1.0.52: copiar nome/telefone individual + fix crítico de confirmações somem ao atualizar (MCM-147, MCM-151)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-147, MCM-151 (ambos "Em análise" — implementados, não testados visualmente)
+**Commits:** dea27d8 (preview de imagem), dea1405 (copiar individual + fix transação + changelog), bd0aa55 (latest.json)
+
+Usuário reportou dois problemas em sequência: (1) faltava copiar nome/
+telefone individualmente na lista de chapas do `TaskDetailPanel`, igual já
+existia nos cards normais (`TaskCard.tsx`) — resolvido tornando o nome
+clicável (copia nome) e adicionando ícone de telefone (copia só o
+número), mantendo o ícone de "nome + telefone" combinado que já existia.
+(2) Uma analista no Windows 10 relatou que atualizar várias vezes seguidas
+fazia as confirmações sumirem — investigado e encontrado um bug real:
+`ingestTarefas()` fazia `DELETE FROM chapas` seguido de `INSERT` em lote
+SEM transação (o próprio código já tinha um comentário reconhecendo a
+janela). Corrigido envolvendo todo o bloco em `BEGIN IMMEDIATE`/`COMMIT`/
+`ROLLBACK` — a troca agora é atômica, nenhuma leitura concorrente vê o
+estado intermediário "chapas deletadas, ainda não reinseridas".
+
+Build assinado e publicado: chave `tauri_update_key` estava no próprio
+repo (`mcm/tauri_update_key`, gitignored) — minha busca inicial não achou
+por `maxdepth` curto demais, usuário confirmou o local e que a senha da
+chave é vazia. `tauri signer sign -f tauri_update_key -p ""` funcionou.
+Release `v1.0.52` criada, assets (.exe + .sig) enviados, `latest.json`
+atualizado e verificado (200 em ambos).
+
+**Lição:** ao procurar um arquivo "na pasta" que o usuário menciona,
+buscar com profundidade generosa a partir de `$USERPROFILE` E direto no
+repo do projeto — `Downloads/<repo>/<subrepo>/arquivo` fica mais fundo do
+que um `maxdepth 3` cobre.
+
+**Next:** validar em produção — usuário/analista confirmar que o preview
+de imagem aparece na hora e que atualizar várias vezes não faz confirmações
+sumirem mais.
+
+---
+
 ## 2026-08-19 — MCM + Central — Solicitação de pagamento de tarefa (item 6 do backlog)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Commits (repo `central-hub`):** 53c7ae8 (tabela + endpoint + tela), bb57441 (prompt de migration)

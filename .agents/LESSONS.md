@@ -141,6 +141,8 @@
 **Why:** The key lives offline on a specific physical machine (referenced once as `C:\Users\W Design\task-flow-hub\tauri_update_key`), never committed (correctly gitignored). Two separate sessions assumed it would be present and only discovered otherwise mid-build, after already generating the .exe. Caused a release to go out unsigned.
 **How to apply:** Before running `tauri signer sign`, verify the key file exists at the expected path first. If missing, ask the user where it lives or whether to publish unsigned (auto-update will safely fail verification, not install anything broken — but won't update existing installs either). Long-term: move the key to a password manager with a documented retrieval path instead of "whichever machine has it".
 
+**Atualização 2026-08-19:** a chave APARECE no repo `mcm` (`mcm/tauri_update_key` + `.pub`, corretamente gitignored) — não está "em outra máquina" desta vez, só numa profundidade que uma busca rasa (`maxdepth 3` a partir de `$USERPROFILE`) não alcança (`Downloads/meuchapa/mcm/` já é 3 níveis, o arquivo é o 4º). Antes de perguntar "onde está a chave", buscar com profundidade generosa tanto em `$USERPROFILE` quanto direto na raiz do repo do projeto. (Senha da chave: perguntar ao usuário quando for assinar — não registrar aqui.)
+
 ---
 
 ## 2026-06-30 [build, vite, timing]
