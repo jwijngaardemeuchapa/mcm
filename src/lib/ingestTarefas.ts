@@ -231,42 +231,58 @@ export async function ingestTarefas(
     return Array(rows).fill(`(${placeholders(cols)})`).join(",");
   }
 
-  // Upsert tarefas em lote (50 linhas × 16 colunas = 800 binds por statement)
-  const tarefasArr = Array.from(tarefasMap.values());
-  for (let i = 0; i < tarefasArr.length; i += 50) {
-    const chunk = tarefasArr.slice(i, i + 50);
-    const params = chunk.flatMap((t) => [
-      t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
-      t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
-      t.observacoes ?? null, t.observacoes_updated_at ?? null,
-      t.validacao_status, t.data_validacao_recebida ?? null,
-      t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
-    ]);
-    await db.execute(
-      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES ${rowGroup(16, chunk.length)}`,
-      params,
-    );
-  }
+  // Upsert tarefas + DELETE/INSERT de chapas numa única transação — sem isso,
+  // havia uma janela real entre o DELETE e o INSERT em lote (comentário
+  // antigo já reconhecia: "janela mínima antes dos INSERTs em lote") onde
+  // qualquer leitura da tabela `chapas` via a UI, OU um sync concorrente
+  // (auto-refresh de 30s sobrepondo um clique manual, por exemplo — mais
+  // provável quanto mais vezes o analista atualiza manualmente), via a
+  // tarefa momentaneamente SEM NENHUM chapa — inclusive os já confirmados.
+  // BEGIN/COMMIT torna a troca atômica: outra conexão nunca vê o estado
+  // intermediário "chapas deletadas, ainda não reinseridas".
+  await db.execute("BEGIN IMMEDIATE");
+  try {
+    // Upsert tarefas em lote (50 linhas × 16 colunas = 800 binds por statement)
+    const tarefasArr = Array.from(tarefasMap.values());
+    for (let i = 0; i < tarefasArr.length; i += 50) {
+      const chunk = tarefasArr.slice(i, i + 50);
+      const params = chunk.flatMap((t) => [
+        t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
+        t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
+        t.observacoes ?? null, t.observacoes_updated_at ?? null,
+        t.validacao_status, t.data_validacao_recebida ?? null,
+        t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
+      ]);
+      await db.execute(
+        `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES ${rowGroup(16, chunk.length)}`,
+        params,
+      );
+    }
 
-  // DELETE todas as chapas das tarefas afetadas — janela mínima antes dos INSERTs em lote
-  for (let i = 0; i < ids.length; i += 900) {
-    const chunk = ids.slice(i, i + 900);
-    await db.execute(`DELETE FROM chapas WHERE id_tarefa IN (${placeholders(chunk.length)})`, chunk);
-  }
+    // DELETE todas as chapas das tarefas afetadas
+    for (let i = 0; i < ids.length; i += 900) {
+      const chunk = ids.slice(i, i + 900);
+      await db.execute(`DELETE FROM chapas WHERE id_tarefa IN (${placeholders(chunk.length)})`, chunk);
+    }
 
-  // INSERT chapas em lote (80 linhas × 12 colunas = 960 binds por statement)
-  // Estado preservado via chapaPrev (lido antes do DELETE acima)
-  for (let i = 0; i < chapasFinais.length; i += 80) {
-    const chunk = chapasFinais.slice(i, i + 80);
-    const params = chunk.flatMap((c) => [
-      c.id, c.id_tarefa, c.nome_chapa ?? null, c.telefone_chapa ?? null, c.cpf ?? null,
-      c.status_contato, c.validacao_presenca ?? null, c.data_validacao ?? null,
-      c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
-    ]);
-    await db.execute(
-      `INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES ${rowGroup(12, chunk.length)}`,
-      params,
-    );
+    // INSERT chapas em lote (80 linhas × 12 colunas = 960 binds por statement)
+    // Estado preservado via chapaPrev (lido antes do DELETE acima)
+    for (let i = 0; i < chapasFinais.length; i += 80) {
+      const chunk = chapasFinais.slice(i, i + 80);
+      const params = chunk.flatMap((c) => [
+        c.id, c.id_tarefa, c.nome_chapa ?? null, c.telefone_chapa ?? null, c.cpf ?? null,
+        c.status_contato, c.validacao_presenca ?? null, c.data_validacao ?? null,
+        c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
+      ]);
+      await db.execute(
+        `INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES ${rowGroup(12, chunk.length)}`,
+        params,
+      );
+    }
+    await db.execute("COMMIT");
+  } catch (e) {
+    await db.execute("ROLLBACK").catch(() => { /* já pode ter sido revertido automaticamente */ });
+    throw e;
   }
 
   try {

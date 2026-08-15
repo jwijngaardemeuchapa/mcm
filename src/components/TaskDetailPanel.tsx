@@ -650,16 +650,27 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                       selected ? "bg-primary/10" : `${meta.bg} hover:opacity-80`
                     } ${c.status_contato === "removido" ? "opacity-50" : ""}`}
                   >
-                    <button
-                      type="button"
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedKey(c.id)}
-                      className="flex-1 min-w-0 flex items-center gap-2.5 pl-3 py-2.5 text-left"
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedKey(c.id); } }}
+                      className="flex-1 min-w-0 flex items-center gap-2.5 pl-3 py-2.5 text-left cursor-pointer"
                     >
                       <div className={`h-7 w-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold text-white bg-gradient-to-br ${meta.avatar} shadow-sm`}>
                         {c.nome_chapa!.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className={`text-[13px] truncate ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>{c.nome_chapa}</p>
+                        {/* Igual aos cards normais (TaskCard.tsx) — clicar no nome
+                            copia só o nome, sem precisar abrir o menu de "..." */}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`); }}
+                          title="Clique para copiar o nome"
+                          className={`text-[13px] truncate text-left hover:text-primary hover:underline ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}
+                        >
+                          {c.nome_chapa}
+                        </button>
                         <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
                           {STATUS_LABEL[c.status_contato] ?? c.status_contato}
@@ -669,7 +680,25 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                           )}
                         </p>
                       </div>
-                    </button>
+                    </div>
+                    {c.telefone_chapa && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              clipboardWrite((c.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado");
+                            }}
+                            className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors"
+                            aria-label="Copiar telefone"
+                          >
+                            <Phone className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right">Copiar telefone</TooltipContent>
+                      </Tooltip>
+                    )}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
