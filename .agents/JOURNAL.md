@@ -3,6 +3,40 @@
 
 ---
 
+## 2026-08-19 — MCM — Hotfix v1.0.54: produção desconectada de VERDADE da Central (Camada 1 + Camada 3)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits:** d5b3273 (revert código), d1c04fa (backlog), baf675b (latest.json)
+
+O hotfix v1.0.53 (entrada abaixo) corrigiu só o sintoma mais visível
+(botão de pagamento). Usuário apontou que o problema era maior: "O SYNC NA
+VERSÃO NORMAL NÃO PODE PUXAR NADA DA CENTRAL... A CENTRAL AINDA NÃO ESTA
+CONFIGURADA" — e confirmou depois que produção precisa voltar a ser
+EXATAMENTE como era. Auditoria (`grep -rl "from \"@/lib/central\"" src/`)
+achou duas dependências mais antigas, de sessões anteriores:
+
+1. **Camada 1** (desde `24d7dca`, 13/08): `sincronizarMetabase()`/
+   `sincronizarRegistro()` liam tarefas/cadastro geral DA CENTRAL em vez
+   do Metabase direto. Restaurados `metabaseSync.ts`/`Integracoes.tsx`/
+   `AppStartup.tsx` pro estado literal de antes desse commit (Metabase
+   direto, campos de ID da pergunta de volta na UI).
+2. **Camada 3** (desde `0e800bf`): `TaskDetailPanel.tsx` empurrava
+   confirmação/cancelamento pra Central (`pushChapaStatusToCentral`),
+   `WatcherContext.tsx` puxava status de volta a cada 60s
+   (`applyCentralStatusLocally`). Ambas chamadas removidas.
+
+Confirmado: nenhum arquivo em produção importa mais de `@/lib/central`.
+As funções continuam lá, inertes, pra quando a build beta existir.
+`CENTRAL_APP_BACKLOG.md` atualizado marcando as duas camadas como
+revertidas da produção (não deletar a descrição, só deixar claro que
+"implementada" ≠ "ativa em produção agora").
+
+**Lição principal, registrada em memória:** ao corrigir uma violação da
+regra beta/produção, auditar o repo INTEIRO por outras dependências da
+Central já existentes — não só o item que motivou a reclamação. O
+problema pode ser mais antigo e maior do que o sintoma reportado.
+
+---
+
 ## 2026-08-19 — MCM — Hotfix v1.0.53: reverte "Solicitar pagamento" da produção
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Commits:** c4386d8 (revert), 91fc0f4 (latest.json)
