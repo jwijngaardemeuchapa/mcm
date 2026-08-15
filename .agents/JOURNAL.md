@@ -3,6 +3,42 @@
 
 ---
 
+## 2026-08-19 — MCM — Hotfix v1.0.56: fix DEFINITIVO do "database is locked" — troca transação por UPSERT
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits:** bbc9315 (fix), 2049ac1 (latest.json)
+
+O WAL mode (v1.0.55, entrada abaixo) não resolveu — usuário reportou que
+o próprio sync do Metabase parou de funcionar, ainda com `code 5`. Causa
+raiz real, mais séria do que eu tinha diagnosticado: `tauri-plugin-sql`
+usa um pool de conexões (`sqlx::Pool`) por baixo do JS `Database.execute()`,
+sem garantia documentada (confirmado via docs.rs e o source do plugin no
+GitHub) de que chamadas `execute()` sequenciais caem na MESMA conexão. Ou
+seja, o `BEGIN IMMEDIATE`/`COMMIT` da v1.0.52 (fix do MCM-151) podia nem
+ser atômico de verdade — e pior, `BEGIN IMMEDIATE` segurando uma conexão
+do pool durante um sync inteiro (dezenas/centenas de INSERTs em lote)
+bloqueava qualquer OUTRA conexão do pool tentando ler ou escrever ao
+mesmo tempo, inclusive o próprio sync seguinte.
+
+**Fix definitivo:** removida a transação por completo. `ingestTarefas()`
+agora usa `INSERT ... ON CONFLICT(id) DO UPDATE` (upsert) pras chapas em
+vez de `DELETE`+`INSERT` — cada chapa existente é atualizada in-place,
+nunca deixa de existir na tabela nem por um instante (resolve o problema
+ORIGINAL do MCM-151 sem precisar de atomicidade via transação nenhuma).
+Só remove no final quem realmente saiu da tarefa, com `DELETE` escopado
+por `id_tarefa` E pelos `id`s sobreviventes — nunca "apaga tudo primeiro".
+Mesmo padrão que a Central já usa no próprio sync dela (upsert, nunca
+delete em massa) — confirmado como o padrão correto pra esse tipo de
+reconciliação neste projeto.
+
+**Lição principal:** transação multi-statement via `db.execute()` nesse
+plugin específico NÃO é confiável sem confirmar primeiro se garante
+afinidade de conexão — e mesmo que garantisse, segurar um lock de escrita
+por um sync inteiro é perigoso com pool de conexões por baixo. UPSERT
+escopado é uma solução mais robusta pra esse tipo de reconciliação
+"resync completo preservando estado" do que DELETE+INSERT+transação.
+
+---
+
 ## 2026-08-19 — MCM — Hotfix v1.0.55: "database is locked" (code 5) ao sincronizar — WAL mode
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Commits:** 6286f40 (fix), 3ae0ade (latest.json)
