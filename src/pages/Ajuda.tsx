@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.52</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.53</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,10 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.52 — Novidades desta versão:</strong>{" "}
+              <strong>v1.0.53 — Novidades desta versão:</strong>{" "}
               <strong>Copiar nome e telefone individualmente</strong> na lista de chapas do painel de tarefa — clique no nome copia só o nome, ícone de telefone copia só o número, igual já funcionava nos cards da lista.{" "}
               <strong>Fix — preview de imagem/áudio enviado no chat</strong>: sumia por alguns segundos até a Umbler processar; agora aparece na hora.{" "}
-              <strong>Solicitar pagamento</strong>: novo botão no painel de tarefa pra gerar uma solicitação de pagamento por ajudante (em preparação — depende da MeuChapa Central, que ainda está sendo finalizada).{" "}
               <strong>Fix — confirmações somem ao atualizar muitas vezes seguidas</strong>: importação de tarefas agora é atômica (transação), fechando uma janela real onde atualizar repetidamente podia mostrar a tarefa momentaneamente sem nenhum chapa, inclusive os já confirmados.
             </span>
           </div>
@@ -1007,7 +1006,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.52 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.53 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1042,7 +1041,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.52 · © 2026 Wijngaarde Design
+        MCM v1.0.53 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
