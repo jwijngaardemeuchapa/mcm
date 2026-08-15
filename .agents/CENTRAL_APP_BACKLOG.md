@@ -290,7 +290,23 @@ receber" (corrigido no próprio arquivo).
 
 </details>
 
-## Estado atual (atualizado 2026-08-18)
+## Estado atual (atualizado 2026-08-19)
+
+**🔴 REVERTIDA DA PRODUÇÃO (2026-08-19).** A Camada 1 e a Camada 3 (ambas
+descritas abaixo como já implementadas) foram lançadas em produção sem que
+a Central estivesse de fato configurada — usuário confirmou que a Central
+"ainda não está configurada" e que isso não pode estar na build de
+produção de jeito nenhum. Revertido em `mcm` (v1.0.54,
+`d5b3273`): `sincronizarMetabase()`/`sincronizarRegistro()` voltaram a
+bater direto no Metabase, `Integracoes.tsx` recuperou os campos "ID da
+pergunta", e as chamadas de `pushChapaStatusToCentral()`/
+`applyCentralStatusLocally()` foram removidas do `TaskDetailPanel.tsx` e
+do `WatcherContext.tsx`. As funções continuam existindo em
+`src/lib/central.ts` (inertes, sem nenhum arquivo importando de lá hoje)
+prontas pra reativar quando a build **beta** existir de verdade e a
+Central estiver configurada. **A descrição abaixo (Camada 1/3
+"implementada") descreve o código que existe, não o que está ativo em
+produção agora — não reativar sem sinal verde explícito do usuário.**
 
 **Camada 1 — MIGRADA pra Tarefas e Cadastro Geral.** Pedido explícito do
 usuário: "o que estamos movendo pra a central, some das integrações do MCM
