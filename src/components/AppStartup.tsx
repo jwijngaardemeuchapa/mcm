@@ -189,7 +189,6 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
 
     async function run() {
       const s = readSettings();
-      const hasMetabaseCardId = !!s.metabaseTarefasCardId;
       const hasCarteiraCardId = !!s.metabaseCarteiraCardId;
       const hasEnderecosCardId = !!s.metabaseEnderecosCardId;
       const hasTarefaEnderecosCardId = !!s.metabaseTarefaEnderecosCardId;
@@ -203,14 +202,18 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
         metabaseConfigured = status.configured;
       } catch { /* backend indisponível — pula sync */ }
 
-      const hasMetabase = hasMetabaseCardId && metabaseConfigured;
+      // Tarefas e Cadastro Geral não dependem mais de config local do
+      // Metabase (card ID/conexão) — vêm sempre da Central agora. Sempre
+      // tenta; a própria função falha silenciosamente (silent=true) se a
+      // Central estiver fora do ar, sem travar o boot.
+      const hasMetabase = true;
+      const hasRegistro = true;
       const hasCarteira = hasCarteiraCardId && metabaseConfigured;
       const hasEnderecos = hasEnderecosCardId && metabaseConfigured;
       const hasTarefaEnderecos = hasTarefaEnderecosCardId && metabaseConfigured;
       const hasChapas15d = hasChapas15dCardId && metabaseConfigured;
       const hasLeadsRegiao = hasLeadsRegiaoCardId && metabaseConfigured;
       const hasBloqueiosHoje = hasBloqueiosHojeCardId && metabaseConfigured;
-      const hasRegistro = !!s.metabaseRegistroCardId && metabaseConfigured;
       const hasSaac = !!s.saacApiUrl && !!s.saacApiKey;
       const syncCarteira = hasCarteira && devesSincronizarCarteira();
       const syncEnderecos = hasEnderecos && devesSincronizarEnderecos();

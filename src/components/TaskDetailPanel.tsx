@@ -4,7 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
   MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send, Download,
-  Clock, MapPin, UserCheck, History, ClipboardList,
+  Clock, MapPin, UserCheck, History, ClipboardList, Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -32,6 +32,7 @@ import { ValidationPanel } from "@/components/ValidationPanel";
 import { ObservationsPanel } from "@/components/ObservationsPanel";
 import { FillRateBar } from "@/components/FillRateBar";
 import { useClienteInfo } from "@/lib/useClienteInfo";
+import { pushChapaStatusToCentral, pushPaymentRequestToCentral } from "@/lib/central";
 import { useUndo } from "@/lib/undo";
 import { getDb, errMsg, placeholders } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
@@ -109,9 +110,11 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   const [customMsgOpen, setCustomMsgOpen] = useState(false);
   const [customMsgText, setCustomMsgText] = useState("");
   const [customMsgSelected, setCustomMsgSelected] = useState<Set<string>>(new Set());
-  // Solicitar pagamento (empurra pra Central) fica só na build beta —
-  // Central ainda não está pronta pra produção. Feature completa, revertida
-  // daqui em 2026-08-19 (ver commit 4aca838 pra reintroduzir na beta).
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentSelected, setPaymentSelected] = useState<Set<string>>(new Set());
+  const [paymentValores, setPaymentValores] = useState<Record<string, string>>({});
+  const [paymentMotivo, setPaymentMotivo] = useState("");
+  const [paymentSending, setPaymentSending] = useState(false);
   const { push } = useUndo();
   const umblerSettings = readSettings().umblerSettings;
   const [clienteInfo, reloadClienteInfo] = useClienteInfo(task?.empresa ?? "");
@@ -229,6 +232,15 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
       },
       onReverted: onRefresh,
     });
+    for (const c of targets) {
+      pushChapaStatusToCentral({
+        id_tarefa: task.id_tarefa,
+        telefone_chapa: c.telefone_chapa,
+        cpf: c.cpf,
+        nome_chapa: c.nome_chapa,
+        status_contato: "confirmado",
+      });
+    }
     onRefresh();
   }
 
@@ -360,6 +372,17 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
       },
       onReverted: onRefresh,
     });
+    // Espelha na Central quando é confirmação/cancelamento manual — pra
+    // outros analistas e a liderança verem sem depender de olhar o WhatsApp.
+    if (patch.status_contato === "confirmado" || patch.status_contato === "cancelado") {
+      pushChapaStatusToCentral({
+        id_tarefa: task!.id_tarefa,
+        telefone_chapa: chapa.telefone_chapa,
+        cpf: chapa.cpf,
+        nome_chapa: chapa.nome_chapa,
+        status_contato: patch.status_contato,
+      });
+    }
     onRefresh();
   }
 
@@ -387,6 +410,45 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) copiado(s)`);
   }
 
+  // Ajudantes elegíveis pra solicitação de pagamento — mesmo critério do
+  // copyAllList (ativos, com nome), o pagamento é sobre quem participou,
+  // não só quem confirmou presença antes.
+  const paymentEligible = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+
+  function openPaymentDialog() {
+    setPaymentSelected(new Set());
+    setPaymentValores({});
+    setPaymentMotivo("");
+    setPaymentOpen(true);
+  }
+
+  async function submitPaymentRequest() {
+    const itens = paymentEligible
+      .filter((c) => paymentSelected.has(c.id))
+      .map((c) => ({
+        nome: c.nome_chapa ?? "",
+        telefone: c.telefone_chapa ?? "",
+        valor: Number((paymentValores[c.id] ?? "0").replace(",", ".")) || 0,
+      }));
+    if (itens.length === 0) { toast.error("Selecione ao menos um ajudante"); return; }
+    if (itens.some((i) => i.valor <= 0)) { toast.error("Informe o valor de cada ajudante selecionado"); return; }
+    if (!paymentMotivo.trim()) { toast.error("Informe o motivo da solicitação"); return; }
+    setPaymentSending(true);
+    try {
+      await pushPaymentRequestToCentral({
+        id_tarefa: task!.id_tarefa,
+        empresa: task!.empresa ?? null,
+        motivo: paymentMotivo.trim(),
+        itens,
+      });
+      toast.success(`Solicitação enviada — ${itens.length} ajudante(s)`);
+      setPaymentOpen(false);
+    } catch (e) {
+      toast.error(errMsg(e) || "Falha ao enviar solicitação pra Central");
+    } finally {
+      setPaymentSending(false);
+    }
+  }
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
@@ -517,6 +579,11 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {paymentEligible.length > 0 && (
+                <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1" onClick={openPaymentDialog}>
+                  <Receipt className="h-3 w-3" /> Solicitar pagamento
+                </Button>
+              )}
               {taskCancelTemplateReady && (taskCancelPending || taskCancelSent) && (
                 <Button
                   size="sm"
@@ -916,6 +983,80 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                 <Button variant="outline" onClick={() => setCustomMsgOpen(false)}>Cancelar</Button>
                 <Button onClick={startCustomMsgDispatch} disabled={!customMsgText.trim() || customMsgSelected.size === 0 || customMsgSending}>
                   Enviar pra {customMsgSelected.size} chapa(s)
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
+            <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
+              <DialogHeader className="shrink-0">
+                <DialogTitle className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4 text-primary" /> Solicitar pagamento
+                </DialogTitle>
+                <DialogDescription>
+                  Registra a solicitação na Central pra liderança acompanhar. O envio de fato ao
+                  banco continua no sistema oficial do Meu Chapa.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 overflow-y-auto flex-1 min-h-0 pr-1">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Ajudantes ({paymentSelected.size}/{paymentEligible.length})
+                    </p>
+                    <button
+                      type="button"
+                      className="text-[11px] text-primary hover:underline"
+                      onClick={() =>
+                        setPaymentSelected(
+                          paymentSelected.size === paymentEligible.length
+                            ? new Set()
+                            : new Set(paymentEligible.map((c) => c.id)),
+                        )
+                      }
+                    >
+                      {paymentSelected.size === paymentEligible.length ? "Limpar seleção" : "Selecionar todos"}
+                    </button>
+                  </div>
+                  {paymentEligible.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2 py-1">
+                      <Checkbox
+                        checked={paymentSelected.has(c.id)}
+                        onCheckedChange={(checked) => {
+                          setPaymentSelected((prev) => {
+                            const next = new Set(prev);
+                            if (checked) next.add(c.id); else next.delete(c.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="text-sm flex-1 truncate">{c.nome_chapa}</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="R$ 0,00"
+                        disabled={!paymentSelected.has(c.id)}
+                        value={paymentValores[c.id] ?? ""}
+                        onChange={(e) =>
+                          setPaymentValores((prev) => ({ ...prev, [c.id]: e.target.value }))
+                        }
+                        className="h-7 w-24 rounded-md border border-input bg-background px-2 text-xs text-right disabled:opacity-40"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <Textarea
+                  value={paymentMotivo}
+                  onChange={(e) => setPaymentMotivo(e.target.value)}
+                  placeholder="Motivo da solicitação…"
+                  className="min-h-16"
+                />
+              </div>
+              <DialogFooter className="shrink-0">
+                <Button variant="outline" onClick={() => setPaymentOpen(false)}>Cancelar</Button>
+                <Button onClick={submitPaymentRequest} disabled={paymentSelected.size === 0 || paymentSending}>
+                  {paymentSending ? "Enviando…" : `Solicitar pagamento (${paymentSelected.size})`}
                 </Button>
               </DialogFooter>
             </DialogContent>
