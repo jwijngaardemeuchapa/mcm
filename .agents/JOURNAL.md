@@ -3,6 +3,37 @@
 
 ---
 
+## 2026-08-19 — MCM — Hotfix v1.0.55: "database is locked" (code 5) ao sincronizar — WAL mode
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits:** 6286f40 (fix), 3ae0ade (latest.json)
+
+Usuário reportou `database is locked (code 5)` ao sincronizar tarefas
+depois de instalar a v1.0.54. Causa: efeito colateral do meu próprio fix
+do MCM-151 (v1.0.52) — envolver `ingestTarefas()` numa transação `BEGIN
+IMMEDIATE`/`COMMIT` corrigiu a atomicidade, mas sob o journal mode padrão
+do SQLite (rollback journal), isso segura o lock de escrita durante TODO
+o sync (pode ser centenas de tarefas/chapas em lotes). Qualquer leitura
+concorrente nesse meio-tempo — polling do `WatcherContext` a cada 60s,
+queries do Dashboard — fica bloqueada; se o sync demora mais que os 5s de
+`busy_timeout`, o leitor recebe `SQLITE_BUSY`. Confirmado que os jobs de
+boot do `AppStartup.tsx` rodam sequenciais (não é conflito de dois
+escritores), então o problema é mesmo leitor-bloqueado-por-escritor.
+
+Fix: `PRAGMA journal_mode = WAL` em `db.ts` — leitores não ficam mais
+bloqueados por um escritor em andamento, sem abrir mão da atomicidade do
+fix anterior.
+
+**Ressalva explícita dada ao usuário:** ainda existe um caso residual não
+coberto (duas sincronizações começando quase simultaneamente — WAL não
+paraleliza escritores, só evita bloquear leitores), mas o `busy_timeout`
+de 5s deveria absorver isso na prática. Não testado visualmente.
+
+**Lição:** ao corrigir um bug de concorrência com transação, sempre
+considerar o journal mode — uma transação mais longa sem WAL pode trocar
+um bug (race condition) por outro (lock contention).
+
+---
+
 ## 2026-08-19 — MCM — Hotfix v1.0.54: produção desconectada de VERDADE da Central (Camada 1 + Camada 3)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Commits:** d5b3273 (revert código), d1c04fa (backlog), baf675b (latest.json)
