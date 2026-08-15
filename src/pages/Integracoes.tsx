@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { pullTarefasFromCentral } from "@/lib/central";
 import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, sincronizarLeadsRegiao, sincronizarBloqueiosHoje } from "@/lib/metabaseSync";
 import { fmtDateTime } from "@/lib/datetime";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
@@ -303,6 +302,10 @@ export default function Integracoes() {
   const [metabaseConfigured, setMetabaseConfigured] = useState(false);
   const [metabaseUrl, setMetabaseUrl] = useState("");
   const [metabaseApiKey, setMetabaseApiKey] = useState("");
+  const [metabaseCardIdInput, setMetabaseCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseTarefasCardId ? String(s.metabaseTarefasCardId) : "";
+  });
   const [metabase30hCardIdInput, setMetabase30hCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseTarefas30hCardId ? String(s.metabaseTarefas30hCardId) : "";
@@ -330,6 +333,10 @@ export default function Integracoes() {
   const [metabaseBloqueiosHojeCardIdInput, setMetabaseBloqueiosHojeCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseBloqueiosHojeCardId ? String(s.metabaseBloqueiosHojeCardId) : "";
+  });
+  const [metabaseRegistroCardIdInput, setMetabaseRegistroCardIdInput] = useState(() => {
+    const s = readSettings();
+    return String(s.metabaseRegistroCardId);
   });
   const [metabaseSyncing, setMetabaseSyncing] = useState(false);
   const [metabaseLastSync, setMetabaseLastSync] = useState<string | null>(() =>
@@ -454,22 +461,26 @@ export default function Integracoes() {
       setMetabaseApiKey("");
       toast.success("Conexão Metabase salva — chave guardada no backend");
       await loadMetabaseStatus();
+      if (metabaseCardIdInput.trim()) {
+        writeSettings({ metabaseTarefasCardId: parseInt(metabaseCardIdInput.trim(), 10) });
+      }
     } catch (e) { toast.error(`Erro ao salvar: ${errMsg(e)}`); }
   }
 
-  // Tarefas pararam de vir direto do Metabase por máquina — a Central
-  // sincroniza 1x e este MCM lê dela (ver src/lib/central.ts).
   async function sincronizarMetabase(silent = false) {
+    const cardId = parseInt(metabaseCardIdInput.trim(), 10);
+    if (!cardId) { if (!silent) toast.error("Informe o ID da pergunta no Metabase"); return; }
+    writeSettings({ metabaseTarefasCardId: cardId });
     setMetabaseSyncing(true);
     try {
-      const rows = await pullTarefasFromCentral();
+      const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
       const result = await ingestTarefas(rows);
       const now = new Date().toISOString();
       localStorage.setItem("metabase_last_sync", now);
       setMetabaseLastSync(now);
-      if (!silent) toast.success(`✓ ${result.tarefas} tarefas · ${result.chapas} chapas sincronizados (via Central)`);
+      if (!silent) toast.success(`✓ ${result.tarefas} tarefas · ${result.chapas} chapas sincronizados`);
     } catch (e) {
-      if (!silent) toast.error(`Erro na sincronização com a Central: ${errMsg(e)}`);
+      if (!silent) toast.error(`Erro na sincronização: ${errMsg(e)}`);
     } finally {
       setMetabaseSyncing(false);
     }
@@ -1213,20 +1224,26 @@ export default function Integracoes() {
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
-              Tarefas do dia
-              <span className="ml-1 text-muted-foreground/60">
-                (movido pra MeuChapa Central — a Central fala com o Metabase, este MCM só lê de lá.
-                Configuração do card ID fica na Central, não aqui)
-              </span>
+              ID da pergunta (Question) no Metabase
+              <span className="ml-1 text-muted-foreground/60">(número que aparece na URL: /question/42)</span>
             </label>
             <div className="flex gap-2">
+              <Input
+                placeholder="ex: 42"
+                value={metabaseCardIdInput}
+                onChange={(e) => setMetabaseCardIdInput(e.target.value.replace(/\D/g, ""))}
+                className="max-w-[120px]"
+              />
               <Button onClick={salvarMetabase} variant="outline">
                 Salvar conexão
               </Button>
-              <Button onClick={() => sincronizarMetabase(false)} disabled={metabaseSyncing}>
+              <Button
+                onClick={() => sincronizarMetabase(false)}
+                disabled={metabaseSyncing || !metabaseCardIdInput.trim()}
+              >
                 {metabaseSyncing
                   ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Sincronizando...</>
-                  : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Sincronizar da Central</>}
+                  : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Sincronizar agora</>}
               </Button>
             </div>
             {metabaseLastSync && (
@@ -1379,12 +1396,20 @@ export default function Integracoes() {
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
-              Cadastro Geral de Chapas
-              <span className="ml-1 text-muted-foreground/60">
-                (movido pra MeuChapa Central — a Central fala com o Metabase, este MCM só lê de lá)
-              </span>
+              ID da pergunta — Cadastro Geral de Chapas
+              <span className="ml-1 text-muted-foreground/60">(substitui importação manual do CSV de cadastro)</span>
             </label>
             <div className="flex gap-2 items-center">
+              <Input
+                placeholder="1296"
+                value={metabaseRegistroCardIdInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  setMetabaseRegistroCardIdInput(v);
+                  writeSettings({ metabaseRegistroCardId: v ? parseInt(v, 10) : 1296 });
+                }}
+                className="max-w-[120px]"
+              />
               <SincronizarRegistroBtn />
             </div>
             {localStorage.getItem("chapa_registry_imported_at") && (

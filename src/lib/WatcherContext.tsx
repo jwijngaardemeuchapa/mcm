@@ -7,7 +7,6 @@ import { type RespostaEvent } from "./firestoreQueue";
 import { useAutoCancelFup } from "./useAutoCancelFup";
 import { logActivity, pruneActivityLog } from "./activityLog";
 import { getActiveCarteiraNames } from "./carteira";
-import { applyCentralStatusLocally } from "./central";
 import { companyMatches } from "./company";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
@@ -119,27 +118,18 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Puxa da Central status confirmado/cancelado por OUTRO analista ou pelo
-  // bot da Umbler (Camada 3) e espelha localmente — best effort, silencioso
-  // se a Central estiver fora do ar (ver applyCentralStatusLocally).
-  const syncCentral = useCallback(async () => {
-    const updated = await applyCentralStatusLocally();
-    if (updated > 0) window.dispatchEvent(new CustomEvent("fup:refresh"));
-  }, []);
-
   useEffect(() => {
     pruneActivityLog(); // TTL 30 dias — roda silenciosamente no startup
     refreshActiveNames();
     loadTasks();
-    syncCentral();
-    const t = setInterval(() => { refreshActiveNames(); loadTasks(); syncCentral(); }, 60_000);
+    const t = setInterval(() => { refreshActiveNames(); loadTasks(); }, 60_000);
     const onCarteiraChanged = () => refreshActiveNames();
     window.addEventListener("carteira:changed", onCarteiraChanged);
     return () => {
       clearInterval(t);
       window.removeEventListener("carteira:changed", onCarteiraChanged);
     };
-  }, [loadTasks, refreshActiveNames, syncCentral]);
+  }, [loadTasks, refreshActiveNames]);
 
   const handleRefresh = useCallback(() => {
     loadTasks();
