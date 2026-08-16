@@ -8,6 +8,7 @@ import { useAutoCancelFup } from "./useAutoCancelFup";
 import { logActivity, pruneActivityLog } from "./activityLog";
 import { getActiveCarteiraNames } from "./carteira";
 import { companyMatches } from "./company";
+import { haDisparoParaAmanha, sincronizarMetabase30h } from "./metabaseSync";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /* ─── context ── */
@@ -130,6 +131,21 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("carteira:changed", onCarteiraChanged);
     };
   }, [loadTasks, refreshActiveNames]);
+
+  // Sync automática das tarefas de amanhã (Pré-FUP) a cada 10min — pedido
+  // explícito do usuário: só liga depois de pelo menos 1 FUP ou BID já
+  // disparado pra alguma tarefa de amanhã; fica dormente (não sincroniza
+  // nada) se ninguém tocou em tarefa de amanhã ainda. Checa a cada tick —
+  // se ligar no meio do dia (primeiro disparo antecipado), começa a
+  // sincronizar a partir daquele tick, sem precisar reiniciar o app.
+  useEffect(() => {
+    const tick = async () => {
+      if (await haDisparoParaAmanha()) await sincronizarMetabase30h(true);
+    };
+    tick();
+    const t = setInterval(tick, 10 * 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const handleRefresh = useCallback(() => {
     loadTasks();

@@ -5,7 +5,7 @@ import { ingestTarefas } from "./ingestTarefas";
 import { getDb, uuid } from "./db";
 import { companyMatches } from "./company";
 import { normalize } from "./normalize";
-import { fmtSP, todayDateISO_SP } from "./datetime";
+import { fmtSP, todayDateISO_SP, tomorrowDateISO_SP } from "./datetime";
 
 export async function sincronizarMetabase(silent = false): Promise<boolean> {
   const s = readSettings();
@@ -51,6 +51,34 @@ export async function sincronizarMetabase30h(silent = false): Promise<boolean> {
     return true;
   } catch {
     if (!silent) toast.error("Erro ao sincronizar tarefas das próximas 30h");
+    return false;
+  }
+}
+
+// Liga a sync automática das tarefas de amanhã (10 em 10min) só depois de
+// pelo menos 1 FUP ou BID disparado pra alguma tarefa de amanhã — pedido
+// explícito do usuário: "função que fica dormente caso nada for feito".
+// fup_log não distingue disparo de FUP de outros canais registrados nela
+// (cancelamento etc.) por um campo dedicado, mas qualquer linha ali já é
+// uma ação de FUP registrada pra aquela tarefa — suficiente pro gatilho.
+export async function haDisparoParaAmanha(): Promise<boolean> {
+  try {
+    const db = await getDb();
+    const amanha = tomorrowDateISO_SP();
+    const [fup, bid] = await Promise.all([
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM fup_log f
+         JOIN tarefas t ON t.id_tarefa = f.id_tarefa
+         WHERE substr(t.data_tarefa, 1, 10) = ?`,
+        [amanha],
+      ),
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM bid_disparos WHERE substr(data_tarefa, 1, 10) = ?`,
+        [amanha],
+      ),
+    ]);
+    return (fup[0]?.n ?? 0) > 0 || (bid[0]?.n ?? 0) > 0;
+  } catch {
     return false;
   }
 }
