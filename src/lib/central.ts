@@ -246,8 +246,17 @@ export async function syncRegistroFromCentral(): Promise<number> {
 
   const db = await getDb();
   try { await db.execute("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'"); } catch { /* já existe */ }
-  await db.execute("DELETE FROM chapa_registry WHERE fonte IS NULL OR fonte = 'metabase'");
 
+  // Insere as linhas novas ANTES de apagar as antigas (nunca DELETE-then-INSERT
+  // — isso deixava a tabela momentaneamente vazia caso o app fosse fechado ou
+  // uma chunk falhasse no meio do processo, igual ao bug já corrigido em
+  // ingestTarefas.ts/MCM-151). cpf não é PK aqui de propósito (ver comentário
+  // na migração chapa_registry_and_cep_cache em lib.rs — o mesmo CPF pode
+  // aparecer em metabase + leads_saac, ou duplicado num feed, e um UNIQUE
+  // constraint historicamente derrubava o chunk inteiro em silêncio), então
+  // não dá pra fazer upsert por ON CONFLICT(cpf) sem reabrir aquele bug —
+  // em vez disso, marca cada linha com o timestamp do sync e só remove no
+  // final as linhas 'metabase' de syncs anteriores a este.
   const now = new Date().toISOString();
   const CHUNK = 30;
   const COLS = "(cpf,nome,telefone,cidade,bairro,estado,rua,cep,numero,tarefas,data_primeira_tarefa,data_ultima_tarefa,situacao,bloqueio,motivo_bloqueio,aso,importado_em,fonte)";
@@ -266,6 +275,12 @@ export async function syncRegistroFromCentral(): Promise<number> {
       await db.execute(`INSERT INTO chapa_registry ${COLS} VALUES ${ph}`, vals);
       count += chunk.length;
     } catch { /* chunk isolado — um erro não derruba o resto */ }
+  }
+  if (count > 0) {
+    await db.execute(
+      "DELETE FROM chapa_registry WHERE (fonte IS NULL OR fonte = 'metabase') AND (importado_em IS NULL OR importado_em < ?)",
+      [now],
+    );
   }
   return count;
 }
