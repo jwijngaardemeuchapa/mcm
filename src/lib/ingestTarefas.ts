@@ -231,58 +231,88 @@ export async function ingestTarefas(
     return Array(rows).fill(`(${placeholders(cols)})`).join(",");
   }
 
-  // Upsert tarefas + DELETE/INSERT de chapas numa única transação — sem isso,
-  // havia uma janela real entre o DELETE e o INSERT em lote (comentário
-  // antigo já reconhecia: "janela mínima antes dos INSERTs em lote") onde
-  // qualquer leitura da tabela `chapas` via a UI, OU um sync concorrente
-  // (auto-refresh de 30s sobrepondo um clique manual, por exemplo — mais
-  // provável quanto mais vezes o analista atualiza manualmente), via a
-  // tarefa momentaneamente SEM NENHUM chapa — inclusive os já confirmados.
-  // BEGIN/COMMIT torna a troca atômica: outra conexão nunca vê o estado
-  // intermediário "chapas deletadas, ainda não reinseridas".
-  await db.execute("BEGIN IMMEDIATE");
-  try {
-    // Upsert tarefas em lote (50 linhas × 16 colunas = 800 binds por statement)
-    const tarefasArr = Array.from(tarefasMap.values());
-    for (let i = 0; i < tarefasArr.length; i += 50) {
-      const chunk = tarefasArr.slice(i, i + 50);
-      const params = chunk.flatMap((t) => [
-        t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
-        t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
-        t.observacoes ?? null, t.observacoes_updated_at ?? null,
-        t.validacao_status, t.data_validacao_recebida ?? null,
-        t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
-      ]);
-      await db.execute(
-        `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES ${rowGroup(16, chunk.length)}`,
-        params,
-      );
-    }
+  // Upsert tarefas em lote (50 linhas × 16 colunas = 800 binds por statement)
+  const tarefasArr = Array.from(tarefasMap.values());
+  for (let i = 0; i < tarefasArr.length; i += 50) {
+    const chunk = tarefasArr.slice(i, i + 50);
+    const params = chunk.flatMap((t) => [
+      t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
+      t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
+      t.observacoes ?? null, t.observacoes_updated_at ?? null,
+      t.validacao_status, t.data_validacao_recebida ?? null,
+      t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
+    ]);
+    await db.execute(
+      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES ${rowGroup(16, chunk.length)}`,
+      params,
+    );
+  }
 
-    // DELETE todas as chapas das tarefas afetadas
-    for (let i = 0; i < ids.length; i += 900) {
-      const chunk = ids.slice(i, i + 900);
+  // Chapas: UPSERT em vez de DELETE+INSERT — a v1.0.52 (MCM-151) tentou
+  // corrigir o gap do DELETE+INSERT envolvendo tudo numa transação
+  // BEGIN/COMMIT, mas o plugin (`tauri-plugin-sql`) usa um pool de
+  // conexões por baixo dos panos, sem garantia documentada de que
+  // chamadas `execute()` sequenciais caem na MESMA conexão — ou seja, a
+  // transação podia nem ser atômica de verdade, e pior: BEGIN IMMEDIATE
+  // segurando uma conexão do pool por um sync inteiro (dezenas/centenas de
+  // INSERTs em lote) bloqueava qualquer OUTRA conexão do pool tentando ler
+  // ou escrever ao mesmo tempo — causou "database is locked" (code 5) em
+  // produção, inclusive travando o próprio sync do Metabase (v1.0.54/55).
+  //
+  // UPSERT resolve o problema ORIGINAL (chapa sumir momentaneamente) sem
+  // precisar de transação nenhuma: cada chapa existente é atualizada
+  // in-place (nunca deixa de existir na tabela, nem por um instante) — o
+  // `id` já é preservado via `chapaPrev` (mesmo padrão de antes). Só
+  // remove, no final, quem realmente saiu da tarefa (não está mais no
+  // pull do Metabase) — um DELETE bem menor e escopado, não "apaga tudo
+  // primeiro". Mesmo padrão que a Central já usa (upsert, nunca delete
+  // em massa) pro próprio sync dela.
+  for (let i = 0; i < chapasFinais.length; i += 80) {
+    const chunk = chapasFinais.slice(i, i + 80);
+    const params = chunk.flatMap((c) => [
+      c.id, c.id_tarefa, c.nome_chapa ?? null, c.telefone_chapa ?? null, c.cpf ?? null,
+      c.status_contato, c.validacao_presenca ?? null, c.data_validacao ?? null,
+      c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
+    ]);
+    await db.execute(
+      `INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES ${rowGroup(12, chunk.length)}
+       ON CONFLICT(id) DO UPDATE SET
+         id_tarefa = excluded.id_tarefa,
+         nome_chapa = excluded.nome_chapa,
+         telefone_chapa = excluded.telefone_chapa,
+         cpf = excluded.cpf,
+         status_contato = excluded.status_contato,
+         validacao_presenca = excluded.validacao_presenca,
+         data_validacao = excluded.data_validacao,
+         data_contato = excluded.data_contato,
+         canal_contato = excluded.canal_contato,
+         data_remocao = excluded.data_remocao,
+         motivo_remocao = excluded.motivo_remocao`,
+      params,
+    );
+  }
+
+  // Remove só quem realmente saiu das tarefas afetadas (não veio nesta
+  // rodada do Metabase) — escopado por tarefa E pelos ids que sobreviveram,
+  // nunca um DELETE amplo.
+  const survivingIdsByTarefa = new Map<number, string[]>();
+  for (const c of chapasFinais) {
+    const key = c.id_tarefa as number;
+    const arr = survivingIdsByTarefa.get(key) ?? [];
+    arr.push(c.id as string);
+    survivingIdsByTarefa.set(key, arr);
+  }
+  for (let i = 0; i < ids.length; i += 900) {
+    const chunk = ids.slice(i, i + 900);
+    const survivors = chunk.flatMap((id) => survivingIdsByTarefa.get(id) ?? []);
+    if (survivors.length === 0) {
       await db.execute(`DELETE FROM chapas WHERE id_tarefa IN (${placeholders(chunk.length)})`, chunk);
-    }
-
-    // INSERT chapas em lote (80 linhas × 12 colunas = 960 binds por statement)
-    // Estado preservado via chapaPrev (lido antes do DELETE acima)
-    for (let i = 0; i < chapasFinais.length; i += 80) {
-      const chunk = chapasFinais.slice(i, i + 80);
-      const params = chunk.flatMap((c) => [
-        c.id, c.id_tarefa, c.nome_chapa ?? null, c.telefone_chapa ?? null, c.cpf ?? null,
-        c.status_contato, c.validacao_presenca ?? null, c.data_validacao ?? null,
-        c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
-      ]);
+    } else {
       await db.execute(
-        `INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES ${rowGroup(12, chunk.length)}`,
-        params,
+        `DELETE FROM chapas WHERE id_tarefa IN (${placeholders(chunk.length)}) AND id NOT IN (${placeholders(survivors.length)})`,
+        [...chunk, ...survivors],
       );
     }
-    await db.execute("COMMIT");
-  } catch (e) {
-    await db.execute("ROLLBACK").catch(() => { /* já pode ter sido revertido automaticamente */ });
-    throw e;
   }
 
   try {

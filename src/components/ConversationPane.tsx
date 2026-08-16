@@ -1,9 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ChangeEvent } from "react";
-import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText, ChevronDown, Pencil, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
-import { type UmblerSettings } from "@/lib/settings";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { fetchUmblerRecentMessages, sendUmblerFreeText, sendUmblerGroupMessage, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
+import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
 
 const ATTACHMENT_ACCEPT = "image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx";
@@ -56,11 +58,26 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
     const [contactNames, setContactNames] = useState<Record<string, string>>({});
+    // Atalhos de mensagem — mesmo mecanismo (e mesma lista salva) já usado
+    // no "Mensagem personalizada" do TaskCard (Cards): settings globais,
+    // clique só preenche o composer, nunca envia sozinho.
+    const [msgTemplates, setMsgTemplates] = useState<string[]>(() => readSettings().customMsgTemplates);
+    const [shortcutsOpen, setShortcutsOpen] = useState(true);
+    const [editingTplIdx, setEditingTplIdx] = useState<number | null>(null);
+    const [editingTplText, setEditingTplText] = useState("");
+    function persistTemplates(next: string[]) {
+      setMsgTemplates(next);
+      writeSettings({ customMsgTemplates: next });
+    }
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Blob URLs criadas só pro eco otimista (ver handleSend) — revogadas
     // assim que o próximo load() troca a lista inteira por dados reais.
     const optimisticUrlsRef = useRef<string[]>([]);
+    // Ids de mensagem do contato já vistos — pra notificar só o que É novo
+    // no auto-refresh, não repetir toast do que já apareceu antes.
+    const seenContactMsgIdsRef = useRef<Set<string>>(new Set());
+    const hasLoadedOnceRef = useRef(false);
 
     function scrollToBottom(smooth = false) {
       const el = scrollRef.current;
@@ -68,23 +85,44 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
       el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
     }
 
-    function load() {
+    function load(opts?: { silent?: boolean }) {
       if (!chatId) return;
-      setLoading(true);
-      setError(null);
+      const silent = opts?.silent ?? false;
+      if (!silent) { setLoading(true); setError(null); }
       fetchUmblerRecentMessages({ chatId, settings, take: TAKE })
         .then((msgs) => {
           for (const url of optimisticUrlsRef.current) URL.revokeObjectURL(url);
           optimisticUrlsRef.current = [];
+
+          // Notifica só mensagem NOVA do contato, e só depois do primeiro
+          // load (senão notificaria a conversa inteira ao abrir).
+          const novasDoContato = msgs.filter(
+            (m) => m.source === "Contact" && !seenContactMsgIdsRef.current.has(m.id),
+          );
+          for (const m of msgs) if (m.source === "Contact") seenContactMsgIdsRef.current.add(m.id);
+          if (hasLoadedOnceRef.current && novasDoContato.length > 0) {
+            toast.info(`Nova mensagem de ${personName}`, {
+              description: novasDoContato[novasDoContato.length - 1]?.content?.slice(0, 80) || undefined,
+            });
+          }
+          hasLoadedOnceRef.current = true;
+
           setMessages(msgs);
-          // Chat sempre abre com o scroll no fim (mensagem mais recente) —
-          // precisa do próximo frame pra medir a altura já com as mensagens
-          // renderizadas.
-          requestAnimationFrame(() => scrollToBottom(false));
+          // Chat sempre abre com o scroll no fim (mensagem mais recente). Um
+          // rAF só não bastava: o painel (TaskDetailPanel) entra com uma
+          // animação de slide-in de 300ms, então a altura medida logo depois
+          // do setMessages ainda reflete o layout em transição — reforça o
+          // scroll de novo depois da animação terminar. No auto-refresh
+          // silencioso só rola se chegou mensagem nova (não força scroll
+          // toda hora sem motivo).
+          if (!silent || novasDoContato.length > 0) {
+            requestAnimationFrame(() => scrollToBottom(!silent ? false : true));
+            if (!silent) setTimeout(() => scrollToBottom(false), 350);
+          }
           if (isGroup) resolveGroupSenderNames(msgs);
         })
-        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-        .finally(() => setLoading(false));
+        .catch((e) => { if (!silent) setError(e instanceof Error ? e.message : String(e)); })
+        .finally(() => { if (!silent) setLoading(false); });
     }
 
     // Grupo: a API só devolve o id de quem mandou (`senderContactId`), não o
@@ -107,7 +145,19 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
       setReply("");
       setSendError(null);
       clearAttachment();
+      seenContactMsgIdsRef.current = new Set();
+      hasLoadedOnceRef.current = false;
       if (chatId) load();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatId]);
+
+    // Auto-refresh — antes só atualizava clicando no botão. Silencioso (sem
+    // spinner/erro visível) pra não incomodar; se vier mensagem nova do
+    // contato, load() já dispara o toast de notificação.
+    useEffect(() => {
+      if (!chatId) return;
+      const t = setInterval(() => load({ silent: true }), 20_000);
+      return () => clearInterval(t);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chatId]);
 
@@ -155,45 +205,56 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const windowOpen = hoursSinceContact === null ? null : hoursSinceContact < REPLY_WINDOW_HOURS;
     const overLimit = reply.length > MAX_REPLY_LENGTH;
 
+    // Grupo não tem telefone individual — envia por chatId em vez de
+    // telefone (POST /v1/messages/, confirmado no Swagger oficial da
+    // Umbler). Fora isso, mesmo fluxo do 1:1.
+    const canSendHere = !!personTelefone || (!!isGroup && !!chatId);
+
     async function handleSend() {
       const text = reply.trim();
       const fileSent = pendingFile;
-      if ((!text && !fileSent) || !personTelefone || sending || overLimit || windowOpen === false) return;
+      if ((!text && !fileSent) || !canSendHere || sending || overLimit || windowOpen === false) return;
       setSending(true);
       setSendError(null);
       try {
-        await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, file: fileSent ?? undefined, settings });
+        if (personTelefone) {
+          await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, file: fileSent ?? undefined, settings });
+        } else {
+          await sendUmblerGroupMessage({ chatId: chatId!, message: text, file: fileSent ?? undefined, settings });
+        }
         // Eco otimista: o GET relative-messages pode demorar alguns segundos
         // pra devolver a mensagem recém-enviada — sem isso, imagem/áudio
         // enviados ficavam sem NENHUM preview até o reload seguinte pegar a
         // versão definitiva (bug reportado: "chat não mostra preview de
         // imagem enviada"). Usa uma blob URL própria — a de pendingPreviewUrl
-        // já é revogada por clearAttachment() logo abaixo.
-        if (fileSent) {
-          const url = URL.createObjectURL(fileSent);
-          optimisticUrlsRef.current.push(url);
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `local-${Date.now()}`,
-              source: "Member",
-              content: text || null,
-              messageType: fileSent.type.startsWith("image/")
-                ? "Image"
-                : fileSent.type.startsWith("audio/")
-                  ? "Audio"
-                  : "Document",
-              eventAtUTC: new Date().toISOString(),
-              fileUrl: url,
-              fileMimeType: fileSent.type || null,
-              fileName: fileSent.name,
-              transcription: null,
-              senderName: null,
-              senderContactId: null,
-            },
-          ]);
-          requestAnimationFrame(() => scrollToBottom(true));
-        }
+        // já é revogada por clearAttachment() logo abaixo. Também cobre
+        // mensagem só-texto agora: a Umbler não devolve o nome de quem
+        // enviou via essa API simples (sentByOrganizationMember vem vazio),
+        // então sem isso o remetente aparecia como "Analista" genérico —
+        // aqui a gente SABE quem mandou (o operador desta máquina).
+        const { operadorNome } = readSettings();
+        const optimistic: UmblerMessage = {
+          id: `local-${Date.now()}`,
+          source: "Member",
+          content: text || null,
+          messageType: fileSent
+            ? fileSent.type.startsWith("image/")
+              ? "Image"
+              : fileSent.type.startsWith("audio/")
+                ? "Audio"
+                : "Document"
+            : "Text",
+          eventAtUTC: new Date().toISOString(),
+          fileUrl: fileSent ? URL.createObjectURL(fileSent) : null,
+          fileMimeType: fileSent?.type || null,
+          fileName: fileSent?.name ?? null,
+          transcription: null,
+          senderName: operadorNome || null,
+          senderContactId: null,
+        };
+        if (fileSent && optimistic.fileUrl) optimisticUrlsRef.current.push(optimistic.fileUrl);
+        setMessages((prev) => [...prev, optimistic]);
+        requestAnimationFrame(() => scrollToBottom(true));
         setReply("");
         clearAttachment();
         // Mensagem enviada pode demorar alguns segundos pra aparecer no
@@ -248,17 +309,85 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
           ))}
         </div>
         </div>
-        {personTelefone && (
+        {canSendHere && (
           <div className="border-t border-border p-2.5 shrink-0">
           <div className="max-w-3xl mx-auto space-y-2">
             {windowOpen === false && (
               <div className="text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2 py-1.5">
-                Janela de 24h fechada — o chapa não responde há mais de 24h. Envio de texto livre bloqueado; use um template (FUP/BID) pra reabrir a conversa.
+                {isGroup
+                  ? "Janela de 24h fechada — ninguém do grupo respondeu nas últimas 24h. Envio de texto livre bloqueado."
+                  : "Janela de 24h fechada — o chapa não responde há mais de 24h. Envio de texto livre bloqueado; use um template (FUP/BID) pra reabrir a conversa."}
               </div>
             )}
             {sendError && (
               <div className="text-[11px] text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-2 py-1.5">
                 {sendError}
+              </div>
+            )}
+            {msgTemplates.length > 0 && (
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setShortcutsOpen((o) => !o)}
+                  className="flex items-center gap-1.5 w-full text-left"
+                >
+                  <span className="text-[10px] font-medium text-muted-foreground">Atalhos</span>
+                  <span className="text-[9px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
+                    {msgTemplates.length}
+                  </span>
+                  <ChevronDown className={`h-3 w-3 text-muted-foreground/50 ml-auto transition-transform duration-150 ${shortcutsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {shortcutsOpen && (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {msgTemplates.map((tpl, idx) =>
+                      editingTplIdx === idx ? (
+                        <div key={idx} className="flex items-center gap-1.5 w-full">
+                          <Input
+                            value={editingTplText}
+                            onChange={(e) => setEditingTplText(e.target.value)}
+                            className="h-7 text-xs flex-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && editingTplText.trim()) {
+                                persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                                setEditingTplIdx(null);
+                              }
+                              if (e.key === "Escape") setEditingTplIdx(null);
+                            }}
+                          />
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-success" disabled={!editingTplText.trim()}
+                            onClick={() => { persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t))); setEditingTplIdx(null); }}>
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingTplIdx(null)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div key={idx} className="group relative inline-flex items-center max-w-[calc(50%-4px)]">
+                          <button
+                            type="button"
+                            onClick={() => { setReply(tpl); setShortcutsOpen(false); }}
+                            title={tpl}
+                            className="inline-flex items-center rounded-full border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/40 pl-2.5 pr-7 py-1 text-[11px] transition-colors w-full truncate"
+                          >
+                            {tpl}
+                          </button>
+                          <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button type="button" title="Editar" className="text-muted-foreground/50 hover:text-primary transition-colors"
+                              onClick={(e) => { e.stopPropagation(); setEditingTplIdx(idx); setEditingTplText(tpl); }}>
+                              <Pencil className="h-2.5 w-2.5" />
+                            </button>
+                            <button type="button" title="Excluir" className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                              onClick={(e) => { e.stopPropagation(); persistTemplates(msgTemplates.filter((_, i) => i !== idx)); }}>
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {pendingFile && (
@@ -303,11 +432,21 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
-            {overLimit && (
-              <p className="text-[10px] text-destructive">
-                Mensagem muito longa ({reply.length}/{MAX_REPLY_LENGTH}) — encurte pra poder enviar.
-              </p>
-            )}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                disabled={!reply.trim() || msgTemplates.includes(reply.trim())}
+                className="text-[10px] text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-1"
+                onClick={() => persistTemplates([...msgTemplates, reply.trim()])}
+              >
+                <Plus className="h-3 w-3" /> Salvar como atalho
+              </button>
+              {overLimit && (
+                <p className="text-[10px] text-destructive">
+                  Mensagem muito longa ({reply.length}/{MAX_REPLY_LENGTH}) — encurte pra poder enviar.
+                </p>
+              )}
+            </div>
           </div>
           </div>
         )}

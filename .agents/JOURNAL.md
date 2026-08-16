@@ -3,6 +3,151 @@
 
 ---
 
+## 2026-08-19 — MCM — Release v1.0.57: card centralizado + atalhos de mensagem + envio em grupo + revisão de UI
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-152 (fechado), MCM-153 (parcial — grupo sender ID ainda pendente)
+**Commits:** 9e9d2e3 (menu "..." dos ícones), e501e55 (bump + changelog), e447104 (latest.json)
+
+Publica a leva grande da entrada anterior (9 itens) mais dois ajustes
+desta sessão: mockup do card de tarefa (2 opções apresentadas, usuário
+escolheu "card centralizado", já implementado antes da release) e revisão
+de UI da lista de chapas — 3 ícones de copiar (nome/telefone/nome+telefone)
+disputando espaço numa linha de 24px viraram um menu "..." único (mockup
+aprovado antes de implementar). Revisão mais ampla da UI de conversas não
+achou mais nada que valesse mudar: `ChatSheet.tsx` é só um wrapper fino em
+cima do mesmo `ConversationPane`, então os fixes já valem lá também, sem
+trabalho extra; cabeçalho da tarefa e barra de ações já tinham hierarquia
+adequada.
+
+Changelog do Ajuda.tsx **reescrito do zero** para v1.0.57 — as entradas de
+"Novidades desta versão" desde a v1.0.52 vinham sendo ACUMULADAS na mesma
+string em vez de substituídas a cada release, ficando cada vez mais longa
+e descrevendo várias versões antigas de uma vez. Corrigido: cada release
+agora descreve só o que é novo nela.
+
+Build assinado, release + assets publicados, `latest.json` verificado
+(200 em ambos). Nada testado visualmente — sem como rodar o app aqui.
+
+---
+
+## 2026-08-19 — MCM — Leva grande de fixes/features na visão de conversas (Panorama/Timeline/grupo)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-152 (CPF, investigado e corrigido), MCM-153 (grupo — parcial)
+**Commits:** 887211d, 4a01217, 27e224e, 4eb41b3, f596396, 5bde6f3
+
+Usuário reportou uma lista grande de problemas/pedidos na visão de
+conversas (`TaskDetailPanel`/`ConversationPane`, usada por Cards/Panorama/
+Timeline):
+
+1. **Nome do analista "genérico"** — Umbler não devolve
+   `sentByOrganizationMember.name` via API simples; eco otimista agora usa
+   o `operadorNome` local (texto e mídia, unificado).
+2. **CPF não copiava no Panorama/Timeline (funcionava nos Cards)** —
+   causa raiz real: `TaskCard.tsx` já tinha fallback pra buscar CPF no
+   `chapa_registry` por telefone quando a tarefa (Metabase) não trazia;
+   `TaskDetailPanel.tsx` não tinha. Portado o mesmo fallback.
+3. **Clicar no nome copiava sem querer** ao tentar só selecionar a
+   conversa — nome virou texto normal, ganhou ícone de copiar dedicado
+   (igual ao de telefone que já existia).
+4. **Scroll abria no topo** — reforçado com `setTimeout` depois da
+   animação de entrada do painel (300ms), um `requestAnimationFrame` só
+   não bastava.
+5. **Card centralizado em vez de tela cheia** — mockup apresentado (2
+   opções), usuário escolheu "card centralizado" — `DialogPrimitive.Content`
+   trocou de `fixed inset-0` pra ~1180x840 centralizado, cantos
+   arredondados, resto do Dashboard visível ao redor.
+6. **Atalhos de mensagem (pré-salvas)** — portado o mecanismo que já
+   existia no "Mensagem personalizada" do TaskCard (mesma settings
+   `customMsgTemplates`, clique só preenche o composer).
+7. **"Só nomes" no Copiar** — nova opção sem telefone/CPF.
+8. **Envio de mensagem pro grupo** — estava desligado de propósito
+   (`selectedTelefone` forçado `null`, sem fallback). Confirmado no
+   Swagger oficial da Umbler que `POST /v1/messages/` (não o
+   `/simplified/`) aceita `ChatId` direto — nova função
+   `sendUmblerGroupMessage()`.
+9. **Notificação de mensagem nova + auto-refresh** — polling silencioso a
+   cada 20s, toast só pra mensagem genuinamente nova (rastreado por id),
+   sem re-notificar a conversa inteira ao abrir.
+
+**Não resolvido, registrado em MCM-153:** identificação de remetente por
+mensagem em grupo — o código (`resolveGroupSenderNames`) já existe mas
+falha silenciosamente sem nenhum sinal de erro; precisa de debug ao vivo,
+não reproduzível aqui.
+
+**Nenhum item testado visualmente** — sem como rodar o app Tauri neste
+ambiente. `tsc --noEmit` limpo em todos os commits. Pipeline de release
+(bump, build, assinatura, publicação) ainda não rodado pra essa leva —
+esperando confirmação do usuário.
+
+---
+
+## 2026-08-19 — MCM — Hotfix v1.0.56: fix DEFINITIVO do "database is locked" — troca transação por UPSERT
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits:** bbc9315 (fix), 2049ac1 (latest.json)
+
+O WAL mode (v1.0.55, entrada abaixo) não resolveu — usuário reportou que
+o próprio sync do Metabase parou de funcionar, ainda com `code 5`. Causa
+raiz real, mais séria do que eu tinha diagnosticado: `tauri-plugin-sql`
+usa um pool de conexões (`sqlx::Pool`) por baixo do JS `Database.execute()`,
+sem garantia documentada (confirmado via docs.rs e o source do plugin no
+GitHub) de que chamadas `execute()` sequenciais caem na MESMA conexão. Ou
+seja, o `BEGIN IMMEDIATE`/`COMMIT` da v1.0.52 (fix do MCM-151) podia nem
+ser atômico de verdade — e pior, `BEGIN IMMEDIATE` segurando uma conexão
+do pool durante um sync inteiro (dezenas/centenas de INSERTs em lote)
+bloqueava qualquer OUTRA conexão do pool tentando ler ou escrever ao
+mesmo tempo, inclusive o próprio sync seguinte.
+
+**Fix definitivo:** removida a transação por completo. `ingestTarefas()`
+agora usa `INSERT ... ON CONFLICT(id) DO UPDATE` (upsert) pras chapas em
+vez de `DELETE`+`INSERT` — cada chapa existente é atualizada in-place,
+nunca deixa de existir na tabela nem por um instante (resolve o problema
+ORIGINAL do MCM-151 sem precisar de atomicidade via transação nenhuma).
+Só remove no final quem realmente saiu da tarefa, com `DELETE` escopado
+por `id_tarefa` E pelos `id`s sobreviventes — nunca "apaga tudo primeiro".
+Mesmo padrão que a Central já usa no próprio sync dela (upsert, nunca
+delete em massa) — confirmado como o padrão correto pra esse tipo de
+reconciliação neste projeto.
+
+**Lição principal:** transação multi-statement via `db.execute()` nesse
+plugin específico NÃO é confiável sem confirmar primeiro se garante
+afinidade de conexão — e mesmo que garantisse, segurar um lock de escrita
+por um sync inteiro é perigoso com pool de conexões por baixo. UPSERT
+escopado é uma solução mais robusta pra esse tipo de reconciliação
+"resync completo preservando estado" do que DELETE+INSERT+transação.
+
+---
+
+## 2026-08-19 — MCM — Hotfix v1.0.55: "database is locked" (code 5) ao sincronizar — WAL mode
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Commits:** 6286f40 (fix), 3ae0ade (latest.json)
+
+Usuário reportou `database is locked (code 5)` ao sincronizar tarefas
+depois de instalar a v1.0.54. Causa: efeito colateral do meu próprio fix
+do MCM-151 (v1.0.52) — envolver `ingestTarefas()` numa transação `BEGIN
+IMMEDIATE`/`COMMIT` corrigiu a atomicidade, mas sob o journal mode padrão
+do SQLite (rollback journal), isso segura o lock de escrita durante TODO
+o sync (pode ser centenas de tarefas/chapas em lotes). Qualquer leitura
+concorrente nesse meio-tempo — polling do `WatcherContext` a cada 60s,
+queries do Dashboard — fica bloqueada; se o sync demora mais que os 5s de
+`busy_timeout`, o leitor recebe `SQLITE_BUSY`. Confirmado que os jobs de
+boot do `AppStartup.tsx` rodam sequenciais (não é conflito de dois
+escritores), então o problema é mesmo leitor-bloqueado-por-escritor.
+
+Fix: `PRAGMA journal_mode = WAL` em `db.ts` — leitores não ficam mais
+bloqueados por um escritor em andamento, sem abrir mão da atomicidade do
+fix anterior.
+
+**Ressalva explícita dada ao usuário:** ainda existe um caso residual não
+coberto (duas sincronizações começando quase simultaneamente — WAL não
+paraleliza escritores, só evita bloquear leitores), mas o `busy_timeout`
+de 5s deveria absorver isso na prática. Não testado visualmente.
+
+**Lição:** ao corrigir um bug de concorrência com transação, sempre
+considerar o journal mode — uma transação mais longa sem WAL pode trocar
+um bug (race condition) por outro (lock contention).
+
+---
+
 ## 2026-08-19 — MCM — Hotfix v1.0.54: produção desconectada de VERDADE da Central (Camada 1 + Camada 3)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Commits:** d5b3273 (revert código), d1c04fa (backlog), baf675b (latest.json)

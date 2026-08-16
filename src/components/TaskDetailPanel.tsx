@@ -313,7 +313,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     ? `Grupo — ${clienteInfo?.nome ?? task.empresa}`
     : selectedChapa?.nome_chapa ?? "";
   const selectedTelefone = selectedKey === CLIENTE_KEY
-    ? null // envio pro grupo não confirmado ainda — só visualização
+    ? null // grupo não tem telefone — ConversationPane envia por chatId (isGroup) quando é null aqui
     : selectedChapa?.telefone_chapa ?? null;
 
   const chapaPendingAction = chapaJobState?.action ?? null;
@@ -403,11 +403,42 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     clipboardWrite(lines.join("\n"), `${ativos.length} ajudante(s) copiado(s)`);
   }
 
-  function copyCpfConfirmados() {
-    const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa && c.cpf);
-    if (confirmados.length === 0) { toast.error("Nenhum CPF de confirmado disponível"); return; }
-    const lines = confirmados.map((c) => c.cpf);
-    clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) copiado(s)`);
+  // A Question "tarefas do dia" do Metabase nem sempre traz CPF por linha —
+  // quando falta, busca no cadastro geral (chapa_registry) por telefone,
+  // mesmo fallback que já existia no TaskCard (Cards). Sem isso, essa ação
+  // funcionava nos Cards e falhava aqui (Panorama/Timeline), mesma tarefa.
+  async function copyCpfConfirmados() {
+    const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
+    if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
+    const semCpf = confirmados.filter((c) => !c.cpf && c.telefone_chapa);
+    const phoneToCpf: Record<string, string> = {};
+    if (semCpf.length > 0) {
+      try {
+        const db = await getDb();
+        const phones = semCpf.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
+        const rows = await db.select<{ cpf: string; telefone: string }[]>(
+          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
+           FROM chapa_registry
+           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
+             AND cpf IS NOT NULL`,
+          phones,
+        );
+        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
+      } catch { /* silencioso — segue só com o que já tinha */ }
+    }
+    const comCpf = confirmados
+      .map((c) => c.cpf ?? phoneToCpf[(c.telefone_chapa ?? "").replace(/\D/g, "")] ?? null)
+      .filter((cpf): cpf is string => !!cpf);
+    if (comCpf.length === 0) { toast.error("Nenhum CPF de confirmado disponível"); return; }
+    clipboardWrite(comCpf.join("\n"), `${comCpf.length} CPF(s) copiado(s)`);
+  }
+
+  // Só nomes, sem telefone e sem CPF — pedido explícito do usuário.
+  function copyNamesOnly() {
+    const ativos = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    if (ativos.length === 0) { toast.error("Nenhum ajudante nesta tarefa"); return; }
+    const lines = ativos.map((c) => c.nome_chapa);
+    clipboardWrite(lines.join("\n"), `${ativos.length} nome(s) copiado(s)`);
   }
 
   // Ajudantes elegíveis pra solicitação de pagamento — mesmo critério do
@@ -455,7 +486,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className="fixed inset-0 z-40 bg-card flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom data-[state=closed]:duration-200 data-[state=open]:duration-300"
+          className="fixed left-1/2 top-1/2 z-40 -translate-x-1/2 -translate-y-1/2 w-[min(1180px,94vw)] h-[min(840px,90vh)] rounded-2xl shadow-2xl overflow-hidden bg-card flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:duration-150 data-[state=open]:duration-200"
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">Detalhes da tarefa — {task?.empresa ?? ""}</DialogPrimitive.Title>
@@ -568,6 +599,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
+                  <DropdownMenuItem onClick={copyNamesOnly}>
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Só nomes
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={copyAllList}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone de todos
                   </DropdownMenuItem>
@@ -661,16 +695,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         {c.nome_chapa!.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        {/* Igual aos cards normais (TaskCard.tsx) — clicar no nome
-                            copia só o nome, sem precisar abrir o menu de "..." */}
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`); }}
-                          title="Clique para copiar o nome"
-                          className={`text-[13px] truncate text-left hover:text-primary hover:underline ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}
-                        >
+                        <p className={`text-[13px] truncate ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>
                           {c.nome_chapa}
-                        </button>
+                        </p>
                         <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
                           {STATUS_LABEL[c.status_contato] ?? c.status_contato}
@@ -681,41 +708,40 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         </p>
                       </div>
                     </div>
-                    {c.telefone_chapa && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              clipboardWrite((c.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado");
-                            }}
-                            className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors"
-                            aria-label="Copiar telefone"
-                          >
-                            <Phone className="h-3 w-3" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">Copiar telefone</TooltipContent>
-                      </Tooltip>
-                    )}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                    {/* Um "..." só em vez de 3 ícones disputando espaço na
+                        linha (feedback do usuário: alvo pequeno demais,
+                        fácil clicar errado). Clicar na linha pra selecionar
+                        a conversa continua não confundindo com copiar. */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={(e) => e.stopPropagation()}
+                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors data-[state=open]:!text-foreground data-[state=open]:!bg-muted"
+                          aria-label="Copiar"
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onClick={() => clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`)}>
+                          <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome
+                        </DropdownMenuItem>
+                        {c.telefone_chapa && (
+                          <DropdownMenuItem onClick={() => clipboardWrite((c.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado")}>
+                            <Phone className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar telefone
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => {
                             const phone = (c.telefone_chapa ?? "").replace(/\D/g, "");
                             clipboardWrite(`${c.nome_chapa}${phone ? ` - ${phone}` : ""}`, "Nome e telefone copiados");
                           }}
-                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors"
-                          aria-label="Copiar nome e telefone"
                         >
-                          <ClipboardList className="h-3 w-3" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">Copiar nome + telefone</TooltipContent>
-                    </Tooltip>
+                          <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome + telefone
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 );
               })}
