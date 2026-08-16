@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-08-19 — MCM — Release v1.0.57: card centralizado + atalhos de mensagem + envio em grupo + revisão de UI
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** MCM-152 (fechado), MCM-153 (parcial — grupo sender ID ainda pendente)
+**Commits:** 9e9d2e3 (menu "..." dos ícones), e501e55 (bump + changelog), e447104 (latest.json)
+
+Publica a leva grande da entrada anterior (9 itens) mais dois ajustes
+desta sessão: mockup do card de tarefa (2 opções apresentadas, usuário
+escolheu "card centralizado", já implementado antes da release) e revisão
+de UI da lista de chapas — 3 ícones de copiar (nome/telefone/nome+telefone)
+disputando espaço numa linha de 24px viraram um menu "..." único (mockup
+aprovado antes de implementar). Revisão mais ampla da UI de conversas não
+achou mais nada que valesse mudar: `ChatSheet.tsx` é só um wrapper fino em
+cima do mesmo `ConversationPane`, então os fixes já valem lá também, sem
+trabalho extra; cabeçalho da tarefa e barra de ações já tinham hierarquia
+adequada.
+
+Changelog do Ajuda.tsx **reescrito do zero** para v1.0.57 — as entradas de
+"Novidades desta versão" desde a v1.0.52 vinham sendo ACUMULADAS na mesma
+string em vez de substituídas a cada release, ficando cada vez mais longa
+e descrevendo várias versões antigas de uma vez. Corrigido: cada release
+agora descreve só o que é novo nela.
+
+Build assinado, release + assets publicados, `latest.json` verificado
+(200 em ambos). Nada testado visualmente — sem como rodar o app aqui.
+
+---
+
 ## 2026-08-19 — MCM — Leva grande de fixes/features na visão de conversas (Panorama/Timeline/grupo)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-152 (CPF, investigado e corrigido), MCM-153 (grupo — parcial)
