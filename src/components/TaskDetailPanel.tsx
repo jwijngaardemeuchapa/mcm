@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import * as XLSX from "xlsx";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
   MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send, Download,
@@ -35,7 +36,7 @@ import { useClienteInfo } from "@/lib/useClienteInfo";
 import { useUndo } from "@/lib/undo";
 import { getDb, errMsg, placeholders } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
-import { fmtTime, fmtDateTime, parseTaskDate } from "@/lib/datetime";
+import { fmtTime, fmtDateTime, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { toast } from "sonner";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
 import { useChapaJobState, useTaskCancelState, useMassFupState, useCustomMsgState } from "@/lib/useDispatchJob";
@@ -65,6 +66,32 @@ function fmtElapsed(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+// Lista de Presença (CSV/XLSX) — mesma lógica do TaskCard (Cards), portada
+// pra cá porque Panorama/Timeline não tinham essa exportação (só existia
+// nos Cards).
+function companyFilenameSlug(empresa: string): string {
+  const cleaned = (empresa || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .trim();
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const pick = words.slice(0, 2).join("");
+  return (pick || "tarefa").toLowerCase();
+}
+
+function csvExportKey(id: number) {
+  return `csv_exported_task_${id}`;
+}
+
+function getCsvExportedAt(id: number): string | null {
+  try {
+    return localStorage.getItem(csvExportKey(id));
+  } catch {
+    return null;
+  }
 }
 
 // Cor/ícone por status — cor conta a história antes de precisar ler o texto:
@@ -158,6 +185,51 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
 
   const customMsgState = useCustomMsgState(taskId ?? -1);
   const customMsgSending = customMsgState?.status === "sending";
+
+  // Lista de Presença (CSV) — ver função exportCSV mais abaixo.
+  const [csvExportedAt, setCsvExportedAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (taskId == null) { setCsvExportedAt(null); return; }
+    setCsvExportedAt(getCsvExportedAt(taskId));
+  }, [taskId]);
+
+  // Segue o mesmo modelo "Lista de Presença" do TaskCard (Cards) — título
+  // mesclado A1:F1, campos Data/Empresa/Local/Responsável nas linhas 2-3,
+  // cabeçalho na linha 5, chapas numeradas a partir da 6.
+  function exportCSV() {
+    if (!task) return;
+    const chapasValidas = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    const { operadorNome } = readSettings();
+
+    const wsData: (string | number)[][] = [
+      ["LISTA DE PRESENÇA", "", "", "", "", ""],
+      ["Data:", fmtSP(task.data_tarefa, "dd/MM/yyyy"), "Empresa:", task.empresa, "", ""],
+      ["Local da operação:", task.cidade_uf ?? "", "", "Responsável:", operadorNome || "", ""],
+      [],
+      ["Nº", "Nome", "CPF", "Horário de Entrada", "Horário de Saída", "Assinatura"],
+      ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", c.cpf ?? "", "", "", ""]),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
+    ws["!cols"] = [{ wch: 6 }, { wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 30 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Lista de Presença");
+
+    const slug = companyFilenameSlug(task.empresa);
+    const time = fmtSP(task.data_tarefa, "HHmm");
+    const filename = `${slug}_${time}.xlsx`;
+    XLSX.writeFile(wb, filename);
+
+    try {
+      localStorage.setItem(csvExportKey(task.id_tarefa), new Date().toISOString());
+    } catch {
+      /* noop */
+    }
+    setCsvExportedAt(new Date().toISOString());
+    toast.success(`Lista de presença exportada: ${filename}`);
+  }
 
   function startTaskCancelCountdown() {
     if (!task) return;
@@ -530,6 +602,20 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   <Check className="h-3 w-3" /> Confirmar todos
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                className={`h-7 text-[11px] gap-1 ${
+                  csvExportedAt
+                    ? "border-success/40 text-success hover:bg-success/10"
+                    : "border-warning/60 text-warning bg-warning/10 hover:bg-warning/20"
+                }`}
+                onClick={exportCSV}
+                title={csvExportedAt ? `Exportado em ${fmtDateTime(csvExportedAt)} — clique para exportar novamente` : "Exporta a lista de presença (nome e CPF dos alocados) para impressão e validação do cliente"}
+              >
+                {csvExportedAt ? <Check className="h-3 w-3" /> : <Download className="h-3 w-3" />}
+                Lista de Presença
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1">
