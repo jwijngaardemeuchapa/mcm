@@ -3,6 +3,8 @@ import { type TaskWithChapas } from "./TaskCard";
 import { fmtSP, todayDateISO_SP, nowSP } from "@/lib/datetime";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed } from "lucide-react";
+import { computeTaskState, taskSeverityBlockClass } from "@/lib/taskState";
+import { readSettings } from "@/lib/settings";
 
 interface TaskTimelineProps {
   tasks: TaskWithChapas[];
@@ -15,6 +17,8 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
   // Constants
   const HOUR_WIDTH = 120; // 120px per hour
   const DEFAULT_DURATION_HOURS = 2; // Default 2 hours block
+
+  const { fillRateWarningThreshold } = readSettings();
 
   const { startHour, endHour, processedTasks } = useMemo(() => {
     if (tasks.length === 0) return { startHour: 6, endHour: 18, processedTasks: [] };
@@ -31,39 +35,27 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
       if (startFloat < minH) minH = Math.floor(startFloat);
       if (endFloat > maxH) maxH = Math.ceil(endFloat);
 
-      // Fill rate calculation
-      const totalVagas = t.quantidade_chapas || t.chapas.length || 1;
-      const confirmados = t.chapas.filter(c => c.status_contato === "confirmado").length;
-      const fillPct = (confirmados / totalVagas) * 100;
-      
       const concluida = t.status_tarefa === "Concluído";
-      const validada = (t.validacao_status ?? "aguardando") === "validacao_recebida";
-      // Em Andamento nunca fica verde (mesmo com fill ≥80%) — fica azul,
-      // mesmo tratamento do Cards/Panorama (MCM-128). Amarelo/vermelho não
-      // mudam — só o "tudo certo" verde é que vira "ainda em andamento".
-      const emAndamento = t.status_tarefa === "Em Andamento";
-      const emAnalise = t.status_tarefa === "Em Análise";
+      // Estado/cor compartilhados com TaskCard e TaskPanorama (src/lib/taskState.ts)
+      // — antes o Timeline calculava cor a partir de fillPct bruto (≥80%/≥50%)
+      // e "validada" só checava validacao_recebida, podendo divergir das
+      // outras views pra mesma tarefa.
+      const state = computeTaskState(t, fillRateWarningThreshold);
+      const validada = state.isValidated;
 
-      let colorClass = "bg-destructive border-destructive/50 text-destructive-foreground";
-      if (fillPct >= 80) {
-        colorClass = emAndamento
-          ? "bg-info border-info/50 text-info-foreground"
-          : emAnalise
-          ? "bg-analise border-analise/50 text-analise-foreground"
-          : "bg-success border-success/50 text-success-foreground";
-      } else if (fillPct >= 50) colorClass = "bg-warning border-warning/50 text-warning-foreground";
+      let colorClass = taskSeverityBlockClass(state.severity);
       if (concluida) colorClass += " opacity-50 saturate-50";
 
       return {
         ...t,
         startFloat,
         endFloat,
-        fillPct,
-        confirmados,
-        totalVagas,
+        fillPct: state.fillPct,
+        confirmados: state.confirmed,
+        totalVagas: state.requested,
         colorClass,
         concluida,
-        validada
+        validada,
       };
     });
 

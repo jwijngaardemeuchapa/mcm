@@ -77,6 +77,7 @@ import { useClienteInfo } from "@/lib/useClienteInfo";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
+import { computeTaskState } from "@/lib/taskState";
 import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { umblerChatLink } from "@/lib/umbler";
@@ -273,7 +274,9 @@ export function TaskCard({
   const [clienteChatOpen, setClienteChatOpen] = useState(false);
   const [clienteGroupPickerOpen, setClienteGroupPickerOpen] = useState(false);
 
-  const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
+  const { fillRateWarningThreshold } = readSettings();
+  const taskState = computeTaskState(task, fillRateWarningThreshold);
+  const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert } = taskState;
 
   type ChapaRow = (typeof task.chapas)[number] & {
     canal_contato?: string | null;
@@ -467,34 +470,6 @@ Precisamos de 1 substituto para esta tarefa.`;
     clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) de confirmados copiados`);
   }
 
-  async function copyList() {
-    const active = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
-    // Build a map from normalized phone → CPF for missing entries via chapa_registry
-    const missing = active.filter((c) => !c.cpf && c.telefone_chapa);
-    let phoneToCpf: Record<string, string> = {};
-    if (missing.length > 0) {
-      try {
-        const db = await getDb();
-        const phones = missing.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
-        const rows = await db.select<{ cpf: string; telefone: string }[]>(
-          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
-           FROM chapa_registry
-           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
-             AND cpf IS NOT NULL`,
-          phones,
-        );
-        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
-      } catch { /* silencioso */ }
-    }
-    const lines = active.map((c) => {
-      const cpf = c.cpf
-        ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
-        ?? "(sem CPF)";
-      return `${c.nome_chapa} - ${formatCpf(cpf)}`;
-    });
-    clipboardWrite("Nome - CPF\n" + lines.join("\n"), "Lista copiada (nome + CPF)");
-  }
-
   function copyNamesOnly() {
     const lines = task.chapas
       .filter((c) => c.status_contato !== "removido" && c.nome_chapa)
@@ -502,15 +477,27 @@ Precisamos de 1 substituto para esta tarefa.`;
     clipboardWrite(lines.join("\n"), `${lines.length} nome(s) copiado(s)`);
   }
 
-  function copyConfirmedNames() {
-    const lines = task.chapas
-      .filter((c) => c.status_contato === "confirmado" && c.nome_chapa)
-      .map((c) => c.nome_chapa as string);
-    if (lines.length === 0) {
-      toast.error("Nenhum chapa confirmado nesta tarefa");
+  // Todos os ajudantes da tarefa (não só confirmados), nome + telefone —
+  // mesma operação do dropdown "Copiar" unificado do TaskDetailPanel
+  // (Panorama/Timeline), portada pra cá pra manter os dois menus idênticos.
+  function copyAllList() {
+    const ativos = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    if (ativos.length === 0) {
+      toast.error("Nenhum ajudante nesta tarefa");
       return;
     }
-    clipboardWrite(lines.join("\n"), `${lines.length} confirmado(s) copiado(s)`);
+    const lines = ativos.map((c) => `${c.nome_chapa}${c.telefone_chapa ? ` - ${c.telefone_chapa}` : ""}`);
+    clipboardWrite(lines.join("\n"), `${ativos.length} ajudante(s) copiado(s)`);
+  }
+
+  function copyConfirmedList() {
+    const confirmados = task.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
+    if (confirmados.length === 0) {
+      toast.error("Nenhum confirmado ainda");
+      return;
+    }
+    const lines = confirmados.map((c) => `${c.nome_chapa}${c.telefone_chapa ? ` - ${c.telefone_chapa}` : ""}`);
+    clipboardWrite(lines.join("\n"), `${confirmados.length} confirmado(s) copiado(s)`);
   }
 
   async function registerFup() {
@@ -616,17 +603,11 @@ Precisamos de 1 substituto para esta tarefa.`;
   const vStatus = (task.validacao_status ?? "aguardando") as ValidationStep;
   const isOvernight = !!task.is_overnight;
   const continuing = !!task.continuingFromYesterday;
-  const totalChapas = task.chapas.length;
-  const confirmedAll = totalChapas > 0 && task.chapas.every((c) => c.status_contato === "confirmado");
   const realChapas = task.chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
   const allRealConfirmed = realChapas.length > 0 && realChapas.every((c) => c.status_contato === "confirmado");
   const vacantCount = Math.max(0, (task.quantidade_chapas || task.chapas.length) - realChapas.length);
-  const fullyValidated =
-    realChapas.length > 0 &&
-    realChapas.every(
-      (c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente",
-    );
-  const isDone = confirmedAll && vStatus === "subido_meu_chapa";
+  // isDone/fullyValidated agora vêm de computeTaskState() (src/lib/taskState.ts)
+  // — extraído pra manter a mesma lógica que TaskPanorama/TaskTimeline usam.
   // Tarefa "Em Andamento" nunca deve ficar verde (mesmo já validada/subida) —
   // fica azul e o flag mostra "Em Andamento" em vez de "100% Validada".
   const emAndamento = task.status_tarefa === "Em Andamento";
@@ -650,14 +631,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   const allPending =
     realChapas.length > 0 &&
     realChapas.every((c) => c.status_contato === "pendente");
-  const minutesUntilStart = (parseTaskDate(task.data_tarefa, task.cidade_uf).getTime() - Date.now()) / 60_000;
   const eligibleConfirmAll = allPending && minutesUntilStart <= 120;
-
-  const requested = task.quantidade_chapas || task.chapas.length;
-  const fillPct = requested > 0 ? Math.round((confirmed / requested) * 100) : 0;
-  const { fillRateWarningThreshold } = readSettings();
-  const showApproachAlert =
-    !isDone && minutesUntilStart > 0 && minutesUntilStart <= 60 && fillPct < fillRateWarningThreshold;
 
   const initiallyDoneRef = useRef(isDone);
   const [userExpanded, setUserExpanded] = useState(false);
@@ -1245,27 +1219,25 @@ Precisamos de 1 substituto para esta tarefa.`;
               {csvExportedAt ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
               {csvExportedAt ? "Lista de Presença exportada · reexportar" : "Lista de Presença"}
             </Button>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={copyList}>
-              <Copy className="h-3.5 w-3.5" /> Copiar Lista
-            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" variant="outline" className="gap-1.5">
-                  <Copy className="h-3.5 w-3.5" /> Copiar Nomes
+                  <Copy className="h-3.5 w-3.5" /> Copiar
                   <ChevronDown className="h-3 w-3 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={copyNamesOnly}>
-                  Todos os nomes
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Só nomes
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={copyConfirmedNames}>
-                  <Check className="h-3.5 w-3.5 mr-1.5 text-success" />
-                  Só confirmados ({task.chapas.filter((c) => c.status_contato === "confirmado").length})
+                <DropdownMenuItem onClick={copyAllList}>
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone de todos
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyConfirmedList}>
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={copyCpfConfirmados}>
-                  <Check className="h-3.5 w-3.5 mr-1.5 text-info" />
-                  CPF dos confirmados ({task.chapas.filter((c) => c.status_contato === "confirmado").length})
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> CPFs dos confirmados
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

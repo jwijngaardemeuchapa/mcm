@@ -11,9 +11,10 @@ import {
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { type TaskWithChapas } from "./TaskCard";
 import { FillRateBar } from "./FillRateBar";
-import { fmtTime, fmtSP, parseTaskDate, taskTzLabel } from "@/lib/datetime";
+import { fmtTime, fmtSP, taskTzLabel } from "@/lib/datetime";
 import { todayDateISO_SP } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
+import { computeTaskState } from "@/lib/taskState";
 
 function csvExported(id: number) {
   try {
@@ -21,28 +22,6 @@ function csvExported(id: number) {
   } catch {
     return false;
   }
-}
-
-function computeRow(task: TaskWithChapas, threshold: number) {
-  const confirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
-  const requested = task.quantidade_chapas || task.chapas.length;
-  const fillPct = requested > 0 ? Math.round((confirmed / requested) * 100) : 0;
-  const minutesUntilStart = (parseTaskDate(task.data_tarefa, task.cidade_uf).getTime() - Date.now()) / 60_000;
-  const isDone =
-    task.chapas.length > 0 &&
-    task.chapas.every((c) => c.status_contato === "confirmado") &&
-    (task.validacao_status ?? "aguardando") === "subido_meu_chapa";
-  const realChapas = task.chapas.filter(
-    (c) => c.nome_chapa && c.status_contato !== "removido",
-  );
-  const fullyValidated =
-    realChapas.length > 0 &&
-    realChapas.every(
-      (c) => c.validacao_presenca === "presente" || c.validacao_presenca === "ausente",
-    );
-  const showApproachAlert =
-    !isDone && minutesUntilStart > 0 && minutesUntilStart <= 60 && fillPct < threshold;
-  return { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert };
 }
 
 type Props = {
@@ -188,7 +167,7 @@ function PanoramaRow({
   onClick: () => void;
 }) {
   const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert } =
-    computeRow(task, threshold);
+    computeTaskState(task, threshold);
 
   const hasCsv = csvExported(task.id_tarefa);
   // Em Andamento nunca fica verde, mesmo concluída/validada — fica azul
