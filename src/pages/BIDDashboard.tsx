@@ -13,6 +13,7 @@ import { ActivityBell } from "@/components/ActivityBell";
 import { ChatSheet } from "@/components/ChatSheet";
 import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink } from "@/lib/umbler";
 import { bidDispatchQueue, BID_WAVE_SIZE, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
+import { pushDispatchEventToCentral } from "@/lib/central";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
 import { companyMatches } from "@/lib/company";
@@ -1378,6 +1379,10 @@ function BidTaskCard({
         "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         [dispId, candidate.nome, candidate.telefone, task.id_tarefa, task.empresa, task.data_tarefa, paramsJson, now, "aguardando", dispatchParams.diaria, chatId],
       );
+      pushDispatchEventToCentral({
+        id_tarefa: task.id_tarefa, telefone_chapa: candidate.telefone, cpf: null,
+        nome_chapa: candidate.nome, canal: "bid", observacao: `BID — diária R$ ${dispatchParams.diaria}`,
+      });
       const record: BidDispatchRecord = {
         id: dispId, id_tarefa: task.id_tarefa, chapa_nome: candidate.nome, chapa_telefone: candidate.telefone,
         empresa: task.empresa, data_tarefa: task.data_tarefa, params_json: paramsJson,
@@ -4641,6 +4646,10 @@ function BloqueadosTab() {
           "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
           [dispId, bidTarget.nome, bidTarget.telefone, taskId, selectedTask.empresa, selectedTask.data_tarefa, paramsJson, now, "aguardando", diaria, chatId],
         );
+        pushDispatchEventToCentral({
+          id_tarefa: taskId, telefone_chapa: bidTarget.telefone, cpf: null,
+          nome_chapa: bidTarget.nome, canal: "bid", observacao: `BID — diária R$ ${diaria}`,
+        });
         bidDispatchQueue.notifyDispatched({
           id: dispId, id_tarefa: taskId, chapa_nome: bidTarget.nome, chapa_telefone: bidTarget.telefone,
           empresa: selectedTask.empresa, data_tarefa: selectedTask.data_tarefa, params_json: paramsJson,

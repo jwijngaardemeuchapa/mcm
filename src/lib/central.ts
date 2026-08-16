@@ -32,6 +32,31 @@ export async function pushChapaStatusToCentral(params: {
   }
 }
 
+// Espelha um disparo (FUP ou BID) na Central — append-only, diferente de
+// pushChapaStatusToCentral (que faz UPDATE num registro que já existe):
+// um chapa pode receber vários disparos ao longo do tempo, cada um é um
+// evento próprio. Best-effort silencioso, mesmo padrão dos outros pushes
+// — nunca bloqueia o disparo local se a Central estiver fora do ar.
+export async function pushDispatchEventToCentral(params: {
+  id_tarefa: number;
+  telefone_chapa: string | null;
+  cpf: string | null;
+  nome_chapa: string | null;
+  canal: string;
+  observacao?: string | null;
+}): Promise<void> {
+  try {
+    const { operadorNome } = readSettings();
+    await fetch(`${CENTRAL_APP_URL}/api/public/hooks/chapa-dispatch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+      body: JSON.stringify({ ...params, analista: operadorNome || null }),
+    });
+  } catch {
+    // Silencioso — mesmo motivo de pushChapaStatusToCentral.
+  }
+}
+
 // Empurra uma solicitação de pagamento gerada no TaskDetailPanel — fica
 // registrada na Central pra liderança/dev verem (não é a Central que gera).
 // Diferente de pushChapaStatusToCentral, aqui um erro é reportado ao

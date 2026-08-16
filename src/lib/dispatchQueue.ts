@@ -3,6 +3,7 @@ import { getDb, uuid, errMsg } from "./db";
 import { readSettings } from "./settings";
 import { sendUmblerFup, sendUmblerFreeText, startUmblerBot, fmtTaskDateParam, humanizarErroUmbler } from "./umbler";
 import { fmtSP, todayDateISO_SP } from "./datetime";
+import { pushDispatchEventToCentral } from "./central";
 
 export type MassFupProgress =
   | { phase: "sending"; sent: number; total: number }
@@ -292,6 +293,10 @@ class DispatchQueue {
         });
         sent++;
         sentIds.push(chapa.id);
+        pushDispatchEventToCentral({
+          id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          nome_chapa: chapa.nome_chapa, canal: "umbler_custom", observacao: "Mensagem personalizada",
+        });
       } catch (e) {
         failed++;
         toast.error(`${chapa.nome_chapa ?? "Chapa"}: ${humanizarErroUmbler(e)}`);
@@ -461,6 +466,10 @@ class DispatchQueue {
         sent++;
         sentIds.push(chapa.id);
         sentChatIds.set(chapa.id, chatId);
+        pushDispatchEventToCentral({
+          id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          nome_chapa: chapa.nome_chapa, canal: "umbler_talk", observacao: "FUP em massa",
+        });
         await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
       } catch {
         firstPassFailed.push(chapa);
@@ -501,6 +510,10 @@ class DispatchQueue {
             sent++;
             sentIds.push(chapa.id);
             sentChatIds.set(chapa.id, chatId);
+            pushDispatchEventToCentral({
+              id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+              nome_chapa: chapa.nome_chapa, canal: "umbler_talk", observacao: "FUP em massa (reenvio)",
+            });
             await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
           } catch {
             permanentFailed++;
@@ -617,6 +630,10 @@ class DispatchQueue {
         });
         sent++;
         sentChatIds.set(chapa.id, chatId);
+        pushDispatchEventToCentral({
+          id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          nome_chapa: chapa.nome_chapa, canal: "umbler_cancelamento_geral", observacao: "Cancelamento geral",
+        });
       } catch {
         failed++;
       }
@@ -734,6 +751,10 @@ class DispatchQueue {
         [uuid(), task.id_tarefa, "umbler_talk", now, "Disparado via API", chapaId, chatId],
       );
     } catch { /* noop — message already sent */ }
+    pushDispatchEventToCentral({
+      id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
+      nome_chapa: chapa.nome_chapa, canal: "umbler_talk", observacao: "Disparado via API",
+    });
     toast.success(`Mensagem enviada para ${chapa.nome_chapa}`);
     this.chapaJobStates.delete(chapaId);
     this.notifyChapaJob(chapaId);
@@ -769,6 +790,10 @@ class DispatchQueue {
         [uuid(), task.id_tarefa, "umbler_cancelamento", new Date().toISOString(), `Sem resposta — ${chapa.nome_chapa}`, chapaId, chatId],
       );
     } catch { /* noop */ }
+    pushDispatchEventToCentral({
+      id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
+      nome_chapa: chapa.nome_chapa, canal: "umbler_cancelamento", observacao: "Sem resposta",
+    });
     try { localStorage.setItem(`umbler_cancel_${chapaId}`, "1"); } catch { /* noop */ }
     toast.success(`Cancelamento enviado para ${chapa.nome_chapa}`);
     this.chapaJobStates.delete(chapaId);
@@ -810,6 +835,10 @@ class DispatchQueue {
         [uuid(), task.id_tarefa, "umbler_cancelamento_tarefa", new Date().toISOString(), `Tarefa cancelada — ${chapa.nome_chapa}`, chapaId, chatId],
       );
     } catch { /* noop */ }
+    pushDispatchEventToCentral({
+      id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
+      nome_chapa: chapa.nome_chapa, canal: "umbler_cancelamento_tarefa", observacao: "Tarefa cancelada",
+    });
     try { localStorage.setItem(`umbler_cancel_task_${chapaId}`, "1"); } catch { /* noop */ }
     toast.success(`Cancelamento de tarefa enviado para ${chapa.nome_chapa}`);
     this.chapaJobStates.delete(chapaId);
@@ -1055,6 +1084,10 @@ class BidDispatchQueue {
             "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             [id, candidate.nome, candidate.telefone, taskId, job.empresa, job.dataTarefa, paramsJson, now, "aguardando", job.params.diaria, chatId],
           );
+          pushDispatchEventToCentral({
+            id_tarefa: taskId, telefone_chapa: candidate.telefone, cpf: null,
+            nome_chapa: candidate.nome, canal: "bid", observacao: `BID — diária R$ ${job.params.diaria}`,
+          });
           const record: BidDispatchRecord = {
             id, id_tarefa: taskId, chapa_nome: candidate.nome, chapa_telefone: candidate.telefone,
             empresa: job.empresa, data_tarefa: job.dataTarefa, params_json: paramsJson,
