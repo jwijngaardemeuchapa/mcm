@@ -301,7 +301,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     ? `Grupo — ${clienteInfo?.nome ?? task.empresa}`
     : selectedChapa?.nome_chapa ?? "";
   const selectedTelefone = selectedKey === CLIENTE_KEY
-    ? null // envio pro grupo não confirmado ainda — só visualização
+    ? null // grupo não tem telefone — ConversationPane envia por chatId (isGroup) quando é null aqui
     : selectedChapa?.telefone_chapa ?? null;
 
   const chapaPendingAction = chapaJobState?.action ?? null;

@@ -343,6 +343,56 @@ export async function sendUmblerFreeText({
   }
 }
 
+// Grupo (chat do cliente) não tem telefone individual pra usar o endpoint
+// "simplified" (exige ToPhone) — confirmado no Swagger oficial
+// (app-utalk.umbler.com/api/docs/v1/docs.json) que POST /v1/messages/
+// (não o /simplified/) aceita ChatId direto em vez de telefone, mesmo
+// schema de anexo (multipart, campo File binário).
+export async function sendUmblerGroupMessage({
+  chatId,
+  message,
+  file,
+  settings,
+}: {
+  chatId: string;
+  message: string;
+  file?: File;
+  settings: UmblerSettings;
+}): Promise<void> {
+  let body: BodyInit;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    Authorization: `Bearer ${settings.bearerToken}`,
+  };
+
+  if (file) {
+    const form = new FormData();
+    form.set("ChatId", chatId);
+    form.set("OrganizationId", settings.organizationId);
+    if (message) form.set("Message", message);
+    form.set("File", file, file.name);
+    body = form;
+  } else {
+    headers["Content-Type"] = "application/json";
+    body = JSON.stringify({
+      chatId,
+      organizationId: settings.organizationId,
+      message,
+    });
+  }
+
+  const res = await fetch("https://app-utalk.umbler.com/api/v1/messages/", {
+    method: "POST",
+    headers,
+    body,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Umbler msg grupo ${res.status}: ${text}`);
+  }
+}
+
 // ── Busca de chat de grupo (cliente) por telefone/nome — MCM-137 fase 2 ──
 //
 // Confirmado no Swagger oficial (app-utalk.umbler.com/api/docs/v1/docs.json):

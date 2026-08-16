@@ -3,7 +3,7 @@ import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText, Ch
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
+import { fetchUmblerRecentMessages, sendUmblerFreeText, sendUmblerGroupMessage, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
 
@@ -170,14 +170,23 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const windowOpen = hoursSinceContact === null ? null : hoursSinceContact < REPLY_WINDOW_HOURS;
     const overLimit = reply.length > MAX_REPLY_LENGTH;
 
+    // Grupo não tem telefone individual — envia por chatId em vez de
+    // telefone (POST /v1/messages/, confirmado no Swagger oficial da
+    // Umbler). Fora isso, mesmo fluxo do 1:1.
+    const canSendHere = !!personTelefone || (!!isGroup && !!chatId);
+
     async function handleSend() {
       const text = reply.trim();
       const fileSent = pendingFile;
-      if ((!text && !fileSent) || !personTelefone || sending || overLimit || windowOpen === false) return;
+      if ((!text && !fileSent) || !canSendHere || sending || overLimit || windowOpen === false) return;
       setSending(true);
       setSendError(null);
       try {
-        await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, file: fileSent ?? undefined, settings });
+        if (personTelefone) {
+          await sendUmblerFreeText({ chapaTelefone: personTelefone, message: text, file: fileSent ?? undefined, settings });
+        } else {
+          await sendUmblerGroupMessage({ chatId: chatId!, message: text, file: fileSent ?? undefined, settings });
+        }
         // Eco otimista: o GET relative-messages pode demorar alguns segundos
         // pra devolver a mensagem recém-enviada — sem isso, imagem/áudio
         // enviados ficavam sem NENHUM preview até o reload seguinte pegar a
@@ -265,12 +274,14 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
           ))}
         </div>
         </div>
-        {personTelefone && (
+        {canSendHere && (
           <div className="border-t border-border p-2.5 shrink-0">
           <div className="max-w-3xl mx-auto space-y-2">
             {windowOpen === false && (
               <div className="text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2 py-1.5">
-                Janela de 24h fechada — o chapa não responde há mais de 24h. Envio de texto livre bloqueado; use um template (FUP/BID) pra reabrir a conversa.
+                {isGroup
+                  ? "Janela de 24h fechada — ninguém do grupo respondeu nas últimas 24h. Envio de texto livre bloqueado."
+                  : "Janela de 24h fechada — o chapa não responde há mais de 24h. Envio de texto livre bloqueado; use um template (FUP/BID) pra reabrir a conversa."}
               </div>
             )}
             {sendError && (
