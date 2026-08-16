@@ -3,6 +3,7 @@ import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText, Ch
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 import { fetchUmblerRecentMessages, sendUmblerFreeText, sendUmblerGroupMessage, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
@@ -73,6 +74,10 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     // Blob URLs criadas só pro eco otimista (ver handleSend) — revogadas
     // assim que o próximo load() troca a lista inteira por dados reais.
     const optimisticUrlsRef = useRef<string[]>([]);
+    // Ids de mensagem do contato já vistos — pra notificar só o que É novo
+    // no auto-refresh, não repetir toast do que já apareceu antes.
+    const seenContactMsgIdsRef = useRef<Set<string>>(new Set());
+    const hasLoadedOnceRef = useRef(false);
 
     function scrollToBottom(smooth = false) {
       const el = scrollRef.current;
@@ -80,26 +85,44 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
       el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
     }
 
-    function load() {
+    function load(opts?: { silent?: boolean }) {
       if (!chatId) return;
-      setLoading(true);
-      setError(null);
+      const silent = opts?.silent ?? false;
+      if (!silent) { setLoading(true); setError(null); }
       fetchUmblerRecentMessages({ chatId, settings, take: TAKE })
         .then((msgs) => {
           for (const url of optimisticUrlsRef.current) URL.revokeObjectURL(url);
           optimisticUrlsRef.current = [];
+
+          // Notifica só mensagem NOVA do contato, e só depois do primeiro
+          // load (senão notificaria a conversa inteira ao abrir).
+          const novasDoContato = msgs.filter(
+            (m) => m.source === "Contact" && !seenContactMsgIdsRef.current.has(m.id),
+          );
+          for (const m of msgs) if (m.source === "Contact") seenContactMsgIdsRef.current.add(m.id);
+          if (hasLoadedOnceRef.current && novasDoContato.length > 0) {
+            toast.info(`Nova mensagem de ${personName}`, {
+              description: novasDoContato[novasDoContato.length - 1]?.content?.slice(0, 80) || undefined,
+            });
+          }
+          hasLoadedOnceRef.current = true;
+
           setMessages(msgs);
           // Chat sempre abre com o scroll no fim (mensagem mais recente). Um
           // rAF só não bastava: o painel (TaskDetailPanel) entra com uma
           // animação de slide-in de 300ms, então a altura medida logo depois
           // do setMessages ainda reflete o layout em transição — reforça o
-          // scroll de novo depois da animação terminar.
-          requestAnimationFrame(() => scrollToBottom(false));
-          setTimeout(() => scrollToBottom(false), 350);
+          // scroll de novo depois da animação terminar. No auto-refresh
+          // silencioso só rola se chegou mensagem nova (não força scroll
+          // toda hora sem motivo).
+          if (!silent || novasDoContato.length > 0) {
+            requestAnimationFrame(() => scrollToBottom(!silent ? false : true));
+            if (!silent) setTimeout(() => scrollToBottom(false), 350);
+          }
           if (isGroup) resolveGroupSenderNames(msgs);
         })
-        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
-        .finally(() => setLoading(false));
+        .catch((e) => { if (!silent) setError(e instanceof Error ? e.message : String(e)); })
+        .finally(() => { if (!silent) setLoading(false); });
     }
 
     // Grupo: a API só devolve o id de quem mandou (`senderContactId`), não o
@@ -122,7 +145,19 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
       setReply("");
       setSendError(null);
       clearAttachment();
+      seenContactMsgIdsRef.current = new Set();
+      hasLoadedOnceRef.current = false;
       if (chatId) load();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatId]);
+
+    // Auto-refresh — antes só atualizava clicando no botão. Silencioso (sem
+    // spinner/erro visível) pra não incomodar; se vier mensagem nova do
+    // contato, load() já dispara o toast de notificação.
+    useEffect(() => {
+      if (!chatId) return;
+      const t = setInterval(() => load({ silent: true }), 20_000);
+      return () => clearInterval(t);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chatId]);
 
