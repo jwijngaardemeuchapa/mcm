@@ -641,57 +641,40 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         </p>
                       </div>
                     </div>
-                    {/* Botões dedicados em vez de clicar no nome — clicar na linha
-                        pra selecionar a conversa acabava disparando cópia sem
-                        querer quando o clique caía em cima do texto do nome. */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                    {/* Um "..." só em vez de 3 ícones disputando espaço na
+                        linha (feedback do usuário: alvo pequeno demais,
+                        fácil clicar errado). Clicar na linha pra selecionar
+                        a conversa continua não confundindo com copiar. */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`); }}
-                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors"
-                          aria-label="Copiar nome"
+                          onClick={(e) => e.stopPropagation()}
+                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors data-[state=open]:!text-foreground data-[state=open]:!bg-muted"
+                          aria-label="Copiar"
                         >
-                          <Copy className="h-3 w-3" />
+                          <MoreHorizontal className="h-3.5 w-3.5" />
                         </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">Copiar nome</TooltipContent>
-                    </Tooltip>
-                    {c.telefone_chapa && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              clipboardWrite((c.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado");
-                            }}
-                            className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors"
-                            aria-label="Copiar telefone"
-                          >
-                            <Phone className="h-3 w-3" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right">Copiar telefone</TooltipContent>
-                      </Tooltip>
-                    )}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onClick={() => clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`)}>
+                          <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome
+                        </DropdownMenuItem>
+                        {c.telefone_chapa && (
+                          <DropdownMenuItem onClick={() => clipboardWrite((c.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado")}>
+                            <Phone className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar telefone
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem
+                          onClick={() => {
                             const phone = (c.telefone_chapa ?? "").replace(/\D/g, "");
                             clipboardWrite(`${c.nome_chapa}${phone ? ` - ${phone}` : ""}`, "Nome e telefone copiados");
                           }}
-                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors"
-                          aria-label="Copiar nome e telefone"
                         >
-                          <ClipboardList className="h-3 w-3" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">Copiar nome + telefone</TooltipContent>
-                    </Tooltip>
+                          <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome + telefone
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 );
               })}
