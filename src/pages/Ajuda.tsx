@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.60</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.61</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,13 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.60 — Novidades desta versão:</strong>{" "}
-              <strong>Fix — foco do campo de digitação</strong> no chat sumia após enviar uma mensagem, precisava clicar de novo pra continuar digitando.{" "}
-              <strong>Fix — scroll do chat</strong> parava de seguir mensagens novas que não fossem do próprio contato (ex: mensagem sua de outra sessão, ou de bot); agora rola sempre.{" "}
-              <strong>Ações rápidas no hover</strong> — Confirmar e "Sem resposta" aparecem direto na lista compacta de chapas do Panorama/Timeline, sem precisar abrir a conversa; "Cancelar tarefa (individual)" somado ao menu "...".{" "}
-              <strong>Timer geral vs. individual</strong> — enquanto só teve FUP em massa, mostra o timer de sempre; a partir do primeiro disparo manual, cada chapa mostra seu próprio "há Xmin" (Cards, Panorama, Timeline, BID).{" "}
-              <strong>Atalhos de mensagem no "Mensagem a todos"</strong> do Panorama/Timeline — só existia nos Cards.{" "}
-              <strong>Scrollbar mais discreta</strong> em todo o app.
+              <strong>v1.0.61 — Novidades desta versão:</strong>{" "}
+              <strong>Navegação anterior/próxima tarefa</strong> — setas nos cards abertos (Cards, Panorama, Timeline) navegam pra tarefa seguinte/anterior na ordem visível da tela, com atalho de teclado ←/→ no Panorama/Timeline.{" "}
+              <strong>Cor do card revista</strong> — agora reflete confirmação e proximidade do horário: verde só com todos confirmados, vermelho com zero confirmado a 60min (ou já passou) do início, amarelo dentro de 3h, cinza fora disso ou "Em Análise".
             </span>
           </div>
         )}
@@ -1009,7 +1005,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.60 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.61 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1044,7 +1040,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.60 · © 2026 Wijngaarde Design
+        MCM v1.0.61 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
