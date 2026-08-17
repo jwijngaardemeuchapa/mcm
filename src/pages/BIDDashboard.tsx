@@ -1620,6 +1620,17 @@ function BidTaskCard({
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`${rows.length} disponíveis exportados pro 3C`);
+    // Espelha na Central — liderança vê quando o analista salvou os
+    // contatos pra ligar pelo 3C (não é um disparo de mensagem, mas
+    // reaproveita a mesma tabela/visão de eventos por tarefa que já existe).
+    pushDispatchEventToCentral({
+      id_tarefa: task.id_tarefa,
+      telefone_chapa: null,
+      cpf: null,
+      nome_chapa: null,
+      canal: "csv_3c",
+      observacao: `CSV 3C — ${rows.length} disponíveis exportados`,
+    });
   }
 
   function toggleSelect(key: string) {
