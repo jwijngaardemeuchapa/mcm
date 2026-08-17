@@ -74,6 +74,7 @@ import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase, sincronizarMetabase30h } from "@/lib/metabaseSync";
 import * as XLSX from "xlsx";
 import { useSidebar } from "@/components/ui/sidebar";
+import { consumeArrowKey } from "@/lib/taskNav";
 import { toast } from "sonner";
 import { TrocaDeTurno } from "@/components/TrocaDeTurno";
 
@@ -594,6 +595,9 @@ export default function Dashboard() {
           break;
         case "ArrowLeft":
           e.preventDefault();
+          // Enquanto o TaskDetailPanel está aberto (Panorama/Timeline), ←/→
+          // navegam entre tarefas em vez de trocar o dia — ver src/lib/taskNav.ts.
+          if (consumeArrowKey("ArrowLeft")) break;
           setSelectedDate((prev) => {
             const d = new Date(`${prev}T12:00:00-03:00`);
             d.setDate(d.getDate() - 1);
@@ -602,6 +606,7 @@ export default function Dashboard() {
           break;
         case "ArrowRight":
           e.preventDefault();
+          if (consumeArrowKey("ArrowRight")) break;
           setSelectedDate((prev) => {
             const d = new Date(`${prev}T12:00:00-03:00`);
             d.setDate(d.getDate() + 1);
@@ -740,6 +745,55 @@ export default function Dashboard() {
     return true;
   };
 
+  const isCardsTaskDone = (t: TaskWithChapas) =>
+    t.chapas.length > 0 &&
+    t.chapas.every((c) => c.status_contato === "confirmado") &&
+    (t.validacao_status ?? "aguardando") === "subido_meu_chapa";
+
+  // Ordem "visível" dos cards na Visão Detalhada — overnight primeiro, depois
+  // por data (pendentes antes de concluídas dentro de cada data). Precisa
+  // espelhar exatamente o que o bloco de render mais abaixo mostra na tela;
+  // alimenta as setas prev/next do TaskCard (navegação entre tarefas).
+  const cardsOrder = useMemo(() => {
+    if (viewMode !== "detailed") return [] as number[];
+    const overnightIds = overnightForDisplay
+      .filter((t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)))
+      .map((t) => t.id_tarefa);
+    const visible = tasksForDisplay.filter(
+      (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
+    );
+    const byDate = new Map<string, TaskWithChapas[]>();
+    visible.forEach((t) => {
+      const k = fmtSP(t.data_tarefa, "yyyy-MM-dd");
+      if (!byDate.has(k)) byDate.set(k, []);
+      byDate.get(k)!.push(t);
+    });
+    const dates = Array.from(byDate.keys()).sort();
+    const dateIds = dates.flatMap((d) => {
+      const group = byDate.get(d)!;
+      const pending = group.filter((t) => !isCardsTaskDone(t)).map((t) => t.id_tarefa);
+      const done = group.filter(isCardsTaskDone).map((t) => t.id_tarefa);
+      return [...pending, ...done];
+    });
+    return [...overnightIds, ...dateIds];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, overnightForDisplay, tasksForDisplay, companyFilter, onlyNotUploaded, onlyNoUmblerFup, search, searchMatchIds]);
+
+  // Tarefas visíveis na Timeline — mesmo filtro usado no render mais abaixo,
+  // extraído aqui pra alimentar tanto o <TaskTimeline> quanto a ordem prev/
+  // next do painel de overlay (segue a ordem do array, não a posição X/Y do
+  // bloco no Gantt).
+  const timelineTasks = useMemo(() => {
+    if (viewMode !== "timeline") return [] as TaskWithChapas[];
+    return tasksForDisplay.filter(
+      (t) => passesExtraFilters(t)
+        && (!searchMatchIds || searchMatchIds.has(t.id_tarefa))
+        && fmtSP(t.data_tarefa, "yyyy-MM-dd") === selectedDate,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, tasksForDisplay, companyFilter, onlyNotUploaded, onlyNoUmblerFup, search, searchMatchIds, selectedDate]);
+  const timelineOrderedIds = useMemo(() => timelineTasks.map((t) => t.id_tarefa), [timelineTasks]);
+
   // Stats
   const totalChapas = displayCards.reduce((a, t) => a + (t.quantidade_chapas || t.chapas.length), 0);
   const confirmedChapas = displayCards.reduce(
@@ -770,6 +824,14 @@ export default function Dashboard() {
     });
     setForceCollapseMap(next);
     setOnlyPending(true);
+  }
+
+  // Navegação prev/next entre TaskCards (Visão Detalhada) — colapsa o card
+  // atual, força a abertura do alvo (mesmo mecanismo do forceCollapse usado
+  // por "Colapsar tudo"/"Só pendentes") e rola até ele.
+  function navigateCard(fromId: number, toId: number) {
+    setForceCollapseMap((prev) => ({ ...prev, [fromId]: true, [toId]: false }));
+    setTimeout(() => doFlash(toId), 260);
   }
 
   function doFlash(id: number) {
@@ -1418,6 +1480,8 @@ export default function Dashboard() {
                 matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                 newChapaKeys={newChapaKeys}
                 confiabilidade={confiabilidade}
+                cardsOrder={cardsOrder}
+                onNavigateCard={(toId) => navigateCard(t.id_tarefa, toId)}
               />
             ))}
         </section>
@@ -1553,13 +1617,7 @@ export default function Dashboard() {
       ) : viewMode === "timeline" ? (
         <div className="px-4 pb-4">
           <TaskTimeline
-            tasks={tasksForDisplay.filter(
-              (t) => passesExtraFilters(t)
-                && (!searchMatchIds || searchMatchIds.has(t.id_tarefa))
-                // Timeline plota por hora do dia (ignora a data); restringe ao dia
-                // selecionado para não sobrepor tarefas de amanhã sobre as de hoje.
-                && fmtSP(t.data_tarefa, "yyyy-MM-dd") === selectedDate,
-            )}
+            tasks={timelineTasks}
             onTaskClick={(id) => setTimelineOverlayTaskId(id)}
           />
         </div>
@@ -1638,6 +1696,8 @@ export default function Dashboard() {
                         matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                         newChapaKeys={newChapaKeys}
                         confiabilidade={confiabilidade}
+                        cardsOrder={cardsOrder}
+                        onNavigateCard={(toId) => navigateCard(t.id_tarefa, toId)}
                       />
                     ))}
                   </>
@@ -1662,6 +1722,8 @@ export default function Dashboard() {
                         matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                         newChapaKeys={newChapaKeys}
                         confiabilidade={confiabilidade}
+                        cardsOrder={cardsOrder}
+                        onNavigateCard={(toId) => navigateCard(t.id_tarefa, toId)}
                       />
                     ))}
                   </>
@@ -1765,6 +1827,8 @@ export default function Dashboard() {
             open={timelineOverlayTaskId !== null}
             onClose={() => setTimelineOverlayTaskId(null)}
             onRefresh={() => load()}
+            orderedIds={timelineOrderedIds}
+            onNavigateTask={(id) => setTimelineOverlayTaskId(id)}
           />
         );
       })()}

@@ -150,6 +150,8 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
         open={selectedId !== null}
         onClose={() => setSelectedId(null)}
         onRefresh={onRefresh}
+        orderedIds={allForLookup.map((t) => t.id_tarefa)}
+        onNavigateTask={(id) => setSelectedId(id)}
       />
     </>
   );
