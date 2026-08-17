@@ -3,6 +3,38 @@
 
 ---
 
+## 2026-08-16 — MCM — Catch-up com sessão paralela (v1.0.48→v1.0.58) + fix de typecheck
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** nenhum novo
+**Commits:** a966c9a (fix ConversationPane)
+
+Usuário pediu pra puxar e se familiarizar com tudo que a outra máquina fez
+(90+ commits, v1.0.48 a v1.0.58 — já publicada e assinada, sem pendência de
+release). `git pull` trouxe: app "Central" (Lovable) com integração parcial
+e depois revertida duas vezes (produção não depende dela), incidente real
+de "database is locked" corrigido em 2 etapas (WAL → UPSERT definitivo),
+hotfix de feature vazada em produção ("Solicitar pagamento"), fix crítico
+de segurança na Central (MCM-150), redesign do painel de tarefa pra "card
+centralizado", `CarteiraSelector.tsx` novo, grupo do cliente ganhou envio
+de mensagem + notificação de msg nova + auto-refresh, menu "..." consolida
+ícones de copiar. Detalhes completos já estavam registrados nas entradas
+abaixo (leia-as, não repassar de novo).
+
+Único achado desta sessão: `npm run typecheck` subiu de 13 pra 14 erros
+depois do pull. Isolado como regressão real (não um dos 13 conhecidos):
+`ConversationPane.tsx(278)` passava `load` (assinatura
+`(opts?: {silent?:boolean}) => void`) direto como `onClick`, incompatível
+com `MouseEventHandler`. Corrigido pra `onClick={() => load()}`. Baseline
+real confirmada como **14** (não 13 — meu registro anterior de "13" estava
+desatualizado; os 14 erros atuais são todos pré-existentes, nenhum novo).
+
+Também notado: existe branch `origin/beta` ativo, à frente de `main`, com
+trabalho em andamento de integração Central (empurrar evento de disparo
+FUP+BID pra Central, fix de `syncRegistroFromCentral`). Não investigado a
+fundo ainda — só confirmada a existência.
+
+---
+
 ## 2026-08-19 — MCM — Release v1.0.57: card centralizado + atalhos de mensagem + envio em grupo + revisão de UI
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-152 (fechado), MCM-153 (parcial — grupo sender ID ainda pendente)
