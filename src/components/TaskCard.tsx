@@ -9,6 +9,8 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Copy,
   ClipboardList,
@@ -213,6 +215,8 @@ export function TaskCard({
   newChapaKeys,
   autoRemoveChapaName,
   confiabilidade,
+  cardsOrder,
+  onNavigateCard,
 }: {
   task: TaskWithChapas;
   onRefresh: () => void;
@@ -221,6 +225,12 @@ export function TaskCard({
   newChapaKeys?: Set<string>;
   autoRemoveChapaName?: string;
   confiabilidade?: Map<string, ConfiabilidadeStats>;
+  // Ordem "visível" (já filtrada/agrupada) dos cards na tela, pra habilitar
+  // as setas prev/next no header — e o callback que o Dashboard usa pra
+  // colapsar este card e abrir/rolar até o alvo. Opcionais: sem eles o card
+  // funciona exatamente como antes, sem as setas.
+  cardsOrder?: number[];
+  onNavigateCard?: (targetId: number) => void;
 }) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -768,6 +778,17 @@ Precisamos de 1 substituto para esta tarefa.`;
     );
   }
 
+  // Navegação prev/next entre tarefas visíveis (setas no header) — só
+  // aparece quando o Dashboard passou a ordem visível atual e este card está
+  // nela. Card inline numa lista (não é modal), então as setas ficam
+  // embutidas no header em vez de flutuando fora do card.
+  const cardIdx = cardsOrder ? cardsOrder.indexOf(task.id_tarefa) : -1;
+  const hasPrevCard = cardIdx > 0;
+  const hasNextCard = cardIdx !== -1 && cardIdx < (cardsOrder?.length ?? 0) - 1;
+  const prevCardId = hasPrevCard ? cardsOrder![cardIdx - 1] : null;
+  const nextCardId = hasNextCard ? cardsOrder![cardIdx + 1] : null;
+  const showCardNav = !!cardsOrder && !!onNavigateCard && cardIdx !== -1;
+
   return (
     <div
       data-task-card={task.id_tarefa}
@@ -1042,6 +1063,38 @@ Precisamos de 1 substituto para esta tarefa.`;
             >
               <Check className="h-3.5 w-3.5" /> Confirmar todos
             </Button>
+          )}
+          {showCardNav && (
+            <div className="flex items-center gap-0.5 border-l border-border/60 pl-1.5 ml-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => hasPrevCard && prevCardId != null && onNavigateCard!(prevCardId)}
+                    disabled={!hasPrevCard}
+                    className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    aria-label="Tarefa anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Tarefa anterior</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => hasNextCard && nextCardId != null && onNavigateCard!(nextCardId)}
+                    disabled={!hasNextCard}
+                    className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center text-muted-foreground transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                    aria-label="Próxima tarefa"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Próxima tarefa</TooltipContent>
+              </Tooltip>
+            </div>
           )}
           {isDone && userExpanded ? (
             <button

@@ -6,6 +6,7 @@ import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
   MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send, Download,
   Clock, MapPin, UserCheck, History, ClipboardList, ArrowLeft, Pencil, Plus,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -44,6 +45,7 @@ import { useChapaJobState, useTaskCancelState, useMassFupState, useCustomMsgStat
 import { type TaskWithChapas, UnreadDot } from "@/components/TaskCard";
 import { last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
+import { setActiveTaskNav } from "@/lib/taskNav";
 
 const CLIENTE_KEY = "__cliente__";
 
@@ -126,12 +128,17 @@ type TaskDetailPanelProps = {
   open: boolean;
   onClose: () => void;
   onRefresh: () => void;
+  // Navegação prev/next entre tarefas — ordem "visível" (já filtrada/
+  // ordenada) de quem chama (Panorama ou Dashboard/Timeline). Opcional: sem
+  // isso o painel funciona exatamente como antes, sem setas de navegação.
+  orderedIds?: number[];
+  onNavigateTask?: (id: number) => void;
 };
 
 // Painel de tarefa — lista de chapas + grupo do cliente à esquerda, conversa
 // da pessoa selecionada à direita. Tela cheia, slide-up ao abrir/slide-down
 // ao fechar (Radix Dialog customizado) — desenho pedido pelo usuário.
-export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, onNavigateTask }: TaskDetailPanelProps) {
   const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [groupPickerOpen, setGroupPickerOpen] = useState(false);
@@ -361,6 +368,43 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   // sempre, na mesma ordem, mesmo quando task/selectedChapa são nulos.
   const chapaJobState = useChapaJobState(selectedChapa?.id ?? "");
 
+  // Navegação prev/next — respeita a ordem "visível" já filtrada/ordenada
+  // recebida do chamador (Panorama tem sua própria lista; Dashboard passa a
+  // da Timeline). Sem orderedIds/onNavigateTask o painel funciona como
+  // antes, sem setas.
+  const orderedIdsKey = orderedIds ? orderedIds.join(",") : "";
+  const navInfo = useMemo(() => {
+    if (!orderedIds || !onNavigateTask || taskId == null) return null;
+    const idx = orderedIds.indexOf(taskId);
+    if (idx === -1) return null;
+    return {
+      hasPrev: idx > 0,
+      hasNext: idx < orderedIds.length - 1,
+      prevId: idx > 0 ? orderedIds[idx - 1] : null,
+      nextId: idx < orderedIds.length - 1 ? orderedIds[idx + 1] : null,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderedIdsKey, onNavigateTask, taskId]);
+
+  // Enquanto aberto, registra prev/next no singleton global — o keydown
+  // handler do Dashboard consulta isso pra saber se ←/→ deve navegar entre
+  // tarefas em vez de trocar o dia selecionado (MCM: navegação de tarefa).
+  useEffect(() => {
+    if (!open || !navInfo || !onNavigateTask) {
+      setActiveTaskNav(null);
+      return;
+    }
+    setActiveTaskNav({
+      hasPrev: navInfo.hasPrev,
+      hasNext: navInfo.hasNext,
+      onNavigate: (direction) => {
+        const id = direction === "prev" ? navInfo.prevId : navInfo.nextId;
+        if (id != null) onNavigateTask(id);
+      },
+    });
+    return () => setActiveTaskNav(null);
+  }, [open, navInfo, onNavigateTask]);
+
   if (!task) return null;
 
   // Timer de FUP no header — só aparece enquanto a tarefa teve apenas
@@ -521,8 +565,29 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        {/* Wrapper flex centraliza o Content e dá espaço pras setas
+            prev/next fora do card — substitui o antigo posicionamento
+            fixed+translate por centralização via flexbox, que acomoda os
+            botões como irmãos sem precisar medir a largura do dialog. */}
+        <div className="fixed inset-0 z-40 flex items-center justify-center gap-3 px-3 pointer-events-none">
+          {navInfo && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => navInfo.hasPrev && navInfo.prevId != null && onNavigateTask?.(navInfo.prevId)}
+                  disabled={!navInfo.hasPrev}
+                  className="pointer-events-auto shrink-0 h-10 w-10 rounded-full bg-card border border-border shadow-elevated flex items-center justify-center text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-card"
+                  aria-label="Tarefa anterior"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Tarefa anterior [←]</TooltipContent>
+            </Tooltip>
+          )}
         <DialogPrimitive.Content
-          className={`fixed left-1/2 top-1/2 z-40 -translate-x-1/2 -translate-y-1/2 h-[min(840px,90vh)] rounded-2xl shadow-2xl overflow-hidden bg-card flex flex-col transition-[width] duration-300 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:duration-150 data-[state=open]:duration-200 ${
+          className={`pointer-events-auto shrink-0 relative z-40 h-[min(840px,90vh)] rounded-2xl shadow-2xl overflow-hidden bg-card flex flex-col transition-[width] duration-300 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:duration-150 data-[state=open]:duration-200 ${
             hasSelection ? "w-[min(1180px,94vw)]" : "w-[min(640px,94vw)]"
           }`}
           onOpenAutoFocus={(e) => e.preventDefault()}
@@ -1132,6 +1197,23 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
             />
           )}
         </DialogPrimitive.Content>
+          {navInfo && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => navInfo.hasNext && navInfo.nextId != null && onNavigateTask?.(navInfo.nextId)}
+                  disabled={!navInfo.hasNext}
+                  className="pointer-events-auto shrink-0 h-10 w-10 rounded-full bg-card border border-border shadow-elevated flex items-center justify-center text-foreground hover:bg-muted transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-card"
+                  aria-label="Próxima tarefa"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Próxima tarefa [→]</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
