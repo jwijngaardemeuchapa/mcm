@@ -14,7 +14,7 @@ import { FillRateBar } from "./FillRateBar";
 import { fmtTime, fmtSP, taskTzLabel } from "@/lib/datetime";
 import { todayDateISO_SP } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
-import { computeTaskState } from "@/lib/taskState";
+import { computeTaskState, taskSeverityRowClass } from "@/lib/taskState";
 import { last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
 
@@ -168,7 +168,7 @@ function PanoramaRow({
   threshold: number;
   onClick: () => void;
 }) {
-  const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert } =
+  const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert, severity } =
     computeTaskState(task, threshold);
 
   // MCM-159: agregado — visão densa (sem linha por chapa visível), então o
@@ -197,26 +197,10 @@ function PanoramaRow({
   // Mesma lógica para Em Análise — fica amarelo claro.
   const emAnalise = task.status_tarefa === "Em Análise";
 
-  let accentBorder = "border-l-border";
-  let rowBg = "";
-  if (task.continuingFromYesterday) { accentBorder = "border-l-overnight"; rowBg = "bg-overnight/5"; }
-  else if (emAndamento && (isDone || fullyValidated)) { accentBorder = "border-l-info"; rowBg = "bg-info/[0.04]"; }
-  else if (emAnalise && (isDone || fullyValidated)) { accentBorder = "border-l-analise"; rowBg = "bg-analise/[0.04]"; }
-  else if (isDone) { accentBorder = "border-l-success"; rowBg = "bg-success/[0.04]"; }
-  else if (fullyValidated) { accentBorder = "border-l-success"; }
-  else if (showApproachAlert) { accentBorder = "border-l-warning"; rowBg = "bg-warning/5"; }
-  else if (task.urgent) { accentBorder = "border-l-destructive"; rowBg = "bg-destructive/[0.04]"; }
-  else if (task.is_overnight) { accentBorder = "border-l-overnight"; }
-  else if (emAndamento) { accentBorder = "border-l-info"; }
-  else if (emAnalise) { accentBorder = "border-l-analise"; }
-
-  const timeColor = isDone
-    ? "text-muted-foreground"
-    : showApproachAlert
-    ? "text-warning"
-    : task.urgent
-    ? "text-destructive"
-    : "text-foreground";
+  // Cor da linha agora vem só do severity central (confirmação x tempo) —
+  // overnight/continuando saíram do cálculo de cor, o ícone de lua (abaixo)
+  // já sinaliza isso separadamente.
+  const { accentBorder, rowBg, timeColor } = taskSeverityRowClass(severity);
 
   const vStatus = task.validacao_status ?? "aguardando";
   let statusNode: React.ReactNode;

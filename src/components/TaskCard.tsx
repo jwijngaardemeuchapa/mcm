@@ -77,7 +77,7 @@ import { useClienteInfo } from "@/lib/useClienteInfo";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
-import { computeTaskState } from "@/lib/taskState";
+import { computeTaskState, taskSeverityCardBorderClass } from "@/lib/taskState";
 import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { umblerChatLink, last11Digits } from "@/lib/umbler";
@@ -298,7 +298,7 @@ export function TaskCard({
 
   const { fillRateWarningThreshold } = readSettings();
   const taskState = computeTaskState(task, fillRateWarningThreshold);
-  const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert } = taskState;
+  const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert, severity } = taskState;
 
   type ChapaRow = (typeof task.chapas)[number] & {
     canal_contato?: string | null;
@@ -771,29 +771,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   return (
     <div
       data-task-card={task.id_tarefa}
-      className={`bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${
-        emAndamento && (isDone || fullyValidated)
-          ? "border-info/50 border-l-4 border-l-info ring-1 ring-info/20"
-          : emAnalise && (isDone || fullyValidated)
-          ? "border-analise/50 border-l-4 border-l-analise ring-1 ring-analise/20"
-          : isDone
-          ? "border-success/60 border-l-4 border-l-success ring-1 ring-success/20"
-          : fullyValidated
-          ? "border-success/50 border-l-4 border-l-success ring-1 ring-success/15"
-          : continuing
-          ? "border-overnight/60 ring-2 ring-overnight/30"
-          : isOvernight
-          ? "border-overnight/40 ring-1 ring-overnight/20"
-          : showApproachAlert
-          ? "border-warning/60 ring-2 ring-warning/30"
-          : task.urgent
-          ? "border-destructive/50 ring-1 ring-destructive/20"
-          : emAndamento
-          ? "border-info/50 border-l-4 border-l-info ring-1 ring-info/20"
-          : emAnalise
-          ? "border-analise/50 border-l-4 border-l-analise ring-1 ring-analise/20"
-          : "border-border"
-      } ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
+      className={`bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${taskSeverityCardBorderClass(severity)} ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
       <div
         className={`relative p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border bg-card ${
