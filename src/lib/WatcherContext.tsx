@@ -9,6 +9,8 @@ import { logActivity, pruneActivityLog } from "./activityLog";
 import { getActiveCarteiraNames } from "./carteira";
 import { companyMatches } from "./company";
 import { haDisparoParaAmanha, sincronizarMetabase30h } from "./metabaseSync";
+import { readSettings } from "./settings";
+import { fetchUmblerUnreadChats, last11Digits } from "./umbler";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /* ─── context ── */
@@ -16,9 +18,21 @@ import type { TaskWithChapas } from "@/components/TaskCard";
 type WatcherCtx = {
   notifLog: WatcherActivity[];
   clearLog: () => void;
+  // Mensagens não lidas no Umbler Talk — telefone (últimos 11 dígitos) e
+  // chatId (grupo do cliente, mesmo id de cliente_book.umbler_group_chat_id)
+  // de chats com totalUnread > 0. MCM-159: alimenta o ponto vermelho
+  // didático em TaskCard/TaskDetailPanel/TaskPanorama/TaskTimeline/
+  // BIDDashboard, pra avisar de mensagem nova mesmo com a tarefa fechada.
+  unreadPhones: Set<string>;
+  unreadChatIds: Set<string>;
 };
 
-const WatcherContext = createContext<WatcherCtx>({ notifLog: [], clearLog: () => {} });
+const WatcherContext = createContext<WatcherCtx>({
+  notifLog: [],
+  clearLog: () => {},
+  unreadPhones: new Set(),
+  unreadChatIds: new Set(),
+});
 
 export function useWatcherLog() {
   return useContext(WatcherContext);
@@ -29,6 +43,8 @@ export function useWatcherLog() {
 export function WatcherProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<TaskWithChapas[]>([]);
   const [notifLog, setNotifLog] = useState<WatcherActivity[]>([]);
+  const [unreadPhones, setUnreadPhones] = useState<Set<string>>(new Set());
+  const [unreadChatIds, setUnreadChatIds] = useState<Set<string>>(new Set());
 
   // Conjunto de empresas visíveis na carteira (filtro de grupos). Cache em ref para
   // ser lido dentro dos handlers sem stale closure. [] = sem filtro (tudo passa).
@@ -147,6 +163,27 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(t);
   }, []);
 
+  // Polling de mensagens não lidas no Umbler Talk (MCM-159) — a cada 40s,
+  // trivial dentro do limite de 100 req/5s da Umbler. Só roda se a integração
+  // estiver configurada; best-effort (fetchUmblerUnreadChats já engole erro
+  // de rede/API e devolve [] — não deve gerar toast nem quebrar o watcher).
+  useEffect(() => {
+    const tick = async () => {
+      const { umblerSettings } = readSettings();
+      if (!umblerSettings.bearerToken || !umblerSettings.organizationId) return;
+      const chats = await fetchUmblerUnreadChats({ settings: umblerSettings });
+      setUnreadPhones(new Set(
+        chats.map((c) => last11Digits(c.phoneNumber)).filter((d) => d.length > 0),
+      ));
+      setUnreadChatIds(new Set(
+        chats.map((c) => c.chatId).filter((id): id is string => !!id),
+      ));
+    };
+    tick();
+    const t = setInterval(tick, 40_000);
+    return () => clearInterval(t);
+  }, []);
+
   const handleRefresh = useCallback(() => {
     loadTasks();
     window.dispatchEvent(new CustomEvent("fup:refresh"));
@@ -228,7 +265,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   const clearLog = useCallback(() => setNotifLog([]), []);
 
   return (
-    <WatcherContext.Provider value={{ notifLog, clearLog }}>
+    <WatcherContext.Provider value={{ notifLog, clearLog, unreadPhones, unreadChatIds }}>
       {children}
     </WatcherContext.Provider>
   );

@@ -40,7 +40,9 @@ import { fmtTime, fmtDateTime, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { toast } from "sonner";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
 import { useChapaJobState, useTaskCancelState, useMassFupState, useCustomMsgState } from "@/lib/useDispatchJob";
-import { type TaskWithChapas } from "@/components/TaskCard";
+import { type TaskWithChapas, UnreadDot } from "@/components/TaskCard";
+import { last11Digits } from "@/lib/umbler";
+import { useWatcherLog } from "@/lib/WatcherContext";
 
 const CLIENTE_KEY = "__cliente__";
 
@@ -142,6 +144,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   const { push } = useUndo();
   const umblerSettings = readSettings().umblerSettings;
   const [clienteInfo, reloadClienteInfo] = useClienteInfo(task?.empresa ?? "");
+  const { unreadPhones, unreadChatIds } = useWatcherLog();
 
   const umblerReady = !!(umblerSettings.bearerToken && umblerSettings.fromPhone && umblerSettings.organizationId);
   const cancelTemplateReady = umblerReady && !!umblerSettings.cancelTemplateId;
@@ -696,6 +699,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                 const selected = selectedKey === c.id;
                 const meta = chapaStatusMeta(c.status_contato, !!lastDispatch);
                 const elapsedMin = lastDispatch ? Math.floor((Date.now() - new Date(lastDispatch).getTime()) / 60_000) : null;
+                // MCM-159: some sozinho no próximo poll (~40s) quando a
+                // conversa é aberta e o totalUnread zera no servidor.
+                const chapaHasUnread = !!c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa));
                 return (
                   <div
                     key={c.id}
@@ -714,8 +720,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         {c.nome_chapa!.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className={`text-[13px] truncate ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>
-                          {c.nome_chapa}
+                        <p className={`text-[13px] truncate flex items-center gap-1.5 ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>
+                          {chapaHasUnread && <UnreadDot title="Mensagem nova no Umbler" />}
+                          <span className="truncate">{c.nome_chapa}</span>
                         </p>
                         <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
@@ -786,7 +793,12 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         <Users className="h-3 w-3 text-primary" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[13px] truncate">Grupo — {clienteInfo.nome}</p>
+                        <p className="text-[13px] truncate flex items-center gap-1.5">
+                          {!!clienteInfo.umbler_group_chat_id && unreadChatIds.has(clienteInfo.umbler_group_chat_id) && (
+                            <UnreadDot title="Mensagem nova no Umbler" />
+                          )}
+                          <span className="truncate">Grupo — {clienteInfo.nome}</span>
+                        </p>
                         <p className="text-[11px] text-muted-foreground truncate">
                           {clienteInfo.umbler_group_chat_id ? "Vinculado — clique pra ver conversa" : "Não vinculado — clique pra buscar"}
                         </p>

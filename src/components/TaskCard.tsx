@@ -80,8 +80,9 @@ import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueu
 import { computeTaskState } from "@/lib/taskState";
 import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
-import { umblerChatLink } from "@/lib/umbler";
+import { umblerChatLink, last11Digits } from "@/lib/umbler";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useWatcherLog } from "@/lib/WatcherContext";
 
 function formatCpf(cpf: string): string {
   const digits = cpf.replace(/\D/g, "");
@@ -182,6 +183,20 @@ function fmtElapsed(min: number): string {
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
 }
 
+// Ponto vermelho didático — mensagem nova no Umbler Talk (MCM-159). Sem
+// contador, sem texto: só um sinal visual mínimo, pedido explícito do
+// usuário. Compartilhado por TaskCard/TaskDetailPanel/TaskPanorama/
+// TaskTimeline/BIDDashboard pra manter o mesmo visual nos 4 lugares.
+export function UnreadDot({ title = "Mensagem nova" }: { title?: string }) {
+  return (
+    <span
+      className="shrink-0 inline-block h-2 w-2 rounded-full bg-destructive animate-pulse"
+      title={title}
+      aria-label={title}
+    />
+  );
+}
+
 function formatPhone(s: string | null): string {
   if (!s) return "";
   const d = s.replace(/\D/g, "");
@@ -273,6 +288,13 @@ export function TaskCard({
   const [clienteInfo, reloadClienteInfo] = useClienteInfo(task.empresa);
   const [clienteChatOpen, setClienteChatOpen] = useState(false);
   const [clienteGroupPickerOpen, setClienteGroupPickerOpen] = useState(false);
+
+  // MCM-159: mensagem nova no Umbler (chapa ou grupo do cliente) mesmo com a
+  // tarefa colapsada/minimizada — agregado pro ponto no header do card.
+  const { unreadPhones, unreadChatIds } = useWatcherLog();
+  const taskHasUnread =
+    task.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa))) ||
+    (!!clienteInfo?.umbler_group_chat_id && unreadChatIds.has(clienteInfo.umbler_group_chat_id));
 
   const { fillRateWarningThreshold } = readSettings();
   const taskState = computeTaskState(task, fillRateWarningThreshold);
@@ -711,6 +733,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           {isOvernight && <Moon className="h-4 w-4 text-overnight shrink-0" aria-label="Overnight" />}
           <BadgeCheck className={`h-4 w-4 shrink-0 ${emAndamento ? "text-info" : emAnalise ? "text-analise" : "text-success"}`} aria-label="Validada" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
+            {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
             <span className="text-sm text-muted-foreground truncate capitalize">
               {task.empresa.toLowerCase()} — {fmtTime(task.data_tarefa)}
             </span>
@@ -816,6 +839,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
+              {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
               <span className="font-semibold text-foreground truncate capitalize">
                 {task.empresa.toLowerCase()}
               </span>
@@ -1747,6 +1771,12 @@ function ChapaRowView({
   const pendingAction = chapaJobState?.action ?? null;
   const countdown = chapaJobState?.remaining ?? 0;
 
+  // MCM-159: ponto vermelho por chapa — some sozinho no próximo poll do
+  // WatcherContext (~40s) quando `totalUnread` zerar no servidor (a
+  // conversa foi aberta/lida), sem precisar de uma camada própria de "visto".
+  const { unreadPhones: chapaUnreadPhones } = useWatcherLog();
+  const chapaHasUnread = !!chapa.telefone_chapa && chapaUnreadPhones.has(last11Digits(chapa.telefone_chapa));
+
   // cancelSent is stored in localStorage so it persists across re-renders / refreshes
   const cancelSent = (() => {
     try { return !!localStorage.getItem(`umbler_cancel_${chapa.id}`); } catch { return false; }
@@ -1827,6 +1857,7 @@ function ChapaRowView({
       <div className="flex-1 min-w-0">
         {chapa.nome_chapa ? (
           <div className="flex items-center gap-1.5 min-w-0">
+            {chapaHasUnread && <UnreadDot title="Mensagem nova no Umbler" />}
             <button
               type="button"
               onClick={() => clipboardWrite(chapa.nome_chapa!, `Nome copiado: ${chapa.nome_chapa}`)}
