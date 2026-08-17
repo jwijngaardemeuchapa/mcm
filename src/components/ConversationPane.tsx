@@ -1,9 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ChangeEvent } from "react";
-import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText } from "lucide-react";
+import { ExternalLink, Loader2, RefreshCw, Send, Bot, Paperclip, X, FileText, ChevronDown, Pencil, Plus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { fetchUmblerRecentMessages, sendUmblerFreeText, humanizarErroUmbler, umblerChatLink, resolveContactName, type UmblerMessage } from "@/lib/umbler";
-import { readSettings, type UmblerSettings } from "@/lib/settings";
+import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { fmtDateTime } from "@/lib/datetime";
 
 const ATTACHMENT_ACCEPT = "image/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx";
@@ -56,6 +57,17 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
     const [contactNames, setContactNames] = useState<Record<string, string>>({});
+    // Atalhos de mensagem — mesmo mecanismo (e mesma lista salva) já usado
+    // no "Mensagem personalizada" do TaskCard (Cards): settings globais,
+    // clique só preenche o composer, nunca envia sozinho.
+    const [msgTemplates, setMsgTemplates] = useState<string[]>(() => readSettings().customMsgTemplates);
+    const [shortcutsOpen, setShortcutsOpen] = useState(true);
+    const [editingTplIdx, setEditingTplIdx] = useState<number | null>(null);
+    const [editingTplText, setEditingTplText] = useState("");
+    function persistTemplates(next: string[]) {
+      setMsgTemplates(next);
+      writeSettings({ customMsgTemplates: next });
+    }
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Blob URLs criadas só pro eco otimista (ver handleSend) — revogadas
@@ -266,6 +278,72 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                 {sendError}
               </div>
             )}
+            {msgTemplates.length > 0 && (
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setShortcutsOpen((o) => !o)}
+                  className="flex items-center gap-1.5 w-full text-left"
+                >
+                  <span className="text-[10px] font-medium text-muted-foreground">Atalhos</span>
+                  <span className="text-[9px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
+                    {msgTemplates.length}
+                  </span>
+                  <ChevronDown className={`h-3 w-3 text-muted-foreground/50 ml-auto transition-transform duration-150 ${shortcutsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {shortcutsOpen && (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {msgTemplates.map((tpl, idx) =>
+                      editingTplIdx === idx ? (
+                        <div key={idx} className="flex items-center gap-1.5 w-full">
+                          <Input
+                            value={editingTplText}
+                            onChange={(e) => setEditingTplText(e.target.value)}
+                            className="h-7 text-xs flex-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && editingTplText.trim()) {
+                                persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                                setEditingTplIdx(null);
+                              }
+                              if (e.key === "Escape") setEditingTplIdx(null);
+                            }}
+                          />
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-success" disabled={!editingTplText.trim()}
+                            onClick={() => { persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t))); setEditingTplIdx(null); }}>
+                            <Check className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingTplIdx(null)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div key={idx} className="group relative inline-flex items-center max-w-[calc(50%-4px)]">
+                          <button
+                            type="button"
+                            onClick={() => { setReply(tpl); setShortcutsOpen(false); }}
+                            title={tpl}
+                            className="inline-flex items-center rounded-full border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/40 pl-2.5 pr-7 py-1 text-[11px] transition-colors w-full truncate"
+                          >
+                            {tpl}
+                          </button>
+                          <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button type="button" title="Editar" className="text-muted-foreground/50 hover:text-primary transition-colors"
+                              onClick={(e) => { e.stopPropagation(); setEditingTplIdx(idx); setEditingTplText(tpl); }}>
+                              <Pencil className="h-2.5 w-2.5" />
+                            </button>
+                            <button type="button" title="Excluir" className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                              onClick={(e) => { e.stopPropagation(); persistTemplates(msgTemplates.filter((_, i) => i !== idx)); }}>
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {pendingFile && (
               <div className="flex items-center gap-2 bg-muted rounded-md px-2 py-1.5">
                 {pendingPreviewUrl ? (
@@ -308,11 +386,21 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
-            {overLimit && (
-              <p className="text-[10px] text-destructive">
-                Mensagem muito longa ({reply.length}/{MAX_REPLY_LENGTH}) — encurte pra poder enviar.
-              </p>
-            )}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                disabled={!reply.trim() || msgTemplates.includes(reply.trim())}
+                className="text-[10px] text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-1"
+                onClick={() => persistTemplates([...msgTemplates, reply.trim()])}
+              >
+                <Plus className="h-3 w-3" /> Salvar como atalho
+              </button>
+              {overLimit && (
+                <p className="text-[10px] text-destructive">
+                  Mensagem muito longa ({reply.length}/{MAX_REPLY_LENGTH}) — encurte pra poder enviar.
+                </p>
+              )}
+            </div>
           </div>
           </div>
         )}
