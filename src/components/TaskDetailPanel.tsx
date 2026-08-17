@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
   MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send, Download,
-  Clock, MapPin, UserCheck, History, ClipboardList,
+  Clock, MapPin, UserCheck, History, ClipboardList, ArrowLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -308,15 +308,10 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   }
 
   useEffect(() => {
-    if (!open) { setSelectedKey(null); return; }
-    // Ao abrir, seleciona automaticamente o primeiro chapa com conversa —
-    // senão o grupo do cliente, senão nada (fica vazio até o operador clicar).
-    if (!task) return;
-    const firstWithChat = task.chapas.find((c) =>
-      task.fup_log.some((f) => f.chapa_id === c.id && f.umbler_chat_id),
-    );
-    if (firstWithChat) setSelectedKey(firstWithChat.id);
-    else if (clienteInfo?.umbler_group_chat_id) setSelectedKey(CLIENTE_KEY);
+    // Abre sempre na lista compacta (nenhuma conversa pré-selecionada) — o
+    // painel cresce e a conversa desliza da direita só quando o operador
+    // clica explicitamente em "abrir conversa" de um chapa ou do cliente.
+    setSelectedKey(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task?.id_tarefa]);
 
@@ -485,6 +480,10 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     clipboardWrite(comCpf.join("\n"), `${comCpf.length} CPF(s) copiado(s)`);
   }
 
+  // Painel abre compacto (só lista) e cresce quando uma conversa é aberta —
+  // largura e slide-in do pane direito reagem a esse booleano.
+  const hasSelection = !!selectedKey;
+
   // Só nomes, sem telefone e sem CPF — pedido explícito do usuário.
   function copyNamesOnly() {
     const ativos = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
@@ -499,7 +498,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className="fixed left-1/2 top-1/2 z-40 -translate-x-1/2 -translate-y-1/2 w-[min(1180px,94vw)] h-[min(840px,90vh)] rounded-2xl shadow-2xl overflow-hidden bg-card flex flex-col data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:duration-150 data-[state=open]:duration-200"
+          className={`fixed left-1/2 top-1/2 z-40 -translate-x-1/2 -translate-y-1/2 h-[min(840px,90vh)] rounded-2xl shadow-2xl overflow-hidden bg-card flex flex-col transition-[width] duration-300 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:duration-150 data-[state=open]:duration-200 ${
+            hasSelection ? "w-[min(1180px,94vw)]" : "w-[min(640px,94vw)]"
+          }`}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <DialogPrimitive.Title className="sr-only">Detalhes da tarefa — {task?.empresa ?? ""}</DialogPrimitive.Title>
@@ -672,7 +673,11 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
 
           {/* Corpo — lista + conversa */}
           <div className="flex-1 flex min-h-0">
-            <div className="w-[300px] shrink-0 border-r border-border overflow-y-auto">
+            <div
+              className={`shrink-0 overflow-y-auto transition-[width] duration-300 ease-out ${
+                hasSelection ? "w-[300px] border-r border-border" : "w-full"
+              }`}
+            >
               <div className="px-3 pt-2 pb-1 flex items-center justify-between">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   Chapas ({realChapas.length})
@@ -732,8 +737,28 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                             <span className="text-muted-foreground font-normal">· há {fmtElapsed(elapsedMin)}</span>
                           )}
                         </p>
+                        {c.telefone_chapa && (
+                          <p className="text-[10.5px] text-muted-foreground/70 truncate">{c.telefone_chapa}</p>
+                        )}
                       </div>
                     </div>
+                    {/* Ação explícita "abrir conversa" — separada do clique
+                        na linha (que também seleciona) porque agora
+                        selecionar expande o painel e desliza a conversa;
+                        um alvo dedicado deixa essa intenção clara. */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedKey(c.id); }}
+                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-primary hover:!bg-primary/10 transition-colors"
+                          aria-label="Abrir conversa"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">Abrir conversa</TooltipContent>
+                    </Tooltip>
                     {/* Um "..." só em vez de 3 ícones disputando espaço na
                         linha (feedback do usuário: alvo pequeno demais,
                         fácil clicar errado). Clicar na linha pra selecionar
@@ -862,7 +887,20 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
               </Collapsible>
             </div>
 
-            <div className="flex-1 flex flex-col min-w-0">
+            {hasSelection && (
+            <div className="flex-1 flex flex-col min-w-0 animate-in slide-in-from-right-8 fade-in duration-300 ease-out">
+              <div className="shrink-0 border-b border-border px-2 py-1.5 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedKey(null)}
+                  className="h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Voltar pra lista"
+                  title="Voltar pra lista"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </button>
+                <span className="text-[11px] text-muted-foreground">Voltar pra lista</span>
+              </div>
               {selectedChapa && (
                 <div className="shrink-0 border-b border-border px-3 py-1.5 flex items-center gap-1.5 flex-wrap">
                   <Button
@@ -981,23 +1019,16 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   </DropdownMenu>
                 </div>
               )}
-              {selectedKey ? (
-                <ConversationPane
-                  key={selectedKey}
-                  chatId={selectedChatId}
-                  personName={selectedName}
-                  personTelefone={selectedTelefone}
-                  settings={umblerSettings}
-                  isGroup={selectedKey === CLIENTE_KEY}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-center p-6">
-                  <p className="text-xs text-muted-foreground italic">
-                    Selecione um chapa ou o grupo do cliente pra ver a conversa.
-                  </p>
-                </div>
-              )}
+              <ConversationPane
+                key={selectedKey}
+                chatId={selectedChatId}
+                personName={selectedName}
+                personTelefone={selectedTelefone}
+                settings={umblerSettings}
+                isGroup={selectedKey === CLIENTE_KEY}
+              />
             </div>
+            )}
           </div>
 
           <Dialog open={customMsgOpen} onOpenChange={setCustomMsgOpen}>
