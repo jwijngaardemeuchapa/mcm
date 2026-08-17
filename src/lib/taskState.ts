@@ -73,13 +73,30 @@ export function computeTaskState(
   const emAndamento = task.status_tarefa === "Em Andamento";
   const emAnalise = task.status_tarefa === "Em Análise";
 
+  // Cor da borda/bloco passou a seguir SÓ confirmação x tempo, desacoplada
+  // de validação de presença/upload no Meu Chapa (isDone/fullyValidated) e
+  // da flag `urgent` da importação — pedido explícito do usuário, que
+  // achava a cor "bagunçada" (cinza com tudo confirmado, vermelho mesmo com
+  // gente confirmada). Regra nova, por prioridade:
+  //   1. Em Andamento → azul (sempre, independente do resto)
+  //   2. Em Análise → cinza (sempre)
+  //   3. confirmed === requested → verde
+  //   4. zero confirmado E ≤60min pro início (ou já passou do horário) → vermelho
+  //   5. ≤3h pro início (e não caiu nos casos acima) → amarelo
+  //   6. mais de 3h pro início → cinza
+  // Overnight/continuando-de-ontem saíram do cálculo de cor — o ícone de
+  // lua e o banner "continuando desde ontem" continuam sinalizando isso,
+  // só não mudam mais a cor da borda.
+  const isFullyConfirmed = requested > 0 && confirmed === requested;
+  const zeroConfirmedNearOrPastStart = confirmed === 0 && minutesUntilStart <= 60;
+  const withinApproachWindow = minutesUntilStart <= 180;
+
   let severity: TaskSeverity = "default";
-  if (emAndamento && (isDone || fullyValidated)) severity = "andamento";
-  else if (emAnalise && (isDone || fullyValidated)) severity = "analise";
-  else if (isDone) severity = "done";
-  else if (fullyValidated) severity = "validated";
-  else if (showApproachAlert) severity = "approach-alert";
-  else if (task.urgent) severity = "urgent";
+  if (emAndamento) severity = "andamento";
+  else if (emAnalise) severity = "default";
+  else if (isFullyConfirmed) severity = "done";
+  else if (zeroConfirmedNearOrPastStart) severity = "urgent";
+  else if (withinApproachWindow) severity = "approach-alert";
 
   return {
     confirmed,
@@ -114,5 +131,40 @@ export function taskSeverityBlockClass(severity: TaskSeverity): string {
       return "bg-destructive border-destructive/50 text-destructive-foreground";
     default:
       return "bg-muted border-border text-foreground";
+  }
+}
+
+// Borda + ring pro card inteiro (TaskCard) — mesmo severity das outras
+// duas views, só que como acento de borda em vez de bloco sólido.
+export function taskSeverityCardBorderClass(severity: TaskSeverity): string {
+  switch (severity) {
+    case "andamento":
+      return "border-info/50 border-l-4 border-l-info ring-1 ring-info/20";
+    case "done":
+    case "validated":
+      return "border-success/60 border-l-4 border-l-success ring-1 ring-success/20";
+    case "approach-alert":
+      return "border-warning/60 ring-2 ring-warning/30";
+    case "urgent":
+      return "border-destructive/50 ring-1 ring-destructive/20";
+    default:
+      return "border-border";
+  }
+}
+
+// Acento de linha (Panorama) — border-l fina + tingimento leve de fundo.
+export function taskSeverityRowClass(severity: TaskSeverity): { accentBorder: string; rowBg: string; timeColor: string } {
+  switch (severity) {
+    case "andamento":
+      return { accentBorder: "border-l-info", rowBg: "bg-info/[0.04]", timeColor: "text-foreground" };
+    case "done":
+    case "validated":
+      return { accentBorder: "border-l-success", rowBg: "bg-success/[0.04]", timeColor: "text-muted-foreground" };
+    case "approach-alert":
+      return { accentBorder: "border-l-warning", rowBg: "bg-warning/5", timeColor: "text-warning" };
+    case "urgent":
+      return { accentBorder: "border-l-destructive", rowBg: "bg-destructive/[0.04]", timeColor: "text-destructive" };
+    default:
+      return { accentBorder: "border-l-border", rowBg: "", timeColor: "text-foreground" };
   }
 }
