@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import {
   X, Users, Copy, ExternalLink, Check, AlertTriangle, UserMinus, ChevronDown, XCircle,
   MoreHorizontal, Phone, BookUser, Megaphone, MessageSquare, Moon, RefreshCw, Send, Download,
-  Clock, MapPin, UserCheck, History, ClipboardList, Receipt, ArrowLeft,
+  Clock, MapPin, UserCheck, History, ClipboardList, Receipt, ArrowLeft, Pencil, Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ConversationPane } from "@/components/ConversationPane";
@@ -36,7 +37,7 @@ import { useClienteInfo } from "@/lib/useClienteInfo";
 import { pushChapaStatusToCentral, pushPaymentRequestToCentral } from "@/lib/central";
 import { useUndo } from "@/lib/undo";
 import { getDb, errMsg, placeholders } from "@/lib/db";
-import { readSettings } from "@/lib/settings";
+import { readSettings, writeSettings } from "@/lib/settings";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { toast } from "sonner";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
@@ -139,6 +140,17 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
   const [customMsgOpen, setCustomMsgOpen] = useState(false);
   const [customMsgText, setCustomMsgText] = useState("");
   const [customMsgSelected, setCustomMsgSelected] = useState<Set<string>>(new Set());
+  // Atalhos de mensagem salvos — mesma settings global (customMsgTemplates)
+  // já usada em TaskCard.tsx (Cards) e ConversationPane.tsx; faltava aqui.
+  const [msgTemplates, setMsgTemplates] = useState<string[]>(() => readSettings().customMsgTemplates);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [editingTplIdx, setEditingTplIdx] = useState<number | null>(null);
+  const [editingTplText, setEditingTplText] = useState("");
+  function persistTemplates(next: string[]) {
+    setMsgTemplates(next);
+    writeSettings({ customMsgTemplates: next });
+  }
+  // Solicitar pagamento (empurra pra Central) fica só na build beta.
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentSelected, setPaymentSelected] = useState<Set<string>>(new Set());
   const [paymentValores, setPaymentValores] = useState<Record<string, string>>({});
@@ -1052,12 +1064,102 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 overflow-y-auto flex-1 min-h-0 pr-1">
+                {msgTemplates.length > 0 && (
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => setShortcutsOpen((o) => !o)}
+                      className="flex items-center gap-1.5 w-full text-left"
+                    >
+                      <span className="text-xs font-medium text-muted-foreground">Atalhos</span>
+                      <span className="text-[10px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
+                        {msgTemplates.length}
+                      </span>
+                      <ChevronDown
+                        className={`h-3 w-3 text-muted-foreground/50 ml-auto transition-transform duration-150 ${shortcutsOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                    {shortcutsOpen && (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {msgTemplates.map((tpl, idx) =>
+                          editingTplIdx === idx ? (
+                            <div key={idx} className="flex items-center gap-1.5 w-full">
+                              <Input
+                                value={editingTplText}
+                                onChange={(e) => setEditingTplText(e.target.value)}
+                                className="h-7 text-xs flex-1"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && editingTplText.trim()) {
+                                    persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                                    setEditingTplIdx(null);
+                                  }
+                                  if (e.key === "Escape") setEditingTplIdx(null);
+                                }}
+                              />
+                              <Button
+                                size="sm" variant="ghost" className="h-7 px-2 text-success"
+                                disabled={!editingTplText.trim()}
+                                onClick={() => {
+                                  persistTemplates(msgTemplates.map((t, i) => (i === idx ? editingTplText.trim() : t)));
+                                  setEditingTplIdx(null);
+                                }}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={() => setEditingTplIdx(null)}>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div key={idx} className="group relative inline-flex items-center max-w-[calc(50%-4px)]">
+                              <button
+                                type="button"
+                                onClick={() => { setCustomMsgText(tpl); setShortcutsOpen(false); }}
+                                title={tpl}
+                                className="inline-flex items-center rounded-full border border-border bg-muted/40 hover:bg-primary/10 hover:border-primary/40 pl-2.5 pr-7 py-1 text-xs transition-colors w-full truncate"
+                              >
+                                {tpl}
+                              </button>
+                              <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  title="Editar"
+                                  className="text-muted-foreground/50 hover:text-primary transition-colors"
+                                  onClick={(e) => { e.stopPropagation(); setEditingTplIdx(idx); setEditingTplText(tpl); }}
+                                >
+                                  <Pencil className="h-2.5 w-2.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Excluir"
+                                  className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                                  onClick={(e) => { e.stopPropagation(); persistTemplates(msgTemplates.filter((_, i) => i !== idx)); }}
+                                >
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Textarea
                   value={customMsgText}
                   onChange={(e) => setCustomMsgText(e.target.value)}
                   placeholder="Digite a mensagem…"
                   className="min-h-20"
                 />
+                <button
+                  type="button"
+                  disabled={!customMsgText.trim() || msgTemplates.includes(customMsgText.trim())}
+                  className="text-[11px] text-primary hover:underline disabled:opacity-40 disabled:no-underline flex items-center gap-1"
+                  onClick={() => persistTemplates([...msgTemplates, customMsgText.trim()])}
+                >
+                  <Plus className="h-3 w-3" /> Salvar como atalho
+                </button>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Destinatários ({customMsgSelected.size}/{confirmedWithPhone.length})</p>
                   {confirmedWithPhone.map((c) => (
