@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useEffect, useCallback } from "react";
-import { type TaskWithChapas, UnreadDot } from "./TaskCard";
+import { type TaskWithChapas, UnreadDot, fmtElapsed } from "./TaskCard";
 import { fmtSP, todayDateISO_SP, nowSP } from "@/lib/datetime";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed } from "lucide-react";
@@ -54,6 +54,16 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
 
       const hasUnread = t.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa)));
 
+      // Timer de FUP — bloco denso demais pra mostrar por chapa, então usa o
+      // disparo mais recente da tarefa inteira (massa ou individual) e some
+      // só no tooltip, pra não crescer o bloco (mesmo trade-off do TaskPanorama).
+      const lastFupLog = t.fup_log.length > 0
+        ? t.fup_log.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b))
+        : null;
+      const minutesSinceFup = lastFupLog
+        ? Math.floor((Date.now() - new Date(lastFupLog.data_disparo).getTime()) / 60_000)
+        : null;
+
       return {
         ...t,
         startFloat,
@@ -65,6 +75,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
         concluida,
         validada,
         hasUnread,
+        minutesSinceFup,
       };
     });
 
@@ -192,6 +203,11 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                   <div className="flex items-center gap-1.5">
                     <Users className="h-3 w-3" /> {t.confirmados} de {t.totalVagas} confirmados ({Math.round(t.fillPct)}%)
                   </div>
+                  {!t.concluida && t.minutesSinceFup !== null && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <Clock className="h-3 w-3" /> Último disparo há {fmtElapsed(t.minutesSinceFup)}
+                    </div>
+                  )}
                   {t.concluida && (
                     <div className="flex items-center gap-1.5 text-success font-medium">
                       <CheckCircle2 className="h-3 w-3" /> Tarefa concluída

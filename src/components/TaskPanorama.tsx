@@ -9,7 +9,7 @@ import {
   Download,
 } from "lucide-react";
 import { TaskDetailPanel } from "./TaskDetailPanel";
-import { type TaskWithChapas, UnreadDot } from "./TaskCard";
+import { type TaskWithChapas, UnreadDot, fmtElapsed } from "./TaskCard";
 import { FillRateBar } from "./FillRateBar";
 import { fmtTime, fmtSP, taskTzLabel } from "@/lib/datetime";
 import { todayDateISO_SP } from "@/lib/datetime";
@@ -179,6 +179,18 @@ function PanoramaRow({
   const taskHasUnread = task.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa)));
 
   const hasCsv = csvExported(task.id_tarefa);
+
+  // Timer de FUP compacto — visão densa (sem linha por chapa), então usa o
+  // disparo mais recente da tarefa inteira (massa ou individual, tanto faz —
+  // não dá pra distinguir por chapa aqui). Mesmo dado que alimenta o badge
+  // do header em TaskCard/TaskDetailPanel, só que sempre visível (não gated
+  // por mass-vs-individual, que só faz sentido quando há linha por chapa).
+  const lastFupLog = task.fup_log.length > 0
+    ? task.fup_log.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b))
+    : null;
+  const minutesSinceFup = lastFupLog
+    ? Math.floor((Date.now() - new Date(lastFupLog.data_disparo).getTime()) / 60_000)
+    : null;
   // Em Andamento nunca fica verde, mesmo concluída/validada — fica azul
   // (mesmo tratamento do TaskCard, MCM-128).
   const emAndamento = task.status_tarefa === "Em Andamento";
@@ -300,6 +312,15 @@ function PanoramaRow({
         {!hasCsv && !isDone && (
           <span title="CSV ainda não exportado">
             <Download className="h-3 w-3 text-warning opacity-60" />
+          </span>
+        )}
+        {!isDone && !fullyValidated && !showApproachAlert && !task.urgent && minutesSinceFup !== null && (
+          <span
+            className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/80 tabular-nums"
+            title={`Último disparo há ${fmtElapsed(minutesSinceFup)}`}
+          >
+            <Clock className="h-2.5 w-2.5 opacity-60" />
+            {fmtElapsed(minutesSinceFup)}
           </span>
         )}
         {!showApproachAlert && isDone && (

@@ -13,7 +13,7 @@ import { ActivityBell } from "@/components/ActivityBell";
 import { ChatSheet } from "@/components/ChatSheet";
 import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink, last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
-import { UnreadDot } from "@/components/TaskCard";
+import { UnreadDot, fmtElapsed } from "@/components/TaskCard";
 import { bidDispatchQueue, BID_WAVE_SIZE, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
@@ -2969,6 +2969,14 @@ function BidTaskCard({
                         {sc
                           ? <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${sc.cls}`}>{sc.label}</span>
                           : <span className="text-[10px] text-muted-foreground/30">—</span>}
+                        {/* Disparo individual do BID (1 candidato = 1 disparo, sempre
+                            manual) — timer minimalista igual ao das outras telas,
+                            só enquanto aguarda resposta. */}
+                        {c.disparo?.status === "aguardando" && c.disparo.data_disparo && (
+                          <div className="text-[9.5px] text-muted-foreground/60 mt-0.5 tabular-nums">
+                            há {fmtElapsed(Math.floor((Date.now() - new Date(c.disparo.data_disparo).getTime()) / 60_000))}
+                          </div>
+                        )}
                       </div>
                       <div className="flex gap-0.5 justify-end">
                         {c.telefone && (

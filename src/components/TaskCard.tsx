@@ -176,7 +176,7 @@ function getCsvExportedAt(id: number): string | null {
   }
 }
 
-function fmtElapsed(min: number): string {
+export function fmtElapsed(min: number): string {
   if (min < 60) return `${min}min`;
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -556,6 +556,13 @@ Precisamos de 1 substituto para esta tarefa.`;
   const minUntilTask = minutesUntil(task.data_tarefa);
   const autoFupActive = fupAgendarMinAntes > 0 && minUntilTask > 0 && fupAllCount === 0;
   const minUntilAutoFup = autoFupActive ? minUntilTask - fupAgendarMinAntes : null;
+
+  // MCM-timer: disparo em massa ("FUP Todos") gera log com chapa_id nulo —
+  // cobre a tarefa inteira. Disparo individual/manual (FUP por chapa,
+  // cancelamento por chapa etc.) tem chapa_id preenchido. A partir do
+  // primeiro disparo individual, o timer de header (agregado) some e cada
+  // linha de chapa passa a mostrar seu próprio "há Xmin" (ChapaRowView).
+  const hasIndividualDispatch = task.fup_log.some((f) => !!f.chapa_id);
 
   const lastFupLog = task.fup_log.length > 0
     ? task.fup_log.reduce((a, b) => a.data_disparo > b.data_disparo ? a : b)
@@ -973,7 +980,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {!allRealConfirmed && !fullyValidated && (
+          {!allRealConfirmed && !fullyValidated && !hasIndividualDispatch && (
             fupDispatched && minutesSinceFup !== null && minutesSinceFup >= fupElapsedAlertMinutes * 2 ? (
               <span
                 className="inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md bg-destructive/15 text-destructive border border-destructive/40 animate-pulse"
@@ -1127,6 +1134,8 @@ Precisamos de 1 substituto para esta tarefa.`;
                 newChapaKeys={newChapaKeys}
                 conf={lookupConfiabilidade(confiabilidade, c)}
                 fupLog={task.fup_log}
+                hasIndividualDispatch={hasIndividualDispatch}
+                nowTs={nowTs}
                 onContact={markContact}
                 onConfirm={() =>
                   updateChapaWithUndo(
@@ -1735,6 +1744,8 @@ type RowProps = {
   taskSnap: TaskSnap;
   newChapaKeys?: Set<string>;
   fupLog: TaskWithChapas["fup_log"];
+  hasIndividualDispatch: boolean;
+  nowTs: number;
   onContact: (c: TaskWithChapas["chapas"][number], canal: string) => void;
   onConfirm: () => void;
   onNoResponse: () => void;
@@ -1754,6 +1765,8 @@ function ChapaRowView({
   taskSnap,
   newChapaKeys,
   fupLog,
+  hasIndividualDispatch,
+  nowTs,
   onContact,
   onConfirm,
   onNoResponse,
@@ -1791,6 +1804,19 @@ function ChapaRowView({
   const cancelCount = fupLog.filter((f) => f.canal === "umbler_cancelamento" && f.chapa_id === chapa.id).length;
   // How many times "tarefa cancelada" foi disparado individualmente pra este chapa
   const cancelTaskCount = fupLog.filter((f) => f.canal === "umbler_cancelamento_tarefa" && f.chapa_id === chapa.id).length;
+
+  // Timer individual — só entra em cena quando a tarefa já teve algum
+  // disparo manual/individual (hasIndividualDispatch); nesse modo o timer
+  // geral do header some e cada chapa mostra o próprio "há Xmin" com base no
+  // disparo (qualquer canal individual) mais recente para ELE.
+  const chapaDispatchEntries = fupLog.filter((f) => f.chapa_id === chapa.id);
+  const lastChapaDispatchAt = chapaDispatchEntries.length > 0
+    ? chapaDispatchEntries.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b)).data_disparo
+    : null;
+  const chapaElapsedMin = lastChapaDispatchAt
+    ? Math.floor((nowTs - new Date(lastChapaDispatchAt).getTime()) / 60_000)
+    : null;
+  const showChapaElapsed = hasIndividualDispatch && chapaElapsedMin !== null && chapa.status_contato !== "confirmado";
 
   // Disparo mais recente (qualquer canal — BID ou FUP) com um chat vinculado,
   // pra abrir a conversa desse chapa (última mensagem, imagem, áudio). Vale
@@ -1943,6 +1969,11 @@ function ChapaRowView({
           </button>
         ) : (
           <div className="text-[12px] text-muted-foreground">—</div>
+        )}
+        {showChapaElapsed && (
+          <div className="text-[11px] text-muted-foreground/80" title={`Último disparo individual há ${fmtElapsed(chapaElapsedMin!)}`}>
+            há {fmtElapsed(chapaElapsedMin!)}
+          </div>
         )}
       </div>
 

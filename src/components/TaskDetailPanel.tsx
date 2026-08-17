@@ -352,6 +352,19 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
 
   if (!task) return null;
 
+  // Timer de FUP no header — só aparece enquanto a tarefa teve apenas
+  // disparos em massa (FUP Todos, chapa_id nulo). No momento em que existir
+  // QUALQUER disparo individual/manual (chapa_id preenchido), esse agregado
+  // some daqui e cada chapa passa a mostrar o próprio "há Xmin" na lista
+  // (CompactChapaRow / lastDispatchByChapa, já filtra só chapa_id != null).
+  const hasIndividualDispatch = task.fup_log.some((f) => !!f.chapa_id);
+  const lastFupLog = task.fup_log.length > 0
+    ? task.fup_log.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b))
+    : null;
+  const lastFupAt = lastFupLog?.data_disparo ?? csvExportedAt ?? null;
+  const minutesSinceFup = lastFupAt ? Math.floor((Date.now() - new Date(lastFupAt).getTime()) / 60_000) : null;
+  const fupDispatched = task.fup_log.length > 0 || !!csvExportedAt;
+
   const confirmedCount = task.chapas.filter((c) => c.status_contato === "confirmado").length;
   const requested = task.quantidade_chapas || task.chapas.length;
   const fillPct = requested > 0 ? Math.round((confirmedCount / requested) * 100) : 0;
@@ -548,6 +561,18 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                     </span>
                     {vacantCount > 0 && (
                       <span className="text-xs text-white font-medium bg-white/15 rounded-full px-2 py-0.5">{vacantCount} vaga{vacantCount !== 1 ? "s" : ""} em aberto</span>
+                    )}
+                    {!hasIndividualDispatch && fupDispatched && minutesSinceFup !== null && confirmedCount < requested && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 text-xs text-white font-medium bg-white/15 rounded-full px-2 py-0.5">
+                            <Clock className="h-3 w-3" /> FUP há {fmtElapsed(minutesSinceFup)}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          Último disparo (FUP Todos): {fmtDateTime(lastFupAt!)}
+                        </TooltipContent>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
