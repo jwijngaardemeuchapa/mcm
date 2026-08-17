@@ -71,6 +71,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     }
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     // Blob URLs criadas só pro eco otimista (ver handleSend) — revogadas
     // assim que o próximo load() troca a lista inteira por dados reais.
     const optimisticUrlsRef = useRef<string[]>([]);
@@ -108,17 +109,21 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
           hasLoadedOnceRef.current = true;
 
           setMessages(msgs);
-          // Chat sempre abre com o scroll no fim (mensagem mais recente). Um
-          // rAF só não bastava: o painel (TaskDetailPanel) entra com uma
-          // animação de slide-in de 300ms, então a altura medida logo depois
-          // do setMessages ainda reflete o layout em transição — reforça o
-          // scroll de novo depois da animação terminar. No auto-refresh
-          // silencioso só rola se chegou mensagem nova (não força scroll
-          // toda hora sem motivo).
-          if (!silent || novasDoContato.length > 0) {
-            requestAnimationFrame(() => scrollToBottom(!silent ? false : true));
-            if (!silent) setTimeout(() => scrollToBottom(false), 350);
-          }
+          // Chat sempre fica com o scroll no fim (mensagem mais recente) —
+          // pedido explícito do usuário: o auto-refresh silencioso a cada
+          // 20s estava só rolando quando detectava mensagem NOVA do
+          // contato, então uma mensagem do próprio operador (outro
+          // dispositivo/sessão) ou do bot não arrastava o scroll, e a
+          // conversa parecia "travada" mesmo atualizando por baixo. Agora
+          // rola sempre que a lista é recarregada, não só quando há
+          // novasDoContato. Um rAF só não bastava: o painel (TaskDetailPanel)
+          // entra com uma animação de slide-in de 300ms, então a altura
+          // medida logo depois do setMessages ainda reflete o layout em
+          // transição — reforça o scroll de novo depois da animação
+          // terminar (só no load não-silencioso, que é quando essa
+          // animação acontece).
+          requestAnimationFrame(() => scrollToBottom(!silent ? false : true));
+          if (!silent) setTimeout(() => scrollToBottom(false), 350);
           if (isGroup) resolveGroupSenderNames(msgs);
         })
         .catch((e) => { if (!silent) setError(e instanceof Error ? e.message : String(e)); })
@@ -264,6 +269,11 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
         setSendError(humanizarErroUmbler(e));
       } finally {
         setSending(false);
+        // O Textarea fica `disabled` durante o envio (perde o foco por
+        // conta disso) e reabilitar não devolve o foco sozinho — sem isso o
+        // operador precisava clicar de novo no campo pra continuar digitando
+        // a cada mensagem, quebrando o ritmo de digitação em sequência.
+        requestAnimationFrame(() => textareaRef.current?.focus());
       }
     }
 
@@ -416,6 +426,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                 <Paperclip className="h-4 w-4" />
               </Button>
               <Textarea
+                ref={textareaRef}
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 onKeyDown={(e) => {

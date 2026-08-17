@@ -364,6 +364,19 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
 
   if (!task) return null;
 
+  // Timer de FUP no header — só aparece enquanto a tarefa teve apenas
+  // disparos em massa (FUP Todos, chapa_id nulo). No momento em que existir
+  // QUALQUER disparo individual/manual (chapa_id preenchido), esse agregado
+  // some daqui e cada chapa passa a mostrar o próprio "há Xmin" na lista
+  // (CompactChapaRow / lastDispatchByChapa, já filtra só chapa_id != null).
+  const hasIndividualDispatch = task.fup_log.some((f) => !!f.chapa_id);
+  const lastFupLog = task.fup_log.length > 0
+    ? task.fup_log.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b))
+    : null;
+  const lastFupAt = lastFupLog?.data_disparo ?? csvExportedAt ?? null;
+  const minutesSinceFup = lastFupAt ? Math.floor((Date.now() - new Date(lastFupAt).getTime()) / 60_000) : null;
+  const fupDispatched = task.fup_log.length > 0 || !!csvExportedAt;
+
   const confirmedCount = task.chapas.filter((c) => c.status_contato === "confirmado").length;
   const requested = task.quantidade_chapas || task.chapas.length;
   const fillPct = requested > 0 ? Math.round((confirmedCount / requested) * 100) : 0;
@@ -611,6 +624,18 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                     {vacantCount > 0 && (
                       <span className="text-xs text-white font-medium bg-white/15 rounded-full px-2 py-0.5">{vacantCount} vaga{vacantCount !== 1 ? "s" : ""} em aberto</span>
                     )}
+                    {!hasIndividualDispatch && fupDispatched && minutesSinceFup !== null && confirmedCount < requested && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 text-xs text-white font-medium bg-white/15 rounded-full px-2 py-0.5">
+                            <Clock className="h-3 w-3" /> FUP há {fmtElapsed(minutesSinceFup)}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          Último disparo (FUP Todos): {fmtDateTime(lastFupAt!)}
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
@@ -766,103 +791,21 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                   </TooltipContent>
                 </Tooltip>
               </div>
-              {realChapas.map((c) => {
-                const lastDispatch = lastDispatchByChapa.get(c.id) ?? null;
-                const selected = selectedKey === c.id;
-                const meta = chapaStatusMeta(c.status_contato, !!lastDispatch);
-                const elapsedMin = lastDispatch ? Math.floor((Date.now() - new Date(lastDispatch).getTime()) / 60_000) : null;
-                // MCM-159: some sozinho no próximo poll (~40s) quando a
-                // conversa é aberta e o totalUnread zera no servidor.
-                const chapaHasUnread = !!c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa));
-                return (
-                  <div
-                    key={c.id}
-                    className={`w-full flex items-center gap-1 pr-1.5 text-left transition-colors border-l-[3px] group ${meta.border} ${
-                      selected ? "bg-primary/10" : `${meta.bg} hover:opacity-80`
-                    } ${c.status_contato === "removido" ? "opacity-50" : ""}`}
-                  >
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSelectedKey(c.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedKey(c.id); } }}
-                      className="flex-1 min-w-0 flex items-center gap-2.5 pl-3 py-2.5 text-left cursor-pointer"
-                    >
-                      <div className={`h-7 w-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold text-white bg-gradient-to-br ${meta.avatar} shadow-sm`}>
-                        {c.nome_chapa!.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-[13px] truncate flex items-center gap-1.5 ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>
-                          {chapaHasUnread && <UnreadDot title="Mensagem nova no Umbler" />}
-                          <span className="truncate">{c.nome_chapa}</span>
-                        </p>
-                        <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
-                          {STATUS_LABEL[c.status_contato] ?? c.status_contato}
-                          {c.status_contato === "pendente" && !lastDispatch && " — sem contato"}
-                          {elapsedMin !== null && c.status_contato !== "confirmado" && (
-                            <span className="text-muted-foreground font-normal">· há {fmtElapsed(elapsedMin)}</span>
-                          )}
-                        </p>
-                        {c.telefone_chapa && (
-                          <p className="text-[10.5px] text-muted-foreground/70 truncate">{c.telefone_chapa}</p>
-                        )}
-                      </div>
-                    </div>
-                    {/* Ação explícita "abrir conversa" — separada do clique
-                        na linha (que também seleciona) porque agora
-                        selecionar expande o painel e desliza a conversa;
-                        um alvo dedicado deixa essa intenção clara. */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setSelectedKey(c.id); }}
-                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-primary hover:!bg-primary/10 transition-colors"
-                          aria-label="Abrir conversa"
-                        >
-                          <MessageSquare className="h-3.5 w-3.5" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left">Abrir conversa</TooltipContent>
-                    </Tooltip>
-                    {/* Um "..." só em vez de 3 ícones disputando espaço na
-                        linha (feedback do usuário: alvo pequeno demais,
-                        fácil clicar errado). Clicar na linha pra selecionar
-                        a conversa continua não confundindo com copiar. */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => e.stopPropagation()}
-                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors data-[state=open]:!text-foreground data-[state=open]:!bg-muted"
-                          aria-label="Copiar"
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem onClick={() => clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`)}>
-                          <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome
-                        </DropdownMenuItem>
-                        {c.telefone_chapa && (
-                          <DropdownMenuItem onClick={() => clipboardWrite((c.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado")}>
-                            <Phone className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar telefone
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem
-                          onClick={() => {
-                            const phone = (c.telefone_chapa ?? "").replace(/\D/g, "");
-                            clipboardWrite(`${c.nome_chapa}${phone ? ` - ${phone}` : ""}`, "Nome e telefone copiados");
-                          }}
-                        >
-                          <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome + telefone
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                );
-              })}
+              {realChapas.map((c) => (
+                <CompactChapaRow
+                  key={c.id}
+                  c={c}
+                  selected={selectedKey === c.id}
+                  setSelectedKey={setSelectedKey}
+                  lastDispatch={lastDispatchByChapa.get(c.id) ?? null}
+                  fupLog={task.fup_log}
+                  taskSnap={{ id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null }}
+                  cancelTemplateReady={cancelTemplateReady}
+                  taskCancelTemplateReady={taskCancelTemplateReady}
+                  unreadPhones={unreadPhones}
+                  updateChapaStatus={updateChapaStatus}
+                />
+              ))}
 
               {clienteInfo && (
                 <>
@@ -1231,5 +1174,220 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  );
+}
+
+type CompactChapaRowProps = {
+  c: TaskWithChapas["chapas"][number];
+  selected: boolean;
+  setSelectedKey: (k: string | null) => void;
+  lastDispatch: string | null;
+  fupLog: TaskWithChapas["fup_log"];
+  taskSnap: TaskSnap;
+  cancelTemplateReady: boolean;
+  taskCancelTemplateReady: boolean;
+  unreadPhones: Set<string>;
+  updateChapaStatus: (chapaId: string, patch: Record<string, unknown>, label: string) => Promise<void>;
+};
+
+// Linha compacta da lista de chapas — extraída em componente próprio porque
+// precisa do estado de disparo (countdown/abort) POR chapa via
+// useChapaJobState, e hooks não podem ser chamados dentro de um .map() no
+// componente pai (regra dos hooks). Mesmo motivo/estrutura do ChapaRowView
+// em TaskCard.tsx (Cards) — segue o mesmo padrão aqui.
+function CompactChapaRow({
+  c,
+  selected,
+  setSelectedKey,
+  lastDispatch,
+  fupLog,
+  taskSnap,
+  cancelTemplateReady,
+  taskCancelTemplateReady,
+  unreadPhones,
+  updateChapaStatus,
+}: CompactChapaRowProps) {
+  const chapaJobState = useChapaJobState(c.id);
+  const pendingAction = chapaJobState?.action ?? null;
+  const countdown = chapaJobState?.remaining ?? 0;
+
+  const meta = chapaStatusMeta(c.status_contato, !!lastDispatch);
+  const elapsedMin = lastDispatch ? Math.floor((Date.now() - new Date(lastDispatch).getTime()) / 60_000) : null;
+  // MCM-159: some sozinho no próximo poll (~40s) quando a
+  // conversa é aberta e o totalUnread zera no servidor.
+  const chapaHasUnread = !!c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa));
+
+  const cancelCount = fupLog.filter((f) => f.canal === "umbler_cancelamento" && f.chapa_id === c.id).length;
+  const cancelTaskCount = fupLog.filter((f) => f.canal === "umbler_cancelamento_tarefa" && f.chapa_id === c.id).length;
+  const cancelSent = (() => {
+    try { return !!localStorage.getItem(`umbler_cancel_${c.id}`); } catch { return false; }
+  })();
+  const cancelTaskSent = (() => {
+    try { return !!localStorage.getItem(`umbler_cancel_task_${c.id}`); } catch { return false; }
+  })();
+  const everSentCancel = cancelCount > 0 || cancelSent;
+  const everSentTask = cancelTaskCount > 0 || cancelTaskSent;
+  const cancelPending = pendingAction === "cancel" || pendingAction === "cancel_task";
+
+  return (
+    <div
+      className={`w-full flex items-center gap-1 pr-1.5 text-left transition-colors border-l-[3px] group ${meta.border} ${
+        selected ? "bg-primary/10" : `${meta.bg} hover:opacity-80`
+      } ${c.status_contato === "removido" ? "opacity-50" : ""}`}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setSelectedKey(c.id)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedKey(c.id); } }}
+        className="flex-1 min-w-0 flex items-center gap-2.5 pl-3 py-2.5 text-left cursor-pointer"
+      >
+        <div className={`h-7 w-7 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold text-white bg-gradient-to-br ${meta.avatar} shadow-sm`}>
+          {c.nome_chapa!.charAt(0).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`text-[13px] truncate flex items-center gap-1.5 ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>
+            {chapaHasUnread && <UnreadDot title="Mensagem nova no Umbler" />}
+            <span className="truncate">{c.nome_chapa}</span>
+          </p>
+          <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
+            {STATUS_LABEL[c.status_contato] ?? c.status_contato}
+            {c.status_contato === "pendente" && !lastDispatch && " — sem contato"}
+            {elapsedMin !== null && c.status_contato !== "confirmado" && (
+              <span className="text-muted-foreground font-normal">· há {fmtElapsed(elapsedMin)}</span>
+            )}
+          </p>
+          {c.telefone_chapa && (
+            <p className="text-[10.5px] text-muted-foreground/70 truncate">{c.telefone_chapa}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Confirmação manual — hover-only, some quando já confirmado (o
+          status acima já mostra "Confirmado"). Pedido do usuário: deixar
+          a ação de confirmar acessível direto na lista, sem precisar abrir
+          a conversa. */}
+      {c.status_contato !== "confirmado" && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                updateChapaStatus(c.id, { status_contato: "confirmado", data_contato: new Date().toISOString() }, `confirmar ${c.nome_chapa}`);
+              }}
+              className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-success hover:!bg-success/10 transition-colors"
+              aria-label="Confirmar"
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Confirmar</TooltipContent>
+        </Tooltip>
+      )}
+
+      {/* Disparo de cancelamento por falta de resposta — mesmo mecanismo
+          (countdown + abort) do painel expandido, agora por linha. Enquanto
+          pendente, fica visível mesmo sem hover (não pode sumir uma ação em
+          andamento debaixo do mouse — mesma exceção do ChapaRowView em
+          TaskCard.tsx). */}
+      {c.telefone_chapa && (cancelTemplateReady || everSentCancel) && (
+        cancelPending ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); dispatchQueue.abortChapaJob(c.id); }}
+                className="shrink-0 h-6 px-1.5 inline-flex items-center justify-center gap-0.5 rounded text-[10px] font-semibold border border-warning/50 bg-warning/10 text-warning hover:bg-warning/20 transition-colors"
+                aria-label="Cancelar envio"
+              >
+                <X className="h-3 w-3" /><span>{countdown}s</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Clique para cancelar o envio</TooltipContent>
+          </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={pendingAction === "fup"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dispatchQueue.startChapaJob(c.id, "cancel", c as ChapaSnap, taskSnap);
+                }}
+                className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-warning hover:!bg-warning/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                aria-label="Notificar sem resposta"
+              >
+                <UserMinus className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="left">{everSentCancel ? `Notificar sem resposta${cancelCount > 0 ? ` (${cancelCount}x)` : ""} — reenviar` : "Notificar sem resposta"}</TooltipContent>
+          </Tooltip>
+        )
+      )}
+
+      {/* Ação explícita "abrir conversa" — separada do clique
+          na linha (que também seleciona) porque agora
+          selecionar expande o painel e desliza a conversa;
+          um alvo dedicado deixa essa intenção clara. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setSelectedKey(c.id); }}
+            className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-primary hover:!bg-primary/10 transition-colors"
+            aria-label="Abrir conversa"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="left">Abrir conversa</TooltipContent>
+      </Tooltip>
+      {/* "..." com cópia + cancelamento de tarefa individual (esse último
+          gated igual ao painel expandido: template configurado ou já
+          disparado antes pra este chapa). */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors data-[state=open]:!text-foreground data-[state=open]:!bg-muted"
+            aria-label="Mais opções"
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuItem onClick={() => clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`)}>
+            <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome
+          </DropdownMenuItem>
+          {c.telefone_chapa && (
+            <DropdownMenuItem onClick={() => clipboardWrite((c.telefone_chapa ?? "").replace(/\D/g, ""), "Telefone copiado")}>
+              <Phone className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar telefone
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem
+            onClick={() => {
+              const phone = (c.telefone_chapa ?? "").replace(/\D/g, "");
+              clipboardWrite(`${c.nome_chapa}${phone ? ` - ${phone}` : ""}`, "Nome e telefone copiados");
+            }}
+          >
+            <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome + telefone
+          </DropdownMenuItem>
+          {c.telefone_chapa && (taskCancelTemplateReady || everSentTask) && (
+            <DropdownMenuItem
+              disabled={pendingAction === "fup"}
+              onClick={() => dispatchQueue.startChapaJob(c.id, "cancel_task", c as ChapaSnap, taskSnap)}
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+            >
+              <XCircle className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+              {everSentTask ? `Cancelar tarefa${cancelTaskCount > 0 ? ` (${cancelTaskCount}x)` : ""} — reenviar` : "Cancelar tarefa (individual)"}
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
