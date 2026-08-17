@@ -109,17 +109,21 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
           hasLoadedOnceRef.current = true;
 
           setMessages(msgs);
-          // Chat sempre abre com o scroll no fim (mensagem mais recente). Um
-          // rAF só não bastava: o painel (TaskDetailPanel) entra com uma
-          // animação de slide-in de 300ms, então a altura medida logo depois
-          // do setMessages ainda reflete o layout em transição — reforça o
-          // scroll de novo depois da animação terminar. No auto-refresh
-          // silencioso só rola se chegou mensagem nova (não força scroll
-          // toda hora sem motivo).
-          if (!silent || novasDoContato.length > 0) {
-            requestAnimationFrame(() => scrollToBottom(!silent ? false : true));
-            if (!silent) setTimeout(() => scrollToBottom(false), 350);
-          }
+          // Chat sempre fica com o scroll no fim (mensagem mais recente) —
+          // pedido explícito do usuário: o auto-refresh silencioso a cada
+          // 20s estava só rolando quando detectava mensagem NOVA do
+          // contato, então uma mensagem do próprio operador (outro
+          // dispositivo/sessão) ou do bot não arrastava o scroll, e a
+          // conversa parecia "travada" mesmo atualizando por baixo. Agora
+          // rola sempre que a lista é recarregada, não só quando há
+          // novasDoContato. Um rAF só não bastava: o painel (TaskDetailPanel)
+          // entra com uma animação de slide-in de 300ms, então a altura
+          // medida logo depois do setMessages ainda reflete o layout em
+          // transição — reforça o scroll de novo depois da animação
+          // terminar (só no load não-silencioso, que é quando essa
+          // animação acontece).
+          requestAnimationFrame(() => scrollToBottom(!silent ? false : true));
+          if (!silent) setTimeout(() => scrollToBottom(false), 350);
           if (isGroup) resolveGroupSenderNames(msgs);
         })
         .catch((e) => { if (!silent) setError(e instanceof Error ? e.message : String(e)); })
