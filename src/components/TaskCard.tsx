@@ -149,7 +149,7 @@ const canalLabelLong: Record<string, string> = {
   whatsapp_web: "WhatsApp Web",
   umbler_talk: "Umbler Talk",
   ligacao_3c: "Ligação 3C",
-  umbler_custom: "Mensagem personalizada",
+  umbler_custom: "Mensagem a todos",
 };
 
 function companyFilenameSlug(empresa: string): string {
@@ -1282,7 +1282,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                         ? "Enviando — clique para interromper"
                         : customMsgCount > 0
                         ? `${customMsgCount} mensagem(ns) personalizada(s) enviada(s) — clique para enviar outra`
-                        : `Mensagem personalizada para os ${confirmedWithPhone.length} confirmado(s) — janela de 24h aberta`}
+                        : `Mensagem a todos os ${confirmedWithPhone.length} confirmado(s) — janela de 24h aberta`}
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -1464,7 +1464,7 @@ Precisamos de 1 substituto para esta tarefa.`;
         <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-primary" /> Mensagem personalizada
+              <MessageSquare className="h-4 w-4 text-primary" /> Mensagem a todos
             </DialogTitle>
             <DialogDescription>
               Texto livre para os chapas confirmados desta tarefa.

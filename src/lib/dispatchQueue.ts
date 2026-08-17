@@ -33,7 +33,7 @@ export type ActiveJob = {
   kind: "massFup" | "taskCancel" | "customMsg" | "chapaFup" | "chapaCancel";
   taskId: number;
   titulo: string;     // ex: empresa da tarefa
-  descricao: string;  // ex: "FUP Todos", "Mensagem personalizada", "FUP — João"
+  descricao: string;  // ex: "FUP Todos", "Mensagem a todos", "FUP — João"
   remaining: number | null;          // segundos de countdown (null = enviando)
   progress: { sent: number; total: number } | null;
   cancel: () => void;
@@ -179,7 +179,7 @@ class DispatchQueue {
       jobs.push({
         id: `custommsg-${taskId}`, kind: "customMsg", taskId,
         titulo: this.taskMeta.get(taskId) ?? `Tarefa #${taskId}`,
-        descricao: "Mensagem personalizada",
+        descricao: "Mensagem a todos",
         remaining: st.status === "countdown" ? st.remaining : null,
         progress: st.status === "sending" ? { sent: st.sent, total: st.total } : null,
         cancel: () => this.abortCustomMsg(taskId),
@@ -202,7 +202,7 @@ class DispatchQueue {
     return jobs;
   }
 
-  // ---- Mensagem personalizada (texto livre p/ confirmados) ----
+  // ---- Mensagem a todos (texto livre p/ confirmados) ----
 
   getCustomMsgState(taskId: number): CustomMsgState {
     return this.customMsgStates.get(taskId) ?? null;

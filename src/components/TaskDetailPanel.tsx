@@ -594,7 +594,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
               )}
               {confirmedWithPhone.length > 0 && (
                 <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1" onClick={openCustomMsgDialog}>
-                  <MessageSquare className="h-3 w-3" /> Mensagem personalizada
+                  <MessageSquare className="h-3 w-3" /> Mensagem a todos
                 </Button>
               )}
               {eligibleConfirmAll && (
@@ -992,7 +992,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
             <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
               <DialogHeader className="shrink-0">
                 <DialogTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-primary" /> Mensagem personalizada
+                  <MessageSquare className="h-4 w-4 text-primary" /> Mensagem a todos
                 </DialogTitle>
                 <DialogDescription>
                   Texto livre para os chapas confirmados desta tarefa.

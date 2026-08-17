@@ -59,7 +59,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
     const [contactNames, setContactNames] = useState<Record<string, string>>({});
     // Atalhos de mensagem — mesmo mecanismo (e mesma lista salva) já usado
-    // no "Mensagem personalizada" do TaskCard (Cards): settings globais,
+    // no "Mensagem a todos" do TaskCard (Cards): settings globais,
     // clique só preenche o composer, nunca envia sozinho.
     const [msgTemplates, setMsgTemplates] = useState<string[]>(() => readSettings().customMsgTemplates);
     const [shortcutsOpen, setShortcutsOpen] = useState(true);
