@@ -275,7 +275,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
             <p className="text-[10px] text-muted-foreground">Últimas {TAKE} mensagens</p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} title="Atualizar" disabled={loading}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => load()} title="Atualizar" disabled={loading}>
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </Button>
             {chatId && (
