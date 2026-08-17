@@ -1851,7 +1851,7 @@ function ChapaRowView({
   return (
     <div
       data-chapa-name={chapa.nome_chapa ? chapa.nome_chapa.toLowerCase().trim().replace(/\s+/g, " ") : undefined}
-      className={`px-4 py-3 flex items-center gap-3 transition-colors duration-200 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}
+      className={`group px-4 py-3 flex items-center gap-3 transition-colors duration-200 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}
     >
       {/* Zone 1 — identity */}
       <div className="flex-1 min-w-0">
@@ -1998,8 +1998,18 @@ function ChapaRowView({
         </>
       ) : !placeholder ? (
         <>
-          {/* Zone 2 — channels */}
+          {/* Zone 2 — channels. WhatsApp/Umbler/Cancelar ficam escondidos até
+              o hover na linha (feedback do usuário: reduz poluição visual
+              sem adicionar cliques — o primeiro clique já dispara a ação
+              normalmente). Estado ativo (contagem regressiva) não fica
+              escondido, pra não sumir uma ação pendente debaixo do mouse. */}
           <div className="flex items-center gap-1">
+            {/* WhatsApp + Enviar Umbler — hover-only */}
+            <div
+              className={`flex items-center gap-1 transition-opacity ${
+                pendingAction === "fup" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              }`}
+            >
             {/* WhatsApp */}
             {(() => {
               const used = chapa.canal_contato === "whatsapp_web";
@@ -2069,18 +2079,27 @@ function ChapaRowView({
                 </Tooltip>
               );
             })()}
+            </div>
 
             {/* Conversa (BID/FUP) — abre painel com últimas mensagens do chat
                 vinculado ao disparo mais recente deste chapa. Mensagens de
                 verdade só são buscadas ao abrir o painel (evita estourar
-                rate limit do Umbler buscando ao vivo pra cada linha). */}
+                rate limit do Umbler buscando ao vivo pra cada linha). Fica
+                sempre visível — é status/notificação, não um "disparo". */}
             {conversaTrigger}
             {conversaSheet}
 
-            {/* Cancelamento individual — "Sem resposta" (cancelTemplateId) ou
-                "Cancelar tarefa" (taskCancelTemplateId, mesmo template do
-                disparo em massa, mas pra 1 chapa só). Vira dropdown porque
-                antes só dava pra mandar "tarefa cancelada" em massa. */}
+            {/* Cancelamento individual — hover-only, exceto durante envio
+                pendente (contagem regressiva continua visível) */}
+            <div
+              className={`flex items-center gap-1 transition-opacity ${
+                pendingAction === "cancel" || pendingAction === "cancel_task" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              }`}
+            >
+            {/* "Sem resposta" (cancelTemplateId) ou "Cancelar tarefa"
+                (taskCancelTemplateId, mesmo template do disparo em massa,
+                mas pra 1 chapa só). Vira dropdown porque antes só dava pra
+                mandar "tarefa cancelada" em massa. */}
             {(cancelTemplateReady || taskCancelTemplateReady || cancelSent || cancelCount > 0 || cancelTaskSent || cancelTaskCount > 0) && chapa.telefone_chapa && (() => {
               const isPending = pendingAction === "cancel" || pendingAction === "cancel_task";
               const everSentCancel = cancelCount > 0 || cancelSent;
@@ -2138,6 +2157,7 @@ function ChapaRowView({
                 </DropdownMenu>
               );
             })()}
+            </div>
 
           </div>
           {/* Zone 3 — outcome */}
