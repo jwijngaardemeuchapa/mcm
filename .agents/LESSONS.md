@@ -163,3 +163,17 @@
 **Rule:** NUNCA envolver múltiplos `db.execute()` sequenciais num `BEGIN`/`COMMIT` manual via `@tauri-apps/plugin-sql`. Esse plugin usa um pool de conexões (`sqlx::Pool`) por baixo do `Database.execute()`/`select()` — não há garantia documentada (confirmado via docs.rs e o source em `tauri-apps/plugins-workspace`) de que chamadas sequenciais caem na MESMA conexão. Um `BEGIN IMMEDIATE` pode nem proteger o que vem depois (outra conexão do pool pode rodar o INSERT seguinte), e ainda assim segura um lock de escrita capaz de travar QUALQUER outra conexão do pool tentando ler/escrever ao mesmo tempo.
 **Why:** Corrigi um bug real (MCM-151 — `DELETE`+`INSERT` sem transação deixava a tabela `chapas` momentaneamente vazia durante o resync) envolvendo tudo num `BEGIN IMMEDIATE`/`COMMIT` (v1.0.52) — pareceu certo, passou no `tsc`, mas causou um bug PIOR em produção: `database is locked` (code 5), travando inclusive o próprio sync do Metabase (v1.0.54/55). Troquei `PRAGMA journal_mode=WAL` primeiro (v1.0.55) — não resolveu, porque a causa não era contenção leitor-vs-escritor comum, era o pool de conexões em si.
 **How to apply:** Pra reconciliar "resync completo preservando estado local" (o padrão comum aqui: trocar tudo de uma tabela por dado fresco de uma API externa, sem perder status editado localmente), usar `INSERT ... ON CONFLICT(id) DO UPDATE` (upsert) em vez de `DELETE`+`INSERT`. Upsert nunca cria um gap (a linha nunca deixa de existir), não precisa de transação nenhuma, e é o mesmo padrão que a Central (repo `central-hub`, Supabase/Postgres) já usa nos próprios syncs dela. Só fazer `DELETE` escopado (por chave estrangeira E pelos ids que sobreviveram no upsert) pra remover o que genuinamente saiu — nunca "apaga tudo primeiro".
+
+## 2026-08-19 — rate-limit em raw.githubusercontent.com por verificação excessiva
+
+Verificar `latest.json` via `curl raw.githubusercontent.com/.../latest.json`
+repetidas vezes na mesma sessão (4 releases num único dia, cada uma checada
+2x+) disparou rate-limit (HTTP 429) do CDN do GitHub pro IP da máquina —
+isso derrubou o updater real do app pro usuário ("cannot fetch json from
+the remote"), não porque o latest.json estava errado, mas porque o próprio
+IP ficou bloqueado temporariamente.
+
+Lição: verificar o `latest.json` **uma vez por release**, não em loop/retry.
+Se precisar reconfirmar depois, usar `gh api repos/.../contents/latest.json`
+(API autenticada do GitHub, não sofre esse limite) em vez de bater direto
+no raw.githubusercontent.com de novo.

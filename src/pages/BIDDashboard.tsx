@@ -1607,12 +1607,17 @@ function BidTaskCard({
     a.href = url;
     // Colunas seguem Nome;Telefone — os dados da tarefa (empresa/id/cidade/
     // horário) vão só no nome do arquivo, não como coluna, a pedido do usuário.
+    // Prefixo T{id_tarefa} na frente do nome (não só em algum lugar no meio,
+    // como antes) — a 3C Plus guarda esse nome de arquivo no campo `list` de
+    // cada ligação, e a Central identifica a tarefa procurando esse padrão
+    // ali. Analista pode customizar o resto do nome à vontade ao subir na
+    // 3C Plus, contanto que mantenha o "T<numero>" no início.
     const cityUf = parseCidadeUf(task.cidade_uf);
     const sanitize = (v: string) => v.trim().replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, "_");
     const horario = fmtTime(task.data_tarefa).replace(":", "h");
     const filenameParts = [
+      `T${task.id_tarefa}`,
       sanitize(task.empresa),
-      String(task.id_tarefa),
       cityUf ? sanitize(cityUf.cidade) : null,
       horario,
     ].filter(Boolean);
