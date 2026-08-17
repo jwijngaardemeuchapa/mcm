@@ -380,11 +380,34 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
     clipboardWrite(lines.join("\n"), `${ativos.length} ajudante(s) copiado(s)`);
   }
 
-  function copyCpfConfirmados() {
-    const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa && c.cpf);
-    if (confirmados.length === 0) { toast.error("Nenhum CPF de confirmado disponível"); return; }
-    const lines = confirmados.map((c) => c.cpf);
-    clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) copiado(s)`);
+  // A Question "tarefas do dia" do Metabase nem sempre traz CPF por linha —
+  // quando falta, busca no cadastro geral (chapa_registry) por telefone,
+  // mesmo fallback que já existia no TaskCard (Cards). Sem isso, essa ação
+  // funcionava nos Cards e falhava aqui (Panorama/Timeline), mesma tarefa.
+  async function copyCpfConfirmados() {
+    const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
+    if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
+    const semCpf = confirmados.filter((c) => !c.cpf && c.telefone_chapa);
+    const phoneToCpf: Record<string, string> = {};
+    if (semCpf.length > 0) {
+      try {
+        const db = await getDb();
+        const phones = semCpf.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
+        const rows = await db.select<{ cpf: string; telefone: string }[]>(
+          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
+           FROM chapa_registry
+           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
+             AND cpf IS NOT NULL`,
+          phones,
+        );
+        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
+      } catch { /* silencioso — segue só com o que já tinha */ }
+    }
+    const comCpf = confirmados
+      .map((c) => c.cpf ?? phoneToCpf[(c.telefone_chapa ?? "").replace(/\D/g, "")] ?? null)
+      .filter((cpf): cpf is string => !!cpf);
+    if (comCpf.length === 0) { toast.error("Nenhum CPF de confirmado disponível"); return; }
+    clipboardWrite(comCpf.join("\n"), `${comCpf.length} CPF(s) copiado(s)`);
   }
 
   // Só nomes, sem telefone e sem CPF — pedido explícito do usuário.
@@ -605,16 +628,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         {c.nome_chapa!.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
-                        {/* Igual aos cards normais (TaskCard.tsx) — clicar no nome
-                            copia só o nome, sem precisar abrir o menu de "..." */}
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`); }}
-                          title="Clique para copiar o nome"
-                          className={`text-[13px] truncate text-left hover:text-primary hover:underline ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}
-                        >
+                        <p className={`text-[13px] truncate ${selected ? "font-semibold" : "font-medium"} ${c.status_contato === "removido" ? "line-through" : ""}`}>
                           {c.nome_chapa}
-                        </button>
+                        </p>
                         <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
                           {STATUS_LABEL[c.status_contato] ?? c.status_contato}
@@ -625,6 +641,22 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
                         </p>
                       </div>
                     </div>
+                    {/* Botões dedicados em vez de clicar no nome — clicar na linha
+                        pra selecionar a conversa acabava disparando cópia sem
+                        querer quando o clique caía em cima do texto do nome. */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); clipboardWrite(c.nome_chapa!, `Nome copiado: ${c.nome_chapa}`); }}
+                          className="shrink-0 h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground/0 group-hover:text-muted-foreground/50 hover:!text-foreground hover:bg-muted transition-colors"
+                          aria-label="Copiar nome"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">Copiar nome</TooltipContent>
+                    </Tooltip>
                     {c.telefone_chapa && (
                       <Tooltip>
                         <TooltipTrigger asChild>

@@ -77,10 +77,13 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
           for (const url of optimisticUrlsRef.current) URL.revokeObjectURL(url);
           optimisticUrlsRef.current = [];
           setMessages(msgs);
-          // Chat sempre abre com o scroll no fim (mensagem mais recente) —
-          // precisa do próximo frame pra medir a altura já com as mensagens
-          // renderizadas.
+          // Chat sempre abre com o scroll no fim (mensagem mais recente). Um
+          // rAF só não bastava: o painel (TaskDetailPanel) entra com uma
+          // animação de slide-in de 300ms, então a altura medida logo depois
+          // do setMessages ainda reflete o layout em transição — reforça o
+          // scroll de novo depois da animação terminar.
           requestAnimationFrame(() => scrollToBottom(false));
+          setTimeout(() => scrollToBottom(false), 350);
           if (isGroup) resolveGroupSenderNames(msgs);
         })
         .catch((e) => setError(e instanceof Error ? e.message : String(e)))
