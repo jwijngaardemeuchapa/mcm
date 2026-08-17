@@ -24,6 +24,13 @@ export function toInternationalPhone(raw: string): string {
   return `+55${d}`;
 }
 
+// Últimos 11 dígitos — mesmo padrão de normalização de telefone já usado em
+// applyCentralStatusLocally (src/lib/central.ts), reaproveitado aqui pra
+// casar telefone de chapa com `contact.phoneNumber` da Umbler (MCM-159).
+export function last11Digits(s: string | null | undefined): string {
+  return (s ?? "").replace(/\D/g, "").slice(-11);
+}
+
 export function fmtTaskDateParam(dataTarefa: string): string {
   const taskDate = fmtSP(dataTarefa, "yyyy-MM-dd");
   const time = fmtTime(dataTarefa);
@@ -458,6 +465,78 @@ async function fetchUmblerGroupChatsPage({
     : Array.isArray(body?.chats) ? body.chats
     : [];
   return list.map((c) => parseChatSummary(c as Record<string, unknown>));
+}
+
+// ── Chats com mensagem não lida — MCM-159 (notificação de "novo WhatsApp"
+// mesmo com a tarefa/painel fechado) ──
+//
+// A Umbler já calcula `totalUnread` server-side por chat — não precisa
+// diffar timestamp/id local, só ler o campo. `contact.phoneNumber` casa com
+// chapa (telefone_chapa). Pro grupo do cliente: `cliente_book.umbler_group_chat_id`
+// guarda o `chat.id` (ModelBase.id, raiz — confirmado em GroupChatPicker.tsx,
+// que persiste `chat.id` no vínculo, o MESMO id usado em umblerChatLink/
+// sendUmblerGroupMessage) — não `contact.groupIdentifier` (esse é outro
+// identificador, do WhatsApp, que este app não guarda em lugar nenhum).
+// Por isso o match de grupo aqui usa `chatId` (raiz), não `groupIdentifier`.
+export type UmblerUnreadChat = {
+  chatId: string | null;
+  phoneNumber: string | null;
+  totalUnread: number;
+};
+
+function parseUnreadChat(raw: Record<string, unknown>): UmblerUnreadChat {
+  const contact = raw.contact as Record<string, unknown> | undefined;
+  return {
+    chatId: typeof raw.id === "string" ? raw.id : null,
+    phoneNumber: typeof contact?.phoneNumber === "string" ? contact.phoneNumber : null,
+    totalUnread: typeof raw.totalUnread === "number" ? raw.totalUnread : 0,
+  };
+}
+
+// Busca de chats com mensagem não lida — melhor esforço, chamada num polling
+// em background (WatcherContext). Silencioso em falha (mesmo padrão de
+// resolveContactName acima): não pode derrubar o watcher nem gerar toast de
+// erro por uma checagem periódica que roda sozinha.
+export async function fetchUmblerUnreadChats({
+  settings,
+  maxPages = 5,
+  pageSize = 100,
+}: {
+  settings: UmblerSettings;
+  maxPages?: number;
+  pageSize?: number;
+}): Promise<UmblerUnreadChat[]> {
+  const results: UmblerUnreadChat[] = [];
+  try {
+    for (let page = 0; page < maxPages; page++) {
+      const params = new URLSearchParams({
+        organizationId: settings.organizationId,
+        ChatState: "Open",
+        Order: "Desc",
+        ChatOrderBy: "LastMessageAt",
+        Take: String(pageSize),
+        Skip: String(page * pageSize),
+      });
+      const res = await fetch(`https://app-utalk.umbler.com/api/v1/chats/?${params.toString()}`, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${settings.bearerToken}` },
+      });
+      if (!res.ok) break;
+      const body = await res.json();
+      const list: unknown[] = Array.isArray(body) ? body
+        : Array.isArray(body?.items) ? body.items
+        : Array.isArray(body?.chats) ? body.chats
+        : [];
+      if (list.length === 0) break;
+      for (const raw of list) {
+        const chat = parseUnreadChat(raw as Record<string, unknown>);
+        if (chat.totalUnread > 0) results.push(chat);
+      }
+      if (list.length < pageSize) break; // última página
+    }
+  } catch {
+    return []; // best-effort — watcher segue dormente até o próximo tick
+  }
+  return results;
 }
 
 // Busca os chats de grupo, opcionalmente filtrando por termo (nome ou

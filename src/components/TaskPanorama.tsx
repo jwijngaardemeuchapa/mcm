@@ -9,12 +9,14 @@ import {
   Download,
 } from "lucide-react";
 import { TaskDetailPanel } from "./TaskDetailPanel";
-import { type TaskWithChapas } from "./TaskCard";
+import { type TaskWithChapas, UnreadDot } from "./TaskCard";
 import { FillRateBar } from "./FillRateBar";
 import { fmtTime, fmtSP, taskTzLabel } from "@/lib/datetime";
 import { todayDateISO_SP } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 import { computeTaskState } from "@/lib/taskState";
+import { last11Digits } from "@/lib/umbler";
+import { useWatcherLog } from "@/lib/WatcherContext";
 
 function csvExported(id: number) {
   try {
@@ -169,6 +171,13 @@ function PanoramaRow({
   const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert } =
     computeTaskState(task, threshold);
 
+  // MCM-159: agregado — visão densa (sem linha por chapa visível), então o
+  // ponto aqui é "alguém desta tarefa tem mensagem nova". Só considera
+  // chapas (telefone) — o grupo do cliente ficaria de fora pra não disparar
+  // 1 query por linha (useClienteInfo faz SELECT completo em cliente_book).
+  const { unreadPhones } = useWatcherLog();
+  const taskHasUnread = task.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa)));
+
   const hasCsv = csvExported(task.id_tarefa);
   // Em Andamento nunca fica verde, mesmo concluída/validada — fica azul
   // (mesmo tratamento do TaskCard, MCM-128).
@@ -260,6 +269,7 @@ function PanoramaRow({
           {(task.is_overnight || task.continuingFromYesterday) && (
             <Moon className="h-3 w-3 text-overnight shrink-0" />
           )}
+          {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
           <span
             className={`text-sm font-medium truncate capitalize ${
               isDone ? "text-muted-foreground line-through" : "text-foreground"

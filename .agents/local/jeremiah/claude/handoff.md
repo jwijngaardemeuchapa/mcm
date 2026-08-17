@@ -1,9 +1,25 @@
 # Handoff — Jeremiah / claude
 
-**Data:** 2026-08-12 (Sonnet 5)
-**Versão:** `1.0.51` publicada, **assinada e verificada**. Sem pendência de release aberta.
-**Branch:** main
-**Último commit:** `be9c90c` (latest.json → 1.0.51 + prompt Lovable da Central).
+**Data:** 2026-08-16 (Sonnet 5)
+**Versão:** `1.0.58` publicada, **assinada e verificada** (feita pela sessão paralela). Sem pendência de release aberta.
+**Branch:** main (existe também `origin/beta`, ativo, à frente de main — trabalho em andamento de integração Central, não investigado a fundo).
+**Último commit:** `a966c9a` (fix de tipo em `ConversationPane.tsx`, ver JOURNAL 2026-08-16).
+
+**Catch-up feito nesta sessão:** puxei e li os ~90 commits da sessão paralela
+(v1.0.48→v1.0.58). Resumo completo no JOURNAL de hoje e nas entradas
+anteriores abaixo (não repassar de novo, só reler se precisar de detalhe).
+Destaques que valem lembrar: app "Central" (Lovable) existe e teve integração
+tentada e REVERTIDA duas vezes — produção hoje NÃO depende dela em nada;
+incidente de "database is locked" já resolvido (fix definitivo via UPSERT,
+v1.0.56); segurança da Central corrigida (MCM-150, escalonamento de
+privilégio + leak de credenciais); painel de tarefa virou "card centralizado"
+(v1.0.57, mais uma iteração de design sobre o mesmo componente).
+
+**Itens antigos deste handoff abaixo (pré-08/16) podem estar desatualizados**
+— a seção "EM ANDAMENTO — Aplicação Central" logo abaixo, por exemplo, já foi
+superada pelos eventos acima (a decisão de "Central fala com as fontes e MCM
+lê da Central" mudou pra "produção não depende da Central"). Verificar com o
+usuário antes de agir em cima de pendências antigas relacionadas à Central.
 
 **EM ANDAMENTO — Aplicação Central (Lovable):** usuário decidiu partir pra
 construir a Central (`.agents/CENTRAL_APP_BACKLOG.md` tem todo o

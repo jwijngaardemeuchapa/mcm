@@ -59,7 +59,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
     const [contactNames, setContactNames] = useState<Record<string, string>>({});
     // Atalhos de mensagem — mesmo mecanismo (e mesma lista salva) já usado
-    // no "Mensagem personalizada" do TaskCard (Cards): settings globais,
+    // no "Mensagem a todos" do TaskCard (Cards): settings globais,
     // clique só preenche o composer, nunca envia sozinho.
     const [msgTemplates, setMsgTemplates] = useState<string[]>(() => readSettings().customMsgTemplates);
     const [shortcutsOpen, setShortcutsOpen] = useState(true);
@@ -275,7 +275,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
             <p className="text-[10px] text-muted-foreground">Últimas {TAKE} mensagens</p>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={load} title="Atualizar" disabled={loading}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => load()} title="Atualizar" disabled={loading}>
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </Button>
             {chatId && (
@@ -460,9 +460,13 @@ function ChatBubble({ message, isGroup, contactNames }: { message: UmblerMessage
   // sistema centralizado, igual WhatsApp mostra mudança de assunto/grupo,
   // em vez de balão como se fosse alguém falando.
   if (message.source === "Bot") {
+    // Evento de sistema/automação (bot), não é conversa entre pessoas — pill
+    // centralizado em tom âmbar (mesmo token `warning` usado nos outros
+    // avisos deste componente, ver banner de janela de 24h acima), pra ficar
+    // óbvio de cara que isso é um evento e não uma fala de alguém.
     return (
       <div className="flex flex-col items-center gap-0.5 py-1">
-        <span className="inline-flex items-center gap-1.5 max-w-[90%] text-[11px] text-muted-foreground bg-muted/50 rounded-full px-3 py-1 text-center">
+        <span className="inline-flex items-center gap-1.5 max-w-[90%] text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-full px-3 py-1 text-center">
           <Bot className="h-3 w-3 shrink-0" />
           <ChatBubbleContent message={message} />
         </span>
@@ -481,7 +485,11 @@ function ChatBubble({ message, isGroup, contactNames }: { message: UmblerMessage
     <div className={`flex flex-col gap-1 ${fromChapa ? "items-start" : "items-end"}`}>
       <div
         className={`max-w-[70%] rounded-lg px-3.5 py-2.5 text-sm leading-relaxed ${
-          fromChapa ? "bg-muted text-foreground" : "bg-primary/10 text-foreground"
+          // Chapa: neutro/cinza (bg-muted, como sempre foi). Analista/membro
+          // (outbound): tingido com o token `accent` já usado em outros
+          // cantos do app (ValidacoesTardiasTab, ValidationPanel) pra dar
+          // variação de cor sem inventar hex novo.
+          fromChapa ? "bg-muted text-foreground" : "bg-accent/40 text-foreground"
         }`}
       >
         <div className="text-[10px] font-semibold text-muted-foreground mb-1">{label}</div>

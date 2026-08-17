@@ -1,10 +1,12 @@
 import React, { useMemo, useRef, useEffect, useCallback } from "react";
-import { type TaskWithChapas } from "./TaskCard";
+import { type TaskWithChapas, UnreadDot } from "./TaskCard";
 import { fmtSP, todayDateISO_SP, nowSP } from "@/lib/datetime";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed } from "lucide-react";
 import { computeTaskState, taskSeverityBlockClass } from "@/lib/taskState";
 import { readSettings } from "@/lib/settings";
+import { last11Digits } from "@/lib/umbler";
+import { useWatcherLog } from "@/lib/WatcherContext";
 
 interface TaskTimelineProps {
   tasks: TaskWithChapas[];
@@ -19,6 +21,10 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
   const DEFAULT_DURATION_HOURS = 2; // Default 2 hours block
 
   const { fillRateWarningThreshold } = readSettings();
+  // MCM-159: agregado por tarefa (bloco denso, sem linha por chapa) — só
+  // considera chapas por telefone, mesmo trade-off do TaskPanorama (grupo do
+  // cliente ficaria de fora pra não disparar 1 query por tarefa).
+  const { unreadPhones } = useWatcherLog();
 
   const { startHour, endHour, processedTasks } = useMemo(() => {
     if (tasks.length === 0) return { startHour: 6, endHour: 18, processedTasks: [] };
@@ -46,6 +52,8 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
       let colorClass = taskSeverityBlockClass(state.severity);
       if (concluida) colorClass += " opacity-50 saturate-50";
 
+      const hasUnread = t.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa)));
+
       return {
         ...t,
         startFloat,
@@ -56,6 +64,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
         colorClass,
         concluida,
         validada,
+        hasUnread,
       };
     });
 
@@ -80,7 +89,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
     });
 
     return { startHour: minH, endHour: maxH, processedTasks: withLanes };
-  }, [tasks]);
+  }, [tasks, unreadPhones]);
 
   // É hoje? (linha do "Agora" só faz sentido quando a timeline mostra o dia atual)
   const today = todayDateISO_SP();
@@ -167,6 +176,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                     <div className="text-[10px] font-bold truncate flex items-center gap-1">
                       {t.concluida && <CheckCircle2 className="h-3 w-3 shrink-0" />}
                       {!t.concluida && t.validada && <BadgeCheck className="h-3 w-3 shrink-0" />}
+                      {t.hasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
                       <span className="truncate">{t.empresa.toUpperCase()}</span>
                     </div>
                     <div className="text-[10px] flex items-center gap-1 opacity-90 whitespace-nowrap">

@@ -80,9 +80,10 @@ import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueu
 import { computeTaskState } from "@/lib/taskState";
 import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
-import { umblerChatLink } from "@/lib/umbler";
+import { umblerChatLink, last11Digits } from "@/lib/umbler";
 import { pushChapaStatusToCentral } from "@/lib/central";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useWatcherLog } from "@/lib/WatcherContext";
 
 function formatCpf(cpf: string): string {
   const digits = cpf.replace(/\D/g, "");
@@ -150,7 +151,7 @@ const canalLabelLong: Record<string, string> = {
   whatsapp_web: "WhatsApp Web",
   umbler_talk: "Umbler Talk",
   ligacao_3c: "Ligação 3C",
-  umbler_custom: "Mensagem personalizada",
+  umbler_custom: "Mensagem a todos",
 };
 
 function companyFilenameSlug(empresa: string): string {
@@ -181,6 +182,20 @@ function fmtElapsed(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return m > 0 ? `${h}h ${m}min` : `${h}h`;
+}
+
+// Ponto vermelho didático — mensagem nova no Umbler Talk (MCM-159). Sem
+// contador, sem texto: só um sinal visual mínimo, pedido explícito do
+// usuário. Compartilhado por TaskCard/TaskDetailPanel/TaskPanorama/
+// TaskTimeline/BIDDashboard pra manter o mesmo visual nos 4 lugares.
+export function UnreadDot({ title = "Mensagem nova" }: { title?: string }) {
+  return (
+    <span
+      className="shrink-0 inline-block h-2 w-2 rounded-full bg-destructive animate-pulse"
+      title={title}
+      aria-label={title}
+    />
+  );
 }
 
 function formatPhone(s: string | null): string {
@@ -274,6 +289,13 @@ export function TaskCard({
   const [clienteInfo, reloadClienteInfo] = useClienteInfo(task.empresa);
   const [clienteChatOpen, setClienteChatOpen] = useState(false);
   const [clienteGroupPickerOpen, setClienteGroupPickerOpen] = useState(false);
+
+  // MCM-159: mensagem nova no Umbler (chapa ou grupo do cliente) mesmo com a
+  // tarefa colapsada/minimizada — agregado pro ponto no header do card.
+  const { unreadPhones, unreadChatIds } = useWatcherLog();
+  const taskHasUnread =
+    task.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa))) ||
+    (!!clienteInfo?.umbler_group_chat_id && unreadChatIds.has(clienteInfo.umbler_group_chat_id));
 
   const { fillRateWarningThreshold } = readSettings();
   const taskState = computeTaskState(task, fillRateWarningThreshold);
@@ -733,6 +755,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           {isOvernight && <Moon className="h-4 w-4 text-overnight shrink-0" aria-label="Overnight" />}
           <BadgeCheck className={`h-4 w-4 shrink-0 ${emAndamento ? "text-info" : emAnalise ? "text-analise" : "text-success"}`} aria-label="Validada" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
+            {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
             <span className="text-sm text-muted-foreground truncate capitalize">
               {task.empresa.toLowerCase()} — {fmtTime(task.data_tarefa)}
             </span>
@@ -838,6 +861,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
+              {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
               <span className="font-semibold text-foreground truncate capitalize">
                 {task.empresa.toLowerCase()}
               </span>
@@ -1304,7 +1328,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                         ? "Enviando — clique para interromper"
                         : customMsgCount > 0
                         ? `${customMsgCount} mensagem(ns) personalizada(s) enviada(s) — clique para enviar outra`
-                        : `Mensagem personalizada para os ${confirmedWithPhone.length} confirmado(s) — janela de 24h aberta`}
+                        : `Mensagem a todos os ${confirmedWithPhone.length} confirmado(s) — janela de 24h aberta`}
                     </TooltipContent>
                   </Tooltip>
                 )}
@@ -1486,7 +1510,7 @@ Precisamos de 1 substituto para esta tarefa.`;
         <DialogContent className="sm:max-w-md flex flex-col max-h-[90vh]">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-primary" /> Mensagem personalizada
+              <MessageSquare className="h-4 w-4 text-primary" /> Mensagem a todos
             </DialogTitle>
             <DialogDescription>
               Texto livre para os chapas confirmados desta tarefa.
@@ -1769,6 +1793,12 @@ function ChapaRowView({
   const pendingAction = chapaJobState?.action ?? null;
   const countdown = chapaJobState?.remaining ?? 0;
 
+  // MCM-159: ponto vermelho por chapa — some sozinho no próximo poll do
+  // WatcherContext (~40s) quando `totalUnread` zerar no servidor (a
+  // conversa foi aberta/lida), sem precisar de uma camada própria de "visto".
+  const { unreadPhones: chapaUnreadPhones } = useWatcherLog();
+  const chapaHasUnread = !!chapa.telefone_chapa && chapaUnreadPhones.has(last11Digits(chapa.telefone_chapa));
+
   // cancelSent is stored in localStorage so it persists across re-renders / refreshes
   const cancelSent = (() => {
     try { return !!localStorage.getItem(`umbler_cancel_${chapa.id}`); } catch { return false; }
@@ -1843,12 +1873,13 @@ function ChapaRowView({
   return (
     <div
       data-chapa-name={chapa.nome_chapa ? chapa.nome_chapa.toLowerCase().trim().replace(/\s+/g, " ") : undefined}
-      className={`px-4 py-3 flex items-center gap-3 transition-colors duration-200 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}
+      className={`group px-4 py-3 flex items-center gap-3 transition-colors duration-200 ${bg} ${placeholder ? "opacity-60 italic" : ""}`}
     >
       {/* Zone 1 — identity */}
       <div className="flex-1 min-w-0">
         {chapa.nome_chapa ? (
           <div className="flex items-center gap-1.5 min-w-0">
+            {chapaHasUnread && <UnreadDot title="Mensagem nova no Umbler" />}
             <button
               type="button"
               onClick={() => clipboardWrite(chapa.nome_chapa!, `Nome copiado: ${chapa.nome_chapa}`)}
@@ -1989,8 +2020,18 @@ function ChapaRowView({
         </>
       ) : !placeholder ? (
         <>
-          {/* Zone 2 — channels */}
+          {/* Zone 2 — channels. WhatsApp/Umbler/Cancelar ficam escondidos até
+              o hover na linha (feedback do usuário: reduz poluição visual
+              sem adicionar cliques — o primeiro clique já dispara a ação
+              normalmente). Estado ativo (contagem regressiva) não fica
+              escondido, pra não sumir uma ação pendente debaixo do mouse. */}
           <div className="flex items-center gap-1">
+            {/* WhatsApp + Enviar Umbler — hover-only */}
+            <div
+              className={`flex items-center gap-1 transition-opacity ${
+                pendingAction === "fup" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              }`}
+            >
             {/* WhatsApp */}
             {(() => {
               const used = chapa.canal_contato === "whatsapp_web";
@@ -2060,18 +2101,27 @@ function ChapaRowView({
                 </Tooltip>
               );
             })()}
+            </div>
 
             {/* Conversa (BID/FUP) — abre painel com últimas mensagens do chat
                 vinculado ao disparo mais recente deste chapa. Mensagens de
                 verdade só são buscadas ao abrir o painel (evita estourar
-                rate limit do Umbler buscando ao vivo pra cada linha). */}
+                rate limit do Umbler buscando ao vivo pra cada linha). Fica
+                sempre visível — é status/notificação, não um "disparo". */}
             {conversaTrigger}
             {conversaSheet}
 
-            {/* Cancelamento individual — "Sem resposta" (cancelTemplateId) ou
-                "Cancelar tarefa" (taskCancelTemplateId, mesmo template do
-                disparo em massa, mas pra 1 chapa só). Vira dropdown porque
-                antes só dava pra mandar "tarefa cancelada" em massa. */}
+            {/* Cancelamento individual — hover-only, exceto durante envio
+                pendente (contagem regressiva continua visível) */}
+            <div
+              className={`flex items-center gap-1 transition-opacity ${
+                pendingAction === "cancel" || pendingAction === "cancel_task" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              }`}
+            >
+            {/* "Sem resposta" (cancelTemplateId) ou "Cancelar tarefa"
+                (taskCancelTemplateId, mesmo template do disparo em massa,
+                mas pra 1 chapa só). Vira dropdown porque antes só dava pra
+                mandar "tarefa cancelada" em massa. */}
             {(cancelTemplateReady || taskCancelTemplateReady || cancelSent || cancelCount > 0 || cancelTaskSent || cancelTaskCount > 0) && chapa.telefone_chapa && (() => {
               const isPending = pendingAction === "cancel" || pendingAction === "cancel_task";
               const everSentCancel = cancelCount > 0 || cancelSent;
@@ -2129,6 +2179,7 @@ function ChapaRowView({
                 </DropdownMenu>
               );
             })()}
+            </div>
 
           </div>
           {/* Zone 3 — outcome */}

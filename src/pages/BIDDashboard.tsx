@@ -11,7 +11,9 @@ import { sincronizarMetabase30h, sincronizarLeadsSaac } from "@/lib/metabaseSync
 import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
 import { ChatSheet } from "@/components/ChatSheet";
-import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink } from "@/lib/umbler";
+import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink, last11Digits } from "@/lib/umbler";
+import { useWatcherLog } from "@/lib/WatcherContext";
+import { UnreadDot } from "@/components/TaskCard";
 import { bidDispatchQueue, BID_WAVE_SIZE, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { pushDispatchEventToCentral } from "@/lib/central";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
@@ -494,6 +496,9 @@ function BidTaskCard({
   onOpenExtras: (task: OpenTask) => void;
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
+  // MCM-159: ponto vermelho didático em chapas disponíveis com mensagem nova
+  // no Umbler — mesmo padrão visual de TaskCard/TaskDetailPanel/Panorama/Timeline.
+  const { unreadPhones: bidUnreadPhones } = useWatcherLog();
   const [dispatchParams, setDispatchParams] = useState<DispatchParams>(() => {
     try {
       const saved = localStorage.getItem(`bid_params_${task.id_tarefa}`);
@@ -2901,6 +2906,9 @@ function BidTaskCard({
                       <div className="text-xs text-muted-foreground/50 tabular-nums font-mono">{idx + 1}</div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
+                          {c.telefone && bidUnreadPhones.has(last11Digits(c.telefone)) && (
+                            <UnreadDot title="Mensagem nova no Umbler" />
+                          )}
                           <button type="button" onClick={() => clipCopy(c.nome, "Nome copiado")}
                             className="text-sm font-medium hover:text-primary hover:underline truncate text-left max-w-[180px]">
                             {c.nome}

@@ -3,6 +3,38 @@
 
 ---
 
+## 2026-08-16 — MCM — Catch-up com sessão paralela (v1.0.48→v1.0.58) + fix de typecheck
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
+**Tickets:** nenhum novo
+**Commits:** a966c9a (fix ConversationPane)
+
+Usuário pediu pra puxar e se familiarizar com tudo que a outra máquina fez
+(90+ commits, v1.0.48 a v1.0.58 — já publicada e assinada, sem pendência de
+release). `git pull` trouxe: app "Central" (Lovable) com integração parcial
+e depois revertida duas vezes (produção não depende dela), incidente real
+de "database is locked" corrigido em 2 etapas (WAL → UPSERT definitivo),
+hotfix de feature vazada em produção ("Solicitar pagamento"), fix crítico
+de segurança na Central (MCM-150), redesign do painel de tarefa pra "card
+centralizado", `CarteiraSelector.tsx` novo, grupo do cliente ganhou envio
+de mensagem + notificação de msg nova + auto-refresh, menu "..." consolida
+ícones de copiar. Detalhes completos já estavam registrados nas entradas
+abaixo (leia-as, não repassar de novo).
+
+Único achado desta sessão: `npm run typecheck` subiu de 13 pra 14 erros
+depois do pull. Isolado como regressão real (não um dos 13 conhecidos):
+`ConversationPane.tsx(278)` passava `load` (assinatura
+`(opts?: {silent?:boolean}) => void`) direto como `onClick`, incompatível
+com `MouseEventHandler`. Corrigido pra `onClick={() => load()}`. Baseline
+real confirmada como **14** (não 13 — meu registro anterior de "13" estava
+desatualizado; os 14 erros atuais são todos pré-existentes, nenhum novo).
+
+Também notado: existe branch `origin/beta` ativo, à frente de `main`, com
+trabalho em andamento de integração Central (empurrar evento de disparo
+FUP+BID pra Central, fix de `syncRegistroFromCentral`). Não investigado a
+fundo ainda — só confirmada a existência.
+
+---
+
 ## 2026-08-19 — MCM — Release v1.0.57: card centralizado + atalhos de mensagem + envio em grupo + revisão de UI
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** MCM-152 (fechado), MCM-153 (parcial — grupo sender ID ainda pendente)
@@ -2012,3 +2044,12 @@ Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disp
 **Summary:** Bump de versão 1.0.0 → 1.0.1 em tauri.conf.json e Ajuda.tsx (badge, changelog, rodapé, módulos). Esclarecido: o repo já estava em 1.0.0 desde a3b69e9 (21/06); o app mostrando "9.94" era build antigo instalado. Build NSIS gerado com sucesso: MCM_1.0.1_x64-setup.exe (216 MB) em src-tauri/target/release/bundle/nsis/. O 1.0.1 carrega os fixes acumulados desde o build 1.0.0 original: detect_response (frase completa, evita falso-positivo "nessa"), recusa via Firebase sinaliza remoção (fup:remove-chapa), e MCM-78 (chapas alocados fuso + extras reload). tsc limpo, build exit 0.
 **Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`
 **Next:** Distribuir MCM_1.0.1_x64-setup.exe e reinstalar nas máquinas para o app passar a exibir 1.0.1 com os fixes.
+
+---
+
+## 2026-08-19 — Pente fino Central + MCM beta, release v1.0.58
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Auditoria completa (2 agentes em paralelo) de central-hub e mcm/beta cobrindo UX/UI, minimalismo, segurança e usabilidade. Achados aplicados na `main`: extraído `computeTaskState()` (src/lib/taskState.ts) usado por TaskCard/TaskPanorama/TaskTimeline — Timeline usava só `validacao_status === 'validacao_recebida'` e ignorava `subido_meu_chapa`, além de calcular cor por threshold próprio de fillPct, divergindo das outras 2 views pra mesma tarefa; export CSV de presença portado pro TaskDetailPanel (faltava no Panorama/Timeline); menu Copiar do TaskCard unificado num dropdown só, mesmos rótulos do TaskDetailPanel. "Solicitar pagamento" NÃO foi portado pro TaskCard — já tinha sido revertido da produção antes por depender da Central (comentário no próprio TaskDetailPanel.tsx confirma). Na `beta`: fix de `syncRegistroFromCentral()` — trocado DELETE-then-INSERT (janela vazia + risco de perda silenciosa de chunk) por insert-marcado-com-timestamp-depois-delete-do-que-sobrou; NÃO virou upsert por ON CONFLICT(cpf) porque cpf foi deliberadamente tirado de PK numa migração anterior (mesmo CPF pode vir de metabase + leads_saac, ou duplicado num feed — UNIQUE derrubava o chunk inteiro em silêncio, bug já documentado em lib.rs). Build v1.0.58 assinado, release publicado, latest.json atualizado e verificado (200/200).
+**Files changed:** `src/lib/taskState.ts` (novo), `src/components/TaskCard.tsx`, `src/components/TaskDetailPanel.tsx`, `src/components/TaskPanorama.tsx`, `src/components/TaskTimeline.tsx`, `src/lib/central.ts` (beta), `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** Central: prompt de segurança (hooks públicos autenticando com SUPABASE_ANON_KEY, incluindo o endpoint novo chapa-dispatch.ts) e prompt de pente fino UX/volumetria (fill-rate sem abas, analistas sem teclado, capitalize quebrando siglas, limit(10000/20000) sem escopo no servidor) enviados ao Lovable mas confirmados NÃO aplicados numa checagem posterior — reenviados, aguardando confirmação. RLS de tarefa_chapas (CPF/telefone sem escopo) segue como pergunta em aberto pro usuário, não decidir sozinho.
