@@ -81,6 +81,7 @@ import { computeTaskState } from "@/lib/taskState";
 import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { umblerChatLink } from "@/lib/umbler";
+import { pushChapaStatusToCentral } from "@/lib/central";
 import { Checkbox } from "@/components/ui/checkbox";
 
 function formatCpf(cpf: string): string {
@@ -307,6 +308,18 @@ export function TaskCard({
       },
       onReverted: onRefresh,
     });
+    // Espelha na Central quando é confirmação/cancelamento manual — mesmo
+    // mecanismo do TaskDetailPanel (Panorama/Timeline), pra Cards não ficar
+    // invisível pra liderança.
+    if (patch.status_contato === "confirmado" || patch.status_contato === "cancelado") {
+      pushChapaStatusToCentral({
+        id_tarefa: task.id_tarefa,
+        telefone_chapa: chapa.telefone_chapa,
+        cpf: chapa.cpf,
+        nome_chapa: chapa.nome_chapa,
+        status_contato: patch.status_contato,
+      });
+    }
     onRefresh();
   }
 
@@ -395,6 +408,15 @@ Precisamos de 1 substituto para esta tarefa.`;
       },
       onReverted: onRefresh,
     });
+    for (const c of targets) {
+      pushChapaStatusToCentral({
+        id_tarefa: task.id_tarefa,
+        telefone_chapa: c.telefone_chapa,
+        cpf: c.cpf,
+        nome_chapa: c.nome_chapa,
+        status_contato: "confirmado",
+      });
+    }
     setConfirmAllOpen(false);
     toast.success(`${ids.length} chapa(s) confirmado(s)`);
     onRefresh();
