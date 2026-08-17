@@ -71,6 +71,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
     }
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     // Blob URLs criadas só pro eco otimista (ver handleSend) — revogadas
     // assim que o próximo load() troca a lista inteira por dados reais.
     const optimisticUrlsRef = useRef<string[]>([]);
@@ -264,6 +265,11 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
         setSendError(humanizarErroUmbler(e));
       } finally {
         setSending(false);
+        // O Textarea fica `disabled` durante o envio (perde o foco por
+        // conta disso) e reabilitar não devolve o foco sozinho — sem isso o
+        // operador precisava clicar de novo no campo pra continuar digitando
+        // a cada mensagem, quebrando o ritmo de digitação em sequência.
+        requestAnimationFrame(() => textareaRef.current?.focus());
       }
     }
 
@@ -416,6 +422,7 @@ export const ConversationPane = forwardRef<ConversationPaneHandle, ConversationP
                 <Paperclip className="h-4 w-4" />
               </Button>
               <Textarea
+                ref={textareaRef}
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 onKeyDown={(e) => {
