@@ -165,25 +165,32 @@ ao usuário na próxima sessão que tocar nisso.**
 
 ### 6. Aba de solicitação de pagamento de tarefa (NOVO — 2026-08-18)
 
-Pedido do usuário, só pra registrar na lista (não implementar ainda): uma
-aba de solicitação de pagamento por tarefa. Requisitos citados:
+Pedido do usuário, registrar na lista (não implementar ainda). Requisitos
+citados:
 - ID da tarefa anexado/incluído na solicitação
 - Poder selecionar **todos** os ajudantes da tarefa, ou **apenas 1**
 - Informações por ajudante: nome, telefone e **valor** (pagamento)
 
-**Em aberto, não fabricar sem confirmar:**
-- Onde isso vive — Central (`central-hub`, mais provável dado o contexto de
-  liderança/financeiro) ou de volta no MCM local? Perguntar antes de
-  desenhar.
-- **"Valor" não existe em nenhum schema hoje** — nem `tarefa_chapas`
-  (Central) nem `chapas`/`tarefas` (MCM local) têm campo de diária/valor de
-  pagamento. Precisa descobrir a fonte: vem do Metabase (campo ainda não
-  capturado, tipo o "Data de Criação" que faltava antes), é digitado manual
-  na hora de gerar a solicitação, ou vem de outro lugar (planilha,
-  cadastro de valores por empresa/tarefa)?
-- O que "solicitação de pagamento" produz de fato — é um export (CSV/PDF)
-  pra mandar pro financeiro, ou fica registrado em uma tabela própria com
-  status (solicitado/pago)? Muda bastante o desenho.
+**Decisões já confirmadas com o usuário (2026-08-18):**
+- **Fluxo:** o MCM local gera a solicitação e envia pra Central (mesmo
+  padrão dos endpoints `/api/public/hooks/*` já existentes, ex:
+  `chapa-status.ts`) — fica registrado lá pros gestores verem. Não é a
+  Central que gera, é o MCM que empurra.
+- **Onde no MCM:** dentro do `TaskDetailPanel.tsx`, junto dos outros botões
+  de ação da tarefa (Copiar, FUP Todos etc) — não uma tela separada.
+- **Valor:** confirmado que existe no Metabase, mas o usuário não lembra
+  qual Question/coluna — **precisa perguntar de novo quando for
+  implementar, não presumir que é a mesma Question de tarefas (card 1290).**
+  Mesma disciplina de "Data de Criação": pedir export/print da Question
+  real antes de escrever qualquer parser.
+
+**Ainda em aberto, não fabricar sem confirmar:**
+- Qual Question/coluna do Metabase tem o valor (pendente, ver acima).
+- O que a solicitação produz do lado da Central — só um registro pra
+  visualização (lista com status solicitado/pago?), ou também dispara algo
+  (notificação, export)? Não perguntado ainda.
+- Schema da nova tabela na Central (`payment_requests` ou similar) e do
+  novo endpoint — desenhar só quando o campo de valor estiver confirmado.
 
 ## Estado atual (atualizado 2026-08-18)
 
