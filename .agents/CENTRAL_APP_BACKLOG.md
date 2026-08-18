@@ -228,3 +228,30 @@ central"). Ciclo fechado nos dois repos:
 tarefa ao mesmo tempo) não foi testado em produção — a regra "só aplica se
 local ainda não é confirmado/cancelado" cobre o caso óbvio, mas não foi
 validada com uso real ainda.
+
+**2026-08-18 — Escopo da Camada 3 esclarecido, extensão PAUSADA a pedido do
+usuário.** Ele perguntou se todos os analistas já veem disparado/confirmado/
+negado de BID e mensagem de cancelamento — resposta foi não, o que está no
+ar hoje cobre só **FUP: confirmado/cancelado** (resultado final do chapa na
+tarefa). Três lacunas confirmadas, aguardando decisão de testar o que já
+existe antes de crescer:
+
+1. **Evento de disparo** (FUP enviado, mensagem de cancelamento enviada) —
+   hoje só empurro pra Central quando o status vira confirmado/cancelado,
+   nunca no momento do ENVIO. A Central não sabe "fulano recebeu FUP às 14h
+   e ainda não respondeu".
+2. **BID completo** — vive em `bid_disparos` no MCM local, tabela separada
+   de `chapas`/`tarefas`, com estados próprios (`aguardando`/
+   `interesse_sim`/`interesse_nao`/`aceita_app`/`nao_aceita_app`/
+   `precisa_ajuda`). Não foi tocado — a Central só tem `bot_dispatches`
+   (contagem agregada por bot, sem saber QUEM foi negado/aceito).
+3. **Canal de cancelamento** — `canal_contato` tipo `umbler_cancelamento*`
+   também não é empurrado.
+
+Usuário decidiu: **testar primeiro o ciclo de confirmação/cancelamento FUP
+que já está no ar, antes de estender.** Não iniciar a extensão sem sinal
+verde explícito — quando vier, provavelmente precisa de: nova tabela
+`bid_status` na Central (espelhando `bid_disparos`), push no MCM tanto no
+momento do disparo quanto da resposta (não só no resultado final), e
+extensão do endpoint `/api/public/hooks/chapa-status` (ou um novo) pra
+aceitar eventos de disparo além de status final.
