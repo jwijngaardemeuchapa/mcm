@@ -32,6 +32,7 @@ import { ValidationPanel } from "@/components/ValidationPanel";
 import { ObservationsPanel } from "@/components/ObservationsPanel";
 import { FillRateBar } from "@/components/FillRateBar";
 import { useClienteInfo } from "@/lib/useClienteInfo";
+import { pushChapaStatusToCentral } from "@/lib/central";
 import { useUndo } from "@/lib/undo";
 import { getDb, errMsg, placeholders } from "@/lib/db";
 import { readSettings } from "@/lib/settings";
@@ -226,6 +227,15 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
       },
       onReverted: onRefresh,
     });
+    for (const c of targets) {
+      pushChapaStatusToCentral({
+        id_tarefa: task.id_tarefa,
+        telefone_chapa: c.telefone_chapa,
+        cpf: c.cpf,
+        nome_chapa: c.nome_chapa,
+        status_contato: "confirmado",
+      });
+    }
     onRefresh();
   }
 
@@ -357,6 +367,17 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh }: TaskDetailPa
       },
       onReverted: onRefresh,
     });
+    // Espelha na Central quando é confirmação/cancelamento manual — pra
+    // outros analistas e a liderança verem sem depender de olhar o WhatsApp.
+    if (patch.status_contato === "confirmado" || patch.status_contato === "cancelado") {
+      pushChapaStatusToCentral({
+        id_tarefa: task!.id_tarefa,
+        telefone_chapa: chapa.telefone_chapa,
+        cpf: chapa.cpf,
+        nome_chapa: chapa.nome_chapa,
+        status_contato: patch.status_contato,
+      });
+    }
     onRefresh();
   }
 
