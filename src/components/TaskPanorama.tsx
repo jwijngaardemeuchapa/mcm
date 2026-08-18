@@ -9,12 +9,12 @@ import {
   Download,
 } from "lucide-react";
 import { TaskDetailPanel } from "./TaskDetailPanel";
-import { type TaskWithChapas, UnreadDot, fmtElapsed } from "./TaskCard";
+import { type TaskWithChapas, UnreadDot, AndamentoJustificationBadge, fmtElapsed } from "./TaskCard";
 import { FillRateBar } from "./FillRateBar";
 import { fmtTime, fmtSP, taskTzLabel } from "@/lib/datetime";
 import { todayDateISO_SP } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
-import { computeTaskState, taskSeverityRowClass } from "@/lib/taskState";
+import { computeTaskState, taskSeverityRowClass, needsAndamentoJustification } from "@/lib/taskState";
 import { last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
 
@@ -179,6 +179,7 @@ function PanoramaRow({
   // 1 query por linha (useClienteInfo faz SELECT completo em cliente_book).
   const { unreadPhones } = useWatcherLog();
   const taskHasUnread = task.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa)));
+  const needsAndamentoMotivo = needsAndamentoJustification(task);
 
   const hasCsv = csvExported(task.id_tarefa);
 
@@ -268,6 +269,7 @@ function PanoramaRow({
             <Moon className="h-3 w-3 text-overnight shrink-0" />
           )}
           {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
+          {needsAndamentoMotivo && <AndamentoJustificationBadge />}
           <span
             className={`text-sm font-medium truncate capitalize ${
               isDone ? "text-muted-foreground line-through" : "text-foreground"

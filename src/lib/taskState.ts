@@ -41,6 +41,19 @@ export function isTaskValidated(validacao_status: string | null | undefined): bo
   return v === "validacao_recebida" || v === "subido_meu_chapa";
 }
 
+// Tarefa entrou "Em Andamento" com menos chapas reais (nome_chapa + não
+// removido, mesmo filtro de `realChapas` usado em TaskCard) do que
+// quantidade_chapas planejada, e ainda não tem motivo registrado — precisa
+// de justificativa obrigatória do analista (4 opções fixas, ver
+// AndamentoJustificationAlert). Some assim que `andamento_motivo` é
+// preenchido, mesmo que a tarefa continue com vagas em aberto depois.
+export function needsAndamentoJustification(task: TaskWithChapas): boolean {
+  if (task.status_tarefa !== "Em Andamento") return false;
+  if (task.andamento_motivo) return false;
+  const realChapas = task.chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
+  return realChapas.length < task.quantidade_chapas;
+}
+
 export function computeTaskState(
   task: TaskWithChapas,
   fillRateWarningThreshold: number,

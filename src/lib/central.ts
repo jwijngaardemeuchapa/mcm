@@ -57,6 +57,27 @@ export async function pushDispatchEventToCentral(params: {
   }
 }
 
+// Espelha o motivo de uma tarefa "Em Andamento" desfalcada — feature
+// inteiramente dependente da Central (só existe pra dar visibilidade à
+// liderança), por isso vive só na beta, MCM e Central juntos. Best-effort
+// silencioso, mesmo padrão dos outros pushes — o registro local em
+// `tarefas.andamento_motivo` já aconteceu antes desta chamada.
+export async function pushAndamentoMotivoToCentral(params: {
+  id_tarefa: number;
+  motivo: string;
+}): Promise<void> {
+  try {
+    const { operadorNome } = readSettings();
+    await fetch(`${CENTRAL_APP_URL}/api/public/hooks/tarefa-andamento-motivo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+      body: JSON.stringify({ ...params, analista: operadorNome || null }),
+    });
+  } catch {
+    // Silencioso — mesmo motivo de pushChapaStatusToCentral.
+  }
+}
+
 // Empurra uma solicitação de pagamento gerada no TaskDetailPanel — fica
 // registrada na Central pra liderança/dev verem (não é a Central que gera).
 // Diferente de pushChapaStatusToCentral, aqui um erro é reportado ao

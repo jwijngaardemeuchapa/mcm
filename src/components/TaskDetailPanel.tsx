@@ -43,10 +43,11 @@ import { fmtTime, fmtDateTime, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { toast } from "sonner";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
 import { useChapaJobState, useTaskCancelState, useMassFupState, useCustomMsgState } from "@/lib/useDispatchJob";
-import { type TaskWithChapas, UnreadDot } from "@/components/TaskCard";
+import { type TaskWithChapas, UnreadDot, AndamentoJustificationBadge } from "@/components/TaskCard";
 import { last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
 import { setActiveTaskNav } from "@/lib/taskNav";
+import { needsAndamentoJustification } from "@/lib/taskState";
 
 const CLIENTE_KEY = "__cliente__";
 
@@ -435,6 +436,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
 
   const confirmedCount = task.chapas.filter((c) => c.status_contato === "confirmado").length;
   const requested = task.quantidade_chapas || task.chapas.length;
+  const needsAndamentoMotivo = needsAndamentoJustification(task);
   const fillPct = requested > 0 ? Math.round((confirmedCount / requested) * 100) : 0;
   const vacantCount = Math.max(0, requested - realChapas.length);
   const minutesUntilStart = (parseTaskDate(task.data_tarefa, task.cidade_uf).getTime() - Date.now()) / 60_000;
@@ -674,6 +676,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="text-[17px] font-display font-bold text-white truncate capitalize">{task.empresa.toLowerCase()}</p>
+                    {needsAndamentoMotivo && <AndamentoJustificationBadge />}
                     {task.is_overnight && (
                       <span title="Overnight"><Moon className="h-3.5 w-3.5 text-white/90 shrink-0" /></span>
                     )}

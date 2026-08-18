@@ -1249,6 +1249,21 @@ CREATE INDEX IF NOT EXISTS idx_captacao_log_telefone ON captacao_log(telefone);
       sql: "ALTER TABLE cliente_book ADD COLUMN umbler_group_chat_id TEXT;",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Justificativa obrigatória quando uma tarefa entra "Em Andamento" com
+      // menos chapas reais do que quantidade_chapas (começou short-staffed).
+      // Guarda motivo + timestamp pra não re-perguntar depois de respondida
+      // (ver needsAndamentoJustification em src/lib/taskState.ts).
+      // version 24: v1 estava em 23, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 24,
+      description: "tarefas_andamento_motivo",
+      sql: "
+ALTER TABLE tarefas ADD COLUMN andamento_motivo TEXT;
+ALTER TABLE tarefas ADD COLUMN andamento_motivo_registrado_em TEXT;
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

@@ -1,9 +1,9 @@
 import React, { useMemo, useRef, useEffect, useCallback } from "react";
-import { type TaskWithChapas, UnreadDot, fmtElapsed } from "./TaskCard";
+import { type TaskWithChapas, UnreadDot, AndamentoJustificationBadge, fmtElapsed } from "./TaskCard";
 import { fmtSP, todayDateISO_SP, nowSP } from "@/lib/datetime";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed } from "lucide-react";
-import { computeTaskState, taskSeverityBlockClass } from "@/lib/taskState";
+import { computeTaskState, taskSeverityBlockClass, needsAndamentoJustification } from "@/lib/taskState";
 import { readSettings } from "@/lib/settings";
 import { last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
@@ -53,6 +53,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
       if (concluida) colorClass += " opacity-50 saturate-50";
 
       const hasUnread = t.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa)));
+      const needsAndamentoMotivo = needsAndamentoJustification(t);
 
       // Timer de FUP — bloco denso demais pra mostrar por chapa, então usa o
       // disparo mais recente da tarefa inteira (massa ou individual) e some
@@ -75,6 +76,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
         concluida,
         validada,
         hasUnread,
+        needsAndamentoMotivo,
         minutesSinceFup,
       };
     });
@@ -188,6 +190,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                       {t.concluida && <CheckCircle2 className="h-3 w-3 shrink-0" />}
                       {!t.concluida && t.validada && <BadgeCheck className="h-3 w-3 shrink-0" />}
                       {t.hasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
+                      {t.needsAndamentoMotivo && <AndamentoJustificationBadge />}
                       <span className="truncate">{t.empresa.toUpperCase()}</span>
                     </div>
                     <div className="text-[10px] flex items-center gap-1 opacity-90 whitespace-nowrap">

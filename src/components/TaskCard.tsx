@@ -79,7 +79,7 @@ import { useClienteInfo } from "@/lib/useClienteInfo";
 import { normalize } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
-import { computeTaskState, taskSeverityCardBorderClass } from "@/lib/taskState";
+import { computeTaskState, taskSeverityCardBorderClass, needsAndamentoJustification } from "@/lib/taskState";
 import { lookupConfiabilidade, CONFIABILIDADE_MIN_PARTICIPACOES, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { umblerChatLink, last11Digits } from "@/lib/umbler";
@@ -128,6 +128,11 @@ export type TaskWithChapas = {
   observacoes?: string | null;
   observacoes_updated_at?: string | null;
   importado_em?: string | null;
+  // Justificativa de "Em Andamento" com vagas em aberto (MCM — ver
+  // needsAndamentoJustification em src/lib/taskState.ts). Nulo = ainda não
+  // justificada (ou condição nunca ocorreu pra essa tarefa).
+  andamento_motivo?: string | null;
+  andamento_motivo_registrado_em?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;
@@ -197,6 +202,28 @@ export function UnreadDot({ title = "Mensagem nova" }: { title?: string }) {
       title={title}
       aria-label={title}
     />
+  );
+}
+
+// Badge "visível mas não alarmante" pra tarefa Em Andamento que começou com
+// menos chapas reais do que quantidade_chapas e ainda não teve motivo
+// registrado (ver needsAndamentoJustification em src/lib/taskState.ts).
+// Âmbar de propósito — não reusa o vermelho/pulsante do UnreadDot porque
+// significa outra coisa (mensagem nova vs. pendência de justificativa) e
+// precisa continuar visível mesmo depois que o analista já viu o alerta.
+export function AndamentoJustificationBadge({
+  title = "Tarefa em andamento com vagas em aberto — motivo pendente",
+}: {
+  title?: string;
+}) {
+  return (
+    <span
+      className="shrink-0 inline-flex items-center justify-center h-4 w-4 rounded-full bg-warning/20 text-warning"
+      title={title}
+      aria-label={title}
+    >
+      <AlertTriangle className="h-2.5 w-2.5" />
+    </span>
   );
 }
 
@@ -667,6 +694,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   const realChapas = task.chapas.filter((c) => c.nome_chapa && c.status_contato !== "removido");
   const allRealConfirmed = realChapas.length > 0 && realChapas.every((c) => c.status_contato === "confirmado");
   const vacantCount = Math.max(0, (task.quantidade_chapas || task.chapas.length) - realChapas.length);
+  const needsAndamentoMotivo = needsAndamentoJustification(task);
   // isDone/fullyValidated agora vêm de computeTaskState() (src/lib/taskState.ts)
   // — extraído pra manter a mesma lógica que TaskPanorama/TaskTimeline usam.
   // Tarefa "Em Andamento" nunca deve ficar verde (mesmo já validada/subida) —
@@ -773,6 +801,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           <BadgeCheck className={`h-4 w-4 shrink-0 ${emAndamento ? "text-info" : emAnalise ? "text-analise" : "text-success"}`} aria-label="Validada" />
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
+            {needsAndamentoMotivo && <AndamentoJustificationBadge />}
             <span className="text-sm text-muted-foreground truncate capitalize">
               {task.empresa.toLowerCase()} — {fmtTime(task.data_tarefa)}
             </span>
@@ -868,6 +897,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               {taskHasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
+              {needsAndamentoMotivo && <AndamentoJustificationBadge />}
               <span className="font-semibold text-foreground truncate capitalize">
                 {task.empresa.toLowerCase()}
               </span>

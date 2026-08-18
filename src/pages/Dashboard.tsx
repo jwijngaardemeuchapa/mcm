@@ -10,6 +10,7 @@ import { TaskTimeline } from "@/components/TaskTimeline";
 import { ApproachingAlert } from "@/components/ApproachingAlert";
 import { ActivityBell } from "@/components/ActivityBell";
 import { AlertBanner, type AlertItem } from "@/components/AlertBanner";
+import { AndamentoJustificationAlert } from "@/components/AndamentoJustificationAlert";
 import { PriorityPanel, type LembreteAlertItem } from "@/components/PriorityPanel";
 import { RefreshDiff, computeRefreshDiff, chapKey, type DiffResult } from "@/components/RefreshDiff";
 import { fetchAllRows } from "@/lib/fetchAll";
@@ -276,6 +277,8 @@ export default function Dashboard() {
         observacoes?: string | null;
         observacoes_updated_at?: string | null;
         importado_em?: string | null;
+        andamento_motivo?: string | null;
+        andamento_motivo_registrado_em?: string | null;
       };
       const buildCard = (raw: Record<string, unknown>, continuing: boolean): TaskWithChapas => {
         const t = raw as T;
@@ -295,6 +298,8 @@ export default function Dashboard() {
           observacoes: t.observacoes ?? null,
           observacoes_updated_at: t.observacoes_updated_at ?? null,
           importado_em: t.importado_em ?? null,
+          andamento_motivo: t.andamento_motivo ?? null,
+          andamento_motivo_registrado_em: t.andamento_motivo_registrado_em ?? null,
           chapas: (chapas as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
             (c) => c.id_tarefa === t.id_tarefa,
           ) as unknown as TaskWithChapas["chapas"],
@@ -1347,6 +1352,11 @@ export default function Dashboard() {
 
         {/* ── Central de Atenção: AlertBanner + PriorityPanel ── */}
         <div className="space-y-2">
+          <AndamentoJustificationAlert
+            tasks={allCards}
+            onFlashTask={flashTask}
+            onRefresh={() => load()}
+          />
           <AlertBanner
             tasks={allCards}
             onFlashTask={flashTask}
