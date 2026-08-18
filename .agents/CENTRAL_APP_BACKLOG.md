@@ -196,8 +196,35 @@ direto via GitHub, mesmo fluxo do MCM):**
   cadastro geral, cardId diferente — 1290 por padrão no MCM) e clicar em
   Sincronizar antes de aparecer dado.**
 
-**Camada 3 (status real de chapa/tarefa compartilhado) continua NÃO
-implementada** — o cruzamento por telefone com o Firestore é um sinal
-best-effort (só pega quem respondeu pelo bot da Umbler), não é a mesma
-coisa que ter o status_contato real de cada MCM local centralizado. Isso
-ainda depende da decisão de escopo/schema que ficou em aberto.
+**2026-08-18 — Camada 3 IMPLEMENTADA** (pedido explícito do usuário: "os
+MCMs também informem quando o analista confirma manualmente" + "quando for
+confirmado pelo webhook... a central sincroniza e os MCMs sincronizam com a
+central"). Ciclo fechado nos dois repos:
+
+- `tarefa_chapas` ganhou `status_contato`/`status_source`/`status_changed_by`/
+  `status_changed_at` (migration `20260818113000_status_compartilhado.sql`).
+- Central: novo endpoint `POST /api/public/hooks/chapa-status` (mesmo padrão
+  apikey de `sync-sources.ts`) — o MCM chama isso quando o analista confirma/
+  cancela manualmente (`status_source='mcm_manual'`). `syncFirestoreStatus()`
+  em `sync.server.ts` persiste o sinal do bot da Umbler
+  (`status_source='firestore_bot'`, login anônimo + REST API do Firestore
+  server-side, já que Edge Function não mantém `onSnapshot`). Nunca sobrescreve
+  uma confirmação manual mais recente. `TarefaOverview` agora lê direto da
+  tabela em vez de cruzar Firestore no client a cada render.
+- MCM: `src/lib/central.ts` — `pushChapaStatusToCentral()` chamado em
+  `updateChapaStatus`/`confirmAllPendentes` do `TaskDetailPanel.tsx` (best
+  effort, nunca bloqueia a ação local se a Central estiver fora do ar).
+  `applyCentralStatusLocally()` roda a cada 60s (mesmo polling de
+  `WatcherContext.tsx`), aplica na tabela `chapas` local só quando o status
+  atual ainda é `pendente`/`nao_respondeu` — nunca sobrescreve uma ação que o
+  próprio analista já fez nessa máquina.
+- Credenciais da Central (URL do app `https://central-chapa-nexus.lovable.app`,
+  URL/publishable key do Supabase `https://uesgakycmstdhnctdtpc.supabase.co`)
+  ficam hardcoded em `src/lib/central.ts` — mesma lógica de `firebase.ts`
+  (chave pública, segura de embutir, segurança vem de RLS/apikey do lado de
+  lá, não do segredo do valor).
+
+**Ainda em aberto:** conflito de verdade (dois analistas mexendo na mesma
+tarefa ao mesmo tempo) não foi testado em produção — a regra "só aplica se
+local ainda não é confirmado/cancelado" cobre o caso óbvio, mas não foi
+validada com uso real ainda.
