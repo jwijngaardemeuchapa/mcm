@@ -1,9 +1,14 @@
 # Backlog — Aplicação Central (Lovable)
 
-Documento vivo. Não é código, não é o MCM em si — é o levantamento de requisitos
-pra uma futura aplicação separada (proposta em 2026-08-12) que centralizaria o
-que hoje cada instalação local do MCM faz sozinha. **Nada disso foi construído
-ainda** — é backlog pra quando a decisão de arquitetura for tomada.
+Documento vivo sobre uma aplicação SEPARADA deste repo — não é código do MCM.
+
+**Status: EM CONSTRUÇÃO.** Repositório real:
+`https://github.com/jwijngaardemeuchapa/central-hub` (criado pelo Lovable a
+partir do prompt em `LOVABLE_PROMPT_CENTRAL.md`). Não é mais só backlog —
+já existe código rodando lá, com acesso direto via GitHub (mesmo fluxo de
+commit/push usado neste repo). Ver `LOVABLE_PROMPT_CENTRAL.md` pro prompt
+original e a seção "Estado atual" no fim deste arquivo pro que já foi
+implementado versus o que falta.
 
 ## Motivação (por que centralizar)
 
@@ -158,8 +163,41 @@ sem detalhamento nenhum (o que conta como ocorrência? quem registra? é
 manual ou puxado de algum sync existente?). **Não fabricar schema — perguntar
 ao usuário na próxima sessão que tocar nisso.**
 
-## Estado atual (não mexer sem essa decisão)
+## Estado atual (atualizado 2026-08-18)
 
-Nada disso foi implementado. O MCM local continua com sync direto no
-Metabase e consumo direto da fila Firestore, como sempre foi. Este documento
-existe só pra não perder o levantamento entre sessões.
+O MCM local **não mudou** — continua com sync direto no Metabase e consumo
+direto da fila Firestore, como sempre foi. A migração dos MCMs locais pra
+ler da Central é passo futuro, não iniciado.
+
+**Repositório `central-hub` — já implementado pelo Lovable + eu (acesso
+direto via GitHub, mesmo fluxo do MCM):**
+- Auth com 3 papéis (`lideranca`/`analista`/`dev`), `profiles`+`user_roles`
+- Audit log genérico (trigger em toda tabela relevante) + tela de auditoria
+  só pro papel `dev`
+- Sync de `chapa_registry` (Metabase, cadastro geral) e `leo_metrics`
+  (Google Sheets) — mesmo padrão upsert em `sync.server.ts`
+- Sync de `bot_dispatches` (API de bots da Umbler) — quebra por analista
+  ainda não implementada (endpoint não confirma o campo, mesma ressalva do
+  prompt original)
+- Identidade visual aplicada CERTO (Fustat, paleta exata #e5490e/#fb7b2f/
+  #fb6104 em oklch)
+- Dashboard com feed de mensagens do Firestore + módulo de bloqueio BID
+  (leo_metrics × chapa_registry, filtro de % configurável)
+- **2026-08-18 — Visão por tarefa** (eu implementei direto no repo, sessão
+  de hoje): faltava o conceito central do MCM (tarefa + ajudantes escalados,
+  fill rate) — o dashboard só tinha o feed cru de mensagens, sem noção de
+  tarefa/empresa. Adicionei `tarefas`+`tarefa_chapas` sincronizadas da MESMA
+  Question do Metabase que o MCM local usa (`metabaseTarefasCardId`, uma
+  linha por ajudante escalado, agrupa por ID Tarefa igual `ingestTarefas`),
+  e uma aba "Visão por tarefa" cruzando com o Firestore por telefone pra dar
+  um sinal de confirmação (rotulado "confirmado via Umbler", não fonte
+  autoritativa — ver nota abaixo). **Falta o usuário preencher a config
+  "Metabase — tarefas do dia" na tela de Integrações (mesma URL/apiKey do
+  cadastro geral, cardId diferente — 1290 por padrão no MCM) e clicar em
+  Sincronizar antes de aparecer dado.**
+
+**Camada 3 (status real de chapa/tarefa compartilhado) continua NÃO
+implementada** — o cruzamento por telefone com o Firestore é um sinal
+best-effort (só pega quem respondeu pelo bot da Umbler), não é a mesma
+coisa que ter o status_contato real de cada MCM local centralizado. Isso
+ainda depende da decisão de escopo/schema que ficou em aberto.
