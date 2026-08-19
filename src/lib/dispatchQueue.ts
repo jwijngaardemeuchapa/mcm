@@ -424,13 +424,32 @@ class DispatchQueue {
     }
 
     const taskDateStr = fmtSP(task.data_tarefa, "yyyy-MM-dd");
-    const isD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.fupBotD1Id && umblerSettings.fupBotD1TriggerName);
-    const botId = isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId;
-    const triggerName = isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName;
+    // PréFUP (D1) usa template direto (não mais chatbot) — mesma lógica de
+    // _executeChapaFup, variáveis [empresa, horário].
+    const isD1 = taskDateStr > todayDateISO_SP() && !!umblerSettings.fupD1TemplateId;
     const fupInitialData = {
       Data: fmtTaskDateParam(task.data_tarefa),
       Cidade: task.empresa,
     };
+    const fupD1Params = [task.empresa, fmtTaskDateParam(task.data_tarefa)];
+    const sendOne = (chapa: ChapaSnap) =>
+      isD1
+        ? sendUmblerFup({
+            chapaNome: chapa.nome_chapa!,
+            chapaTelefone: chapa.telefone_chapa!,
+            dataTarefa: task.data_tarefa,
+            empresa: task.empresa,
+            settings: umblerSettings,
+            templateIdOverride: umblerSettings.fupD1TemplateId,
+            overrideParams: fupD1Params,
+          })
+        : startUmblerBot({
+            chapaTelefone: chapa.telefone_chapa!,
+            settings: umblerSettings,
+            initialData: fupInitialData,
+            botIdOverride: umblerSettings.fupBotId,
+            triggerNameOverride: umblerSettings.fupBotTriggerName,
+          });
 
     this.massFupStates.set(taskId, { status: "sending", progress: { phase: "sending", sent: 0, total: chapas.length } });
     this.notifyMassFup(taskId);
@@ -451,13 +470,7 @@ class DispatchQueue {
       }
       const chapa = chapas[i];
       try {
-        const { chatId } = await startUmblerBot({
-          chapaTelefone: chapa.telefone_chapa!,
-          settings: umblerSettings,
-          initialData: fupInitialData,
-          botIdOverride: botId,
-          triggerNameOverride: triggerName,
-        });
+        const { chatId } = await sendOne(chapa);
         sent++;
         sentIds.push(chapa.id);
         sentChatIds.set(chapa.id, chatId);
@@ -491,13 +504,7 @@ class DispatchQueue {
           }
           const chapa = firstPassFailed[i];
           try {
-            const { chatId } = await startUmblerBot({
-              chapaTelefone: chapa.telefone_chapa!,
-              settings: umblerSettings,
-              initialData: fupInitialData,
-              botIdOverride: botId,
-              triggerNameOverride: triggerName,
-            });
+            const { chatId } = await sendOne(chapa);
             sent++;
             sentIds.push(chapa.id);
             sentChatIds.set(chapa.id, chatId);
@@ -703,20 +710,35 @@ class DispatchQueue {
       return;
     }
     const taskDateStr = fmtSP(task.data_tarefa, "yyyy-MM-dd");
-    const isD1 = taskDateStr > todayDateISO_SP() && !!(umblerSettings.fupBotD1Id && umblerSettings.fupBotD1TriggerName);
+    // PréFUP (D1) usa template direto (não mais chatbot) — variáveis
+    // [empresa, horário], nessa ordem. Ver fupD1TemplateId em settings.ts.
+    const isD1 = taskDateStr > todayDateISO_SP() && !!umblerSettings.fupD1TemplateId;
     let chatId: string | null = null;
     try {
-      const res = await startUmblerBot({
-        chapaTelefone: chapa.telefone_chapa!,
-        settings: umblerSettings,
-        initialData: {
-          Data: fmtTaskDateParam(task.data_tarefa),
-          Cidade: task.empresa,
-        },
-        botIdOverride: isD1 ? umblerSettings.fupBotD1Id : umblerSettings.fupBotId,
-        triggerNameOverride: isD1 ? umblerSettings.fupBotD1TriggerName : umblerSettings.fupBotTriggerName,
-      });
-      chatId = res.chatId;
+      if (isD1) {
+        const res = await sendUmblerFup({
+          chapaNome: chapa.nome_chapa!,
+          chapaTelefone: chapa.telefone_chapa!,
+          dataTarefa: task.data_tarefa,
+          empresa: task.empresa,
+          settings: umblerSettings,
+          templateIdOverride: umblerSettings.fupD1TemplateId,
+          overrideParams: [task.empresa, fmtTaskDateParam(task.data_tarefa)],
+        });
+        chatId = res.chatId;
+      } else {
+        const res = await startUmblerBot({
+          chapaTelefone: chapa.telefone_chapa!,
+          settings: umblerSettings,
+          initialData: {
+            Data: fmtTaskDateParam(task.data_tarefa),
+            Cidade: task.empresa,
+          },
+          botIdOverride: umblerSettings.fupBotId,
+          triggerNameOverride: umblerSettings.fupBotTriggerName,
+        });
+        chatId = res.chatId;
+      }
     } catch (e) {
       toast.error(humanizarErroUmbler(e));
       this.chapaJobStates.delete(chapaId);

@@ -16,6 +16,10 @@ export type UmblerSettings = {
   fupBotTriggerName: string;
   fupBotD1Id: string;
   fupBotD1TriggerName: string;
+  // PréFUP (D1) deixou de usar chatbot (start-bot) e passou a usar template
+  // direto, igual ao FUP D0 — só troca o template usado. Variáveis do
+  // template: [empresa, horário] (fmtTaskDateParam), nessa ordem.
+  fupD1TemplateId: string;
   bidBotId: string;
   bidBotTriggerName: string;
   bidBotD1Id: string;
@@ -85,7 +89,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   priorityPanelEnabled: true,
   priorityPanelHideMonitorar: false,
   agendaSortBy: "prazo",
-  umblerSettings: { bearerToken: "", fromPhone: "+5519997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "amijY_1q6IzzA09Q", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988, groupChannelPhone: "+5511993730781" },
+  umblerSettings: { bearerToken: "", fromPhone: "+5519997435351", organizationId: "Z6tcYuFXi6pOKFCf", templateId: "", cancelTemplateId: "aN0wfU8RFjQx8lKo", taskCancelTemplateId: "aJOP1sA_R8oNdffY", captacaoTemplateId: "amijY_1q6IzzA09Q", fupBotId: "", fupBotTriggerName: "", fupBotD1Id: "", fupBotD1TriggerName: "", fupD1TemplateId: "aixkbF8X47lF-5Rt", bidBotId: "", bidBotTriggerName: "", bidBotD1Id: "", bidBotD1TriggerName: "", webhookPort: 9988, groupChannelPhone: "+5511993730781" },
   operadorNome: "",
   umblerNoResponseMinutes: 30,
   fupElapsedAlertMinutes: 30,
@@ -149,6 +153,7 @@ export function readSettings(): AppSettings {
           cancelTemplateId: merged.cancelTemplateId || d.cancelTemplateId,
           taskCancelTemplateId: merged.taskCancelTemplateId || d.taskCancelTemplateId,
           captacaoTemplateId,
+          fupD1TemplateId: merged.fupD1TemplateId || d.fupD1TemplateId,
         };
       })(),
     };

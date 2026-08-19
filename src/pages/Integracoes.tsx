@@ -102,24 +102,6 @@ const FUP_D0_BOTS: BotEntry[] = [
   { label: "FUP_GEOVANA C. | D0",   botId: "aUQ-gPkLIBV3bzPY" },
 ];
 
-const FUP_D1_BOTS: BotEntry[] = [
-  { label: "FUP_Jonathan | D1",     botId: "aV5dKydtZ6Fk1Lit" },
-  { label: "FUP_ELIDIANY | D1",     botId: "aXn0lJt03nJW2ysn" },
-  { label: "FUP_ISABELA | D1",      botId: "aXn08bkI2KlxM2bX" },
-  { label: "FUP_LUANAMOURA | D1",   botId: "aXuXeAdxiGyzd3H6" },
-  { label: "FUP_SABRINA| D1",       botId: "abFvhDEvA1SuGZmu" },
-  { label: "FUP_JEREMIAH| D1",      botId: "abry86xIPqGJg7Jl" },
-  { label: "FUP_Matheus | D1",      botId: "ac1737JWbBIsvMPd" },
-  { label: "FUP_VICTORIA | D1",     botId: "ac7FxG463tVTItRW" },
-  { label: "FUP_WALLACE | D1",      botId: "ac7F_UUUKxBDo0oa" },
-  { label: "FUP_LARYSSA | D1",      botId: "aKM0oDB-csnl0EXh" },
-  { label: "FUP_ISAAC | D1",        botId: "aKM0zLZ-B3gfL0tP" },
-  { label: "FUP_HILARY | D1",       botId: "aKM05LZ-B3gfL5VG" },
-  { label: "FUP_ALANIS | D1",       botId: "aKM1B947HAxfNMsA" },
-  { label: "FUP_JAKELINE | D1",     botId: "aUFq-FRK_T9enWRu" },
-  { label: "FUP_GUILHERME | D1",    botId: "aLmS5i9_r7wQX6Y2" },
-];
-
 const BID_BOTS: BotEntry[] = [
   { label: "BID_ERIC | D0",          botId: "aV__0KcwKZ5WAnKz" },
   { label: "BID_ELIDIANY | D0",      botId: "aXn0Spxj-7WGC6aO" },
@@ -896,52 +878,24 @@ export default function Integracoes() {
               </div>
             </div>
 
-            {/* D1 */}
+            {/* D1 — PréFUP: template direto (não usa mais chatbot) */}
             <div className="rounded-md border border-border p-3 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">Bot D1 — pós-tarefa (dia seguinte em diante)</p>
-              <Select
-                value={FUP_D1_BOTS.find((b) => b.botId === umblerSettings.fupBotD1Id)?.botId ?? ""}
-                onValueChange={(val) => {
-                  const entry = FUP_D1_BOTS.find((b) => b.botId === val);
-                  if (entry) updateUmblerSetting({ fupBotD1Id: entry.botId, fupBotD1TriggerName: entry.label });
-                }}
-              >
-                <SelectTrigger className="font-mono text-xs">
-                  <SelectValue placeholder="Selecionar da lista…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {FUP_D1_BOTS.map((b) => (
-                    <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
-                      {b.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground">Trigger Name</label>
-                  <Input
-                    value={umblerSettings.fupBotD1TriggerName}
-                    onChange={(e) => updateUmblerSetting({ fupBotD1TriggerName: e.target.value })}
-                    placeholder="FUP_NOME | D1"
-                    className="font-mono text-xs h-8"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-muted-foreground">Bot ID</label>
-                  <Input
-                    value={umblerSettings.fupBotD1Id}
-                    onChange={(e) => updateUmblerSetting({ fupBotD1Id: e.target.value })}
-                    placeholder="abry86xIPqGJg7Jl"
-                    className="font-mono text-xs h-8"
-                  />
-                </div>
-              </div>
+              <p className="text-xs font-medium text-muted-foreground">PréFUP D1 — Template ID</p>
+              <Input
+                value={umblerSettings.fupD1TemplateId}
+                onChange={(e) => updateUmblerSetting({ fupD1TemplateId: e.target.value })}
+                placeholder="aixkbF8X47lF-5Rt"
+                className="font-mono text-xs h-8"
+              />
             </div>
 
             <p className="text-[11px] text-muted-foreground">
-              O disparo de FUP chama o robô via <strong className="text-foreground">start-bot</strong>.
-              Variáveis enviadas em <code className="text-foreground">initialData</code>: <code className="text-foreground">Data</code> (Hoje/Amanhã às HH:mm / dd/MM às HH:mm), <code className="text-foreground">Cidade</code>.
+              FUP D0 chama o robô via <strong className="text-foreground">start-bot</strong>. Variáveis em{" "}
+              <code className="text-foreground">initialData</code>: <code className="text-foreground">Data</code>{" "}
+              (Hoje/Amanhã às HH:mm / dd/MM às HH:mm), <code className="text-foreground">Cidade</code>.
+              <br />
+              PréFUP D1 usa template direto — variáveis nessa ordem: <code className="text-foreground">empresa</code>,{" "}
+              <code className="text-foreground">horário</code> (mesmo formato Hoje/Amanhã às HH:mm).
             </p>
             <div className="space-y-1.5 pt-1">
               <label className="text-xs font-medium text-muted-foreground">
