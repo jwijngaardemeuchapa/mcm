@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-08-19 — MCM — PréFUP: template em vez de chatbot, janela >5h e confirmação automática via chat
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Três mudanças em sequência no PréFUP, todas feitas direto ("faça o que puder por aqui"):
+1. PréFUP (D1, tarefa de amanhã) parou de usar chatbot (start-bot) e passou a disparar o template `aixkbF8X47lF-5Rt` (mesma via do FUP D0), variáveis `[empresa, horário]`. Novo campo configurável `fupD1TemplateId` em Integrações, substituindo o seletor de bot D1 (removido, junto com `FUP_D1_BOTS`).
+2. Janela do PréFUP ampliada: além de "amanhã em diante", agora também dispara o mesmo template no mesmo dia quando faltam mais de 5h pro início (`isPrefupTemplateWindow` em `prefup.ts`), usado nos 3 pontos de disparo (individual, massa, alerta de proximidade — este último na prática nunca cai no caso de 5h, só no wraparound de meia-noite).
+3. Como o template não passa por chatbot, não existe callback estruturado de resposta (sem webhook). Novo poll `useTemplateReplyPoll.ts` (45s) lê direto o chat da Umbler dos chapas com disparo pendente desse tipo (`fup_log.aguarda_resposta_chat=1`), pega a última mensagem do contato e reaproveita `classifyResponse`/`processFirestoreMessage` (já entendia "SIM"/"NÃO" isolados) pra confirmar/cancelar automaticamente — mesmo pipeline de notificação/log do webhook Firestore. `processFirestoreMessage` ganhou parâmetro `fonte` opcional (`"chat_umbler"` vs `"firestore"`) pra distinguir a origem no RespostaLog.
+
+Também nesta sessão, mas separado (feature beta-only, depende da Central): sincronização de `chat_links` entre instâncias do MCM — cada analista roda seu próprio SQLite, então o `umbler_chat_id` de um disparo só existia na máquina de quem disparou. Tabela local nova `chat_links` + push a cada disparo que gera chat + pull periódico da Central (60s) + merge na UI (TaskCard/TaskDetailPanel escolhem a entrada mais recente entre `fup_log` local e `chat_links` sincronizado). Central: tabela `chat_links` + endpoint `POST /api/public/hooks/chat-link` (mesmo padrão de auth/match tolerante dos outros hooks).
+
+**Files changed (main):** `src/lib/settings.ts`, `src/lib/dispatchQueue.ts`, `src/components/ApproachingAlert.tsx`, `src/pages/Integracoes.tsx`, `src/lib/prefup.ts`, `src/lib/firestoreQueue.ts`, `src/lib/useTemplateReplyPoll.ts` (novo), `src/lib/WatcherContext.tsx`, `src/pages/RespostaLog.tsx`
+**Files changed (beta only):** `src-tauri/src/lib.rs` (migration chat_links), `src/lib/chatLinks.ts` (novo), `src/lib/central.ts`, mais os mesmos de main via merge
+**Next:** nenhuma release/versão publicada ainda — só código, sem build/assinatura. Pendente do usuário: rastreamento de pagamento executado (aguardando dados de outra aplicação).
+
+---
+
 ## 2026-08-16 — MCM — Catch-up com sessão paralela (v1.0.48→v1.0.58) + fix de typecheck
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5)
 **Tickets:** nenhum novo
