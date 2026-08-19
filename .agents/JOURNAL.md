@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-19 — Release v1.0.62
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Release publicando o lote de mudanças do PréFUP já implementado nesta sessão: template em vez de chatbot, janela ampliada pra >5h no mesmo dia, e confirmação automática via leitura direta do chat (SIM/NÃO) — ver entrada anterior no journal pra detalhe técnico completo. Build NSIS, assinatura, release GitHub v1.0.62 e latest.json verificados (200 no raw.githubusercontent.com via gh api e na URL de download).
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** merge main → beta em seguida. Nada mais pendente desta sessão.
+
+---
+
 ## 2026-08-19 — MCM — PréFUP: template em vez de chatbot, janela >5h e confirmação automática via chat
 
 **Actor:** Jeremiah | **Agent:** sonnet
