@@ -50,6 +50,7 @@ const FONTE_LABEL: Record<string, string> = {
   firestore: "Firebase",
   manual: "Manual",
   notificacao_windows: "Notificação Win",
+  chat_umbler: "Chat (PréFUP)",
 };
 
 const isTauri = "__TAURI_INTERNALS__" in window;
