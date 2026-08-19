@@ -4,6 +4,7 @@ import { readSettings } from "./settings";
 import { sendUmblerFup, sendUmblerFreeText, startUmblerBot, fmtTaskDateParam, humanizarErroUmbler } from "./umbler";
 import { fmtSP, todayDateISO_SP } from "./datetime";
 import { pushDispatchEventToCentral } from "./central";
+import { upsertChatLink } from "./chatLinks";
 
 export type MassFupProgress =
   | { phase: "sending"; sent: number; total: number }
@@ -553,6 +554,11 @@ class DispatchQueue {
             "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
             [uuid(), taskId, "umbler_talk", now, "Disparado via API (massa)", id, chatId],
           );
+          const chapaRef = chapas.find((c) => c.id === id);
+          upsertChatLink({
+            id_tarefa: taskId, telefone_chapa: chapaRef?.telefone_chapa ?? null, cpf: null,
+            nome_chapa: chapaRef?.nome_chapa ?? null, umbler_chat_id: chatId, canal: "umbler_talk",
+          });
         }
         try { localStorage.setItem(`umbler_fup_all_${taskId}`, "1"); } catch { /* noop */ }
       }
@@ -652,6 +658,11 @@ class DispatchQueue {
           "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
           [uuid(), taskId, "umbler_cancelamento_geral", now, "Cancelamento geral — disparado via API", chapaId, chatId],
         );
+        const chapaRef = chapas.find((c) => c.id === chapaId);
+        upsertChatLink({
+          id_tarefa: taskId, telefone_chapa: chapaRef?.telefone_chapa ?? null, cpf: null,
+          nome_chapa: chapaRef?.nome_chapa ?? null, umbler_chat_id: chatId, canal: "umbler_cancelamento_geral",
+        });
       }
     } catch { /* noop */ }
     try { localStorage.setItem(`umbler_task_cancel_${taskId}`, "1"); } catch { /* noop */ }
@@ -750,6 +761,12 @@ class DispatchQueue {
         "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [uuid(), task.id_tarefa, "umbler_talk", now, "Disparado via API", chapaId, chatId],
       );
+      if (chatId) {
+        upsertChatLink({
+          id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          nome_chapa: chapa.nome_chapa, umbler_chat_id: chatId, canal: "umbler_talk",
+        });
+      }
     } catch { /* noop — message already sent */ }
     pushDispatchEventToCentral({
       id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
@@ -789,6 +806,12 @@ class DispatchQueue {
         "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [uuid(), task.id_tarefa, "umbler_cancelamento", new Date().toISOString(), `Sem resposta — ${chapa.nome_chapa}`, chapaId, chatId],
       );
+      if (chatId) {
+        upsertChatLink({
+          id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          nome_chapa: chapa.nome_chapa, umbler_chat_id: chatId, canal: "umbler_cancelamento",
+        });
+      }
     } catch { /* noop */ }
     pushDispatchEventToCentral({
       id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
@@ -834,6 +857,12 @@ class DispatchQueue {
         "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [uuid(), task.id_tarefa, "umbler_cancelamento_tarefa", new Date().toISOString(), `Tarefa cancelada — ${chapa.nome_chapa}`, chapaId, chatId],
       );
+      if (chatId) {
+        upsertChatLink({
+          id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          nome_chapa: chapa.nome_chapa, umbler_chat_id: chatId, canal: "umbler_cancelamento_tarefa",
+        });
+      }
     } catch { /* noop */ }
     pushDispatchEventToCentral({
       id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
@@ -1084,6 +1113,12 @@ class BidDispatchQueue {
             "INSERT INTO bid_disparos (id,chapa_nome,chapa_telefone,id_tarefa,empresa,data_tarefa,params_json,data_disparo,status,diaria,umbler_chat_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             [id, candidate.nome, candidate.telefone, taskId, job.empresa, job.dataTarefa, paramsJson, now, "aguardando", job.params.diaria, chatId],
           );
+          if (chatId) {
+            upsertChatLink({
+              id_tarefa: taskId, telefone_chapa: candidate.telefone, cpf: null,
+              nome_chapa: candidate.nome, umbler_chat_id: chatId, canal: "bid",
+            });
+          }
           pushDispatchEventToCentral({
             id_tarefa: taskId, telefone_chapa: candidate.telefone, cpf: null,
             nome_chapa: candidate.nome, canal: "bid", observacao: `BID — diária R$ ${job.params.diaria}`,

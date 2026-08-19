@@ -48,6 +48,7 @@ import { last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
 import { setActiveTaskNav } from "@/lib/taskNav";
 import { needsAndamentoJustification } from "@/lib/taskState";
+import { findChatLinkForChapa } from "@/lib/chatLinks";
 
 const CLIENTE_KEY = "__cliente__";
 
@@ -355,6 +356,17 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
       const cur = map.get(f.chapa_id);
       if (!cur || f.data_disparo > cur.data_disparo) {
         map.set(f.chapa_id, { umbler_chat_id: f.umbler_chat_id, data_disparo: f.data_disparo });
+      }
+    }
+    // Mescla com chat_links (podem ter vindo de OUTRO analista via Central,
+    // ver findChatLinkForChapa em chatLinks.ts) — vale o mais recente entre
+    // o disparo local (fup_log) e o vínculo sincronizado (chat_links).
+    for (const c of task.chapas) {
+      const link = findChatLinkForChapa(task.chat_links, c);
+      if (!link) continue;
+      const cur = map.get(c.id);
+      if (!cur || link.atualizado_em > cur.data_disparo) {
+        map.set(c.id, { umbler_chat_id: link.umbler_chat_id, data_disparo: link.atualizado_em });
       }
     }
     return map;

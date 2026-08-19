@@ -77,6 +77,7 @@ import { ChatSheet } from "@/components/ChatSheet";
 import { GroupChatPicker } from "@/components/GroupChatPicker";
 import { useClienteInfo } from "@/lib/useClienteInfo";
 import { normalize } from "@/lib/normalize";
+import { findChatLinkForChapa } from "@/lib/chatLinks";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
 import { computeTaskState, taskSeverityCardBorderClass, needsAndamentoJustification } from "@/lib/taskState";
@@ -144,6 +145,11 @@ export type TaskWithChapas = {
     data_validacao?: string | null;
   }>;
   fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null; chapa_id?: string | null; umbler_chat_id?: string | null }>;
+  // "Chat atual conhecido" por chapa — vem da tabela chat_links (local +
+  // sincronizada da Central, ver applyChatLinksLocally em central.ts).
+  // Diferente de fup_log: não é um log de disparos, é só o vínculo mais
+  // recente conhecido pra cada chapa, podendo ter vindo de OUTRO analista.
+  chat_links?: Array<{ id_tarefa: number; telefone_chapa: string | null; cpf: string | null; nome_chapa: string | null; umbler_chat_id: string; canal: string | null; atualizado_em: string }>;
   urgent: boolean;
   continuingFromYesterday?: boolean;
 };
@@ -1217,6 +1223,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 newChapaKeys={newChapaKeys}
                 conf={lookupConfiabilidade(confiabilidade, c)}
                 fupLog={task.fup_log}
+                chatLinks={task.chat_links}
                 hasIndividualDispatch={hasIndividualDispatch}
                 nowTs={nowTs}
                 onContact={markContact}
@@ -1827,6 +1834,7 @@ type RowProps = {
   taskSnap: TaskSnap;
   newChapaKeys?: Set<string>;
   fupLog: TaskWithChapas["fup_log"];
+  chatLinks?: TaskWithChapas["chat_links"];
   hasIndividualDispatch: boolean;
   nowTs: number;
   onContact: (c: TaskWithChapas["chapas"][number], canal: string) => void;
@@ -1848,6 +1856,7 @@ function ChapaRowView({
   taskSnap,
   newChapaKeys,
   fupLog,
+  chatLinks,
   hasIndividualDispatch,
   nowTs,
   onContact,
@@ -1907,9 +1916,19 @@ function ChapaRowView({
   // só porque o chapa já confirmou presença.
   const [chatSheetOpen, setChatSheetOpen] = useState(false);
   const chapaChatEntries = fupLog.filter((f) => f.chapa_id === chapa.id && f.umbler_chat_id);
-  const latestChatEntry = chapaChatEntries.length > 0
+  const latestFupChatEntry = chapaChatEntries.length > 0
     ? chapaChatEntries.reduce((a, b) => (a.data_disparo > b.data_disparo ? a : b))
     : null;
+  // Mescla o histórico local (fup_log) com chat_links — este último pode ter
+  // vindo de OUTRO analista via Central (ver findChatLinkForChapa em
+  // chatLinks.ts). Vale o mais recente entre os dois, comparando os
+  // timestamps ISO (data_disparo vs atualizado_em).
+  const chapaChatLink = findChatLinkForChapa(chatLinks, chapa);
+  const latestChatEntry = !latestFupChatEntry
+    ? (chapaChatLink ? { data_disparo: chapaChatLink.atualizado_em, umbler_chat_id: chapaChatLink.umbler_chat_id } : null)
+    : (chapaChatLink && chapaChatLink.atualizado_em > latestFupChatEntry.data_disparo
+      ? { data_disparo: chapaChatLink.atualizado_em, umbler_chat_id: chapaChatLink.umbler_chat_id }
+      : latestFupChatEntry);
   const conversaTrigger = latestChatEntry && (
     <Tooltip>
       <TooltipTrigger asChild>

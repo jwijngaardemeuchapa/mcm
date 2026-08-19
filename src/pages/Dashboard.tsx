@@ -154,10 +154,15 @@ export default function Dashboard() {
     if (manual) setRefreshing(true);
     try {
       const carteiraDb = await getDb();
-      const [tarefas, chapas, fup, carteira] = await Promise.all([
+      const [tarefas, chapas, fup, chatLinks, carteira] = await Promise.all([
         fetchAllRows<Record<string, unknown>>("tarefas", "*"),
         fetchAllRows<Record<string, unknown>>("chapas", "*"),
         fetchAllRows<Record<string, unknown>>("fup_log", "*"),
+        // chat_links — "chat atual conhecido" por chapa, pode ter sido gravado
+        // por OUTRO analista via Central (ver applyChatLinksLocally). Nunca
+        // deve derrubar o load do dashboard se a tabela ainda não existir
+        // numa instalação que não rodou a migração (ver lib.rs, version 25).
+        fetchAllRows<Record<string, unknown>>("chat_links", "*").catch(() => [] as Record<string, unknown>[]),
         carteiraDb.select<{ nome_fantasia: string; grupo: string | null }[]>(
           "SELECT nome_fantasia, grupo FROM carteira"
         ).catch(() => [] as { nome_fantasia: string; grupo: string | null }[]),
@@ -306,6 +311,9 @@ export default function Dashboard() {
           fup_log: (sortedFup as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
             (f) => f.id_tarefa === t.id_tarefa,
           ) as unknown as TaskWithChapas["fup_log"],
+          chat_links: (chatLinks as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
+            (cl) => cl.id_tarefa === t.id_tarefa,
+          ) as unknown as TaskWithChapas["chat_links"],
           urgent: !continuing && fmtSP(t.data_tarefa, "yyyy-MM-dd") === todayISO && (d.getHours() < 6 || d.getTime() < Date.now()),
           continuingFromYesterday: continuing,
         };

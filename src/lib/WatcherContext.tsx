@@ -7,7 +7,7 @@ import { type RespostaEvent } from "./firestoreQueue";
 import { useAutoCancelFup } from "./useAutoCancelFup";
 import { logActivity, pruneActivityLog } from "./activityLog";
 import { getActiveCarteiraNames } from "./carteira";
-import { applyCentralStatusLocally } from "./central";
+import { applyCentralStatusLocally, applyChatLinksLocally } from "./central";
 import { companyMatches } from "./company";
 import { haDisparoParaAmanha, sincronizarMetabase30h } from "./metabaseSync";
 import { readSettings } from "./settings";
@@ -138,10 +138,14 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
 
   // Puxa da Central status confirmado/cancelado por OUTRO analista ou pelo
   // bot da Umbler (Camada 3) e espelha localmente — best effort, silencioso
-  // se a Central estiver fora do ar (ver applyCentralStatusLocally).
+  // se a Central estiver fora do ar (ver applyCentralStatusLocally). Mesmo
+  // ciclo puxa também os chat_links gravados por OUTRO analista, pra este
+  // MCM local conseguir abrir a conversa de um chapa mesmo sem ter
+  // disparado nada ele mesmo (ver applyChatLinksLocally).
   const syncCentral = useCallback(async () => {
     const updated = await applyCentralStatusLocally();
-    if (updated > 0) window.dispatchEvent(new CustomEvent("fup:refresh"));
+    const chatLinksUpdated = await applyChatLinksLocally();
+    if (updated > 0 || chatLinksUpdated > 0) window.dispatchEvent(new CustomEvent("fup:refresh"));
   }, []);
 
   useEffect(() => {

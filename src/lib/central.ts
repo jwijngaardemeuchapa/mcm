@@ -166,6 +166,111 @@ export async function applyCentralStatusLocally(): Promise<number> {
   return updated;
 }
 
+// Espelha o "chat atual conhecido" de um chapa numa tarefa (chat_links local,
+// ver migration em lib.rs) — permite a OUTRO analista, em outra máquina, abrir
+// a mesma conversa mesmo sem ter disparado nada ele mesmo pra este chapa.
+// Best-effort silencioso, mesmo padrão dos outros pushes — nunca bloqueia o
+// disparo local se a Central estiver fora do ar.
+export async function pushChatLinkToCentral(params: {
+  id_tarefa: number;
+  telefone_chapa: string | null;
+  cpf: string | null;
+  nome_chapa: string | null;
+  umbler_chat_id: string;
+  canal: string | null;
+}): Promise<void> {
+  try {
+    const { operadorNome } = readSettings();
+    await fetch(`${CENTRAL_APP_URL}/api/public/hooks/chat-link`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+      body: JSON.stringify({ ...params, analista: operadorNome || null }),
+    });
+  } catch {
+    // Silencioso — mesmo motivo de pushChapaStatusToCentral.
+  }
+}
+
+export type CentralChatLink = {
+  id_tarefa: number;
+  telefone_chapa: string | null;
+  cpf: string | null;
+  nome_chapa: string | null;
+  umbler_chat_id: string;
+  canal: string | null;
+  atualizado_em: string;
+};
+
+// Puxa da Central os chat_links gravados por QUALQUER analista (ou pela
+// própria Central, se ela algum dia gerar um chat) — best-effort, mesmo
+// padrão tolerante de pullCentralStatus.
+export async function pullChatLinksFromCentral(): Promise<CentralChatLink[]> {
+  try {
+    const url =
+      `${CENTRAL_SUPABASE_URL}/rest/v1/chat_links` +
+      `?select=id_tarefa,telefone_chapa,cpf,nome_chapa,umbler_chat_id,canal,atualizado_em`;
+    const res = await fetch(url, {
+      headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` },
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as CentralChatLink[];
+  } catch {
+    return [];
+  }
+}
+
+// Aplica localmente os chat_links vindos da Central — mesmo match tolerante
+// de applyCentralStatusLocally (cpf → telefone normalizado). Só sobrescreve
+// um registro local existente se o `atualizado_em` que veio da Central for
+// mais novo que o local, pra um sync atrasado nunca apagar um vínculo mais
+// recente gravado nesta própria máquina (ver upsertChatLink em chatLinks.ts,
+// que já grava local + empurra pra Central na hora do disparo).
+export async function applyChatLinksLocally(): Promise<number> {
+  const rows = await pullChatLinksFromCentral();
+  if (rows.length === 0) return 0;
+
+  const db = await getDb();
+  let updated = 0;
+  for (const r of rows) {
+    if (!r.umbler_chat_id) continue;
+    const telefoneDigits = (r.telefone_chapa ?? "").replace(/\D/g, "");
+
+    let existing: { rowid: number; atualizado_em: string }[] = [];
+    if (r.cpf) {
+      existing = await db.select<{ rowid: number; atualizado_em: string }[]>(
+        `SELECT rowid, atualizado_em FROM chat_links WHERE id_tarefa = ? AND cpf = ? LIMIT 1`,
+        [r.id_tarefa, r.cpf],
+      );
+    } else if (telefoneDigits) {
+      existing = await db.select<{ rowid: number; atualizado_em: string }[]>(
+        `SELECT rowid, atualizado_em FROM chat_links WHERE id_tarefa = ?
+           AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(telefone_chapa,''),'(',''),')',''),'-',''),' ','') LIKE ?
+         LIMIT 1`,
+        [r.id_tarefa, `%${telefoneDigits.slice(-11)}`],
+      );
+    } else {
+      continue;
+    }
+
+    if (existing.length > 0) {
+      if (r.atualizado_em > existing[0].atualizado_em) {
+        await db.execute(
+          `UPDATE chat_links SET telefone_chapa = ?, cpf = COALESCE(?, cpf), nome_chapa = ?, umbler_chat_id = ?, canal = ?, atualizado_em = ? WHERE rowid = ?`,
+          [r.telefone_chapa, r.cpf, r.nome_chapa, r.umbler_chat_id, r.canal, r.atualizado_em, existing[0].rowid],
+        );
+        updated++;
+      }
+    } else {
+      await db.execute(
+        `INSERT INTO chat_links (id_tarefa, telefone_chapa, cpf, nome_chapa, umbler_chat_id, canal, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [r.id_tarefa, r.telefone_chapa, r.cpf, r.nome_chapa, r.umbler_chat_id, r.canal, r.atualizado_em],
+      );
+      updated++;
+    }
+  }
+  return updated;
+}
+
 // ── Camada 1: MCM lê tarefas e cadastro geral DA CENTRAL, não mais direto
 // do Metabase. A Central é quem fala com o Metabase agora (reduz de 16
 // chamadas redundantes pra 1). Ver CENTRAL_APP_BACKLOG.md no repo da

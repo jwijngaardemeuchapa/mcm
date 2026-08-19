@@ -23,6 +23,7 @@ import { readSettings, type PortariaRule } from "@/lib/settings";
 import { playAlertBeep } from "@/lib/sound";
 import { getDb, uuid, errMsg } from "@/lib/db";
 import { sendUmblerFup, startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
+import { upsertChatLink } from "@/lib/chatLinks";
 import { toast } from "sonner";
 
 /* ── helpers ── */
@@ -49,7 +50,7 @@ async function clipboardCopy(text: string, msg = "Copiado") {
 
 /* ── types ── */
 
-type ChapaRow = { id: string; nome: string; telefone: string; dataTarefa: string; empresa: string };
+type ChapaRow = { id: string; nome: string; telefone: string; cpf: string | null; dataTarefa: string; empresa: string; idTarefa: number };
 type ParaRemoverRow = { id: string; nome_chapa: string; empresa: string; id_tarefa: number };
 
 type TaskGroup = {
@@ -84,8 +85,10 @@ function computeGroups(tasks: TaskWithChapas[]): TaskGroup[] {
         id: c.id,
         nome: c.nome_chapa!,
         telefone: c.telefone_chapa ?? "",
+        cpf: c.cpf ?? null,
         dataTarefa: task.data_tarefa,
         empresa: task.empresa,
+        idTarefa: task.id_tarefa,
       })),
     });
   });
@@ -210,6 +213,12 @@ function ChapaItem({
         "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, (SELECT id_tarefa FROM chapas WHERE id = ?), ?, ?, ?, ?, ?)",
         [uuid(), chapa.id, "umbler_talk", now, "Disparado via alerta de proximidade", chapa.id, chatId],
       );
+      if (chatId) {
+        upsertChatLink({
+          id_tarefa: chapa.idTarefa, telefone_chapa: chapa.telefone, cpf: chapa.cpf,
+          nome_chapa: chapa.nome, umbler_chat_id: chatId, canal: "umbler_talk",
+        });
+      }
     } catch { /* mensagem já enviada */ }
     toast.success(`FUP enviado para ${chapa.nome}`);
     onConfirm();
@@ -240,6 +249,12 @@ function ChapaItem({
         "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, (SELECT id_tarefa FROM chapas WHERE id = ?), ?, ?, ?, ?, ?)",
         [uuid(), chapa.id, "umbler_cancelamento", new Date().toISOString(), `Sem resposta — ${chapa.nome}`, chapa.id, chatId],
       );
+      if (chatId) {
+        upsertChatLink({
+          id_tarefa: chapa.idTarefa, telefone_chapa: chapa.telefone, cpf: chapa.cpf,
+          nome_chapa: chapa.nome, umbler_chat_id: chatId, canal: "umbler_cancelamento",
+        });
+      }
       localStorage.setItem(`umbler_cancel_${chapa.id}`, "1");
     } catch { /* noop */ }
     toast.success(`Sem-resposta enviado para ${chapa.nome}`);

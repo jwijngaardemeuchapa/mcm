@@ -1264,6 +1264,35 @@ ALTER TABLE tarefas ADD COLUMN andamento_motivo_registrado_em TEXT;
 ",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // "Chat atual conhecido" por chapa/tarefa — separada de fup_log/bid_disparos
+      // (que continuam puros logs de disparo, sem mudar comportamento) porque
+      // precisa sincronizar via Central: hoje, se o Analista A dispara um FUP/BID
+      // e o Umbler cria o chat, só o SQLite local do Analista A sabe o
+      // umbler_chat_id — o Analista B, numa outra máquina, não consegue abrir a
+      // conversa mesmo que ela exista. Sem UNIQUE constraint de propósito (cpf e
+      // telefone podem faltar em qualquer combinação) — o upsert (match por
+      // id_tarefa + cpf, senão telefone normalizado) é feito em código
+      // (upsertChatLink em src/lib/chatLinks.ts), mesmo padrão tolerante já usado
+      // em pullCentralStatus/applyCentralStatusLocally (central.ts).
+      // version 25: v1 estava em 24, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 25,
+      description: "chat_links",
+      sql: "
+CREATE TABLE IF NOT EXISTS chat_links (
+  id_tarefa INTEGER NOT NULL,
+  telefone_chapa TEXT,
+  cpf TEXT,
+  nome_chapa TEXT,
+  umbler_chat_id TEXT NOT NULL,
+  canal TEXT,
+  atualizado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_links_tarefa ON chat_links(id_tarefa);
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

@@ -1,7 +1,7 @@
 import { getDb } from "./db";
 
 export async function fetchAllRows<T>(
-  table: "tarefas" | "chapas" | "fup_log" | "carteira",
+  table: "tarefas" | "chapas" | "fup_log" | "carteira" | "chat_links",
   selector: string = "*",
 ): Promise<T[]> {
   const db = await getDb();
