@@ -5,6 +5,7 @@ import { sendUmblerFup, sendUmblerFreeText, startUmblerBot, fmtTaskDateParam, hu
 import { fmtSP, todayDateISO_SP } from "./datetime";
 import { pushDispatchEventToCentral } from "./central";
 import { upsertChatLink } from "./chatLinks";
+import { isPrefupTemplateWindow } from "./prefup";
 
 export type MassFupProgress =
   | { phase: "sending"; sent: number; total: number }
@@ -430,9 +431,10 @@ class DispatchQueue {
     }
 
     const taskDateStr = fmtSP(task.data_tarefa, "yyyy-MM-dd");
-    // PréFUP (D1) usa template direto (não mais chatbot) — mesma lógica de
-    // _executeChapaFup, variáveis [empresa, horário].
-    const isD1 = taskDateStr > todayDateISO_SP() && !!umblerSettings.fupD1TemplateId;
+    // PréFUP (D1 ou >5h de antecedência no mesmo dia) usa template direto
+    // (não mais chatbot) — mesma lógica de _executeChapaFup.
+    const isD1 = !!umblerSettings.fupD1TemplateId &&
+      isPrefupTemplateWindow(taskDateStr, todayDateISO_SP(), task.data_tarefa, task.cidade_uf);
     const fupInitialData = {
       Data: fmtTaskDateParam(task.data_tarefa),
       Cidade: task.empresa,
@@ -554,12 +556,13 @@ class DispatchQueue {
           [uuid(), taskId, "umbler_talk", now, `FUP em massa — ${sent} enviado(s)${retryNote}${aborted ? " (cancelado)" : ""}${operador}`],
         );
         try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
+        try { await db.execute("ALTER TABLE fup_log ADD COLUMN aguarda_resposta_chat INTEGER DEFAULT 0"); } catch { /* exists */ }
         for (const id of sentIds) {
           const chatId = sentChatIds.get(id) ?? null;
           if (!chatId) continue;
           await db.execute(
-            "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [uuid(), taskId, "umbler_talk", now, "Disparado via API (massa)", id, chatId],
+            "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id, aguarda_resposta_chat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [uuid(), taskId, "umbler_talk", now, "Disparado via API (massa)", id, chatId, isD1 ? 1 : 0],
           );
           const chapaRef = chapas.find((c) => c.id === id);
           upsertChatLink({
@@ -738,9 +741,11 @@ class DispatchQueue {
       return;
     }
     const taskDateStr = fmtSP(task.data_tarefa, "yyyy-MM-dd");
-    // PréFUP (D1) usa template direto (não mais chatbot) — variáveis
-    // [empresa, horário], nessa ordem. Ver fupD1TemplateId em settings.ts.
-    const isD1 = taskDateStr > todayDateISO_SP() && !!umblerSettings.fupD1TemplateId;
+    // PréFUP (D1 ou >5h de antecedência no mesmo dia) usa template direto
+    // (não mais chatbot) — variáveis [empresa, horário], nessa ordem. Ver
+    // fupD1TemplateId em settings.ts e isPrefupTemplateWindow em prefup.ts.
+    const isD1 = !!umblerSettings.fupD1TemplateId &&
+      isPrefupTemplateWindow(taskDateStr, todayDateISO_SP(), task.data_tarefa, task.cidade_uf);
     let chatId: string | null = null;
     try {
       if (isD1) {
@@ -778,10 +783,11 @@ class DispatchQueue {
       const db = await getDb();
       const now = new Date().toISOString();
       try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
+      try { await db.execute("ALTER TABLE fup_log ADD COLUMN aguarda_resposta_chat INTEGER DEFAULT 0"); } catch { /* exists */ }
       await db.execute("UPDATE chapas SET canal_contato = ?, data_contato = ? WHERE id = ?", ["umbler_talk", now, chapaId]);
       await db.execute(
-        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [uuid(), task.id_tarefa, "umbler_talk", now, "Disparado via API", chapaId, chatId],
+        "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id, aguarda_resposta_chat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [uuid(), task.id_tarefa, "umbler_talk", now, "Disparado via API", chapaId, chatId, isD1 ? 1 : 0],
       );
       if (chatId) {
         upsertChatLink({

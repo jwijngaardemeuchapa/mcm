@@ -269,8 +269,11 @@ const MOTIVOS_VALIDOS = [
 
 /** Processa uma mensagem da fila: classifica, correlaciona por telefone e grava
  *  no SQLite (atualiza disparo/chapa + resposta_log). Retorna se foi tratada —
- *  o chamador só apaga o documento do Firestore quando `handled === true`. */
-export async function processFirestoreMessage(payload: unknown): Promise<ProcessResult> {
+ *  o chamador só apaga o documento do Firestore quando `handled === true`.
+ *  `fonte` identifica a origem no resposta_log (default "firestore" — o
+ *  webhook do bot); useTemplateReplyPoll.ts passa "chat_umbler" pra
+ *  respostas lidas direto do chat, sem bot/webhook envolvido. */
+export async function processFirestoreMessage(payload: unknown, fonte: string = "firestore"): Promise<ProcessResult> {
   const phoneDigits = extractPhone(payload);
   if (!phoneDigits) return { handled: false, reason: "sem telefone no payload" };
 
@@ -299,7 +302,7 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
       await db.execute(
         `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,data_tarefa,disparo_id,fonte,message_body,received_at)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, resolved.status, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, "firestore", resolved.bodyLog, now],
+        [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, resolved.status, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, fonte, resolved.bodyLog, now],
       );
       return {
         handled: true,
@@ -354,7 +357,7 @@ export async function processFirestoreMessage(payload: unknown): Promise<Process
     await db.execute(
       `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,fonte,message_body,received_at)
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [uuid(), "fup", fup.nome_chapa, fup.telefone_chapa, fupResposta, fup.id_tarefa, fup.empresa, "firestore", body, now],
+      [uuid(), "fup", fup.nome_chapa, fup.telefone_chapa, fupResposta, fup.id_tarefa, fup.empresa, fonte, body, now],
     );
     return {
       handled: true,

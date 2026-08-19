@@ -5,6 +5,7 @@ import { useNotificationWatcher, type WatcherActivity } from "./useNotificationW
 import { useFirestoreQueue } from "./useFirestoreQueue";
 import { type RespostaEvent } from "./firestoreQueue";
 import { useAutoCancelFup } from "./useAutoCancelFup";
+import { useTemplateReplyPoll } from "./useTemplateReplyPoll";
 import { logActivity, pruneActivityLog } from "./activityLog";
 import { getActiveCarteiraNames } from "./carteira";
 import { applyCentralStatusLocally, applyChatLinksLocally } from "./central";
@@ -274,6 +275,7 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   }, [empresaVisivel]);
 
   useFirestoreQueue(handleWebhookEvent);
+  useTemplateReplyPoll(handleWebhookEvent);
   useAutoCancelFup(handleRefresh);
 
   const clearLog = useCallback(() => setNotifLog([]), []);
