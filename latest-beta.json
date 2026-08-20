@@ -1,11 +1,11 @@
 {
-  "version": "1.0.63",
+  "version": "1.0.64",
   "notes": "Ver página de Ajuda para novidades.",
-  "pub_date": "2026-08-20T13:39:01Z",
+  "pub_date": "2026-08-20T14:14:13Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFdsaWxvd1RWWHBmYWg3aFBsY3JsQjFrVXpoWG0wbytlRDhsVlh1ZFlQNmtPc1BEWVVyVTlrYUNYdlJrRFg3cWR0Slg0Q2pQeUlocldnS1NsUEcrVndNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MjMzMDkwCWZpbGU6TUNNIEJldGFfMS4wLjYzX3g2NC1zZXR1cC5leGUKRnc2NndvVWpFSU5IdVdqQXRjY1BpUW0vS3hCN3NPdDZvSGEyaFVFWG1ENkJHSXBFQVE3RTVYZHdZdWF4Yzk3TmtQa0FNbTI0WE5nTUowQ1NScURlRGc9PQo=",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.63/MCM.Beta_1.0.63_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFFLOTZkVEltWEE4QVFVQWo1TzVqcEswQXV0eVNCY0owRjgxSFdaek5QUXU5dEYrajBQYk5BQXZMTnU4NlBzQnNUbmtiaG82eDZnLzZSdS9rdXZrT1FrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3MjM1MjExCWZpbGU6TUNNIEJldGFfMS4wLjY0X3g2NC1zZXR1cC5leGUKc1d2SmZqNTBqYnpPZ3ZQWjdtZGlLNVNnMnliOHVpNHZOMEhITzM0aFpObXJRdkZ0T2U5WWtVcEpZS1VpakE3L0ZKbkdFOVJMMWtYdU5KR1dzL2hHQWc9PQo=",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.64/MCM.Beta_1.0.64_x64-setup.exe"
     }
   }
 }
