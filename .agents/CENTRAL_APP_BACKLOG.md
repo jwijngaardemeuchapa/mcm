@@ -840,3 +840,53 @@ sem checar.
 **Não implementado ainda** — fica registrado como fonte confirmada, pronta
 pra usar quando as seções Tarefas/Métricas-Causas forem construídas de
 verdade.
+
+## REGISTRO PARA EXECUÇÃO FUTURA — Agenda do analista + fechamento de tarefa desfalcada (2026-08-19)
+
+**Status: NÃO IMPLEMENTADO — só o registro da spec, pedido explícito do
+usuário ("registro para execução futura").** Depende do fluxo de
+`andamento_motivo` já existente (ver `AndamentoJustificationAlert.tsx` no
+MCM beta, `tarefa-andamento-motivo.ts` na Central) — este item é a
+CONTINUAÇÃO desse fluxo, não substitui nada do que já está implementado.
+
+### Fluxo desejado
+
+1. **Tarefa vai para "Em Andamento" com menos chapas reais do que
+   `quantidade_chapas`** (mesmo trigger de `needsAndamentoJustification`
+   já implementado) → analista seleciona o motivo entre os 4 fixos (já
+   existe).
+2. **Novo, ainda não implementado**: ao selecionar o motivo, um item é
+   lançado na AGENDA DO PRÓPRIO ANALISTA (algo como "a fazer" pessoal, não
+   confundir com a lista de tarefas) — detalhando **qual ajudante
+   especificamente não consta na tarefa** (o que estava confirmado/alocado
+   enquanto a tarefa ainda aguardava início, mas não apareceu na
+   "Em Andamento").
+3. **Lembrete** 30min antes do turno do analista acabar:
+   - Turno diurno → lembrete às **14h30**
+   - Turno noturno → lembrete por volta das **22h**
+   (checar se já existe conceito de "turno do analista" em algum lugar do
+   MCM/Central antes de inventar um novo — se não existir, precisa
+   perguntar como identificar diurno/noturno por analista).
+4. **Ao mover a tarefa para "Concluído"**: subir pra Central o motivo
+   registrado JUNTO COM o número de quantas chapas não foram atendidas
+   (quando for o caso — 0 se a tarefa fechou completa apesar do desfalque
+   inicial).
+
+### Perguntas em aberto antes de implementar
+
+- Onde vive essa "agenda do analista"? Não existe hoje no MCM nem na
+  Central — precisa desenhar (tela nova? extensão de alguma lista
+  existente?).
+- Como identificar automaticamente o turno (diurno/noturno) de cada
+  analista pra saber que horário mandar o lembrete — não existe esse dado
+  hoje em `operadorNome`/settings.
+- O "ajudante que não consta" é sempre o mesmo conjunto pra todos os 4
+  motivos, ou faz sentido só para alguns (ex: "Não conseguimos contato" sim,
+  "Vagas não foram fechadas" não teria ajudante específico faltando)?
+- `andamento_motivo` hoje é gravado uma vez por tarefa (não por chapa) —
+  esse fluxo novo pode exigir granularidade por chapa, o que muda o schema
+  atual (`tarefas.andamento_motivo` → precisaria virar algo tipo
+  `andamento_motivo_chapas_faltantes` ligado a `chapa_id`s específicos).
+
+Beta-only por natureza, mesma razão do `andamento_motivo` original: todo o
+propósito é visibilidade da liderança via Central.
