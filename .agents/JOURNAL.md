@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-20 — Lista de bots FUP/BID buscada ao vivo da Umbler
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Usuário perguntou se dava pra puxar a lista de bots direto da Umbler em vez de ter uma lista pré-preenchida em código. Confirmado no Swagger oficial (app-utalk.umbler.com/api/docs/v1/docs.json): `GET /v1/bots/flowchart/manual-starts/` devolve exatamente `botId` + `triggerName` + `botTitle` por bot — o mesmo par usado em `POST /v1/chats/start-bot/`. Novo `fetchUmblerManualStarts` em `umbler.ts` (paginado, mesmo padrão de `searchUmblerGroupChats`). `Integracoes.tsx` perdeu os arrays `FUP_D0_BOTS`/`BID_BOTS` (~50 entradas mantidas à mão) — botão "Buscar bots da Umbler" popula os 3 dropdowns (FUP D0, BID D0, BID D1) direto da conta. Correção lateral: o `triggerName` gravado agora é o valor real da API, não mais uma reutilização do label de exibição do array antigo (coincidiam por acaso até aqui).
+**Files changed:** `src/lib/umbler.ts`, `src/pages/Integracoes.tsx`
+**Next:** nenhum — feature completa, sem dependência de configuração adicional (usa bearerToken/organizationId já existentes).
+
+---
+
 ## 2026-08-19 — Release v1.0.62
 
 **Actor:** Jeremiah | **Agent:** sonnet
