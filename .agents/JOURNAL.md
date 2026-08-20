@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-20 — Primeira release publicada da beta: v1.0.63
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Primeira vez que a `beta` sai como instalador de verdade, não só código no repo. Tag `beta-v1.0.63` (nomenclatura própria, separada de `vX.Y.Z` da main — evita colisão futura de tag quando os números baterem) + `latest-beta.json` novo na raiz do repo (endpoint já existia configurado no updater, arquivo nunca tinha sido criado). Conteúdo: fix da auth quebrada com a Central (entrada anterior do journal), sync de chat_links, clone do banco da main no primeiro uso, PréFUP por template com janela de 5h e confirmação automática por chat — tudo acumulado desde a última vez que beta foi mergeada de main sem release própria. `tsc --noEmit`, build NSIS, assinatura e latest-beta.json verificados (200 via `gh api` no conteúdo do arquivo na branch beta, e 200 na URL de download do instalador).
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest-beta.json` (novo)
+**Next:** usuário testa a Fase 3 do cronograma (confirmar chapa no MCM beta → aparece na Central em até 60s) com a auth corrigida.
+
+---
+
 ## 2026-08-20 — fix(beta): auth quebrada nos hooks de escrita da Central
 
 **Actor:** Jeremiah | **Agent:** sonnet
