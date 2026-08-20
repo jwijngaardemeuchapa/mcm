@@ -571,3 +571,68 @@ export async function searchUmblerGroupChats({
   }
   return results;
 }
+
+// ── Bots disponíveis na organização — MCM-172 ──
+//
+// Antes disso, o MCM só tinha uma lista de bots FUP/BID pré-preenchida à
+// mão em Integracoes.tsx (um botId/triggerName copiado manualmente do
+// painel da Umbler por analista/bot) — toda vez que criava um bot novo,
+// alguém tinha que editar o código do MCM. GET /v1/bots/flowchart/
+// manual-starts/ (confirmado no Swagger oficial,
+// app-utalk.umbler.com/api/docs/v1/docs.json) devolve exatamente o par
+// botId + triggerName usado por POST /v1/chats/start-bot/, junto do título
+// do bot — dá pra popular a lista direto da conta, sem manutenção manual.
+export type UmblerManualStart = {
+  botId: string;
+  triggerName: string;
+  botTitle: string;
+};
+
+function parseManualStart(raw: Record<string, unknown>): UmblerManualStart | null {
+  const botId = typeof raw.botId === "string" ? raw.botId : null;
+  const triggerName = typeof raw.triggerName === "string" ? raw.triggerName : null;
+  if (!botId || !triggerName) return null;
+  return {
+    botId,
+    triggerName,
+    botTitle: typeof raw.botTitle === "string" ? raw.botTitle : triggerName,
+  };
+}
+
+// Paginado (Take default da API é 50) — uma organização real tem no máximo
+// algumas dezenas de bots, então 5 páginas de 100 já é folga generosa.
+export async function fetchUmblerManualStarts({
+  settings,
+  maxPages = 5,
+  pageSize = 100,
+}: {
+  settings: UmblerSettings;
+  maxPages?: number;
+  pageSize?: number;
+}): Promise<UmblerManualStart[]> {
+  const results: UmblerManualStart[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const params = new URLSearchParams({
+      organizationId: settings.organizationId,
+      Take: String(pageSize),
+      Skip: String(page * pageSize),
+    });
+    const res = await fetch(
+      `https://app-utalk.umbler.com/api/v1/bots/flowchart/manual-starts/?${params.toString()}`,
+      { headers: { Accept: "application/json", Authorization: `Bearer ${settings.bearerToken}` } },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`Umbler ${res.status}: ${text}`);
+    }
+    const body = await res.json();
+    const list: unknown[] = Array.isArray(body?.items) ? body.items : Array.isArray(body) ? body : [];
+    if (list.length === 0) break;
+    for (const raw of list) {
+      const parsed = parseManualStart(raw as Record<string, unknown>);
+      if (parsed) results.push(parsed);
+    }
+    if (list.length < pageSize) break; // última página
+  }
+  return results.sort((a, b) => a.botTitle.localeCompare(b.botTitle, "pt-BR"));
+}

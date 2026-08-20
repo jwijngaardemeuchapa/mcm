@@ -52,7 +52,7 @@ import {
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
-import { sendUmblerFup, startUmblerBot } from "@/lib/umbler";
+import { sendUmblerFup, startUmblerBot, fetchUmblerManualStarts, type UmblerManualStart } from "@/lib/umbler";
 import { errMsg } from "@/lib/db";
 import { toast } from "sonner";
 
@@ -77,67 +77,11 @@ const RESPOSTA_POSITIVO: Record<string, boolean> = {
   confirmado: true, interesse_sim: true, aceita_app: true,
 };
 
-type BotEntry = { label: string; botId: string };
-
-const FUP_D0_BOTS: BotEntry[] = [
-  { label: "FUP_ERIC | D0",         botId: "aV__ocFdmFMzyOP5" },
-  { label: "FUP_ELIDIANY | D0",     botId: "aXn0gZxj-7WGDBw-" },
-  { label: "FUP_WALLACE | D0",      botId: "aXn040hi2Y-QhKZE" },
-  { label: "FUP_LUANAMOURA | D0",   botId: "aXuXJnwIz18MZ-dL" },
-  { label: "FUP_ISABELA| D0",       botId: "abFqSCNwTvBnSbgz" },
-  { label: "FUP_SABRINA| D0",       botId: "abFu2V0cILE1_EOM" },
-  { label: "FUP_JEREMIAH| D0",      botId: "abry27tO-13jrsi3" },
-  { label: "FUP_Jonathan| D0",      botId: "ac10xUJ8K2MU3kNY" },
-  { label: "FUP_Matheus | D0",      botId: "ac169EJ8K2MU8JKj" },
-  { label: "FUP_VICTORIA | D0",     botId: "aV5dFA42PnbCuTXG" },
-  { label: "FUP_ISAAC | D0",        botId: "aJX_f14daaS-uu8s" },
-  { label: "FUP_ALANIS | D0",       botId: "aJX__UsQRpfSKFAc" },
-  { label: "FUP_HILARY | D0",       botId: "aJYMeV4daaS-3IH8" },
-  { label: "FUP_GUILHERME | D0",    botId: "aLmSyS9_r7wQX2MC" },
-  { label: "FUP_JAKELINE | D0",     botId: "aUFq21RK_T9enOJf" },
-  { label: "FUP_EMANUELLE | D0",    botId: "aUQ9nsNnXHj9ZCM2" },
-  { label: "FUP_ANA R. | D0",       botId: "aUQ9wDIB26TfeGbI" },
-  { label: "FUP_LUCAS V. | D0",     botId: "aUQ93vkLIBV3bQsI" },
-  { label: "FUP_VITOR S. | D0",     botId: "aUQ-EmY0VXoP1TL1" },
-  { label: "FUP_GEOVANA C. | D0",   botId: "aUQ-gPkLIBV3bzPY" },
-];
-
-const BID_BOTS: BotEntry[] = [
-  { label: "BID_ERIC | D0",          botId: "aV__0KcwKZ5WAnKz" },
-  { label: "BID_ELIDIANY | D0",      botId: "aXn0Spxj-7WGC6aO" },
-  { label: "BID_ELIDIANY | D1",      botId: "aXn0W5t03nJW2pTO" },
-  { label: "BID_WALLACE | D0",       botId: "aXn1ObkI2KlxNGPe" },
-  { label: "BID_WALLACE | D1",       botId: "aXn1SrkI2KlxNK5B" },
-  { label: "BID_LUANAMOURA | D1",    botId: "aXuW3AdxiGyzdQSg" },
-  { label: "BID_LUANAMOURA | D2",    botId: "aXuXAHwIz18MZ1Vt" },
-  { label: "BID_ISABELA | D0",       botId: "abFudF0cILE1-o--" },
-  { label: "BID_ISABELA | D1",       botId: "abFtDPUaqYILhtYR" },
-  { label: "BID_SABRINA | D0",       botId: "aKNqKN47HAxfoH8o" },
-  { label: "BID_SABRINA| D1",        botId: "aNP_7D1LMkmDJCkh" },
-  { label: "BID_JEREMIAH | D0",      botId: "abrvT7tO-13jbq-Z" },
-  { label: "BID_JEREMIAH | D1",      botId: "abryoLtO-13jqmdT" },
-  { label: "BID_Jonathan | D0",      botId: "ac10l7JWbBIso2Lh" },
-  { label: "BID_Jonathan | D1",      botId: "ac10WLJWbBIsoost" },
-  { label: "BID_Matheus | D0",       botId: "ac17l0J8K2MU8fUT" },
-  { label: "BID_Matheus | D1",       botId: "ac17GsFYnQ5MQem7" },
-  { label: "BID_ALICE | D1",         botId: "aKMxLLZ-B3gfJH_X" },
-  { label: "BID_GUILHERME | D0",     botId: "aLmSHx4t2mV79KuP" },
-  { label: "BID_GUILHERME | D1",     botId: "aLmSmVJu3woN_9r7" },
-  { label: "BID_ISAAC| D0",          botId: "aLGzwsBxzPDrbpgQ" },
-  { label: "BID_GABRIEL P. | D0",    botId: "aJ1TgUUYd9zpTCQD" },
-  { label: "BID_GABRIEL P. | D1",    botId: "aKMvLTB-csnlv5AU" },
-  { label: "BID_ALANIS | D0",        botId: "aJ1Ts8NSi9fWvQp6" },
-  { label: "BID_ALANIS | D1",        botId: "aKMwfLZ-B3gfIkOg" },
-  { label: "BID_VICTORIA | D0",      botId: "aV1rYFEmPoQY4BBA" },
-  { label: "BID_VICTORIA | D1",      botId: "aV1rejkiFJDh_q2C" },
-  { label: "BID_JAKELINE | D0",      botId: "aUFqck1YZxY6KYlt" },
-  { label: "BID_JAKELINE | D1",      botId: "aUFqtvlQfRBIjxgn" },
-  { label: "BID_VITOR DOS S. | D0",  botId: "aUQml8NnXHj9HOOZ" },
-  { label: "BID_LUCAS V. | D0",      botId: "aUQnJPkLIBV3Jzuw" },
-  { label: "BID_EMANUELLE R. | D0",  botId: "aUQnYWY0VXoPjsS7" },
-  { label: "BID_ANA V. | D0",        botId: "aUQnpmY0VXoPj5TU" },
-  { label: "BID_GEOVANA C. | D0",    botId: "aUQn3TIB26TfOTN8" },
-];
+// Antes disso, essas duas listas eram um array fixo (botId/label copiado à
+// mão do painel da Umbler, um por analista) — toda vez que criava/renomeava
+// um bot, alguém tinha que editar o código do MCM e lançar release. Agora
+// vem de fetchUmblerManualStarts (GET /v1/bots/flowchart/manual-starts/),
+// buscado ao vivo — ver botão "Buscar bots da Umbler" abaixo.
 
 function SincronizarCarteiraBtn() {
   const [syncing, setSyncing] = useState(false);
@@ -277,6 +221,27 @@ export default function Integracoes() {
   const [showSenha, setShowSenha] = useState(false);
   const [umblerSettings, setUmblerSettings] = useState(() => readSettings().umblerSettings);
   const [fupAgendarMinAntes, setFupAgendarMinAntes] = useState(() => readSettings().fupAgendarMinAntes ?? 0);
+  // Lista de bots buscada ao vivo da Umbler (MCM-172) — substitui os arrays
+  // fixos que exigiam editar código pra cada bot novo. Cache só em memória
+  // (dura a sessão da tela); busca de novo a cada visita/clique.
+  const [umblerBots, setUmblerBots] = useState<UmblerManualStart[]>([]);
+  const [umblerBotsLoading, setUmblerBotsLoading] = useState(false);
+  async function buscarBotsUmbler() {
+    if (!umblerSettings.bearerToken || !umblerSettings.organizationId) {
+      toast.error("Preencha Bearer Token e Organization ID antes de buscar os bots.");
+      return;
+    }
+    setUmblerBotsLoading(true);
+    try {
+      const bots = await fetchUmblerManualStarts({ settings: umblerSettings });
+      setUmblerBots(bots);
+      toast.success(`${bots.length} bot(s) encontrado(s) na Umbler.`);
+    } catch (e) {
+      toast.error(`Falha ao buscar bots: ${String(e)}`);
+    } finally {
+      setUmblerBotsLoading(false);
+    }
+  }
   const [firestoreEnabled, setFirestoreEnabled] = useState(() => readSettings().firestoreEnabled);
   const [showToken, setShowToken] = useState(false);
 
@@ -833,25 +798,44 @@ export default function Integracoes() {
 
           {/* FUP bots */}
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-foreground">Bot FUP — Chatbot de follow-up</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-foreground">Bot FUP — Chatbot de follow-up</p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={umblerBotsLoading}
+                onClick={() => void buscarBotsUmbler()}
+                className="gap-1.5"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${umblerBotsLoading ? "animate-spin" : ""}`} />
+                Buscar bots da Umbler
+              </Button>
+            </div>
+            {umblerBots.length === 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Nenhum bot buscado ainda — clique em "Buscar bots da Umbler" pra popular as listas
+                abaixo direto da sua conta, ou preencha Trigger Name/Bot ID manualmente.
+              </p>
+            )}
 
             {/* D0 */}
             <div className="rounded-md border border-border p-3 space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Bot D0 — dia da tarefa / futuro</p>
               <Select
-                value={FUP_D0_BOTS.find((b) => b.botId === umblerSettings.fupBotId)?.botId ?? ""}
+                value={umblerBots.find((b) => b.botId === umblerSettings.fupBotId)?.botId ?? ""}
                 onValueChange={(val) => {
-                  const entry = FUP_D0_BOTS.find((b) => b.botId === val);
-                  if (entry) updateUmblerSetting({ fupBotId: entry.botId, fupBotTriggerName: entry.label });
+                  const entry = umblerBots.find((b) => b.botId === val);
+                  if (entry) updateUmblerSetting({ fupBotId: entry.botId, fupBotTriggerName: entry.triggerName });
                 }}
+                disabled={umblerBots.length === 0}
               >
                 <SelectTrigger className="font-mono text-xs">
                   <SelectValue placeholder="Selecionar da lista…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {FUP_D0_BOTS.map((b) => (
+                  {umblerBots.map((b) => (
                     <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
-                      {b.label}
+                      {b.botTitle} — {b.triggerName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -934,19 +918,20 @@ export default function Integracoes() {
             <div className="rounded-md border border-border p-3 space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Bot D0 — dia da tarefa / futuro próximo</p>
               <Select
-                value={BID_BOTS.find((b) => b.botId === umblerSettings.bidBotId)?.botId ?? ""}
+                value={umblerBots.find((b) => b.botId === umblerSettings.bidBotId)?.botId ?? ""}
                 onValueChange={(val) => {
-                  const entry = BID_BOTS.find((b) => b.botId === val);
-                  if (entry) updateUmblerSetting({ bidBotId: entry.botId, bidBotTriggerName: entry.label });
+                  const entry = umblerBots.find((b) => b.botId === val);
+                  if (entry) updateUmblerSetting({ bidBotId: entry.botId, bidBotTriggerName: entry.triggerName });
                 }}
+                disabled={umblerBots.length === 0}
               >
                 <SelectTrigger className="font-mono text-xs">
                   <SelectValue placeholder="Selecionar da lista…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {BID_BOTS.map((b) => (
+                  {umblerBots.map((b) => (
                     <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
-                      {b.label}
+                      {b.botTitle} — {b.triggerName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -977,19 +962,20 @@ export default function Integracoes() {
             <div className="rounded-md border border-border p-3 space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Bot D1 — pós-tarefa (dia seguinte em diante)</p>
               <Select
-                value={BID_BOTS.find((b) => b.botId === umblerSettings.bidBotD1Id)?.botId ?? ""}
+                value={umblerBots.find((b) => b.botId === umblerSettings.bidBotD1Id)?.botId ?? ""}
                 onValueChange={(val) => {
-                  const entry = BID_BOTS.find((b) => b.botId === val);
-                  if (entry) updateUmblerSetting({ bidBotD1Id: entry.botId, bidBotD1TriggerName: entry.label });
+                  const entry = umblerBots.find((b) => b.botId === val);
+                  if (entry) updateUmblerSetting({ bidBotD1Id: entry.botId, bidBotD1TriggerName: entry.triggerName });
                 }}
+                disabled={umblerBots.length === 0}
               >
                 <SelectTrigger className="font-mono text-xs">
                   <SelectValue placeholder="Selecionar da lista…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {BID_BOTS.map((b) => (
+                  {umblerBots.map((b) => (
                     <SelectItem key={b.botId} value={b.botId} className="font-mono text-xs">
-                      {b.label}
+                      {b.botTitle} — {b.triggerName}
                     </SelectItem>
                   ))}
                 </SelectContent>
