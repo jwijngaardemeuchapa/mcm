@@ -1262,6 +1262,30 @@ CREATE INDEX IF NOT EXISTS idx_captacao_log_telefone ON captacao_log(telefone);
     .plugin(tauri_plugin_updater::Builder::new().build())
     .plugin(tauri_plugin_process::init())
     .setup(|app| {
+      // Beta (identifier com.fupmanager.app.beta): se ainda não existe banco
+      // próprio, clona o da main (com.fupmanager.app, pasta irmã na mesma
+      // AppData) uma única vez — evita começar do zero (esperar re-sync de
+      // Metabase/Firestore) toda vez que alguém instala a beta pra testar.
+      // Depois desse clone inicial elas voltam a ser independentes: cada
+      // instalação grava só no próprio arquivo, nunca compartilhado ao vivo —
+      // decisão explícita do usuário, pra um bug de schema/migration testado
+      // na beta nunca poder corromper o banco de produção.
+      {
+        use tauri::Manager;
+        if app.config().identifier.ends_with(".beta") {
+          if let Ok(data_dir) = app.path().app_data_dir() {
+            let beta_db = data_dir.join("fupmanager.db");
+            if !beta_db.exists() {
+              if let Some(main_db) = data_dir.parent().map(|p| p.join("com.fupmanager.app").join("fupmanager.db")) {
+                if main_db.exists() {
+                  let _ = std::fs::create_dir_all(&data_dir);
+                  let _ = std::fs::copy(&main_db, &beta_db);
+                }
+              }
+            }
+          }
+        }
+      }
       // Add enderecos column to cliente_book if missing (recovery from failed migration 8).
       // Uses a separate rusqlite connection so it works regardless of the plugin pool state.
       {
