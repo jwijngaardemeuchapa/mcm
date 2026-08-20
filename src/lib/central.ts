@@ -8,6 +8,14 @@ import { getDb } from "./db";
 const CENTRAL_APP_URL = "https://central-chapa-nexus.lovable.app";
 const CENTRAL_API_KEY = "sb_publishable_Sb79_R6K0Rndkz_TNXpO0g_8_5g-KYb";
 const CENTRAL_SUPABASE_URL = "https://uesgakycmstdhnctdtpc.supabase.co";
+// Segredo dos hooks de ESCRITA (POST /api/public/hooks/*) — DIFERENTE da
+// chave publishable acima. checkHookAuth (central-hub/src/lib/hook-auth.
+// server.ts) exige isso via header x-mcm-hook-secret desde a correção de
+// segurança de 2026-08-16; até esta mudança o MCM ainda mandava a chave
+// publishable no header antigo (apikey), então todo POST estava voltando
+// 401/503 silenciosamente engolido pelos try/catch abaixo. Precisa bater
+// com o valor de MCM_HOOK_SECRET configurado no deploy da Central.
+const CENTRAL_HOOK_SECRET = "94e9c82169fa1ed39616e32e5eca162d87553131d195cdeb5705856510d2ab7a";
 
 // Envia quando o analista confirma/cancela manualmente na tela — best
 // effort, nunca deve travar nem quebrar a ação local se a Central estiver
@@ -23,7 +31,7 @@ export async function pushChapaStatusToCentral(params: {
     const { operadorNome } = readSettings();
     await fetch(`${CENTRAL_APP_URL}/api/public/hooks/chapa-status`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+      headers: { "Content-Type": "application/json", "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
       body: JSON.stringify({ ...params, analista: operadorNome || null }),
     });
   } catch {
@@ -49,7 +57,7 @@ export async function pushDispatchEventToCentral(params: {
     const { operadorNome } = readSettings();
     await fetch(`${CENTRAL_APP_URL}/api/public/hooks/chapa-dispatch`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+      headers: { "Content-Type": "application/json", "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
       body: JSON.stringify({ ...params, analista: operadorNome || null }),
     });
   } catch {
@@ -70,7 +78,7 @@ export async function pushAndamentoMotivoToCentral(params: {
     const { operadorNome } = readSettings();
     await fetch(`${CENTRAL_APP_URL}/api/public/hooks/tarefa-andamento-motivo`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+      headers: { "Content-Type": "application/json", "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
       body: JSON.stringify({ ...params, analista: operadorNome || null }),
     });
   } catch {
@@ -92,7 +100,7 @@ export async function pushPaymentRequestToCentral(params: {
   const { operadorNome } = readSettings();
   const res = await fetch(`${CENTRAL_APP_URL}/api/public/hooks/payment-request`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+    headers: { "Content-Type": "application/json", "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
     body: JSON.stringify({ ...params, criado_por: operadorNome || null }),
   });
   if (!res.ok) {
@@ -183,7 +191,7 @@ export async function pushChatLinkToCentral(params: {
     const { operadorNome } = readSettings();
     await fetch(`${CENTRAL_APP_URL}/api/public/hooks/chat-link`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", apikey: CENTRAL_API_KEY },
+      headers: { "Content-Type": "application/json", "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
       body: JSON.stringify({ ...params, analista: operadorNome || null }),
     });
   } catch {
