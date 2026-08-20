@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-20 — fix(beta): auth quebrada nos hooks de escrita da Central
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Levantamento de "o que falta pra Central" achou um bug real: os 5 pushes de `central.ts` (status, disparo, andamento_motivo, solicitação de pagamento, chat_link) mandavam a chave publicável do Supabase (`apikey`) pros hooks `POST /api/public/hooks/*`, mas `checkHookAuth` (central-hub) exige `MCM_HOOK_SECRET` via header `x-mcm-hook-secret` desde a correção de segurança de 2026-08-16. Toda escrita vinha voltando 401/503 — silenciosa pra 4 dos 5 pushes (try/catch engole), só `pushPaymentRequestToCentral` teria mostrado erro ao analista. Gerado um `MCM_HOOK_SECRET` novo (hex 32 bytes), usuário configurou no Lovable, `central.ts` atualizado com `CENTRAL_HOOK_SECRET` nos 5 pontos de escrita — leituras via PostgREST (pull de status/chat_links/tarefas) ficaram intocadas, usam a chave publishable de propósito.
+**Files changed:** `src/lib/central.ts`
+**Next:** confirmar com o usuário que os pushes chegam na Central agora (Fase 3 do cronograma de teste).
+
+---
+
 ## 2026-08-19 — Release v1.0.62
 
 **Actor:** Jeremiah | **Agent:** sonnet
