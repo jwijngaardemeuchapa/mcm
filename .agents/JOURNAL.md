@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-20 — fix(beta): instalação lado a lado, release v1.0.64
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Usuário reportou que o instalador da beta pedia pra fechar a MCM (produção) durante a instalação, mesmo sendo apps logicamente separados (identifiers diferentes: `com.fupmanager.app` vs `.beta`). Causa raiz: o binário compilado da Cargo se chama `app.exe` nos dois casos (nome do pacote, não do produto) — sem `mainBinaryName` configurado, os dois builds produziam um executável com o MESMO nome literal, então o installer/checagem de processo em execução via nome de arquivo confundia um pelo outro. Adicionado `"mainBinaryName": "MCM Beta"` só na beta (main não foi tocada — já tem instalações reais no nome antigo, mudar quebraria atalho/registro existente). Confirmado pós-build: binário agora sai como `MCM Beta.exe`, não mais `app.exe`.
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest-beta.json`
+**Next:** usuário reinstala a beta (v1.0.64) e confirma que não pede mais pra fechar a main.
+
+---
+
 ## 2026-08-20 — Primeira release publicada da beta: v1.0.63
 
 **Actor:** Jeremiah | **Agent:** sonnet
