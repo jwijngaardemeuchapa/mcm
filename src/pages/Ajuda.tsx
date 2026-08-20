@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.62</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.63</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,10 +767,10 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.62 — Novidades desta versão:</strong>{" "}
-              <strong>PréFUP agora usa template</strong> — o disparo antecipado (D1) deixou de passar pelo chatbot e passou a usar template direto, igual ao FUP normal.{" "}
-              <strong>Janela ampliada</strong> — o PréFUP também dispara no mesmo dia quando faltam mais de 5h pro início da tarefa, não só de um dia pro outro.{" "}
-              <strong>Confirmação automática por chat</strong> — como esse template não tem botão/webhook, o sistema passou a ler a resposta direto na conversa: se o chapa responder "SIM" ou "NÃO", confirma ou cancela sozinho, sem precisar de ação manual.
+              <strong>v1.0.63 (beta) — Novidades desta versão:</strong>{" "}
+              <strong>Sincronização com a Central corrigida</strong> — os envios de status, disparo, motivo de tarefa desfalcada, chat e solicitação de pagamento pra Central estavam sendo rejeitados silenciosamente (chave de autenticação errada); agora chegam de verdade.{" "}
+              <strong>Beta clona o banco da main no primeiro uso</strong> — instalar a beta numa máquina que já roda a main não começa mais do zero.{" "}
+              <strong>Chat sincronizado entre instalações</strong> — abrir a conversa de um chapa não depende mais de ter disparado nesta máquina.
             </span>
           </div>
         )}
@@ -1006,7 +1006,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.62 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.63 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1041,7 +1041,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.62 · © 2026 Wijngaarde Design
+        MCM v1.0.63 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
