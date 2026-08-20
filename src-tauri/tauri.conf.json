@@ -1,7 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "MCM Beta",
-  "version": "1.0.63",
+  "mainBinaryName": "MCM Beta",
+  "version": "1.0.64",
   "identifier": "com.fupmanager.app.beta",
   "build": {
     "frontendDist": "../dist",
