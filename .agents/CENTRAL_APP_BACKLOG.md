@@ -890,3 +890,18 @@ CONTINUAÇÃO desse fluxo, não substitui nada do que já está implementado.
 
 Beta-only por natureza, mesma razão do `andamento_motivo` original: todo o
 propósito é visibilidade da liderança via Central.
+
+### Atualização 2026-08-23 — "ação tomada" implementada, agenda/lembrete continua pendente
+
+Uma fatia deste registro foi destravada e implementada: o analista agora
+registra **motivo + ação tomada** juntos (os dois obrigatórios), com a
+lista de ações configurável em Integrações da Central (não fixa em
+código) — ver `AndamentoJustificationAlert.tsx`, `tarefa-andamento-motivo.ts`,
+novo `andamento-acoes.ts`, coluna `tarefas.andamento_acao`.
+
+**O que isso NÃO resolve, continua pendente:** a AGENDA DO ANALISTA em si
+(item 2-3 acima: lançar um "a fazer" pessoal com lembrete de turno) nunca
+foi desenhada nem implementada — "ação tomada" é só um campo de texto
+registrado no momento, não vira uma tarefa/lembrete futuro rastreado. As
+perguntas em aberto da seção anterior (onde vive a agenda, como identificar
+turno do analista) continuam sem resposta.
