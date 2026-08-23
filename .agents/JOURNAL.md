@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-23 — Release beta v1.0.65
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Empacota tudo acumulado desde v1.0.64: ação obrigatória junto do motivo de tarefa desfalcada, lista de bots FUP/BID ao vivo da Umbler, e a tela de Fill Rate — Análise por Carteira passando a puxar dados já calculados da Central (`pullFillRateFromCentral`) em vez de exigir CSV manual. `tsc --noEmit` limpo, build NSIS (`MCM Beta_1.0.65_x64-setup.exe`, 227MB) gerado com sucesso. Assinatura feita separada do build (`npx tauri signer sign -f tauri_update_key -p ""`, mesmo padrão já documentado em LESSONS.md — `tauri build` com as env vars de signing setadas NÃO gera `.sig` sozinho nesta versão do CLI, confirmado nesta sessão: build terminou com exit 0 e nenhuma menção a signing no log, `.sig` só apareceu depois do comando explícito). Release `beta-v1.0.65` publicado no GitHub (prerelease, exe+sig), `latest-beta.json` atualizado e validado como JSON.
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest-beta.json`
+**Next:** Achado durante a preparação do prompt pro Lovable: `fill_rate_tarefas` e a nova `financeiro_tarefas` só liberavam SELECT pra `authenticated`, não `anon` — mesma classe de bug já corrigida uma vez (20260820150000_fix_mcm_anon_read.sql no central-hub), e o MCM lê as duas via chave publishable (role anon). Migration de fix já commitada/pushada no central-hub (`20260823180000_fix_anon_read_fill_rate_financeiro.sql`) e prompt consolidado pro Lovable atualizado (`.agents/PROMPT_LOVABLE_APLICAR_MIGRATIONS.md` no central-hub) cobrindo as 3 migrations pendentes de aplicação manual (andamento_acao, financeiro_tarefas, o fix de anon read). Sem isso aplicado no banco, a tela de Fill Rate do v1.0.65 vai voltar vazia mesmo com o build novo instalado. Depois de aplicado: usuário reinstala v1.0.65 e testa a Fase 3 do cronograma (confirmar chapa/desbloquear chat/solicitar pagamento no MCM beta → aparece na Central em até 60s).
+
+---
+
 ## 2026-08-23 — Ação obrigatória junto do motivo (tarefa desfalcada, beta)
 
 **Actor:** Jeremiah | **Agent:** sonnet
