@@ -1293,6 +1293,19 @@ CREATE INDEX IF NOT EXISTS idx_chat_links_tarefa ON chat_links(id_tarefa);
 ",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Segundo campo obrigatório no fluxo de tarefa desfalcada (junto do
+      // andamento_motivo, migration 24): a ação que o analista tomou em
+      // resposta à vaga não preenchida. Lista de ações vem da Central
+      // (configurável, ver fetchAndamentoAcoes em central.ts) — este
+      // ALTER só garante a coluna local; o componente também tem o mesmo
+      // guard ad-hoc (try/catch) por segurança, mesmo padrão de
+      // umbler_chat_id.
+      version: 26,
+      description: "tarefas_andamento_acao",
+      sql: "ALTER TABLE tarefas ADD COLUMN andamento_acao TEXT;",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

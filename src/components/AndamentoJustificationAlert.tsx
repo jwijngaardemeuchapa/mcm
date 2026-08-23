@@ -5,7 +5,7 @@ import { needsAndamentoJustification } from "@/lib/taskState";
 import { fmtTime } from "@/lib/datetime";
 import { Button } from "@/components/ui/button";
 import { getDb, errMsg } from "@/lib/db";
-import { pushAndamentoMotivoToCentral } from "@/lib/central";
+import { pushAndamentoMotivoToCentral, fetchAndamentoAcoes } from "@/lib/central";
 import { toast } from "sonner";
 
 // As 4 opções são fixas por spec — motivo obrigatório quando uma tarefa
@@ -39,7 +39,15 @@ export function AndamentoJustificationAlert({
 
   const [index, setIndex] = useState(0);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Ações vêm da Central (configurável em Integrações), buscadas uma vez
+  // por sessão — fetchAndamentoAcoes já cai num fallback local se a
+  // Central estiver fora do ar, então não precisa de estado de erro aqui.
+  const [acoes, setAcoes] = useState<string[]>([]);
+  useEffect(() => {
+    fetchAndamentoAcoes().then(setAcoes);
+  }, []);
 
   useEffect(() => {
     if (index >= pending.length && pending.length > 0) setIndex(0);
@@ -51,21 +59,27 @@ export function AndamentoJustificationAlert({
   const currentTask = pending[Math.min(index, pending.length - 1)] ?? null;
   useEffect(() => {
     setSelectedReason(null);
+    setSelectedAction(null);
   }, [currentTask?.id_tarefa]);
 
   if (pending.length === 0 || !currentTask) return null;
 
   async function handleConfirm() {
-    if (!selectedReason || !currentTask) return;
+    if (!selectedReason || !selectedAction || !currentTask) return;
     setSaving(true);
     try {
       const db = await getDb();
+      try { await db.execute("ALTER TABLE tarefas ADD COLUMN andamento_acao TEXT"); } catch { /* exists */ }
       await db.execute(
-        "UPDATE tarefas SET andamento_motivo = ?, andamento_motivo_registrado_em = ? WHERE id_tarefa = ?",
-        [selectedReason, new Date().toISOString(), currentTask.id_tarefa],
+        "UPDATE tarefas SET andamento_motivo = ?, andamento_acao = ?, andamento_motivo_registrado_em = ? WHERE id_tarefa = ?",
+        [selectedReason, selectedAction, new Date().toISOString(), currentTask.id_tarefa],
       );
-      toast.success(`Motivo registrado — ${currentTask.empresa.toLowerCase()}`);
-      pushAndamentoMotivoToCentral({ id_tarefa: currentTask.id_tarefa, motivo: selectedReason });
+      toast.success(`Motivo e ação registrados — ${currentTask.empresa.toLowerCase()}`);
+      pushAndamentoMotivoToCentral({
+        id_tarefa: currentTask.id_tarefa,
+        motivo: selectedReason,
+        acao: selectedAction,
+      });
       onRefresh();
     } catch (e) {
       toast.error(errMsg(e));
@@ -127,6 +141,7 @@ export function AndamentoJustificationAlert({
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 pl-5">
+        <span className="text-[11px] font-semibold text-muted-foreground w-full">Motivo:</span>
         {REASONS.map((reason) => (
           <button
             key={reason}
@@ -142,15 +157,38 @@ export function AndamentoJustificationAlert({
             {reason}
           </button>
         ))}
-        <Button
-          size="sm"
-          className="h-7 text-xs ml-1"
-          disabled={!selectedReason || saving}
-          onClick={handleConfirm}
-        >
-          <Check className="h-3 w-3" /> Confirmar motivo
-        </Button>
       </div>
+
+      {selectedReason && (
+        <div className="flex flex-wrap items-center gap-1.5 pl-5">
+          <span className="text-[11px] font-semibold text-muted-foreground w-full">
+            Ação tomada:
+          </span>
+          {acoes.map((acao) => (
+            <button
+              key={acao}
+              type="button"
+              onClick={() => setSelectedAction(acao)}
+              disabled={saving}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors disabled:opacity-50 ${
+                selectedAction === acao
+                  ? "bg-warning text-warning-foreground border-warning font-semibold"
+                  : "bg-card border-warning/30 text-foreground hover:bg-warning/10"
+              }`}
+            >
+              {acao}
+            </button>
+          ))}
+          <Button
+            size="sm"
+            className="h-7 text-xs ml-1"
+            disabled={!selectedAction || saving}
+            onClick={handleConfirm}
+          >
+            <Check className="h-3 w-3" /> Confirmar
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

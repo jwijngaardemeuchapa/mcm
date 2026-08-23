@@ -73,6 +73,7 @@ export async function pushDispatchEventToCentral(params: {
 export async function pushAndamentoMotivoToCentral(params: {
   id_tarefa: number;
   motivo: string;
+  acao: string;
 }): Promise<void> {
   try {
     const { operadorNome } = readSettings();
@@ -83,6 +84,29 @@ export async function pushAndamentoMotivoToCentral(params: {
     });
   } catch {
     // Silencioso — mesmo motivo de pushChapaStatusToCentral.
+  }
+}
+
+// Lista de ações possíveis pra tarefa desfalcada — configurável na Central
+// (Integrações → Ações — tarefa desfalcada), não fixa no MCM. Best-effort:
+// se a Central estiver fora do ar, cai num fallback local com as 3 ações
+// conhecidas até agora, pra não travar o fluxo do analista.
+const ACOES_FALLBACK = [
+  "Bloqueio por No Show",
+  "Pedido de captação de mais chapas pro SAAC",
+  "Ligação posterior para o chapa e entender o motivo real do cancelamento",
+];
+
+export async function fetchAndamentoAcoes(): Promise<string[]> {
+  try {
+    const res = await fetch(`${CENTRAL_APP_URL}/api/public/hooks/andamento-acoes`, {
+      headers: { "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
+    });
+    if (!res.ok) return ACOES_FALLBACK;
+    const body = (await res.json()) as { acoes?: string[] };
+    return Array.isArray(body.acoes) && body.acoes.length > 0 ? body.acoes : ACOES_FALLBACK;
+  } catch {
+    return ACOES_FALLBACK;
   }
 }
 
