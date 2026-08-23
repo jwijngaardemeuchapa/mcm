@@ -15,6 +15,8 @@ import {
 import { TooltipProvider, Tooltip as UITooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { timeAgo } from "@/lib/datetime";
+import { pullFillRateFromCentral } from "@/lib/central";
+import { Loader2, RefreshCw } from "lucide-react";
 
 /* ─────────────────────────────── types ── */
 
@@ -509,19 +511,37 @@ function CompanyRow({ s, expanded, onToggle }: { s: CompanyStats; expanded: bool
 
 /* ─────────────────────────────── upload zone ── */
 
-function UploadZone({ onFile, dragOver, setDragOver, fileRef }: {
+function UploadZone({ onFile, dragOver, setDragOver, fileRef, onFetchCentral, fetchingCentral, centralError }: {
   onFile: (f: FileList | null) => void;
   dragOver: boolean;
   setDragOver: (v: boolean) => void;
   fileRef: React.RefObject<HTMLInputElement>;
+  onFetchCentral: () => void;
+  fetchingCentral: boolean;
+  centralError: string | null;
 }) {
   return (
     <div className="px-4 md:px-6 py-12 max-w-[620px] mx-auto flex flex-col items-center gap-6">
       <div className="text-center">
         <BarChart2 className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
         <h1 className="font-display font-bold text-xl text-foreground">Fill Rate — Análise por Carteira</h1>
-        <p className="text-sm text-muted-foreground mt-2">Importe o CSV de fill rate para visualizar métricas por carteira e por cliente.</p>
+        <p className="text-sm text-muted-foreground mt-2">Dados já calculados pela Central, sem precisar exportar nada do Metabase.</p>
       </div>
+
+      <Button size="lg" className="w-full gap-2" onClick={onFetchCentral} disabled={fetchingCentral}>
+        {fetchingCentral ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        {fetchingCentral ? "Buscando na Central…" : "Buscar dados da Central"}
+      </Button>
+      {centralError && (
+        <p className="text-xs text-destructive text-center -mt-3">{centralError}</p>
+      )}
+
+      <div className="w-full flex items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex-1 h-px bg-border" />
+        ou importe um CSV manualmente
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -558,6 +578,8 @@ export default function AnaliseFillrate() {
   const [sortKey, setSortKey] = useState<SortKey>("fillRate");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [fetchingCentral, setFetchingCentral] = useState(false);
+  const [centralError, setCentralError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -567,6 +589,34 @@ export default function AnaliseFillrate() {
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
+
+  // Busca automática na Central assim que a tela abre — só se ainda não há
+  // nada carregado (CSV de sessão anterior continua valendo, o analista pode
+  // forçar "Atualizar" pra pegar dado mais novo da Central quando quiser).
+  useEffect(() => {
+    if (!stored) fetchFromCentral();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchFromCentral() {
+    setFetchingCentral(true);
+    setCentralError(null);
+    try {
+      const rows = (await pullFillRateFromCentral()) as unknown as TaskRow[];
+      if (rows.length === 0) {
+        setCentralError('Nenhum dado encontrado na Central. Confira a sincronização de "Fill Rate" e "Financeiro" em Integrações, ou importe um CSV manualmente.');
+        return;
+      }
+      const data: StoredData = { rows, uploadedAt: new Date().toISOString() };
+      setStored(data);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+      toast.success(`${rows.length} tarefas carregadas da Central`);
+    } catch {
+      setCentralError("Não foi possível buscar da Central agora. Tente de novo ou importe um CSV manualmente.");
+    } finally {
+      setFetchingCentral(false);
+    }
+  }
 
   function processFile(file: File) {
     const reader = new FileReader();
@@ -645,7 +695,17 @@ export default function AnaliseFillrate() {
   }, [filtered, sortKey, sortDir]);
 
   if (!stored) {
-    return <UploadZone onFile={(f) => { if (f?.[0]) processFile(f[0]); }} dragOver={dragOver} setDragOver={setDragOver} fileRef={fileRef as React.RefObject<HTMLInputElement>} />;
+    return (
+      <UploadZone
+        onFile={(f) => { if (f?.[0]) processFile(f[0]); }}
+        dragOver={dragOver}
+        setDragOver={setDragOver}
+        fileRef={fileRef as React.RefObject<HTMLInputElement>}
+        onFetchCentral={fetchFromCentral}
+        fetchingCentral={fetchingCentral}
+        centralError={centralError}
+      />
+    );
   }
 
   const hasCarteiras = carteiraStats.length > 0;
@@ -681,8 +741,12 @@ export default function AnaliseFillrate() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => fileRef.current?.click()}>
-              <Upload className="h-3.5 w-3.5" /> Atualizar CSV
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={fetchFromCentral} disabled={fetchingCentral}>
+              {fetchingCentral ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Atualizar
+            </Button>
+            <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => fileRef.current?.click()}>
+              <Upload className="h-3.5 w-3.5" /> Importar CSV
             </Button>
             <Button size="sm" variant="ghost" className="gap-1.5 text-destructive/70 hover:text-destructive hover:bg-destructive/10" onClick={clearData}>
               <X className="h-3.5 w-3.5" /> Limpar
@@ -690,6 +754,9 @@ export default function AnaliseFillrate() {
             <input ref={fileRef} type="file" accept=".csv,.txt" className="hidden" onChange={(e) => { if (e.target.files?.[0]) processFile(e.target.files[0]); }} />
           </div>
         </div>
+        {centralError && (
+          <p className="text-xs text-destructive -mt-2">{centralError}</p>
+        )}
 
         {/* ── Carteira pills — sempre visíveis ── */}
         {hasCarteiras && (

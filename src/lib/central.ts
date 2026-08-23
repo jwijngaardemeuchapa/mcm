@@ -442,3 +442,90 @@ export async function syncRegistroFromCentral(): Promise<number> {
   }
   return count;
 }
+
+type CentralFillRateRow = {
+  id_tarefa: number;
+  data_tarefa: string | null;
+  empresa: string | null;
+  carteira: string | null;
+  grupo_economico: string | null;
+  uf: string | null;
+  cidade: string | null;
+  status_tarefa: string | null;
+  tipo_trabalho: string | null;
+  motivo_cancelamento: string | null;
+  chapas_solicitados: number | null;
+  chapas_atendidos: number | null;
+};
+
+type CentralFinanceiroRow = {
+  id_tarefa: number;
+  valor_tarefa: number | null;
+  valor_repasse: number | null;
+  take_rate_pct: number | null;
+};
+
+// Normaliza pro mesmo vocabulário que a tela de Análise de Fill Rate espera
+// (era o texto literal do export CSV do Metabase: "Finalizado"/"Cancelado").
+// status_tarefa na Central pode vir em outras variações de caixa/redação —
+// mesmo critério tolerante de isCancelada() no fillrate.ts da Central.
+function normalizarStatus(s: string | null): string {
+  const low = (s ?? "").toLowerCase();
+  if (low.includes("cancel")) return "Cancelado";
+  if (low.includes("finaliz")) return "Finalizado";
+  return s ?? "";
+}
+
+// Puxa da Central o Fill Rate já calculado (fill_rate_tarefas, com o teto de
+// 100% e os filtros de produção já aplicados na sync — ver
+// central-hub/src/lib/sync.server.ts) + o financeiro por tarefa
+// (financeiro_tarefas) pra reconstituir o mesmo formato de linha que a tela
+// de Análise de Fill Rate (AnaliseFillrate.tsx) hoje só monta a partir de um
+// CSV exportado manualmente do Metabase. Elimina o passo de anexar arquivo.
+export async function pullFillRateFromCentral(dias = 90): Promise<Record<string, unknown>[]> {
+  const desde = new Date(Date.now() - dias * 86_400_000).toISOString().slice(0, 10);
+  const [frRes, finRes] = await Promise.all([
+    fetch(
+      `${CENTRAL_SUPABASE_URL}/rest/v1/fill_rate_tarefas` +
+        `?select=id_tarefa,data_tarefa,empresa,carteira,grupo_economico,uf,cidade,status_tarefa,tipo_trabalho,motivo_cancelamento,chapas_solicitados,chapas_atendidos` +
+        `&data_tarefa=gte.${desde}&order=data_tarefa.desc&limit=5000`,
+      { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
+    ),
+    fetch(
+      `${CENTRAL_SUPABASE_URL}/rest/v1/financeiro_tarefas` +
+        `?select=id_tarefa,valor_tarefa,valor_repasse,take_rate_pct&data_tarefa=gte.${desde}&limit=5000`,
+      { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
+    ),
+  ]);
+  if (!frRes.ok) throw new Error("Central indisponível ao buscar fill rate");
+  const frRows = (await frRes.json()) as CentralFillRateRow[];
+  // financeiro_tarefas é best-effort aqui — se falhar, a tela ainda funciona
+  // sem os campos de valor/repasse/take rate (mesmo espírito best-effort dos
+  // outros pulls deste arquivo).
+  const finRows = finRes.ok ? ((await finRes.json()) as CentralFinanceiroRow[]) : [];
+  const finById = new Map(finRows.map((f) => [f.id_tarefa, f]));
+
+  return frRows.map((r) => {
+    const fin = finById.get(r.id_tarefa);
+    const solicitados = r.chapas_solicitados ?? 0;
+    const atendidos = Math.min(r.chapas_atendidos ?? 0, solicitados);
+    return {
+      id: r.id_tarefa,
+      data: r.data_tarefa ?? "",
+      status: normalizarStatus(r.status_tarefa),
+      nomeFantasia: r.empresa ?? "",
+      grupoEconomico: r.grupo_economico ?? "",
+      carteira: r.carteira ?? "",
+      tipoTrabalho: r.tipo_trabalho ?? "",
+      cidade: r.cidade ?? "",
+      uf: r.uf ?? "",
+      motivoCancelamento: r.motivo_cancelamento ?? "",
+      valorTarefa: fin?.valor_tarefa ?? 0,
+      repasse: fin?.valor_repasse ?? 0,
+      takeRate: fin?.take_rate_pct ?? 0,
+      chapasAtendidos: atendidos,
+      chapasSolicitados: solicitados,
+      fillRate: solicitados > 0 ? Math.round((atendidos / solicitados) * 100) : 0,
+    };
+  });
+}
