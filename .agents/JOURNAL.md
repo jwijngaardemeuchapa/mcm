@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-23 — Ação obrigatória junto do motivo (tarefa desfalcada, beta)
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Destravando item do backlog: `AndamentoJustificationAlert.tsx` ganhou um segundo passo obrigatório — depois de escolher o motivo (4 fixos), o analista agora também escolhe a ação que tomou, numa lista buscada da Central (`fetchAndamentoAcoes`, configurável em Integrações, com fallback local pras 3 ações conhecidas). Nova coluna `tarefas.andamento_acao` (migration 26 + guard ad-hoc). `pushAndamentoMotivoToCentral` manda `acao` junto do `motivo`.
+**Files changed:** `src-tauri/src/lib.rs`, `src/components/AndamentoJustificationAlert.tsx`, `src/lib/central.ts`
+**Next:** usuário confirmar a 4ª ação (ainda não lembrada) e preencher a lista definitiva em Integrações da Central.
+
+---
+
 ## 2026-08-20 — Lista de bots FUP/BID buscada ao vivo da Umbler
 
 **Actor:** Jeremiah | **Agent:** sonnet
