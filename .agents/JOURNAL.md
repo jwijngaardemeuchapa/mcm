@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-08-25 — Fix crítico: URL da Central mudou, quebrando todos os pushes
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Usuário reportou erro de sincronização de tarefas. Investigação achou a causa raiz: o projeto Lovable da Central mudou de URL (`central-chapa-nexus.lovable.app` → `mcmcentral.lovable.app`, confirmado pelo usuário abrindo o app no navegador). A URL antiga retorna 404 "No Lovable project found" — página padrão do Lovable pra domínio sem projeto vinculado. Isso quebrava os pushes de escrita de `central.ts` (chapa-status, payment-request), silenciosamente na maioria (try/catch engole), já que `CENTRAL_APP_URL` estava fixo com o valor antigo. `CENTRAL_SUPABASE_URL` (leitura via PostgREST) é um domínio diferente (Supabase direto, não Lovable app), não foi afetado. Mesmo fix aplicado na `beta` (que tem 3 pushes a mais: chapa-dispatch, andamento-motivo, chat-link).
+**Files changed:** `src/lib/central.ts`
+**Next:** reagendar os cron jobs no Supabase (se já tiverem sido criados com a URL antiga) e atualizar os prompts do Lovable/JOURNAL do central-hub que citam a URL antiga.
+
+---
+
 ## 2026-08-20 — Lista de bots FUP/BID buscada ao vivo da Umbler
 
 **Actor:** Jeremiah | **Agent:** sonnet
