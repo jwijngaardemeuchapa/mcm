@@ -484,7 +484,7 @@ class DispatchQueue {
         sentChatIds.set(chapa.id, chatId);
         pushDispatchEventToCentral({
           id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
-          nome_chapa: chapa.nome_chapa, canal: "umbler_talk", observacao: "FUP em massa",
+          nome_chapa: chapa.nome_chapa, canal: isD1 ? "umbler_prefup" : "umbler_talk", observacao: "FUP em massa",
         });
         await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
       } catch {
@@ -798,7 +798,7 @@ class DispatchQueue {
     } catch { /* noop — message already sent */ }
     pushDispatchEventToCentral({
       id_tarefa: task.id_tarefa, telefone_chapa: chapa.telefone_chapa, cpf: null,
-      nome_chapa: chapa.nome_chapa, canal: "umbler_talk", observacao: "Disparado via API",
+      nome_chapa: chapa.nome_chapa, canal: isD1 ? "umbler_prefup" : "umbler_talk", observacao: "Disparado via API",
     });
     toast.success(`Mensagem enviada para ${chapa.nome_chapa}`);
     this.chapaJobStates.delete(chapaId);

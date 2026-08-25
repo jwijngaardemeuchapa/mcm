@@ -2175,3 +2175,10 @@ Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disp
 **Summary:** Usuário reportou erro de sincronização de tarefas. Investigação achou a causa raiz: o projeto Lovable da Central mudou de URL (`central-chapa-nexus.lovable.app` → `mcmcentral.lovable.app`, confirmado pelo usuário abrindo o app no navegador). A URL antiga retorna 404 "No Lovable project found" — página padrão do Lovable pra domínio sem projeto vinculado. Isso quebrava TODOS os 5 pushes de escrita de `central.ts` (chapa-status, chapa-dispatch, andamento-motivo, payment-request, chat-link), silenciosamente na maioria (try/catch engole), já que `CENTRAL_APP_URL` estava fixo com o valor antigo. `CENTRAL_SUPABASE_URL` (leitura via PostgREST, usado por pullTarefasFromCentral/pullCentralStatus/etc.) é um domínio diferente (Supabase direto, não Lovable app), não foi afetado — só as escritas via hook. Confirmado com curl: URL antiga = 404, URL nova = 200 e sync funcional.
 **Files changed:** `src/lib/central.ts` (beta)
 **Next:** aplicar o mesmo fix na `main`. Reagendar os cron jobs no Supabase (se já tiverem sido criados com a URL antiga) e atualizar os prompts do Lovable/JOURNAL do central-hub que citam a URL antiga.
+
+## 2026-08-25 — PréFUP ganha canal próprio no push pra Central
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Pesquisa no Swagger da Umbler confirmou que não existe endpoint pra listar mensagens de template enviadas nem pra registrar webhook via API — a Central só sabe que um PréFUP foi enviado se o MCM empurrar. `pushDispatchEventToCentral` já era chamado nos dois pontos de disparo de FUP (`_executeMassFup`/`_executeChapaFup` em `dispatchQueue.ts`), mas sempre com `canal: "umbler_talk"`, mesmo quando `isD1` (PréFUP, via template direto `sendUmblerFup`) — Central não conseguia diferenciar PréFUP de FUP normal (via bot, `startUmblerBot`). Corrigido: `canal: isD1 ? "umbler_prefup" : "umbler_talk"` nos dois pontos. Central atualizada em paralelo (`canalLabel()` + `fupCount` em Relatórios gerais) pra reconhecer o canal novo.
+**Files changed:** `src/lib/dispatchQueue.ts`
+**Next:** nenhum pendente.
