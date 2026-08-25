@@ -5,7 +5,7 @@ import { getDb } from "./db";
 // que centraliza acompanhamento pra liderança. Config pública (mesma
 // natureza da config do Firebase em firebase.ts — chave publishable,
 // segura pra embutir no bundle, a segurança vem de RLS no lado da Central).
-const CENTRAL_APP_URL = "https://central-chapa-nexus.lovable.app";
+const CENTRAL_APP_URL = "https://mcmcentral.lovable.app";
 const CENTRAL_API_KEY = "sb_publishable_Sb79_R6K0Rndkz_TNXpO0g_8_5g-KYb";
 const CENTRAL_SUPABASE_URL = "https://uesgakycmstdhnctdtpc.supabase.co";
 // Segredo dos hooks de ESCRITA (POST /api/public/hooks/*) — DIFERENTE da
