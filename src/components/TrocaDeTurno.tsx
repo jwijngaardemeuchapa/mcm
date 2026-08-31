@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Copy, Check, ArrowLeftRight, ChevronDown, PartyPopper } from "lucide-react";
+import { Copy, Check, ArrowLeftRight, ChevronDown, PartyPopper, AlertTriangle } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { fmtSP, todayDateISO_SP, toSP, parseTaskDate } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { toast } from "sonner";
 import { Confetti } from "./Confetti";
 import { playTeamsCopy } from "@/lib/sound";
+import { isPrefupTemplateWindow } from "@/lib/prefup";
 
 type TarefaRow = {
   id_tarefa: number;
@@ -100,8 +101,6 @@ function buildMessage(
   }
 
   // ── Confirmações / PréFUPs ──
-  // PréFUP: tarefa inicia em mais de 6h a partir de agora
-  const PREFUP_THRESHOLD_MS = 6 * 60 * 60 * 1000;
   const upcoming = filtradas.filter(
     (t) =>
       parseTaskDate(t.data_tarefa, t.cidade_uf).getTime() > nowMs &&
@@ -115,11 +114,20 @@ function buildMessage(
       const confirmed = ativos.filter((c) => c.status_contato === "confirmado").length;
       const requested = t.quantidade_chapas || ativos.length;
       const taskDateISO = fmtSP(t.data_tarefa, "yyyy-MM-dd");
-      const taskMs = parseTaskDate(t.data_tarefa, t.cidade_uf).getTime();
-      const isPrefupTask = taskMs > nowMs + PREFUP_THRESHOLD_MS;
-      return { t, confirmed, requested, isPrefupTask, taskDateISO };
+      // Mesma janela de 5h que decide o envio de PréFUP de verdade
+      // (isPrefupTemplateWindow em lib/prefup.ts) — antes essa tela tinha
+      // seu próprio corte hardcoded de 6h, divergente do que o disparo
+      // real usa.
+      const isPrefupTask = isPrefupTemplateWindow(taskDateISO, todayISO, t.data_tarefa, t.cidade_uf);
+      return { t, confirmed, requested, ativosLen: ativos.length, isPrefupTask, taskDateISO };
     })
-    .filter(({ requested, confirmed }) => requested > 0 && confirmed < requested);
+    // Cobra confirmação de quem JÁ FOI ESCALADO e não confirmou — não de
+    // vaga que falta preencher (isso é recrutamento, já coberto pela seção
+    // BID abaixo). Antes comparava contra `requested` (pedido original do
+    // cliente): uma tarefa pedida com 5 mas escalada com 3, com os 3
+    // confirmados, continuava aparecendo como pendente — ninguém tinha
+    // mais nada pra confirmar de verdade.
+    .filter(({ ativosLen, confirmed }) => ativosLen > 0 && confirmed < ativosLen);
 
   if (confirmEntries.length > 0) {
     lines.push("👷 *CONFIRMAÇÕES*");
@@ -218,6 +226,12 @@ export function TrocaDeTurno({
   const [allChapas, setAllChapas] = useState<ChapaRow[]>([]);
   const [carteiraBd, setCarteiraBd] = useState<CarteiraRow[]>([]);
 
+  // Empresas com tarefa hoje/amanhã que não bateram com nenhum nome
+  // cadastrado em Carteira — antes essas tarefas só sumiam sem explicação
+  // nenhuma ("empresa não aparece"), agora fica visível pra corrigir o
+  // cadastro em vez de descobrir na marra.
+  const [empresasSemCarteira, setEmpresasSemCarteira] = useState<string[]>([]);
+
   // Seleção de empresas (por sessão — reseta ao fechar)
   const [excludedEmpresas, setExcludedEmpresas] = useState<Set<string>>(new Set());
   const [empresasPopoverOpen, setEmpresasPopoverOpen] = useState(false);
@@ -289,6 +303,13 @@ export function TrocaDeTurno({
       const tarefasFiltradas = carteiraNames.length === 0
         ? tarefas
         : tarefas.filter((t) => companyMatches(t.empresa, carteiraNames));
+      const excluidas = carteiraNames.length === 0
+        ? []
+        : [...new Set(
+            tarefas
+              .filter((t) => !companyMatches(t.empresa, carteiraNames))
+              .map((t) => t.empresa),
+          )].sort();
 
       // Grupos disponíveis — dinâmicos da carteira
       const grupos = [...new Set(carteira.map((c) => c.grupo).filter(Boolean))] as string[];
@@ -296,6 +317,7 @@ export function TrocaDeTurno({
       setCarteiraBd(carteira);
 
       setAllTarefas(tarefasFiltradas);
+      setEmpresasSemCarteira(excluidas);
       setAllChapas(chapas);
       setAgendaItems(agenda);
     } catch {
@@ -475,6 +497,17 @@ export function TrocaDeTurno({
             Atualizar
           </Button>
         </div>
+
+        {empresasSemCarteira.length > 0 && (
+          <div className="mx-5 mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning shrink-0">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span>
+              {empresasSemCarteira.length} empresa{empresasSemCarteira.length > 1 ? "s" : ""} com tarefa hoje/amanhã
+              {" "}ficou{empresasSemCarteira.length > 1 ? "ram" : ""} de fora por não estar cadastrada em Carteira:{" "}
+              <strong>{empresasSemCarteira.join(", ")}</strong>. Cadastre em Carteira pra aparecer aqui.
+            </span>
+          </div>
+        )}
 
         {/* Prévia da mensagem */}
         <div className="flex-1 overflow-auto px-5 py-4">

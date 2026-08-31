@@ -70,7 +70,6 @@ import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
 import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate, taskTzLabel, minutesUntil } from "@/lib/datetime";
-import { isPrefup } from "@/lib/prefup";
 import { useUndo } from "@/lib/undo";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { ChatSheet } from "@/components/ChatSheet";
@@ -131,7 +130,14 @@ export type TaskWithChapas = {
     validacao_presenca?: string | null;
     data_validacao?: string | null;
   }>;
-  fup_log: Array<{ id: string; data_disparo: string; canal: string; observacao: string | null; chapa_id?: string | null; umbler_chat_id?: string | null }>;
+  fup_log: Array<{
+    id: string; data_disparo: string; canal: string; observacao: string | null;
+    chapa_id?: string | null; umbler_chat_id?: string | null;
+    // 1 = PréFUP (template direto, fora da janela de bot — ver
+    // isPrefupTemplateWindow em lib/prefup.ts), 0/null = FUP normal via bot.
+    // Nome da coluna é histórico (reaproveitada, não criada pra isso).
+    aguarda_resposta_chat?: number | null;
+  }>;
   urgent: boolean;
   continuingFromYesterday?: boolean;
 };
@@ -1250,7 +1256,12 @@ Precisamos de 1 substituto para esta tarefa.`;
                 <div className="text-xs text-muted-foreground italic">Nenhum FUP registrado ainda</div>
               )}
               {task.fup_log.map((f) => {
-                const prefup = isPrefup(f.data_disparo, task.data_tarefa);
+                // Lê o flag gravado no momento real do disparo
+                // (aguarda_resposta_chat, ver isPrefupTemplateWindow em
+                // lib/prefup.ts) em vez de reconstruir um palpite a partir
+                // das datas depois do fato — mais confiável, é o que
+                // realmente decidiu qual template foi usado.
+                const prefup = f.canal === "umbler_talk" && !!f.aguarda_resposta_chat;
                 return (
                   <div key={f.id} className="text-xs flex items-center gap-3 py-1">
                     <span className="font-semibold text-foreground">{canalLabelLong[f.canal] ?? f.canal}</span>

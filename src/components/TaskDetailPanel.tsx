@@ -116,13 +116,24 @@ function chapaStatusMeta(status: string, hasDispatch: boolean) {
 
 const CANAL_LABEL: Record<string, string> = {
   whatsapp_web: "WhatsApp",
-  umbler_talk: "Umbler",
+  umbler_talk: "FUP",
   ligacao_3c: "Ligação 3C",
   umbler_custom: "Msg personalizada",
   umbler_cancelamento: "Sem resposta (cancelamento)",
   umbler_cancelamento_tarefa: "Cancelamento individual",
   umbler_cancelamento_geral: "Cancelamento geral",
 };
+
+// "umbler_talk" cobre FUP normal (via bot) e PréFUP (template direto,
+// isPrefupTemplateWindow em lib/prefup.ts) — só se diferencia pelo flag
+// aguarda_resposta_chat (nome de coluna reaproveitado, não criado pra
+// isso). Mantém o canal técnico igual pros dois — outros filtros no app
+// (ex.: hasUmblerFup no Dashboard) dependem do valor exato "umbler_talk" —
+// só a exibição aqui distingue.
+function fupLogLabel(f: { canal: string; aguarda_resposta_chat?: number | null }): string {
+  if (f.canal === "umbler_talk") return f.aguarda_resposta_chat ? "PréFUP" : "FUP";
+  return CANAL_LABEL[f.canal] ?? f.canal;
+}
 
 type TaskDetailPanelProps = {
   task: TaskWithChapas | null;
@@ -931,7 +942,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                     <div key={f.id} className="text-[11px]">
                       <p className="font-medium text-foreground truncate">{f.nome}</p>
                       <p className="text-muted-foreground truncate">
-                        {CANAL_LABEL[f.canal] ?? f.canal} · {fmtDateTime(f.data_disparo)}
+                        {fupLogLabel(f)} · {fmtDateTime(f.data_disparo)}
                       </p>
                     </div>
                   ))}

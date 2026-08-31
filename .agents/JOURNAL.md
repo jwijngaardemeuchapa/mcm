@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-09-01 — Fixes na Troca de Turno + PréFUP unificado em 5h
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Dois bugs reais reportados por analistas na Troca de Turno: (1) "empresas não aparecem" — o filtro por Carteira descartava silenciosamente qualquer tarefa cuja empresa não batesse com nenhum nome cadastrado, sem aviso nenhum; agora mostra um banner listando as empresas excluídas. (2) "tarefa já com todos confirmados continua aparecendo" — a seção Confirmações comparava contra `quantidade_chapas` (pedido original do cliente) em vez de contra quem foi de fato escalado; uma tarefa pedida com 5 mas escalada com 3 (as 3 confirmadas) continuava aparecendo como pendente. Corrigido pra comparar contra `ativos.length` — recrutamento de vaga que falta é assunto da seção BID, não de confirmação pendente.
+Unificado também o threshold de PréFUP: a Troca de Turno tinha um corte hardcoded de 6h, divergente das 5h reais que decidem o disparo (`isPrefupTemplateWindow` em `prefup.ts`) — agora usa a mesma função. Removida `isPrefup()` (heurística que recalculava PréFUP a partir das datas depois do fato, divergente e agora sem nenhum uso) — `TaskCard.tsx` passou a ler o flag real gravado no momento do disparo (`fup_log.aguarda_resposta_chat`) pro badge "PréFUP" no histórico de disparos, e `TaskDetailPanel.tsx` ganhou o mesmo rótulo (antes mostrava só "Umbler" genérico, sem distinguir).
+**Files changed:** `src/components/TrocaDeTurno.tsx`, `src/lib/prefup.ts`, `src/components/TaskCard.tsx`, `src/components/TaskDetailPanel.tsx`
+**Next:** nenhum pendente. Mesmo fix já aplicado na `beta`.
+
+---
+
 ## 2026-09-01 — Resgata "Nome + CPF de todos" no menu Copiar
 
 **Actor:** Jeremiah | **Agent:** sonnet
