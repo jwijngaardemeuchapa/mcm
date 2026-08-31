@@ -2182,3 +2182,10 @@ Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disp
 **Summary:** Pesquisa no Swagger da Umbler confirmou que não existe endpoint pra listar mensagens de template enviadas nem pra registrar webhook via API — a Central só sabe que um PréFUP foi enviado se o MCM empurrar. `pushDispatchEventToCentral` já era chamado nos dois pontos de disparo de FUP (`_executeMassFup`/`_executeChapaFup` em `dispatchQueue.ts`), mas sempre com `canal: "umbler_talk"`, mesmo quando `isD1` (PréFUP, via template direto `sendUmblerFup`) — Central não conseguia diferenciar PréFUP de FUP normal (via bot, `startUmblerBot`). Corrigido: `canal: isD1 ? "umbler_prefup" : "umbler_talk"` nos dois pontos. Central atualizada em paralelo (`canalLabel()` + `fupCount` em Relatórios gerais) pra reconhecer o canal novo.
 **Files changed:** `src/lib/dispatchQueue.ts`
 **Next:** nenhum pendente.
+
+## 2026-09-01 — Resgata "Nome + CPF de todos" no menu Copiar
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Usuário pediu de volta uma opção que existia no TaskCard antigo: copiar nome + CPF (formatado) de TODOS os ajudantes da tarefa, não só dos confirmados. O menu "Copiar" tinha "Nome + telefone de todos" e "CPFs dos confirmados" separados, mas nenhuma combinação nome+CPF pra todos. Adicionada `copyAllNamesAndCpf()` em `TaskCard.tsx` (Cards) e `TaskDetailPanel.tsx` (Panorama/Timeline) — mesmo fallback de busca de CPF por telefone no `chapa_registry` que `copyCpfConfirmados` já usa. `formatCpf()` extraído de `TaskCard.tsx` pra `src/lib/normalize.ts` (compartilhado entre os dois arquivos, evita duplicar).
+**Files changed:** `src/lib/normalize.ts`, `src/components/TaskCard.tsx`, `src/components/TaskDetailPanel.tsx`
+**Next:** aplicar o mesmo fix na `main` (feature sem dependência da Central).
