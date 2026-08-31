@@ -46,6 +46,7 @@ import { type TaskWithChapas, UnreadDot } from "@/components/TaskCard";
 import { last11Digits } from "@/lib/umbler";
 import { useWatcherLog } from "@/lib/WatcherContext";
 import { setActiveTaskNav } from "@/lib/taskNav";
+import { formatCpf } from "@/lib/normalize";
 
 const CLIENTE_KEY = "__cliente__";
 
@@ -548,6 +549,35 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     clipboardWrite(comCpf.join("\n"), `${comCpf.length} CPF(s) copiado(s)`);
   }
 
+  // Nome + CPF de todos os ajudantes da tarefa (não só confirmados) — existia
+  // no TaskCard antigo, resgatado a pedido do usuário. Mesmo fallback de
+  // busca por telefone no cadastro geral que copyCpfConfirmados já usa.
+  async function copyAllNamesAndCpf() {
+    const ativos = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    if (ativos.length === 0) { toast.error("Nenhum ajudante nesta tarefa"); return; }
+    const semCpf = ativos.filter((c) => !c.cpf && c.telefone_chapa);
+    const phoneToCpf: Record<string, string> = {};
+    if (semCpf.length > 0) {
+      try {
+        const db = await getDb();
+        const phones = semCpf.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
+        const rows = await db.select<{ cpf: string; telefone: string }[]>(
+          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
+           FROM chapa_registry
+           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
+             AND cpf IS NOT NULL`,
+          phones,
+        );
+        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
+      } catch { /* silencioso — segue só com o que já tinha */ }
+    }
+    const lines = ativos.map((c) => {
+      const cpf = c.cpf ?? phoneToCpf[(c.telefone_chapa ?? "").replace(/\D/g, "")] ?? null;
+      return `${c.nome_chapa}${cpf ? ` — ${formatCpf(cpf)}` : ""}`;
+    });
+    clipboardWrite(lines.join("\n"), `${lines.length} ajudante(s) copiados com CPF`);
+  }
+
   // Painel abre compacto (só lista) e cresce quando uma conversa é aberta —
   // largura e slide-in do pane direito reagem a esse booleano.
   const hasSelection = !!selectedKey;
@@ -736,6 +766,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={copyConfirmedList}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={copyAllNamesAndCpf}>
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={copyCpfConfirmados}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> CPFs dos confirmados

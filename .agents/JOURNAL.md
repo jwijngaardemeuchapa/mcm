@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-09-01 — Resgata "Nome + CPF de todos" no menu Copiar
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Usuário pediu de volta uma opção que existia no TaskCard antigo: copiar nome + CPF (formatado) de TODOS os ajudantes da tarefa, não só dos confirmados. O menu "Copiar" tinha "Nome + telefone de todos" e "CPFs dos confirmados" separados, mas nenhuma combinação nome+CPF pra todos. Adicionada `copyAllNamesAndCpf()` em `TaskCard.tsx` (Cards) e `TaskDetailPanel.tsx` (Panorama/Timeline) — mesmo fallback de busca de CPF por telefone no `chapa_registry` que `copyCpfConfirmados` já usa. `formatCpf()` extraído de `TaskCard.tsx` pra `src/lib/normalize.ts` (compartilhado entre os dois arquivos, evita duplicar). Mesmo fix já aplicado na `beta`.
+**Files changed:** `src/lib/normalize.ts`, `src/components/TaskCard.tsx`, `src/components/TaskDetailPanel.tsx`
+**Next:** nenhum pendente.
+
+---
+
 ## 2026-08-25 — Fix crítico: URL da Central mudou, quebrando todos os pushes
 
 **Actor:** Jeremiah | **Agent:** sonnet

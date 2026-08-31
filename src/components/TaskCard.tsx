@@ -76,7 +76,7 @@ import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings
 import { ChatSheet } from "@/components/ChatSheet";
 import { GroupChatPicker } from "@/components/GroupChatPicker";
 import { useClienteInfo } from "@/lib/useClienteInfo";
-import { normalize } from "@/lib/normalize";
+import { normalize, formatCpf } from "@/lib/normalize";
 import { normalizeCompany } from "@/lib/company";
 import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueue";
 import { computeTaskState, taskSeverityCardBorderClass } from "@/lib/taskState";
@@ -85,12 +85,6 @@ import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgStat
 import { umblerChatLink, last11Digits } from "@/lib/umbler";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useWatcherLog } from "@/lib/WatcherContext";
-
-function formatCpf(cpf: string): string {
-  const digits = cpf.replace(/\D/g, "");
-  if (digits.length !== 11) return cpf;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-}
 
 async function clipboardWrite(text: string, successMsg: string) {
   try {
@@ -500,6 +494,40 @@ Precisamos de 1 substituto para esta tarefa.`;
       return `${c.nome_chapa} — ${formatCpf(cpf)}`;
     });
     clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) de confirmados copiados`);
+  }
+
+  // Todos os ajudantes da tarefa (não só confirmados), nome + CPF já
+  // formatado — existia no TaskCard antigo espalhado em variantes,
+  // resgatado a pedido do usuário.
+  async function copyAllNamesAndCpf() {
+    const ativos = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    if (ativos.length === 0) {
+      toast.error("Nenhum ajudante nesta tarefa");
+      return;
+    }
+    const comTelefone = ativos.filter((c) => !c.cpf && c.telefone_chapa);
+    let phoneToCpf: Record<string, string> = {};
+    if (comTelefone.length > 0) {
+      try {
+        const db = await getDb();
+        const phones = comTelefone.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
+        const rows = await db.select<{ cpf: string; telefone: string }[]>(
+          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
+           FROM chapa_registry
+           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
+             AND cpf IS NOT NULL`,
+          phones,
+        );
+        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
+      } catch { /* silencioso */ }
+    }
+    const lines = ativos.map((c) => {
+      const cpf = c.cpf
+        ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
+        ?? "(não encontrado)";
+      return `${c.nome_chapa} — ${formatCpf(cpf)}`;
+    });
+    clipboardWrite(lines.join("\n"), `${lines.length} ajudante(s) copiados com CPF`);
   }
 
   function copyNamesOnly() {
@@ -1299,6 +1327,9 @@ Precisamos de 1 substituto para esta tarefa.`;
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={copyConfirmedList}>
                   <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyAllNamesAndCpf}>
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={copyCpfConfirmados}>
                   <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> CPFs dos confirmados
