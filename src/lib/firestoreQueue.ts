@@ -1,5 +1,6 @@
 import { getDb, uuid } from "./db";
 import { normalize } from "./normalize";
+import { pushChapaStatusToCentral } from "./central";
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Consumidor da fila Firestore — porta para TypeScript da lógica que vivia no
@@ -251,6 +252,7 @@ type FupRow = {
   id: string;
   nome_chapa: string;
   telefone_chapa: string | null;
+  cpf: string | null;
   id_tarefa: number;
   empresa: string;
 };
@@ -336,7 +338,7 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
   if (!code) return { handled: false, reason: `resposta não classificada: "${body}"` };
 
   const fupRows = await db.select<FupRow[]>(
-    `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.id_tarefa, t.empresa
+    `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.cpf, c.id_tarefa, t.empresa
      FROM chapas c
      JOIN tarefas t ON c.id_tarefa = t.id_tarefa
      WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(c.telefone_chapa,''),'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
@@ -359,6 +361,20 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [uuid(), "fup", fup.nome_chapa, fup.telefone_chapa, fupResposta, fup.id_tarefa, fup.empresa, fonte, body, now],
     );
+    // Espelha na Central — confirmação/cancelamento automático (via bot/
+    // WhatsApp) nunca chegava lá antes: só o clique manual em TaskCard/
+    // TaskDetailPanel empurrava. A Central tinha um fallback (syncFirestoreStatus,
+    // polling no Firestore a cada 5min), mas perdia a corrida quase sempre
+    // contra o deleteDoc quase-instantâneo do MCM na mesma mensagem.
+    if (fupResposta === "confirmado" || fupResposta === "cancelado") {
+      pushChapaStatusToCentral({
+        id_tarefa: fup.id_tarefa,
+        telefone_chapa: fup.telefone_chapa,
+        cpf: fup.cpf,
+        nome_chapa: fup.nome_chapa,
+        status_contato: fupResposta,
+      });
+    }
     return {
       handled: true,
       event: {
