@@ -177,3 +177,8 @@ Lição: verificar o `latest.json` **uma vez por release**, não em loop/retry.
 Se precisar reconfirmar depois, usar `gh api repos/.../contents/latest.json`
 (API autenticada do GitHub, não sofre esse limite) em vez de bater direto
 no raw.githubusercontent.com de novo.
+
+## 2026-09-08 [tauri, release, signing, updater]
+**Rule:** `tauri.conf.json`'s `bundle` precisa de `"createUpdaterArtifacts": true` — sem isso, `tauri build` (CLI 2.11.1) NÃO gera o `.sig` do updater mesmo com `TAURI_SIGNING_PRIVATE_KEY`/`_PASSWORD` corretas nas env vars, silenciosamente (sem erro, sem warning).
+**Why:** Descoberto no build da v1.0.66 (beta) — o `.exe` saiu, o `.sig` não. Esse campo nunca esteve configurado; builds anteriores devem ter sido assinados manualmente à parte (`npx tauri signer sign -f tauri_update_key -p "" <arquivo>`), sem deixar rastro do porquê no JOURNAL.
+**How to apply:** Antes de qualquer release, checar se `createUpdaterArtifacts: true` está no `bundle` do `tauri.conf.json`. Se um build sair sem `.sig`, não precisa rebuildar — `npx tauri signer sign -f tauri_update_key -p "" "caminho/do/instalador.exe"` assina o artefato já pronto. Chave privada fica em `tauri_update_key` na raiz do repo (gitignored), senha vazia.
