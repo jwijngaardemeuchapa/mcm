@@ -37,7 +37,8 @@ import { FillRateBar } from "@/components/FillRateBar";
 import { useClienteInfo } from "@/lib/useClienteInfo";
 import { pushChapaStatusToCentral, pushPaymentRequestToCentral } from "@/lib/central";
 import { useUndo } from "@/lib/undo";
-import { getDb, errMsg, placeholders } from "@/lib/db";
+import { getDb, errMsg } from "@/lib/db";
+import { canalConfirmacao } from "@/lib/prefup";
 import { readSettings, writeSettings } from "@/lib/settings";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { toast } from "sonner";
@@ -320,12 +321,20 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     if (targets.length === 0) return;
     const ids = targets.map((c) => c.id);
     const prev = targets.map((c) => ({ id: c.id, status_contato: c.status_contato }));
+    const canalPorChapa = new Map(
+      await Promise.all(
+        targets.map(async (c) => [c.id, await canalConfirmacao(task.id_tarefa, c.id)] as const),
+      ),
+    );
     try {
       const db = await getDb();
-      await db.execute(
-        `UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id IN (${placeholders(ids.length)})`,
-        [new Date().toISOString(), ...ids],
-      );
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        await db.execute(
+          "UPDATE chapas SET status_contato = 'confirmado', data_contato = ?, confirmado_via = ? WHERE id = ?",
+          [now, canalPorChapa.get(id) ?? null, id],
+        );
+      }
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -347,6 +356,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
         cpf: c.cpf,
         nome_chapa: c.nome_chapa,
         status_contato: "confirmado",
+        confirmado_via: canalPorChapa.get(c.id) ?? null,
       });
     }
     onRefresh();
@@ -518,6 +528,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   async function updateChapaStatus(chapaId: string, patch: Record<string, unknown>, label: string) {
     const chapa = task!.chapas.find((c) => c.id === chapaId);
     if (!chapa) return;
+    if (patch.status_contato === "confirmado") {
+      patch.confirmado_via = await canalConfirmacao(task!.id_tarefa, chapaId);
+    }
     const prev: Record<string, unknown> = {};
     Object.keys(patch).forEach((k) => { prev[k] = (chapa as Record<string, unknown>)[k] ?? null; });
     try {
@@ -546,6 +559,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
         cpf: chapa.cpf,
         nome_chapa: chapa.nome_chapa,
         status_contato: patch.status_contato,
+        confirmado_via: patch.confirmado_via as "prefup" | "fup" | null,
       });
     }
     onRefresh();
@@ -1497,6 +1511,9 @@ function CompactChapaRow({
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
             {STATUS_LABEL[c.status_contato] ?? c.status_contato}
             {c.status_contato === "pendente" && !lastDispatch && " — sem contato"}
+            {c.status_contato === "confirmado" && c.confirmado_via === "prefup" && (
+              <span className="text-muted-foreground font-normal">· PréFUP</span>
+            )}
             {elapsedMin !== null && c.status_contato !== "confirmado" && (
               <span className="text-muted-foreground font-normal">· há {fmtElapsed(elapsedMin)}</span>
             )}

@@ -1,6 +1,7 @@
 import { getDb, uuid } from "./db";
 import { normalize } from "./normalize";
 import { pushChapaStatusToCentral, pushRespostaToCentral } from "./central";
+import { canalConfirmacao } from "./prefup";
 
 // Traduz o status (mais rico) do BID pro mesmo vocabulário de categoria
 // (ResponseCategory) que a Central já usa pro badge da aba "Respostas ao
@@ -376,7 +377,11 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
       : code === "interesse_nao" || code === "cancelado"
         ? "cancelado"
         : code;
-    await db.execute("UPDATE chapas SET status_contato=?, data_contato=? WHERE id=?", [fupResposta, now, fup.id]);
+    const canalConf = fupResposta === "confirmado" ? await canalConfirmacao(fup.id_tarefa, fup.id) : null;
+    await db.execute(
+      "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
+      [fupResposta, now, canalConf, fup.id],
+    );
     await db.execute(
       `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,fonte,message_body,received_at)
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
@@ -394,6 +399,7 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
         cpf: fup.cpf,
         nome_chapa: fup.nome_chapa,
         status_contato: fupResposta,
+        confirmado_via: canalConf,
       });
     }
     pushRespostaToCentral({

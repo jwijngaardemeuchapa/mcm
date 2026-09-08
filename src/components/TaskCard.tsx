@@ -60,7 +60,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { getDb, uuid, placeholders, errMsg } from "@/lib/db";
+import { getDb, uuid, errMsg } from "@/lib/db";
+import { canalConfirmacao } from "@/lib/prefup";
 import { StatusBadge } from "./StatusBadge";
 import { FillRateBar } from "./FillRateBar";
 import { Confetti } from "./Confetti";
@@ -134,6 +135,9 @@ export type TaskWithChapas = {
     cpf: string | null;
     status_contato: string;
     canal_contato?: string | null;
+    // "prefup" | "fup" | null — qual disparo levou à confirmação (ver
+    // canalConfirmacao em lib/prefup.ts). Só preenchido quando confirmado.
+    confirmado_via?: string | null;
     validacao_presenca?: string | null;
     data_validacao?: string | null;
   }>;
@@ -352,6 +356,9 @@ export function TaskCard({
   };
 
   async function updateChapaWithUndo(chapa: ChapaRow, patch: Record<string, unknown>, label: string) {
+    if (patch.status_contato === "confirmado") {
+      patch.confirmado_via = await canalConfirmacao(task.id_tarefa, chapa.id);
+    }
     const prev: Record<string, unknown> = {};
     Object.keys(patch).forEach((k) => {
       prev[k] = (chapa as Record<string, unknown>)[k] ?? null;
@@ -383,6 +390,7 @@ export function TaskCard({
         cpf: chapa.cpf,
         nome_chapa: chapa.nome_chapa,
         status_contato: patch.status_contato,
+        confirmado_via: patch.confirmado_via as "prefup" | "fup" | null,
       });
     }
     onRefresh();
@@ -452,13 +460,20 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     const ids = targets.map((c) => c.id);
     const prev = targets.map((c) => ({ id: c.id, status_contato: c.status_contato }));
+    const canalPorChapa = new Map(
+      await Promise.all(
+        targets.map(async (c) => [c.id, await canalConfirmacao(task.id_tarefa, c.id)] as const),
+      ),
+    );
     try {
       const db = await getDb();
-      const ph = placeholders(ids.length);
-      await db.execute(
-        `UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id IN (${ph})`,
-        [new Date().toISOString(), ...ids],
-      );
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        await db.execute(
+          "UPDATE chapas SET status_contato = 'confirmado', data_contato = ?, confirmado_via = ? WHERE id = ?",
+          [now, canalPorChapa.get(id) ?? null, id],
+        );
+      }
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -480,6 +495,7 @@ Precisamos de 1 substituto para esta tarefa.`;
         cpf: c.cpf,
         nome_chapa: c.nome_chapa,
         status_contato: "confirmado",
+        confirmado_via: canalPorChapa.get(c.id) ?? null,
       });
     }
     setConfirmAllOpen(false);
@@ -2128,6 +2144,9 @@ function ChapaRowView({
             <Check className="h-3.5 w-3.5" /> Confirmado
             {chapa.canal_contato && (
               <span className="font-normal opacity-80">· {canalLabel[chapa.canal_contato] ?? chapa.canal_contato}</span>
+            )}
+            {chapa.confirmado_via === "prefup" && (
+              <span className="font-normal opacity-80">· PréFUP</span>
             )}
           </span>
           {conversaTrigger}

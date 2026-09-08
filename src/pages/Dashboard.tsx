@@ -812,6 +812,10 @@ export default function Dashboard() {
     (a, t) => a + t.chapas.filter((c) => c.status_contato === "confirmado").length,
     0,
   );
+  const confirmedViaPrefup = displayCards.reduce(
+    (a, t) => a + t.chapas.filter((c) => c.status_contato === "confirmado" && c.confirmado_via === "prefup").length,
+    0,
+  );
   const fillPct = totalChapas > 0 ? Math.round((confirmedChapas / totalChapas) * 100) : 0;
   const fillTone = fillPct >= 80 ? "success" : fillPct >= 50 ? "warning" : "destructive";
   const validacaoPendente = displayCards.filter(
@@ -1392,7 +1396,10 @@ export default function Dashboard() {
           <div className="text-2xl font-display font-medium mt-1 text-foreground tabular-nums">
             {confirmedChapas}/{totalChapas}
           </div>
-          <div className="text-xs text-muted-foreground mt-1">chapas</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            chapas
+            {confirmedViaPrefup > 0 && ` · ${confirmedViaPrefup} via PréFUP`}
+          </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 shadow-card">
           <div className="text-[12px] uppercase tracking-wider text-muted-foreground font-semibold opacity-50">

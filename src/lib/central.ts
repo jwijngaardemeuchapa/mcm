@@ -27,6 +27,7 @@ export async function pushChapaStatusToCentral(params: {
   cpf: string | null;
   nome_chapa: string | null;
   status_contato: "confirmado" | "cancelado";
+  confirmado_via?: "prefup" | "fup" | null;
 }): Promise<void> {
   try {
     const { operadorNome } = readSettings();

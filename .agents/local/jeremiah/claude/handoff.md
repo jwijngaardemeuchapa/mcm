@@ -1,5 +1,27 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-09-08 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
+
+**Branch atual:** `beta` (também trabalhado `main` nesta sessão, pontualmente). `beta` está à frente de `main` — toda a integração com a Central (repo separado `central-hub`, deploy Lovable em `mcmcentral.lovable.app`) vive só na `beta`.
+
+**Feito hoje — auditoria completa de integração MCM beta ↔ Central, 6 achados, todos corrigidos e já commitados/pushados:**
+1. Confirmação automática (bot/WhatsApp) não chegava na Central — `pushChapaStatusToCentral` movido pra dentro de `processFirestoreMessage()` (`firestoreQueue.ts`).
+2. `pullTarefasFromCentral()` sem janela de data (crescia sem fim) — escopado a ontem+hoje+amanhã via nova `yesterdayDateISO_SP()`.
+3. "Respostas ao vivo" da Central lia Firestore ao vivo e perdia a corrida contra o `deleteDoc` do MCM — nova `pushRespostaToCentral()` + tabela `respostas_log` no lado da Central (repo `central-hub`, migration `20260908120000_respostas_log.sql` + hook `resposta.ts` + `dashboard.tsx` trocado pra ler dali).
+4. Sync de "amanhã" (PréFUP automático) e 2 botões manuais duplicados (BIDDashboard/DisparosUmbler) bypassavam a Central — tudo consolidado em `sincronizarMetabase()`.
+5. `src/lib/central.ts` estava morto na `main` (nada importava, header de auth antigo) — removido.
+6. 2 notas de JOURNAL "aplicar na main" — descoberto que `JOURNAL.md` não é compartilhado entre branches, não era problema real.
+
+**Depois da auditoria, mais um pedido do usuário:** separar a visão de "confirmado via PréFUP" de "confirmado via FUP" (contador + badge), no MCM beta e na Central. Feito e commitado dos dois lados — nova coluna `chapas.confirmado_via`/`tarefa_chapas.confirmado_via`, `canalConfirmacao()` em `prefup.ts`, conectado nos 4 pontos de confirmação (auto + manual individual + manual em massa nos 2 arquivos), badges e StatCards atualizados. Ver JOURNAL de hoje pra detalhe completo.
+
+**Pendente / próximo passo:**
+1. **Essa migration é Rust (v27, `lib.rs`)** — diferente dos fixes JS-only da auditoria, essa precisa de rebuild/novo instalador da beta pra chegar em produção de verdade (`npx tauri build`, nunca empacotado ainda). Sem isso, o app roda com a versão antiga do binário e a coluna `chapas.confirmado_via` não existe localmente.
+2. Confirmar se o Lovable já aplicou as 2 migrations novas do lado da Central (`respostas_log` e `tarefa_chapas.confirmado_via`) em produção — prompt já entregue ao usuário.
+
+**Itens do handoff anterior (abaixo, 2026-08-16) estão desatualizados** — a Central saiu de "produção não depende dela" pra ter integração ativa e auditada na `beta`. Não agir em cima do texto antigo sem reconferir.
+
+---
+
 **Data:** 2026-08-16 (Sonnet 5)
 **Versão:** `1.0.58` publicada, **assinada e verificada** (feita pela sessão paralela). Sem pendência de release aberta.
 **Branch:** main (existe também `origin/beta`, ativo, à frente de main — trabalho em andamento de integração Central, não investigado a fundo).

@@ -1306,6 +1306,19 @@ CREATE INDEX IF NOT EXISTS idx_chat_links_tarefa ON chat_links(id_tarefa);
       sql: "ALTER TABLE tarefas ADD COLUMN andamento_acao TEXT;",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Guarda qual disparo (PréFUP ou FUP normal) gerou a confirmação —
+      // hoje status_contato só sabe QUE confirmou, não a partir de qual
+      // template. Preenchido em processFirestoreMessage() (confirmação
+      // automática) e nos handlers de confirmação manual, olhando o
+      // fup_log mais recente do chapa/tarefa (aguarda_resposta_chat).
+      // version 27: v1 estava em 26, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 27,
+      description: "chapas_confirmado_via",
+      sql: "ALTER TABLE chapas ADD COLUMN confirmado_via TEXT;",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

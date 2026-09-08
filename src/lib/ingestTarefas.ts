@@ -153,7 +153,7 @@ export async function ingestTarefas(
     existingT.forEach((e) => tarefaPrev.set(e.id_tarefa as number, e));
 
     const existingC = await db.select<Record<string, unknown>[]>(
-      `SELECT id, id_tarefa, nome_chapa, cpf, telefone_chapa, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao FROM chapas WHERE id_tarefa IN (${ph})`,
+      `SELECT id, id_tarefa, nome_chapa, cpf, telefone_chapa, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, confirmado_via, data_remocao, motivo_remocao FROM chapas WHERE id_tarefa IN (${ph})`,
       chunk,
     );
     existingC.forEach((c) =>
@@ -201,6 +201,7 @@ export async function ingestTarefas(
         data_validacao: wasRemoved ? null : (taskInProgressOrDone ? (prev.data_validacao ?? new Date().toISOString()) : (prev.data_validacao ?? null)),
         data_contato: prev.data_contato ?? null,
         canal_contato: prev.canal_contato ?? null,
+        confirmado_via: prev.confirmado_via ?? null,
         data_remocao: prev.data_remocao ?? null,
         motivo_remocao: prev.motivo_remocao ?? null,
         telefone_chapa: c.telefone_chapa ?? prev.telefone_chapa ?? null,
@@ -214,6 +215,7 @@ export async function ingestTarefas(
       data_validacao: taskInProgressOrDone ? new Date().toISOString() : null,
       data_contato: null,
       canal_contato: null,
+      confirmado_via: null,
       data_remocao: null,
       motivo_remocao: null,
     };
@@ -267,15 +269,18 @@ export async function ingestTarefas(
   // pull do Metabase) — um DELETE bem menor e escopado, não "apaga tudo
   // primeiro". Mesmo padrão que a Central já usa (upsert, nunca delete
   // em massa) pro próprio sync dela.
-  for (let i = 0; i < chapasFinais.length; i += 80) {
-    const chunk = chapasFinais.slice(i, i + 80);
+  // Chunk de 60 (não 80) desde que confirmado_via virou a 13ª coluna — 60×13=780
+  // binds, dentro do limite de 999 do SQLite com folga (ver LESSONS.md
+  // 2026-06-29, bug real de estouro de binds).
+  for (let i = 0; i < chapasFinais.length; i += 60) {
+    const chunk = chapasFinais.slice(i, i + 60);
     const params = chunk.flatMap((c) => [
       c.id, c.id_tarefa, c.nome_chapa ?? null, c.telefone_chapa ?? null, c.cpf ?? null,
       c.status_contato, c.validacao_presenca ?? null, c.data_validacao ?? null,
-      c.data_contato ?? null, c.canal_contato ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
+      c.data_contato ?? null, c.canal_contato ?? null, c.confirmado_via ?? null, c.data_remocao ?? null, c.motivo_remocao ?? null,
     ]);
     await db.execute(
-      `INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao) VALUES ${rowGroup(12, chunk.length)}
+      `INSERT INTO chapas (id, id_tarefa, nome_chapa, telefone_chapa, cpf, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, confirmado_via, data_remocao, motivo_remocao) VALUES ${rowGroup(13, chunk.length)}
        ON CONFLICT(id) DO UPDATE SET
          id_tarefa = excluded.id_tarefa,
          nome_chapa = excluded.nome_chapa,
@@ -286,6 +291,7 @@ export async function ingestTarefas(
          data_validacao = excluded.data_validacao,
          data_contato = excluded.data_contato,
          canal_contato = excluded.canal_contato,
+         confirmado_via = excluded.confirmado_via,
          data_remocao = excluded.data_remocao,
          motivo_remocao = excluded.motivo_remocao`,
       params,
