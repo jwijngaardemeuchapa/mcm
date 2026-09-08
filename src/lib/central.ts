@@ -1,5 +1,6 @@
 import { readSettings } from "./settings";
 import { getDb } from "./db";
+import { yesterdayDateISO_SP } from "./datetime";
 
 // MeuChapa Central — app separado (repo central-hub, deploy no Lovable)
 // que centraliza acompanhamento pra liderança. Config pública (mesma
@@ -331,18 +332,28 @@ type CentralTarefaRow = {
 // nas duas pontas), então dá pra reaproveitar ingestTarefas() sem alterar
 // uma linha dele.
 export async function pullTarefasFromCentral(): Promise<Record<string, unknown>[]> {
-  const [tarefasRes, chapasRes] = await Promise.all([
-    fetch(
-      `${CENTRAL_SUPABASE_URL}/rest/v1/tarefas?select=id_tarefa,data_tarefa,cidade_uf,empresa,cnpj,status_tarefa,quantidade_chapas&ativo=eq.true`,
-      { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
-    ),
-    fetch(
-      `${CENTRAL_SUPABASE_URL}/rest/v1/tarefa_chapas?select=id_tarefa,nome_chapa,telefone_chapa,cpf`,
-      { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
-    ),
-  ]);
-  if (!tarefasRes.ok || !chapasRes.ok) throw new Error("Central indisponível ao buscar tarefas");
+  // Janela ontem+hoje+amanhã (mesmo escopo operacional que a própria Central
+  // usa em TarefaOverview.tsx) — antes vinha sem filtro nenhum de data, e
+  // como `tarefas.ativo` nunca é desligado do lado da Central, a tabela
+  // cresce pra sempre desde a criação (agosto/2026): todo startup do MCM e
+  // todo clique de "sincronizar" baixava o histórico inteiro, cada vez
+  // maior. tarefa_chapas não tem coluna de data própria, então escopa pelos
+  // ids de tarefa já filtrados (2 chamadas em série em vez de paralelas).
+  const desde = yesterdayDateISO_SP();
+  const tarefasRes = await fetch(
+    `${CENTRAL_SUPABASE_URL}/rest/v1/tarefas?select=id_tarefa,data_tarefa,cidade_uf,empresa,cnpj,status_tarefa,quantidade_chapas&ativo=eq.true&data_tarefa=gte.${desde}`,
+    { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
+  );
+  if (!tarefasRes.ok) throw new Error("Central indisponível ao buscar tarefas");
   const tarefas = (await tarefasRes.json()) as CentralTarefaRow[];
+  if (tarefas.length === 0) return [];
+
+  const ids = tarefas.map((t) => t.id_tarefa).join(",");
+  const chapasRes = await fetch(
+    `${CENTRAL_SUPABASE_URL}/rest/v1/tarefa_chapas?select=id_tarefa,nome_chapa,telefone_chapa,cpf&id_tarefa=in.(${ids})`,
+    { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
+  );
+  if (!chapasRes.ok) throw new Error("Central indisponível ao buscar chapas");
   const chapas = (await chapasRes.json()) as CentralTarefaChapaRow[];
 
   const tarefaById = new Map(tarefas.map((t) => [t.id_tarefa, t]));

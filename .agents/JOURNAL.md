@@ -2205,3 +2205,10 @@ Unificado também o threshold de PréFUP: a Troca de Turno tinha um corte hardco
 Fix #1 aplicado (beta-only, por depender da Central): `pushChapaStatusToCentral` chamado dentro de `processFirestoreMessage()` (cobre os dois callers automáticos de uma vez) sempre que o resultado for confirmado/cancelado no fluxo de FUP — mesmo padrão dos 4 call sites manuais já existentes. Escopo restrito a FUP (chapas.status_contato); BID tem vocabulário de status próprio (aceita_app/nao_aceita_app/precisa_ajuda), fora do que `pushChapaStatusToCentral` aceita hoje.
 **Files changed:** `src/lib/firestoreQueue.ts`
 **Next:** itens 2–6 do achado, um de cada vez, por pedido explícito do usuário ("uma a uma, mas consertar todas").
+
+## 2026-09-08 — Fix #2 da auditoria: pullTarefasFromCentral() ganha janela de data
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** `pullTarefasFromCentral()` baixava `tarefas` inteira (sem filtro de data, só `ativo=eq.true` — que nunca é desligado do lado da Central) e `tarefa_chapas` inteira (sem filtro NENHUM, nem `ativo`) em todo startup do MCM e todo clique de "sincronizar". Usuário escolheu escopar pela mesma janela operacional que a própria Central usa (`TarefaOverview.tsx`): ontem+hoje+amanhã. Nova `yesterdayDateISO_SP()` em `datetime.ts` (mesmo padrão de `todayDateISO_SP`/`tomorrowDateISO_SP`). `tarefa_chapas` não tem coluna de data própria — as 2 chamadas viraram sequenciais (tarefas primeiro, depois chapas escopadas por `id_tarefa=in.(...)` dos ids já filtrados) em vez de paralelas; retorna cedo se a janela não tiver nenhuma tarefa. Confirmado antes de mexer: `ingestTarefas()` nunca desativa/deleta tarefa local ausente do pull (é upsert puro), então estreitar a janela não apaga nem esconde histórico já ingerido — só para de re-sincronizar tarefas fora da janela daqui pra frente.
+**Files changed:** `src/lib/datetime.ts`, `src/lib/central.ts`
+**Next:** itens 3–6 do achado.
