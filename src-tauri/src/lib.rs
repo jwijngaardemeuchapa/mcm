@@ -1319,6 +1319,26 @@ CREATE INDEX IF NOT EXISTS idx_chat_links_tarefa ON chat_links(id_tarefa);
       sql: "ALTER TABLE chapas ADD COLUMN confirmado_via TEXT;",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Fill Rate como previsão (não só "confirmados/solicitados" cru):
+      // quantidade_chapas é sobrescrita a cada sync do Metabase, sem
+      // histórico nenhum. Estes 2 campos são retratos gravados uma vez só
+      // (nunca sobrescritos depois, ver ingestTarefas.ts): "original" é a
+      // primeira leitura que este MCM já viu da tarefa; "em_andamento" é a
+      // leitura no momento em que ela entra Em Andamento pela primeira vez.
+      // A razão histórica entre os dois, calculada sobre tarefas recentes já
+      // nessa transição, projeta o fill rate provável das que ainda estão
+      // abertas.
+      // version 28: v1 estava em 27, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 28,
+      description: "tarefas_quantidade_chapas_previsao",
+      sql: "
+ALTER TABLE tarefas ADD COLUMN quantidade_chapas_original INTEGER;
+ALTER TABLE tarefas ADD COLUMN quantidade_chapas_em_andamento INTEGER;
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

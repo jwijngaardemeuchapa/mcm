@@ -147,7 +147,7 @@ export async function ingestTarefas(
     const chunk = ids.slice(i, i + 900);
     const ph = placeholders(chunk.length);
     const existingT = await db.select<Record<string, unknown>[]>(
-      `SELECT id_tarefa, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao FROM tarefas WHERE id_tarefa IN (${ph})`,
+      `SELECT id_tarefa, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao, quantidade_chapas_original, quantidade_chapas_em_andamento FROM tarefas WHERE id_tarefa IN (${ph})`,
       chunk,
     );
     existingT.forEach((e) => tarefaPrev.set(e.id_tarefa as number, e));
@@ -170,6 +170,18 @@ export async function ingestTarefas(
     t.observacoes_updated_at = prev?.observacoes_updated_at ?? null;
     const status = String(t.status_tarefa ?? "");
     const inProgressOrDone = /em\s*andamento|finalizado|conclu/i.test(status);
+    // Previsão de Fill Rate (item 3): dois retratos de quantidade_chapas que
+    // nunca existiram antes — quantidade_chapas em si é sobrescrita a cada
+    // sync, sem histórico. "original" é a primeira leitura que este MCM já
+    // viu da tarefa; "em_andamento" é a leitura no momento em que ela entra
+    // Em Andamento pela primeira vez (não conta Finalizado/Concluído — essa
+    // transição já aconteceu antes, o retrato tem que ser do início do
+    // trabalho, não do fim). Ambos gravados uma vez só, nunca sobrescritos
+    // depois — ver comparação em taskState.ts / fillRatePrevisto.ts.
+    t.quantidade_chapas_original = prev?.quantidade_chapas_original ?? t.quantidade_chapas;
+    const isEmAndamento = /em\s*andamento/i.test(status);
+    t.quantidade_chapas_em_andamento = prev?.quantidade_chapas_em_andamento
+      ?? (isEmAndamento ? t.quantidade_chapas : null);
     const prevValStatus = prev?.validacao_status as string | undefined;
     if (inProgressOrDone) {
       t.validacao_status = "subido_meu_chapa";
@@ -233,19 +245,22 @@ export async function ingestTarefas(
     return Array(rows).fill(`(${placeholders(cols)})`).join(",");
   }
 
-  // Upsert tarefas em lote (50 linhas × 16 colunas = 800 binds por statement)
+  // Upsert tarefas em lote (45 linhas × 18 colunas = 810 binds por statement
+  // — reduzido de 50×16 desde que quantidade_chapas_original/em_andamento
+  // viraram a 17ª/18ª coluna, pra manter folga do limite de 999 do SQLite).
   const tarefasArr = Array.from(tarefasMap.values());
-  for (let i = 0; i < tarefasArr.length; i += 50) {
-    const chunk = tarefasArr.slice(i, i + 50);
+  for (let i = 0; i < tarefasArr.length; i += 45) {
+    const chunk = tarefasArr.slice(i, i + 45);
     const params = chunk.flatMap((t) => [
       t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
       t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
       t.observacoes ?? null, t.observacoes_updated_at ?? null,
       t.validacao_status, t.data_validacao_recebida ?? null,
       t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
+      t.quantidade_chapas_original ?? null, t.quantidade_chapas_em_andamento ?? null,
     ]);
     await db.execute(
-      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES ${rowGroup(16, chunk.length)}`,
+      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao, quantidade_chapas_original, quantidade_chapas_em_andamento) VALUES ${rowGroup(18, chunk.length)}`,
       params,
     );
   }

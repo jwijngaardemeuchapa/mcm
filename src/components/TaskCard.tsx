@@ -115,6 +115,12 @@ export type TaskWithChapas = {
   cidade_uf: string | null;
   status_tarefa: string;
   quantidade_chapas: number;
+  // Previsão de Fill Rate (item 3) — retratos gravados uma vez só em
+  // ingestTarefas.ts, nunca sobrescritos depois. Podem ser null pra
+  // tarefas antigas (importadas antes desta feature) ou que nunca
+  // entraram Em Andamento ainda.
+  quantidade_chapas_original?: number | null;
+  quantidade_chapas_em_andamento?: number | null;
   is_overnight?: boolean | null;
   validacao_status?: string | null;
   data_validacao_recebida?: string | null;
