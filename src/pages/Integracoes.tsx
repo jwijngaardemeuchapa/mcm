@@ -250,10 +250,6 @@ export default function Integracoes() {
   const [metabaseConfigured, setMetabaseConfigured] = useState(false);
   const [metabaseUrl, setMetabaseUrl] = useState("");
   const [metabaseApiKey, setMetabaseApiKey] = useState("");
-  const [metabase30hCardIdInput, setMetabase30hCardIdInput] = useState(() => {
-    const s = readSettings();
-    return s.metabaseTarefas30hCardId ? String(s.metabaseTarefas30hCardId) : "";
-  });
   const [metabaseCarteiraCardIdInput, setMetabaseCarteiraCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseCarteiraCardId ? String(s.metabaseCarteiraCardId) : "";
@@ -1153,7 +1149,7 @@ export default function Integracoes() {
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
-              Tarefas do dia
+              Tarefas (ontem + hoje + amanhã)
               <span className="ml-1 text-muted-foreground/60">
                 (movido pra MeuChapa Central — a Central fala com o Metabase, este MCM só lê de lá.
                 Configuração do card ID fica na Central, não aqui)
@@ -1175,23 +1171,6 @@ export default function Integracoes() {
               </p>
             )}
           </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              ID da pergunta — Próximas 30 horas
-              <span className="ml-1 text-muted-foreground/60">(usado no botão "Sync amanhã" dos dashboards)</span>
-            </label>
-            <Input
-              placeholder="ex: 43"
-              value={metabase30hCardIdInput}
-              onChange={(e) => {
-                const v = e.target.value.replace(/\D/g, "");
-                setMetabase30hCardIdInput(v);
-                writeSettings({ metabaseTarefas30hCardId: v ? parseInt(v, 10) : undefined });
-              }}
-              className="max-w-[120px]"
-            />
-          </div>
-
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
               ID da pergunta — Carteira

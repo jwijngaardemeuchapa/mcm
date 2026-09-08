@@ -10,7 +10,7 @@ import { logActivity, pruneActivityLog } from "./activityLog";
 import { getActiveCarteiraNames } from "./carteira";
 import { applyCentralStatusLocally, applyChatLinksLocally } from "./central";
 import { companyMatches } from "./company";
-import { haDisparoParaAmanha, sincronizarMetabase30h } from "./metabaseSync";
+import { haDisparoParaAmanha, sincronizarMetabase } from "./metabaseSync";
 import { readSettings } from "./settings";
 import { fetchUmblerUnreadChats, last11Digits } from "./umbler";
 import type { TaskWithChapas } from "@/components/TaskCard";
@@ -169,9 +169,12 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   // nada) se ninguém tocou em tarefa de amanhã ainda. Checa a cada tick —
   // se ligar no meio do dia (primeiro disparo antecipado), começa a
   // sincronizar a partir daquele tick, sem precisar reiniciar o app.
+  // sincronizarMetabase() (via Central) já cobre ontem+hoje+amanhã desde a
+  // correção de pullTarefasFromCentral() — sincronizarMetabase30h() (Metabase
+  // direto por máquina, bypassando a Central) ficou redundante nesta build.
   useEffect(() => {
     const tick = async () => {
-      if (await haDisparoParaAmanha()) await sincronizarMetabase30h(true);
+      if (await haDisparoParaAmanha()) await sincronizarMetabase(true);
     };
     tick();
     const t = setInterval(tick, 10 * 60_000);

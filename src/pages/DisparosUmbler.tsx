@@ -17,9 +17,7 @@ import {
 import { getDb } from "@/lib/db";
 import { fmtSP, todayDateISO_SP } from "@/lib/datetime";
 import { readSettings } from "@/lib/settings";
-import { invoke } from "@tauri-apps/api/core";
-import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarMetabase30h } from "@/lib/metabaseSync";
+import { sincronizarMetabase } from "@/lib/metabaseSync";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -165,34 +163,12 @@ export default function DisparosUmbler() {
   useEffect(() => { load(); }, [load]);
 
   const [metaSyncing, setMetaSyncing] = useState(false);
-  const [syncing30h, setSyncing30h] = useState(false);
-
-  async function handleSync30h() {
-    setSyncing30h(true);
-    const ok = await sincronizarMetabase30h(false);
-    if (ok) { load(); window.dispatchEvent(new CustomEvent("fup:refresh")); }
-    setSyncing30h(false);
-  }
 
   async function handleSyncMetabase() {
-    const s = readSettings();
-    const cardId = s.metabaseTarefasCardId;
-    if (!cardId) { toast.error("Configure o ID da pergunta do Metabase em Integrações"); return; }
     setMetaSyncing(true);
-    try {
-      const status = await invoke<{ configured: boolean }>("metabase_status");
-      if (!status.configured) { toast.error("Metabase não configurado em Integrações"); return; }
-      const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
-      const result = await ingestTarefas(rows);
-      localStorage.setItem("metabase_last_sync", new Date().toISOString());
-      toast.success(`Sync concluído — ${result.tarefas} tarefas, ${result.chapas} chapas`);
-      load();
-      window.dispatchEvent(new CustomEvent("fup:refresh"));
-    } catch {
-      toast.error("Erro ao sincronizar com Metabase");
-    } finally {
-      setMetaSyncing(false);
-    }
+    const ok = await sincronizarMetabase(false);
+    if (ok) { load(); window.dispatchEvent(new CustomEvent("fup:refresh")); }
+    setMetaSyncing(false);
   }
 
   /* ── pending: group by task, sorted by data_tarefa ── */
@@ -278,10 +254,6 @@ export default function DisparosUmbler() {
           <Button variant="outline" size="sm" className="gap-1.5" onClick={handleSyncMetabase} disabled={metaSyncing || loading}>
             <RefreshCw className={`h-3.5 w-3.5 ${metaSyncing ? "animate-spin" : ""}`} />
             Atualizar
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleSync30h} disabled={syncing30h}>
-            <RefreshCw className={`h-3.5 w-3.5 ${syncing30h ? "animate-spin" : ""}`} />
-            Sync amanhã
           </Button>
         </div>
       </div>

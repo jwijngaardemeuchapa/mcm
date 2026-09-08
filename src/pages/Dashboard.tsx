@@ -72,7 +72,7 @@ import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
-import { sincronizarMetabase, sincronizarMetabase30h } from "@/lib/metabaseSync";
+import { sincronizarMetabase } from "@/lib/metabaseSync";
 import * as XLSX from "xlsx";
 import { useSidebar } from "@/components/ui/sidebar";
 import { consumeArrowKey } from "@/lib/taskNav";
@@ -141,7 +141,6 @@ export default function Dashboard() {
   );
   const [agendaAlerts, setAgendaAlerts] = useState<AlertItem[]>([]);
   const [trocaTurnoOpen, setTrocaTurnoOpen] = useState(false);
-  const [syncing30h, setSyncing30h] = useState(false);
   const [xlsxDialogOpen, setXlsxDialogOpen] = useState(false);
   const [xlsxSelected, setXlsxSelected] = useState<Set<number>>(new Set());
   const [syncClock, setSyncClock] = useState<{ lastSync: Date | null; nextSync: Date | null }>({ lastSync: null, nextSync: null });
@@ -958,15 +957,6 @@ export default function Dashboard() {
     return `Atualizado ${agoLabel} · próximo em ${inLabel}`;
   }
 
-  async function handleSync30h() {
-    setSyncing30h(true);
-    skipDiffRef.current = true;
-    const ok = await sincronizarMetabase30h(false);
-    if (ok) await load(false);
-    skipDiffRef.current = false;
-    setSyncing30h(false);
-  }
-
   async function handleSyncMetabase() {
     setMetaSyncing(true);
     skipDiffRef.current = true;
@@ -1257,22 +1247,6 @@ export default function Dashboard() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Gerar mensagem de Troca de Turno para o Teams</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5"
-                onClick={handleSync30h}
-                disabled={syncing30h}
-              >
-                <RefreshCw className={`h-4 w-4 ${syncing30h ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline">Sync amanhã</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Sincronizar tarefas das próximas 30h</TooltipContent>
           </Tooltip>
 
           <Tooltip>
