@@ -88,6 +88,34 @@ export async function pushAndamentoMotivoToCentral(params: {
   }
 }
 
+// Espelha toda resposta processada (FUP ou BID) na Central — mesmo momento
+// em que o MCM grava seu resposta_log local, antes de apagar a mensagem do
+// Firestore. Substitui a leitura ao vivo direto do Firestore que a Central
+// usava antes: o MCM apaga a mensagem segundos depois de processar, então a
+// Central quase sempre perdia a corrida. Best-effort silencioso, mesmo
+// padrão dos outros pushes — nunca bloqueia o processamento local.
+export async function pushRespostaToCentral(params: {
+  id_tarefa: number | null;
+  tipo: string;
+  nome_chapa: string | null;
+  telefone_chapa: string | null;
+  empresa: string | null;
+  categoria: string | null;
+  resposta: string | null;
+  message_body: string | null;
+  fonte: string;
+}): Promise<void> {
+  try {
+    await fetch(`${CENTRAL_APP_URL}/api/public/hooks/resposta`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
+      body: JSON.stringify(params),
+    });
+  } catch {
+    // Silencioso — mesmo motivo de pushChapaStatusToCentral.
+  }
+}
+
 // Lista de ações possíveis pra tarefa desfalcada — configurável na Central
 // (Integrações → Ações — tarefa desfalcada), não fixa no MCM. Best-effort:
 // se a Central estiver fora do ar, cai num fallback local com as 3 ações

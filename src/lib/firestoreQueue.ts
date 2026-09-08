@@ -1,6 +1,16 @@
 import { getDb, uuid } from "./db";
 import { normalize } from "./normalize";
-import { pushChapaStatusToCentral } from "./central";
+import { pushChapaStatusToCentral, pushRespostaToCentral } from "./central";
+
+// Traduz o status (mais rico) do BID pro mesmo vocabulário de categoria
+// (ResponseCategory) que a Central já usa pro badge da aba "Respostas ao
+// vivo" — interesse_nao/precisa_ajuda já batem direto, só aceita/não-aceita
+// precisam de tradução.
+function bidStatusParaCategoria(status: string): string {
+  if (status === "aceita_app") return "confirmado";
+  if (status === "nao_aceita_app") return "cancelado";
+  return status; // interesse_nao, precisa_ajuda já batem
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Consumidor da fila Firestore — porta para TypeScript da lógica que vivia no
@@ -306,6 +316,17 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
         [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, resolved.status, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, fonte, resolved.bodyLog, now],
       );
+      pushRespostaToCentral({
+        id_tarefa: bid.id_tarefa,
+        tipo: "bid",
+        nome_chapa: bid.chapa_nome,
+        telefone_chapa: bid.chapa_telefone,
+        empresa: bid.empresa,
+        categoria: bidStatusParaCategoria(resolved.status),
+        resposta: resolved.status,
+        message_body: resolved.bodyLog,
+        fonte,
+      });
       return {
         handled: true,
         event: {
@@ -375,6 +396,17 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
         status_contato: fupResposta,
       });
     }
+    pushRespostaToCentral({
+      id_tarefa: fup.id_tarefa,
+      tipo: "fup",
+      nome_chapa: fup.nome_chapa,
+      telefone_chapa: fup.telefone_chapa,
+      empresa: fup.empresa,
+      categoria: code,
+      resposta: fupResposta,
+      message_body: body,
+      fonte,
+    });
     return {
       handled: true,
       event: {
