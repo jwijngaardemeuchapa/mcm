@@ -1,5 +1,19 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-09-08 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
+
+**Versão:** `v1.0.63` publicada e assinada (release GitHub "Latest"), `.sig` verificado. Sem pendência de release aberta na main.
+
+**O que aconteceu hoje na main:** auditoria de integração MCM↔Central rodou inteira na `beta` (ver handoff/JOURNAL de lá); da `main`, só o item 5 dessa auditoria tocou aqui — remoção do `src/lib/central.ts` morto (nunca importado, header de auth antigo). Depois disso, usuário pediu build/release de `main` e `beta` juntos, já que várias features reais estavam acumuladas sem empacotar desde 19/08 (v1.0.62): lista de bots FUP/BID ao vivo da Umbler, "Nome + CPF de todos" resgatado, fixes da Troca de Turno + PréFUP unificado em 5h. Bump pra 1.0.63, build assinado, release publicado.
+
+**Achado no processo (vale lembrar sempre):** `tauri.conf.json`'s `bundle` não tinha `"createUpdaterArtifacts": true` — sem isso, `tauri build` (CLI 2.11.1) NÃO gera o `.sig` do updater mesmo com a chave certa nas env vars, silenciosamente. Corrigido aqui e na beta. Ver `LESSONS.md` 2026-09-08. Chave de assinatura fica em `tauri_update_key` na raiz do repo (gitignored, senha vazia) — se um build sair sem `.sig`, `npx tauri signer sign -f tauri_update_key -p "" <arquivo>` assina sem precisar rebuildar.
+
+**Pendente / próximo passo:** nenhum — release publicado, `latest.json` atualizado e verificado. Se retomar sessão nova, perguntar ao usuário o que priorizar a seguir.
+
+**Itens abaixo (pré-09/08) estão desatualizados.**
+
+---
+
 **Data:** 2026-08-16 (Sonnet 5)
 **Versão:** `1.0.58` publicada, **assinada e verificada** (feita pela sessão paralela). Sem pendência de release aberta.
 **Branch:** main (existe também `origin/beta`, ativo, à frente de main — trabalho em andamento de integração Central, não investigado a fundo).
