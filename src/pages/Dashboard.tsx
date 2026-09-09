@@ -70,8 +70,6 @@ import { useNotifications } from "@/lib/useNotifications";
 import { logActivity } from "@/lib/activityLog";
 import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
-import { invoke } from "@tauri-apps/api/core";
-import { ingestTarefas } from "@/lib/ingestTarefas";
 import { sincronizarMetabase } from "@/lib/metabaseSync";
 import { fillRatePrevisto } from "@/lib/fillRatePrevisto";
 import * as XLSX from "xlsx";
@@ -496,23 +494,24 @@ export default function Dashboard() {
     load();
     const t = setInterval(() => load(false), 30_000);
 
-    // Auto-sync Metabase a cada 5 min (silencioso — sem toast)
+    // Auto-sync a cada 5 min (silencioso — sem toast). Chamava Metabase
+    // direto via invoke (metabaseTarefasCardId, config local antiga) —
+    // bypassava a Central inteiramente, e como esse campo normalmente não
+    // está mais configurado (migração pra Central não precisa dele), esse
+    // "auto-sync de 5min" rodava e não fazia nada, silenciosamente, desde
+    // sempre. Corrigido pra usar sincronizarMetabase() (via Central), mesma
+    // função já usada no botão "Atualizar" e no tick de PréFUP do
+    // WatcherContext.
     async function syncMetabase() {
-      const s = readSettings();
-      const cardId = s.metabaseTarefasCardId;
-      if (!cardId) return;
       const last = localStorage.getItem("metabase_last_sync");
       if (last && Date.now() - new Date(last).getTime() < 5 * 60 * 1000) return;
+      skipDiffRef.current = true;
       try {
-        const status = await invoke<{ configured: boolean }>("metabase_status");
-        if (!status.configured) return;
-        const rows = await invoke<Record<string, unknown>[]>("metabase_query_card", { cardId });
-        skipDiffRef.current = true;
-        await ingestTarefas(rows);
-        localStorage.setItem("metabase_last_sync", new Date().toISOString());
+        await sincronizarMetabase(true);
         await load(false);
+      } finally {
         skipDiffRef.current = false;
-      } catch { /* silencioso — não interrompe o usuário se Metabase estiver fora */ }
+      }
     }
 
     syncMetabase();
