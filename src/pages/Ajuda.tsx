@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.63</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.64</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,11 +767,8 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.63 — Novidades desta versão:</strong>{" "}
-              <strong>Lista de bots FUP/BID ao vivo</strong> — vem direto da Umbler agora, não mais fixa no código.{" "}
-              <strong>"Nome + CPF de todos" de volta</strong> no menu Copiar, pra qualquer ajudante da tarefa, não só os confirmados.{" "}
-              <strong>Troca de Turno corrigida</strong> — empresas que não batiam com a Carteira agora aparecem num aviso em vez de sumir silenciosamente, e a seção de confirmações pendentes passou a comparar contra quem foi de fato escalado (não contra o pedido original do cliente).{" "}
-              <strong>PréFUP unificado em 5h</strong> — mesmo corte usado no disparo real em toda a interface.
+              <strong>v1.0.64 — Novidades desta versão:</strong>{" "}
+              <strong>Painel de Confirmações Automáticas corrigido</strong> — o Windows às vezes gera notificação duplicada pro mesmo WhatsApp recebido, e o painel estava anunciando/confirmando o mesmo chapa várias vezes por causa disso.
             </span>
           </div>
         )}
@@ -1007,7 +1004,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.63 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.64 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1042,7 +1039,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.63 · © 2026 Wijngaarde Design
+        MCM v1.0.64 · © 2026 Wijngaarde Design
       </div>
     </div>
   );

@@ -2156,3 +2156,10 @@ Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disp
 **Summary:** Usuário reportou que o MCM estava "confirmando várias vezes o mesmo nome" — no painel de Confirmações Automáticas / notificações. Causa: `useNotificationWatcher.ts` dedupa por `nome:arrival_time_secs`, mas o Windows às vezes grava mais de uma linha em `wpndatabase.db` pro MESMO WhatsApp recebido (ArrivalTime difere por poucos segundos entre elas) — cada linha escapava do dedup por ter uma chave diferente, e cada uma disparava um novo UPDATE + anúncio "confirmado" pro mesmo chapa. Corrigido com um guard por chapa (`confirmedIdsRef`, `Set<string>` de ids já confirmados nesta sessão) verificado ANTES do UPDATE/anúncio, mais uma checagem de `found.status_contato === "confirmado"` (cobre o caso de já ter sido confirmado por outro caminho enquanto a notificação duplicada ainda não tinha sido processada). `useNotificationWatcher.ts` é idêntico entre `main`/`beta` — fix aplicado nas duas.
 **Files changed:** `src/lib/useNotificationWatcher.ts`
 **Next:** replicar o mesmo fix na `beta` (arquivo idêntico, mesmo diff).
+
+## 2026-09-09 — Release v1.0.64
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Empacota o fix do painel de Confirmações Automáticas (mesmo `useNotificationWatcher.ts` da beta). Version bump 1.0.63→1.0.64, changelog em `Ajuda.tsx`, build assinado (`.sig` automático). `latest.json` atualizado.
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** publicar `v1.0.64` no GitHub.
