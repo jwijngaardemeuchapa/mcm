@@ -2275,3 +2275,10 @@ Fix #1 aplicado (beta-only, por depender da Central): `pushChapaStatusToCentral`
 **Summary:** Mesmo fix aplicado na `main` (arquivo idêntico entre as branches). Usuário reportou que o MCM estava "confirmando várias vezes o mesmo nome" no painel de Confirmações Automáticas. Causa: `useNotificationWatcher.ts` dedupa por `nome:arrival_time_secs`, mas o Windows às vezes grava mais de uma linha em `wpndatabase.db` pro MESMO WhatsApp recebido (ArrivalTime difere por poucos segundos) — cada linha escapava do dedup e disparava um novo UPDATE + anúncio "confirmado" pro mesmo chapa. Corrigido com guard por chapa (`confirmedIdsRef`) + checagem de `status_contato` já confirmado.
 **Files changed:** `src/lib/useNotificationWatcher.ts`
 **Next:** essa também é mudança de frontend — só chega em produção com o próximo build/release da beta (junto com o fix do auto-sync de 5min acima).
+
+## 2026-09-09 — Release v1.0.67 (beta)
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Summary:** Usuário pediu pra usar a beta com urgência, então empacotei os 2 fixes de hoje (auto-sync de 5min via Central de verdade + painel de confirmações não repete mais o mesmo chapa) num release novo. Version bump 1.0.66→1.0.67, changelog em `Ajuda.tsx`, `npx tauri build` — `.sig` já saiu automático de primeira (createUpdaterArtifacts corrigido ontem). `latest-beta.json` atualizado.
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest-beta.json`
+**Next:** publicar `beta-v1.0.67` no GitHub, depois release equivalente na `main` (só com o fix de confirmação duplicada — o fix de sync é beta-only, main não depende da Central).
