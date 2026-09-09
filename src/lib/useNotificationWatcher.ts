@@ -41,6 +41,12 @@ export function useNotificationWatcher(
 ) {
   const lastSeenRef = useRef<number>(Math.floor(Date.now() / 1000) - 120);
   const processedRef = useRef<Set<string>>(new Set());
+  // Guard por chapa (não por notificação) — o Windows às vezes grava mais de
+  // uma linha em wpndatabase.db pro MESMO WhatsApp recebido (ArrivalTime
+  // difere por poucos segundos), o que escapava do dedup por
+  // `nome:arrival_time_secs` acima e confirmava/anunciava o mesmo chapa
+  // repetidas vezes no painel "Confirmações Automáticas".
+  const confirmedIdsRef = useRef<Set<string>>(new Set());
   const tasksRef = useRef(allTasks);
   const onRefreshRef = useRef(onRefresh);
   const onFlashTaskRef = useRef(onFlashTask);
@@ -95,6 +101,12 @@ export function useNotificationWatcher(
         );
 
         if (match.resposta === "sim") {
+          // Já confirmado (por essa notificação duplicada, por outra
+          // notificação minutos antes, ou manualmente por outro caminho
+          // enquanto essa notificação ainda não tinha sido lida) — não
+          // repete o UPDATE nem o anúncio no painel.
+          if (confirmedIdsRef.current.has(found.id) || found.status_contato === "confirmado") continue;
+          confirmedIdsRef.current.add(found.id);
           try {
             const db = await getDb();
             await db.execute(
