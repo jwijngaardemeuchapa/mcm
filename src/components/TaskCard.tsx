@@ -1424,7 +1424,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                   <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={copyCpfConfirmados}>
-                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> CPFs dos confirmados
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF dos confirmados
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

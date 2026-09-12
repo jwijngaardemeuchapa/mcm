@@ -172,3 +172,22 @@ export function writeSettings(patch: Partial<AppSettings>): AppSettings {
   }
   return next;
 }
+
+// Transferir configuração entre instalações (ex.: beta herdar tudo que já
+// foi configurado na produção) — cada instalação do Tauri tem seu próprio
+// localStorage isolado (identifier diferente = perfil separado do
+// WebView2), então não existe outro jeito de levar isso de uma pra outra
+// sem passar pelo próprio app. Exporta via readSettings() (já normalizado/
+// com defaults aplicados), não o localStorage cru, pra nunca copiar um
+// valor legado quebrado que o merge de leitura corrigiria.
+export function exportSettingsJson(): string {
+  return JSON.stringify(readSettings());
+}
+
+export function importSettingsJson(json: string): void {
+  const parsed = JSON.parse(json);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("Formato inválido — não parece uma configuração do MCM.");
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+}

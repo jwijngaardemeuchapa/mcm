@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Download,
   ArrowDownCircle,
+  Copy,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
@@ -52,7 +53,7 @@ import {
 } from "@/components/ui/dialog";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
+import { readSettings, writeSettings, exportSettingsJson, importSettingsJson, type UmblerSettings } from "@/lib/settings";
 import { sendUmblerFup, startUmblerBot, fetchUmblerManualStarts, type UmblerManualStart } from "@/lib/umbler";
 import { errMsg } from "@/lib/db";
 import { toast } from "sonner";
@@ -222,6 +223,27 @@ export default function Integracoes() {
   const [showSenha, setShowSenha] = useState(false);
   const [umblerSettings, setUmblerSettings] = useState(() => readSettings().umblerSettings);
   const [fupAgendarMinAntes, setFupAgendarMinAntes] = useState(() => readSettings().fupAgendarMinAntes ?? 0);
+  // Copiar configuração entre instalações (ex.: beta herdar tudo que já
+  // está configurado na produção) — ver exportSettingsJson/importSettingsJson
+  // em settings.ts pro porquê (cada instalação tem localStorage isolado).
+  const [importConfigText, setImportConfigText] = useState("");
+  async function exportarConfiguracoes() {
+    try {
+      await navigator.clipboard.writeText(exportSettingsJson());
+      toast.success("Configurações copiadas — cole na outra instalação, em Integrações.");
+    } catch {
+      toast.error("Não foi possível copiar. Verifique as permissões do navegador.");
+    }
+  }
+  function importarConfiguracoes() {
+    try {
+      importSettingsJson(importConfigText.trim());
+      toast.success("Configurações importadas — recarregando...");
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Texto colado inválido — copie exatamente o que a outra instalação gerou.");
+    }
+  }
   // Lista de bots buscada ao vivo da Umbler (MCM-172) — substitui os arrays
   // fixos que exigiam editar código pra cada bot novo. Cache só em memória
   // (dura a sessão da tela); busca de novo a cada visita/clique.
@@ -1480,6 +1502,47 @@ export default function Integracoes() {
               {pendingUpdate.body}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ── Backup / transferir configurações ── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
+              <Copy className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle className="text-sm">Configurações — copiar entre instalações</CardTitle>
+              <CardDescription className="text-xs">
+                Leva tudo que está configurado aqui (Umbler, Metabase, atalhos de mensagem, carteiras) para outra instalação do MCM neste ou noutro computador — útil pra beta herdar o que já está configurado na produção, sem preencher tudo de novo.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={exportarConfiguracoes} className="gap-1.5 text-xs">
+              <Copy className="h-3.5 w-3.5" />
+              Copiar configurações desta instalação
+            </Button>
+            <span className="text-xs text-muted-foreground">Copia pra área de transferência — cole no campo abaixo, na outra instalação.</span>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Colar configurações copiadas de outra instalação</label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={importConfigText}
+                onChange={(e) => setImportConfigText(e.target.value)}
+                placeholder="Cole aqui o texto copiado na outra instalação"
+                className="text-xs font-mono"
+              />
+              <Button size="sm" onClick={importarConfiguracoes} disabled={!importConfigText.trim()} className="gap-1.5 text-xs shrink-0">
+                <Download className="h-3.5 w-3.5" />
+                Importar e recarregar
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
