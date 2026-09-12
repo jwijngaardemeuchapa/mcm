@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' http://127.0.0.1:11434 https://*.supabase.co wss://*.supabase.co https:; img-src 'self' data: blob:; media-src 'self' blob: data:"
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; connect-src 'self' http://127.0.0.1:11434 https://*.supabase.co wss://*.supabase.co https:; img-src 'self' data: blob: https:; media-src 'self' blob: data: https:"
     }
   },
   "plugins": {
