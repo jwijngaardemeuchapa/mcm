@@ -29,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ConversationPane } from "@/components/ConversationPane";
+import { ConversationPane, type ConversationPaneHandle } from "@/components/ConversationPane";
 import { SlideToConfirm } from "@/components/ui/slide-to-confirm";
 import { ValidationPanel } from "@/components/ValidationPanel";
 import { ObservationsPanel } from "@/components/ObservationsPanel";
@@ -154,6 +154,16 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [groupPickerOpen, setGroupPickerOpen] = useState(false);
+  // "Enviar lista pro grupo do cliente" — preenche o composer da conversa
+  // (nunca envia sozinho, mesma regra de todo atalho de texto deste
+  // componente) em vez de só copiar pra área de transferência. Como o
+  // ConversationPane é remontado (key={selectedKey}) toda vez que troca de
+  // aba, o ref só existe DEPOIS do remount — por isso o texto pendente fica
+  // num state e um efeito dispara fillReply() quando a aba do grupo já
+  // estiver selecionada e montada, funcionando tanto se o grupo já estava
+  // aberto quanto se acabou de trocar pra ele agora.
+  const conversationRef = useRef<ConversationPaneHandle>(null);
+  const [pendingReplyText, setPendingReplyText] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [customMsgOpen, setCustomMsgOpen] = useState(false);
   const [customMsgText, setCustomMsgText] = useState("");
@@ -534,6 +544,11 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   // quando falta, busca no cadastro geral (chapa_registry) por telefone,
   // mesmo fallback que já existia no TaskCard (Cards). Sem isso, essa ação
   // funcionava nos Cards e falhava aqui (Panorama/Timeline), mesma tarefa.
+  //
+  // FIX (usuário reportou "não vem formatado como antes"): esta versão
+  // tinha ficado sem nome e sem formatCpf() — devolvia só os dígitos crus
+  // do CPF, um por linha, enquanto o TaskCard (Cards) sempre devolveu
+  // "Nome — 000.000.000-00". Reescrito pra bater exatamente com o TaskCard.
   async function copyCpfConfirmados() {
     const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
     if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
@@ -553,11 +568,11 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
         for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
       } catch { /* silencioso — segue só com o que já tinha */ }
     }
-    const comCpf = confirmados
-      .map((c) => c.cpf ?? phoneToCpf[(c.telefone_chapa ?? "").replace(/\D/g, "")] ?? null)
-      .filter((cpf): cpf is string => !!cpf);
-    if (comCpf.length === 0) { toast.error("Nenhum CPF de confirmado disponível"); return; }
-    clipboardWrite(comCpf.join("\n"), `${comCpf.length} CPF(s) copiado(s)`);
+    const lines = confirmados.map((c) => {
+      const cpf = c.cpf ?? phoneToCpf[(c.telefone_chapa ?? "").replace(/\D/g, "")] ?? "(não encontrado)";
+      return `${c.nome_chapa} — ${formatCpf(cpf)}`;
+    });
+    clipboardWrite(lines.join("\n"), `${lines.length} CPF(s) de confirmados copiados`);
   }
 
   // Nome + CPF de todos os ajudantes da tarefa (não só confirmados) — existia
@@ -592,6 +607,30 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   // Painel abre compacto (só lista) e cresce quando uma conversa é aberta —
   // largura e slide-in do pane direito reagem a esse booleano.
   const hasSelection = !!selectedKey;
+
+  useEffect(() => {
+    if (selectedKey !== CLIENTE_KEY || !pendingReplyText) return;
+    const t = setTimeout(() => {
+      conversationRef.current?.fillReply(pendingReplyText);
+      setPendingReplyText(null);
+    }, 50);
+    return () => clearTimeout(t);
+  }, [selectedKey, pendingReplyText]);
+
+  // Preenche o composer da conversa do grupo com a lista de confirmados —
+  // só nomes (o cliente não precisa de CPF/telefone dos chapas). Nunca
+  // envia sozinho: o analista revisa e aperta Enter, mesma regra dos
+  // atalhos de mensagem.
+  function sendConfirmedListToClientGroup() {
+    if (!clienteInfo?.umbler_group_chat_id) {
+      toast.error("Grupo do cliente ainda não vinculado — use \"Trocar grupo\" primeiro.");
+      return;
+    }
+    const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
+    if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
+    setPendingReplyText(confirmados.map((c) => c.nome_chapa).join("\n"));
+    setSelectedKey(CLIENTE_KEY);
+  }
 
   // Só nomes, sem telefone e sem CPF — pedido explícito do usuário.
   function copyNamesOnly() {
@@ -782,8 +821,13 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={copyCpfConfirmados}>
-                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> CPFs dos confirmados
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF dos confirmados
                   </DropdownMenuItem>
+                  {clienteInfo?.umbler_group_chat_id && (
+                    <DropdownMenuItem onClick={sendConfirmedListToClientGroup}>
+                      <Send className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Enviar lista de confirmados pro grupo
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
               {taskCancelTemplateReady && (taskCancelPending || taskCancelSent) && (
@@ -1083,6 +1127,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                 </div>
               )}
               <ConversationPane
+                ref={conversationRef}
                 key={selectedKey}
                 chatId={selectedChatId}
                 personName={selectedName}
