@@ -753,7 +753,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.65</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.66</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -767,11 +767,9 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.65 — Novidades desta versão:</strong>{" "}
-              <strong>Disparos e confirmações agora chegam na Central em tempo real</strong> — cada FUP/PréFUP/BID disparado e cada confirmação/cancelamento automático (via bot) passam a ser espelhados pra liderança acompanhar, mesmo fora da versão beta.{" "}
-              <strong>Fix: imagem e áudio do chat não abriam</strong> — o navegador interno bloqueava o carregamento de anexos vindos da Umbler.{" "}
-              <strong>Fix: "Nome + CPF" desformatado no card de tarefa</strong> — uma das opções do menu Copiar tinha ficado sem nome e sem formatação de CPF; corrigido para "Nome — 000.000.000-00" em todo lugar.{" "}
-              <strong>Novo: enviar lista de confirmados direto pro grupo</strong> — no menu Copiar, preenche o chat do grupo do cliente com os nomes (você revisa e envia).
+              <strong>v1.0.66 — Novidades desta versão:</strong>{" "}
+              <strong>Novo: copiar configurações entre instalações</strong> (Integrações) — leva Umbler/Metabase/atalhos/carteiras de uma instalação pra outra sem preencher tudo de novo.{" "}
+              <strong>Vínculo de chat com a Central</strong> — cada disparo (FUP/PréFUP/BID/cancelamento) agora também registra qual chat da Umbler pertence a qual chapa/tarefa, permitindo automações futuras do lado da Central (ex.: limpar etiquetas quando a tarefa entra "Em Andamento").
             </span>
           </div>
         )}
@@ -1007,7 +1005,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.65 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.66 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1042,7 +1040,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.65 · © 2026 Wijngaarde Design
+        MCM v1.0.66 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
