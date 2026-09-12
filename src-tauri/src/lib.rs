@@ -1262,6 +1262,31 @@ CREATE INDEX IF NOT EXISTS idx_captacao_log_telefone ON captacao_log(telefone);
       sql: "ALTER TABLE chapas ADD COLUMN confirmado_via TEXT;",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // "Chat conhecido mais recente" por chapa/tarefa — espelhado na Central
+      // (chat_links, upsertChatLink em src/lib/chatLinks.ts) pra viabilizar a
+      // remoção automática de etiquetas do Umbler Talk quando a tarefa entra
+      // "Em Andamento" (feature 100% do lado da Central, mas ela só sabe o
+      // umbler_chat_id se algum MCM — agora main também, não só beta —
+      // empurrar pra lá). Mesma tabela/coluna que já existe na beta.
+      // version 25: v1 estava em 24, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 25,
+      description: "chat_links",
+      sql: "
+CREATE TABLE IF NOT EXISTS chat_links (
+  id_tarefa INTEGER NOT NULL,
+  telefone_chapa TEXT,
+  cpf TEXT,
+  nome_chapa TEXT,
+  umbler_chat_id TEXT NOT NULL,
+  canal TEXT,
+  atualizado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_links_tarefa ON chat_links(id_tarefa);
+",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

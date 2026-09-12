@@ -88,3 +88,29 @@ export async function pushRespostaToCentral(params: {
     // Silencioso — mesmo motivo de pushDispatchEventToCentral.
   }
 }
+
+// Espelha o "chat atual conhecido" de um chapa numa tarefa (chat_links local,
+// ver migration em lib.rs) — a Central usa isso pra saber qual chat da
+// Umbler Talk limpar de etiquetas quando a tarefa entra "Em Andamento"
+// (syncTarefas, central-hub). Best-effort silencioso, mesmo padrão dos
+// outros pushes — nunca bloqueia o disparo local se a Central estiver fora
+// do ar.
+export async function pushChatLinkToCentral(params: {
+  id_tarefa: number;
+  telefone_chapa: string | null;
+  cpf: string | null;
+  nome_chapa: string | null;
+  umbler_chat_id: string;
+  canal: string | null;
+}): Promise<void> {
+  try {
+    const { operadorNome } = readSettings();
+    await fetch(`${CENTRAL_APP_URL}/api/public/hooks/chat-link`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-mcm-hook-secret": CENTRAL_HOOK_SECRET },
+      body: JSON.stringify({ ...params, analista: operadorNome || null }),
+    });
+  } catch {
+    // Silencioso — mesmo motivo de pushDispatchEventToCentral.
+  }
+}
