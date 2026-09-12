@@ -1,5 +1,23 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-09-12 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
+
+**Versão:** `v1.0.66` publicada e assinada, `.sig` verificado (200/200 no updater e no download). Sem pendência de release aberta na main. Beta em `v1.0.68` (também publicada e verificada nesta sessão).
+
+**Resumo do que aconteceu (main + beta + central-hub, sessão longa):**
+1. Fix real: imagem/áudio do chat Umbler não carregavam — CSP do Tauri (`img-src`/`media-src`) faltava `https:`. Aplicado nas duas branches.
+2. Bug real achado e corrigido: `copyCpfConfirmados` no `TaskDetailPanel.tsx` tinha implementação DIFERENTE da do `TaskCard.tsx` com o mesmo nome — devolvia CPF cru sem nome/formatação. Corrigido nas duas branches + rótulo do menu ("Nome + CPF dos confirmados").
+3. Nova feature: "Enviar lista de confirmados pro grupo" (TaskDetailPanel) — preenche o composer do WhatsApp do grupo do cliente, nunca envia sozinho.
+4. Nova feature: copiar configurações entre instalações (Integrações) — `exportSettingsJson`/`importSettingsJson`, pedido explícito do usuário pra beta herdar o que já tá configurado no main instalado.
+5. Push em tempo real pra Central portado da beta pro **main** (dispatch_events + confirmado_via) — ver entrada de 2026-09-17 abaixo pro contexto completo desse item.
+6. **Gatilho novo, do lado da Central:** remove etiquetas do Umbler Talk quando uma tarefa entra "Em Andamento" (`DELETE /v1/chats/{id}/tags/list/`, confirmado no Swagger oficial). Implementado em `syncTarefas()` do central-hub. Achado crítico: `chat_links` (tarefa/chapa → chat da Umbler) estava **completamente vazia** em produção, porque só a beta alimentava essa tabela e o disparo real do dia a dia é majoritariamente no main. Portado `chatLinks.ts`/`upsertChatLink` pro main também (mesmo padrão push-only dos itens anteriores).
+
+**Pendente / não verificado:** a remoção de etiquetas ainda não foi confirmada ponta-a-ponta com uma tarefa real (precisa de um disparo real que gere `chat_links`, depois a tarefa entrar "Em Andamento", depois o próximo sync de 5min da Central rodar). Avisar o usuário se ele reportar que etiquetas não sumiram — aí sim investigar com dado real. Também ficou uma linha de teste órfã em `chat_links` (`id_tarefa=999999999`) em produção — SQL de limpeza já entregue ao usuário, ele decide se quer rodar.
+
+**Não portado de propósito pro main:** confirmação MANUAL (clique em TaskCard/TaskDetailPanel) ainda não empurra `confirmado_via`/status pra Central — só o fluxo automático via bot. `pullChatLinksFromCentral`/`applyChatLinksLocally` (ler de volta multi-analista) continua exclusivo da beta — main só escreve, nunca lê da Central (regra mantida).
+
+---
+
 **Data:** 2026-09-17 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
 
 **O que aconteceu hoje:** usuário perguntou se a Central já recebe sim/não de FUP/PréFUP sem depender de todo mundo estar na beta. Resposta: parcialmente — `syncFirestoreStatus` da Central lê o Firestore direto (5min de poll), mas perde a corrida quase sempre contra o `deleteDoc` que o MCM faz assim que processa uma resposta. Usuário confirmou o problema ("central precisaria ler em tempo real... se o MCM apagar o registro, a central nem sabe") e pediu pra implementar. Portei da beta pro **main** a infra de PUSH em tempo real pra Central (nunca pull — main continua sem ler nada da Central, regra intacta): `src/lib/central.ts` novo (3 funções: pushDispatchEventToCentral, pushChapaStatusToCentral com confirmado_via, pushRespostaToCentral), `canalConfirmacao()` em `prefup.ts`, migration v24 (`chapas.confirmado_via`), `processFirestoreMessage` (`firestoreQueue.ts`) empurrando no mesmo instante que processa (antes do delete), `dispatchQueue.ts` empurrando todo disparo (FUP/PréFUP/BID/cancelamentos). Endpoints da Central já existiam, nada mudou lá. Typecheck (baseline 13 mantida) e `cargo check` limpos, commitado e pushado (`282eab8`) — **não empacotado em release ainda**.
