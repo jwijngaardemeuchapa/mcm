@@ -769,7 +769,9 @@ export default function Ajuda() {
             <span className="text-xs text-success font-medium leading-relaxed">
               <strong>v1.0.65 — Novidades desta versão:</strong>{" "}
               <strong>Disparos e confirmações agora chegam na Central em tempo real</strong> — cada FUP/PréFUP/BID disparado e cada confirmação/cancelamento automático (via bot) passam a ser espelhados pra liderança acompanhar, mesmo fora da versão beta.{" "}
-              <strong>Fix: imagem e áudio do chat não abriam</strong> — o navegador interno bloqueava o carregamento de anexos vindos da Umbler.
+              <strong>Fix: imagem e áudio do chat não abriam</strong> — o navegador interno bloqueava o carregamento de anexos vindos da Umbler.{" "}
+              <strong>Fix: "Nome + CPF" desformatado no card de tarefa</strong> — uma das opções do menu Copiar tinha ficado sem nome e sem formatação de CPF; corrigido para "Nome — 000.000.000-00" em todo lugar.{" "}
+              <strong>Novo: enviar lista de confirmados direto pro grupo</strong> — no menu Copiar, preenche o chat do grupo do cliente com os nomes (você revisa e envia).
             </span>
           </div>
         )}
