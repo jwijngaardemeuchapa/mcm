@@ -168,6 +168,21 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   // aberto quanto se acabou de trocar pra ele agora.
   const conversationRef = useRef<ConversationPaneHandle>(null);
   const [pendingReplyText, setPendingReplyText] = useState<string | null>(null);
+  // Precisa ficar ANTES do `if (!task) return null;` mais abaixo — todo
+  // hook deste componente tem que rodar em toda renderização, senão o
+  // React perde a contagem de hooks entre uma renderização com task e
+  // outra sem (fechar o painel, trocar de tarefa) e quebra com "Rendered
+  // more hooks than during the previous render" (erro real em produção,
+  // MCM main v1.0.65/66 — bug introduzido nesta mesma sessão, corrigido
+  // lá e aqui).
+  useEffect(() => {
+    if (selectedKey !== CLIENTE_KEY || !pendingReplyText) return;
+    const t = setTimeout(() => {
+      conversationRef.current?.fillReply(pendingReplyText);
+      setPendingReplyText(null);
+    }, 50);
+    return () => clearTimeout(t);
+  }, [selectedKey, pendingReplyText]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [customMsgOpen, setCustomMsgOpen] = useState(false);
   const [customMsgText, setCustomMsgText] = useState("");
@@ -659,15 +674,6 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   // Painel abre compacto (só lista) e cresce quando uma conversa é aberta —
   // largura e slide-in do pane direito reagem a esse booleano.
   const hasSelection = !!selectedKey;
-
-  useEffect(() => {
-    if (selectedKey !== CLIENTE_KEY || !pendingReplyText) return;
-    const t = setTimeout(() => {
-      conversationRef.current?.fillReply(pendingReplyText);
-      setPendingReplyText(null);
-    }, 50);
-    return () => clearTimeout(t);
-  }, [selectedKey, pendingReplyText]);
 
   // Preenche o composer da conversa do grupo com a lista de confirmados —
   // só nomes (o cliente não precisa de CPF/telefone dos chapas). Nunca
