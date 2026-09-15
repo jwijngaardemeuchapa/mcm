@@ -1,5 +1,13 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-09-15 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
+
+**Incidente + fix urgente:** usuário reportou "Minified React error #310" ao abrir qualquer card de tarefa — bug meu, introduzido na sessão anterior (feature "enviar lista pro grupo" no `TaskDetailPanel.tsx`): um `useEffect` novo tinha ficado DEPOIS do `if (!task) return null;`, violando Rules of Hooks. Corrigido nas duas branches (movido pra antes do early return) e lançado em regime de urgência: **main v1.0.67**, **beta v1.0.69** — as duas publicadas e verificadas (200/200). Sem pendência de release aberta em nenhuma das duas.
+
+**Versão:** `v1.0.67` (main) / `v1.0.69` (beta). Sem pendência de release aberta.
+
+---
+
 **Data:** 2026-09-12 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
 
 **Versão:** `v1.0.66` publicada e assinada, `.sig` verificado (200/200 no updater e no download). Sem pendência de release aberta na main. Beta em `v1.0.68` (também publicada e verificada nesta sessão).
