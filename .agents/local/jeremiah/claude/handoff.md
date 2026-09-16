@@ -1,5 +1,17 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-09-16 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
+
+**Versão:** `v1.0.70` publicada e assinada, `.sig` verificado. Sem pendência de release aberta.
+
+**Fix importante desta sessão:** usuário reportou tarefas sumindo do Dashboard só na beta (main mostrava, beta não). Depois de descartar 3 hipóteses erradas com dado real (janela de data, filtro de carteira copiado do main, carteira desatualizada localmente), achei a causa raiz: `pullTarefasFromCentral()` em `central.ts` não tinha paginação — o PostgREST do Supabase trunca em 1000 linhas por resposta, sem erro nenhum (HTTP 200). Com 680 tarefas ativas na janela ontem+hoje+amanhã, `tarefa_chapas` tinha 1629 linhas reais; a resposta vinha cortada nas primeiras 1000, e qualquer tarefa cujos chapas caíam depois disso nunca chegava no SQLite local (ingestTarefas só cria a tarefa a partir de uma linha de chapa). Fix: `fetchAllFromCentral()` novo, pagina via header `Range` de verdade + ids em lotes de 150. Verificado contra produção antes de aplicar (node script direto na API da Central).
+
+**Também nesta sessão:** confirmado ao vivo (não só pela config) que o cron de sync da Central roda de fato a cada 5min (duas execuções automáticas consecutivas observadas, 12:05→12:10).
+
+**Pendente/ideia não implementada:** auditar se outras chamadas do MCM à Central (chat_links, chapa_registry, etc.) têm o mesmo risco de truncamento sem paginação — não verificado ainda.
+
+---
+
 **Data:** 2026-09-08 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
 
 **Branch atual:** `beta` (também trabalhado `main` nesta sessão, pontualmente). `beta` está à frente de `main` — toda a integração com a Central (repo separado `central-hub`, deploy Lovable em `mcmcentral.lovable.app`) vive só na `beta`.
