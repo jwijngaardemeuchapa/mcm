@@ -1,11 +1,11 @@
 {
-  "version": "1.0.70",
-  "notes": "Fix: tarefas sumindo do Dashboard (paginação com a Central).",
-  "pub_date": "2026-09-16T13:11:29Z",
+  "version": "1.0.71",
+  "notes": "Fix: horário de tarefas errado em 3h (sincronização com a Central).",
+  "pub_date": "2026-09-16T14:23:26Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFY1Y2dHcWV0ZUxhOTBHc2dGQmRCVmtIdnR0YlNkOEhpSEs2NitVVmN1dk52Mmp2ZVZHRmhGZ0taSG1acERPSFZ3a3o5eE0xcENra2tINUF3aWorcUFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTY0MjY0CWZpbGU6TUNNIEJldGFfMS4wLjcwX3g2NC1zZXR1cC5leGUKaWMzQTZpemhnUE1nbUh2UjE0U2tqeCtQQmhjUFYxbGk3MjZJTzN2c0xxUGljZmhqbmdKamZKMlNGVHRWWGFBMnp4cTQwT00zT3BpeTdkRktVY1dDQVE9PQo=",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.70/MCM.Beta_1.0.70_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFhsUGgzdmxVek9JTVY0ci9jY29mVnVNVERMR3RmNi9LZlR1NVpNdTQwU25icE9TN09zdXZZSVlQamZYZlpSbTYrM3Y4N2ZkTktsdFFOZUgybkl1bUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTY4NTgxCWZpbGU6TUNNIEJldGFfMS4wLjcxX3g2NC1zZXR1cC5leGUKZkowL0h1aG1CYms4U21jSThJWEhKdkk1NFZNbUVxSEVrUTRSYmttd1Y3OWxhaXlQVVRIUzRqMUxEdldQSmpyNjJhY0U5V0krSVE1ZHF1bEpzUTBaQnc9PQo=",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.71/MCM.Beta_1.0.71_x64-setup.exe"
     }
   }
 }
