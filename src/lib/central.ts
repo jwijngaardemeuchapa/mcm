@@ -355,6 +355,35 @@ type CentralTarefaRow = {
   quantidade_chapas: number | null;
 };
 
+// GET com paginação via header Range — sem isso, qualquer tabela com mais
+// de 1000 linhas batendo no filtro vem TRUNCADA pelo limite padrão do
+// PostgREST, em silêncio (HTTP 200, sem erro nenhum). Bug real encontrado
+// em produção (2026-09-16): tarefa_chapas tinha mais de 1000 linhas na
+// janela ontem+hoje+amanhã, e tarefas cujos chapas caíam depois da linha
+// 1000 simplesmente nunca apareciam no MCM local — nem no card, nem na
+// busca — porque ingestTarefas() só cria a tarefa a partir de uma linha
+// de chapa. Usado nas duas queries desta função, já que a de `tarefas`
+// também não tinha nenhum limite explícito (só não tinha estourado ainda
+// por coincidência de volume).
+async function fetchAllFromCentral<T>(baseUrl: string): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await fetch(baseUrl, {
+      headers: {
+        apikey: CENTRAL_API_KEY,
+        Authorization: `Bearer ${CENTRAL_API_KEY}`,
+        Range: `${from}-${from + PAGE - 1}`,
+      },
+    });
+    if (!res.ok && res.status !== 206) throw new Error(`Central indisponível (${res.status})`);
+    const page = (await res.json()) as T[];
+    out.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return out;
+}
+
 // Monta linhas no mesmo formato "uma linha por ajudante escalado" que
 // ingestTarefas() já espera do Metabase — os nomes de campo batem
 // (id_tarefa/empresa/nome_chapa/telefone_chapa/cpf/etc já são snake_case
@@ -369,21 +398,25 @@ export async function pullTarefasFromCentral(): Promise<Record<string, unknown>[
   // maior. tarefa_chapas não tem coluna de data própria, então escopa pelos
   // ids de tarefa já filtrados (2 chamadas em série em vez de paralelas).
   const desde = yesterdayDateISO_SP();
-  const tarefasRes = await fetch(
+  const tarefas = await fetchAllFromCentral<CentralTarefaRow>(
     `${CENTRAL_SUPABASE_URL}/rest/v1/tarefas?select=id_tarefa,data_tarefa,cidade_uf,empresa,cnpj,status_tarefa,quantidade_chapas&ativo=eq.true&data_tarefa=gte.${desde}`,
-    { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
   );
-  if (!tarefasRes.ok) throw new Error("Central indisponível ao buscar tarefas");
-  const tarefas = (await tarefasRes.json()) as CentralTarefaRow[];
   if (tarefas.length === 0) return [];
 
-  const ids = tarefas.map((t) => t.id_tarefa).join(",");
-  const chapasRes = await fetch(
-    `${CENTRAL_SUPABASE_URL}/rest/v1/tarefa_chapas?select=id_tarefa,nome_chapa,telefone_chapa,cpf&id_tarefa=in.(${ids})`,
-    { headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` } },
-  );
-  if (!chapasRes.ok) throw new Error("Central indisponível ao buscar chapas");
-  const chapas = (await chapasRes.json()) as CentralTarefaChapaRow[];
+  // ids em lotes: além da paginação acima, evita uma URL gigante quando há
+  // muitas tarefas ativas na janela (id_tarefa=in.(...) com centenas de ids).
+  const ID_CHUNK = 150;
+  const idChunks: number[][] = [];
+  for (let i = 0; i < tarefas.length; i += ID_CHUNK) {
+    idChunks.push(tarefas.slice(i, i + ID_CHUNK).map((t) => t.id_tarefa));
+  }
+  const chapas: CentralTarefaChapaRow[] = [];
+  for (const chunk of idChunks) {
+    const page = await fetchAllFromCentral<CentralTarefaChapaRow>(
+      `${CENTRAL_SUPABASE_URL}/rest/v1/tarefa_chapas?select=id_tarefa,nome_chapa,telefone_chapa,cpf&id_tarefa=in.(${chunk.join(",")})`,
+    );
+    chapas.push(...page);
+  }
 
   const tarefaById = new Map(tarefas.map((t) => [t.id_tarefa, t]));
   const rows: Record<string, unknown>[] = [];
