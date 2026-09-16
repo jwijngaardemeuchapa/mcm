@@ -44,6 +44,16 @@ export function parseDateBR(s: string): string | null {
 function parseDateForIngest(val: string): string | null {
   if (!val) return null;
   if (val.endsWith("-03:00")) return val;
+  // ISO com fuso EXPLÍCITO (offset ou "Z") — já é um instante absoluto
+  // correto, não hora "nua" de SP. Vem assim da Central (pullTarefasFromCentral
+  // devolve timestamptz do Postgres já com offset, ex. "...T13:00:00+00:00").
+  // BUG REAL (2026-09-16): o regex abaixo só olha o prefixo YYYY-MM-DDTHH:MM:SS
+  // e ignora/descarta qualquer offset que já exista, colando "-03:00" por
+  // cima — certo pro Metabase (sempre hora nua de SP), errado pra Central
+  // (deslocava 3h: "13:00:00+00:00" [=10h SP, correto] virava
+  // "13:00:00-03:00" [=13h SP, errado]). Preserva como está quando já tem
+  // fuso, só completa "-03:00" quando a string é realmente uma hora nua.
+  if (/[+-]\d{2}:\d{2}$|Z$/.test(val)) return val;
   const isoMatch = val.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/);
   if (isoMatch) return `${isoMatch[1]}-03:00`;
   return parseDateBR(val);
