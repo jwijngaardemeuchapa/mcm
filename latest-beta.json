@@ -1,11 +1,11 @@
 {
-  "version": "1.0.69",
-  "notes": "Fix urgente: erro ao abrir card de tarefa.",
-  "pub_date": "2026-09-15T10:33:54Z",
+  "version": "1.0.70",
+  "notes": "Fix: tarefas sumindo do Dashboard (paginação com a Central).",
+  "pub_date": "2026-09-16T13:11:29Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaGVXQkttVi9VcVFOL0pzQVd1ZDFlVVhKSDZjWDcyYWx0R1F3TnFOT2FIdFp1dGRlUkNWM3d4eG1DVTBGK0VjN2V0ZTVYc0tTbW81UjVGUW81ZUp0VkFJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NDY4NDA0CWZpbGU6TUNNIEJldGFfMS4wLjY5X3g2NC1zZXR1cC5leGUKTTJjNWxXb01zQUJKT2Jhb3V1ZGVIYmhRQmxONWcvM3N2YkZLSXRTNnd3ait1d1BJUEl3WVdqQzg5VzFQMkFvNzhVUmtSV0JFOWNtbFVGZGdvVDF2Qmc9PQo=",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.69/MCM.Beta_1.0.69_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFY1Y2dHcWV0ZUxhOTBHc2dGQmRCVmtIdnR0YlNkOEhpSEs2NitVVmN1dk52Mmp2ZVZHRmhGZ0taSG1acERPSFZ3a3o5eE0xcENra2tINUF3aWorcUFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTY0MjY0CWZpbGU6TUNNIEJldGFfMS4wLjcwX3g2NC1zZXR1cC5leGUKaWMzQTZpemhnUE1nbUh2UjE0U2tqeCtQQmhjUFYxbGk3MjZJTzN2c0xxUGljZmhqbmdKamZKMlNGVHRWWGFBMnp4cTQwT00zT3BpeTdkRktVY1dDQVE9PQo=",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.70/MCM.Beta_1.0.70_x64-setup.exe"
     }
   }
 }
