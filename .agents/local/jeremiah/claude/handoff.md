@@ -1,5 +1,15 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-09-17 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
+
+**O que aconteceu hoje:** usuário perguntou se a Central já recebe sim/não de FUP/PréFUP sem depender de todo mundo estar na beta. Resposta: parcialmente — `syncFirestoreStatus` da Central lê o Firestore direto (5min de poll), mas perde a corrida quase sempre contra o `deleteDoc` que o MCM faz assim que processa uma resposta. Usuário confirmou o problema ("central precisaria ler em tempo real... se o MCM apagar o registro, a central nem sabe") e pediu pra implementar. Portei da beta pro **main** a infra de PUSH em tempo real pra Central (nunca pull — main continua sem ler nada da Central, regra intacta): `src/lib/central.ts` novo (3 funções: pushDispatchEventToCentral, pushChapaStatusToCentral com confirmado_via, pushRespostaToCentral), `canalConfirmacao()` em `prefup.ts`, migration v24 (`chapas.confirmado_via`), `processFirestoreMessage` (`firestoreQueue.ts`) empurrando no mesmo instante que processa (antes do delete), `dispatchQueue.ts` empurrando todo disparo (FUP/PréFUP/BID/cancelamentos). Endpoints da Central já existiam, nada mudou lá. Typecheck (baseline 13 mantida) e `cargo check` limpos, commitado e pushado (`282eab8`) — **não empacotado em release ainda**.
+
+**Não portado de propósito:** confirmação MANUAL (clique em TaskCard/TaskDetailPanel) ainda não empurra pra Central na main — só o fluxo automático via bot (que era o pedido). Se o usuário quiser isso também, é o próximo passo natural. `upsertChatLink`/chat_links também ficou de fora (é pull-based, dependeria da Central pra funcionar — contra a regra de produção).
+
+**Pendente:** perguntar se builda/lança release já, ou espera acumular mais mudanças.
+
+---
+
 **Data:** 2026-09-08 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
 
 **Versão:** `v1.0.63` publicada e assinada (release GitHub "Latest"), `.sig` verificado. Sem pendência de release aberta na main.
