@@ -1249,6 +1249,19 @@ CREATE INDEX IF NOT EXISTS idx_captacao_log_telefone ON captacao_log(telefone);
       sql: "ALTER TABLE cliente_book ADD COLUMN umbler_group_chat_id TEXT;",
       kind: MigrationKind::Up,
     },
+    Migration {
+      // Guarda qual disparo (PréFUP ou FUP normal) gerou a confirmação —
+      // hoje status_contato só sabe QUE confirmou, não a partir de qual
+      // template. Preenchido em processFirestoreMessage() (confirmação
+      // automática), olhando o fup_log mais recente do chapa/tarefa
+      // (aguarda_resposta_chat). Mesma coluna que já existe na beta.
+      // version 24: v1 estava em 23, mcm-v2 em 18 — checar sempre os dois
+      // repos antes de reusar um número (ver LESSONS.md).
+      version: 24,
+      description: "chapas_confirmado_via",
+      sql: "ALTER TABLE chapas ADD COLUMN confirmado_via TEXT;",
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

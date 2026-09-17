@@ -1,5 +1,17 @@
 import { getDb, uuid } from "./db";
 import { normalize } from "./normalize";
+import { pushChapaStatusToCentral, pushRespostaToCentral } from "./central";
+import { canalConfirmacao } from "./prefup";
+
+// Traduz o status (mais rico) do BID pro mesmo vocabulário de categoria
+// (ResponseCategory) que a Central já usa pro badge da aba "Respostas ao
+// vivo" — interesse_nao/precisa_ajuda já batem direto, só aceita/não-aceita
+// precisam de tradução.
+function bidStatusParaCategoria(status: string): string {
+  if (status === "aceita_app") return "confirmado";
+  if (status === "nao_aceita_app") return "cancelado";
+  return status; // interesse_nao, precisa_ajuda já batem
+}
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Consumidor da fila Firestore — porta para TypeScript da lógica que vivia no
@@ -251,6 +263,7 @@ type FupRow = {
   id: string;
   nome_chapa: string;
   telefone_chapa: string | null;
+  cpf: string | null;
   id_tarefa: number;
   empresa: string;
 };
@@ -304,6 +317,17 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
         [uuid(), "bid", bid.chapa_nome, bid.chapa_telefone, resolved.status, bid.id_tarefa, bid.empresa, bid.data_tarefa, bid.id, fonte, resolved.bodyLog, now],
       );
+      pushRespostaToCentral({
+        id_tarefa: bid.id_tarefa,
+        tipo: "bid",
+        nome_chapa: bid.chapa_nome,
+        telefone_chapa: bid.chapa_telefone,
+        empresa: bid.empresa,
+        categoria: bidStatusParaCategoria(resolved.status),
+        resposta: resolved.status,
+        message_body: resolved.bodyLog,
+        fonte,
+      });
       return {
         handled: true,
         event: {
@@ -336,7 +360,7 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
   if (!code) return { handled: false, reason: `resposta não classificada: "${body}"` };
 
   const fupRows = await db.select<FupRow[]>(
-    `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.id_tarefa, t.empresa
+    `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.cpf, c.id_tarefa, t.empresa
      FROM chapas c
      JOIN tarefas t ON c.id_tarefa = t.id_tarefa
      WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(c.telefone_chapa,''),'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
@@ -353,12 +377,43 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
       : code === "interesse_nao" || code === "cancelado"
         ? "cancelado"
         : code;
-    await db.execute("UPDATE chapas SET status_contato=?, data_contato=? WHERE id=?", [fupResposta, now, fup.id]);
+    const canalConf = fupResposta === "confirmado" ? await canalConfirmacao(fup.id_tarefa, fup.id) : null;
+    await db.execute(
+      "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
+      [fupResposta, now, canalConf, fup.id],
+    );
     await db.execute(
       `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,fonte,message_body,received_at)
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [uuid(), "fup", fup.nome_chapa, fup.telefone_chapa, fupResposta, fup.id_tarefa, fup.empresa, fonte, body, now],
     );
+    // Espelha na Central — confirmação/cancelamento automático (via bot/
+    // WhatsApp) nunca chegava lá antes: a Central só tinha um fallback
+    // (syncFirestoreStatus, polling no Firestore a cada 5min) que quase
+    // sempre perde a corrida contra o deleteDoc quase-instantâneo do MCM
+    // na mesma mensagem — por isso o push aqui, no mesmo instante do
+    // processamento local, antes do documento ser apagado.
+    if (fupResposta === "confirmado" || fupResposta === "cancelado") {
+      pushChapaStatusToCentral({
+        id_tarefa: fup.id_tarefa,
+        telefone_chapa: fup.telefone_chapa,
+        cpf: fup.cpf,
+        nome_chapa: fup.nome_chapa,
+        status_contato: fupResposta,
+        confirmado_via: canalConf,
+      });
+    }
+    pushRespostaToCentral({
+      id_tarefa: fup.id_tarefa,
+      tipo: "fup",
+      nome_chapa: fup.nome_chapa,
+      telefone_chapa: fup.telefone_chapa,
+      empresa: fup.empresa,
+      categoria: code,
+      resposta: fupResposta,
+      message_body: body,
+      fonte,
+    });
     return {
       handled: true,
       event: {
