@@ -26,7 +26,7 @@ export async function pushChapaStatusToCentral(params: {
   telefone_chapa: string | null;
   cpf: string | null;
   nome_chapa: string | null;
-  status_contato: "confirmado" | "cancelado";
+  status_contato: "confirmado" | "cancelado" | "pendente" | "nao_respondeu";
   confirmado_via?: "prefup" | "fup" | null;
 }): Promise<void> {
   try {

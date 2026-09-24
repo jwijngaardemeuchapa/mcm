@@ -572,18 +572,36 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
         const db = await getDb();
         const setClauses = Object.keys(prev).map((k) => `${k} = ?`).join(", ");
         await db.execute(`UPDATE chapas SET ${setClauses} WHERE id = ?`, [...Object.values(prev), chapaId]);
+        // Mesmo motivo do revert em TaskCard.tsx (updateChapaWithUndo): o
+        // ctrl-Z do toast também precisa avisar a Central, senão reabre o
+        // mesmo buraco por outro caminho.
+        if (typeof prev.status_contato === "string") {
+          pushChapaStatusToCentral({
+            id_tarefa: task!.id_tarefa,
+            telefone_chapa: chapa.telefone_chapa,
+            cpf: chapa.cpf,
+            nome_chapa: chapa.nome_chapa,
+            status_contato: prev.status_contato as "confirmado" | "cancelado" | "pendente" | "nao_respondeu",
+            confirmado_via: prev.confirmado_via as "prefup" | "fup" | null,
+          });
+        }
       },
       onReverted: onRefresh,
     });
-    // Espelha na Central quando é confirmação/cancelamento manual — pra
+    // Espelha na Central qualquer mudança manual de status_contato — pra
     // outros analistas e a liderança verem sem depender de olhar o WhatsApp.
-    if (patch.status_contato === "confirmado" || patch.status_contato === "cancelado") {
+    // CRÍTICO incluir 'pendente'/'nao_respondeu' aqui, não só
+    // 'confirmado'/'cancelado' — ver comentário equivalente em TaskCard.tsx
+    // (updateChapaWithUndo): sem isso, "reabrir" manual não avisava a
+    // Central, que reaplicava o 'confirmado' antigo sozinha no próximo
+    // ciclo de applyCentralStatusLocally() (60s).
+    if (typeof patch.status_contato === "string") {
       pushChapaStatusToCentral({
         id_tarefa: task!.id_tarefa,
         telefone_chapa: chapa.telefone_chapa,
         cpf: chapa.cpf,
         nome_chapa: chapa.nome_chapa,
-        status_contato: patch.status_contato,
+        status_contato: patch.status_contato as "confirmado" | "cancelado" | "pendente" | "nao_respondeu",
         confirmado_via: patch.confirmado_via as "prefup" | "fup" | null,
       });
     }

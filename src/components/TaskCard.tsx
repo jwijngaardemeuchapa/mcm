@@ -383,19 +383,39 @@ export function TaskCard({
         const db = await getDb();
         const setClauses = Object.keys(prev).map((k) => `${k} = ?`).join(", ");
         await db.execute(`UPDATE chapas SET ${setClauses} WHERE id = ?`, [...Object.values(prev), chapa.id]);
+        // O ctrl-Z do toast é a mesma classe de mudança manual que o resto
+        // desta função já espelha abaixo — sem isso, desfazer pelo toast
+        // (em vez do menu "reabrir") reabre o mesmo buraco: Central fica
+        // com o status antigo e applyCentralStatusLocally() reaplica sozinho.
+        if (typeof prev.status_contato === "string") {
+          pushChapaStatusToCentral({
+            id_tarefa: task.id_tarefa,
+            telefone_chapa: chapa.telefone_chapa,
+            cpf: chapa.cpf,
+            nome_chapa: chapa.nome_chapa,
+            status_contato: prev.status_contato as "confirmado" | "cancelado" | "pendente" | "nao_respondeu",
+            confirmado_via: prev.confirmado_via as "prefup" | "fup" | null,
+          });
+        }
       },
       onReverted: onRefresh,
     });
-    // Espelha na Central quando é confirmação/cancelamento manual — mesmo
+    // Espelha na Central qualquer mudança manual de status_contato — mesmo
     // mecanismo do TaskDetailPanel (Panorama/Timeline), pra Cards não ficar
-    // invisível pra liderança.
-    if (patch.status_contato === "confirmado" || patch.status_contato === "cancelado") {
+    // invisível pra liderança. CRÍTICO incluir 'pendente'/'nao_respondeu'
+    // aqui, não só 'confirmado'/'cancelado': sem isso, "reabrir"/"desfazer"
+    // manual (onUndoOutcome) só mudava o status local, e a Central ficava
+    // com o 'confirmado' antigo — daí applyCentralStatusLocally() (roda a
+    // cada 60s, só toca linha local em ('pendente','nao_respondeu')) puxava
+    // esse 'confirmado' velho de volta e reaplicava sozinho, exatamente
+    // como se o analista tivesse confirmado de novo sem fazer nada.
+    if (typeof patch.status_contato === "string") {
       pushChapaStatusToCentral({
         id_tarefa: task.id_tarefa,
         telefone_chapa: chapa.telefone_chapa,
         cpf: chapa.cpf,
         nome_chapa: chapa.nome_chapa,
-        status_contato: patch.status_contato,
+        status_contato: patch.status_contato as "confirmado" | "cancelado" | "pendente" | "nao_respondeu",
         confirmado_via: patch.confirmado_via as "prefup" | "fup" | null,
       });
     }
