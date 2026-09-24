@@ -71,6 +71,19 @@ export function useFirestoreQueue(onEvent?: (ev: RespostaEvent) => void) {
 
         if (result.handled) {
           retryRef.current.delete(id);
+          // Marca 'processed' ANTES de tentar apagar — deleteDoc podia falhar
+          // em silêncio (rede instável, etc.) e o doc ficava 'pending' pra
+          // sempre. Se depois disso o app reiniciasse (processedRef é um Set
+          // em memória, zera a cada remount), o listener via o doc como
+          // "added" de novo e reprocessava: reconfirmava sozinho um chapa que
+          // o analista já tinha reaberto manualmente (status_contato volta a
+          // ficar elegível pro match em firestoreQueue.ts assim que sai de
+          // 'confirmado'/'removido'). Atualizar o status primeiro tira o doc
+          // do filtro `where("status","==","pending")` mesmo que o delete
+          // (só limpeza, best-effort) falhe depois.
+          await updateDoc(docRef(db, FIRESTORE_MESSAGES_COLLECTION, id), { status: "processed" }).catch((e) => {
+            console.error("Firestore: falha ao marcar mensagem como processada — risco de reprocessar", id, e);
+          });
           await deleteDoc(docRef(db, FIRESTORE_MESSAGES_COLLECTION, id)).catch(() => {});
           const ev = result.event;
           const tipoLabel = ev.tipo === "bid" ? "BID" : ev.tipo === "captacao" ? "Captação" : "FUP";
