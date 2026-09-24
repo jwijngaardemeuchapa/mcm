@@ -1,11 +1,11 @@
 {
-  "version": "1.0.67",
-  "notes": "Fix urgente: erro ao abrir card de tarefa.",
-  "pub_date": "2026-09-15T10:20:08Z",
+  "version": "1.0.68",
+  "notes": "Fix: confirmação \"sozinha\" após reabrir/desfazer manualmente.",
+  "pub_date": "2026-09-24T14:57:14Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFEyRmpuQTlvUG5XL2d3Q0N0L3QyOUtsb3RrelNzTDJDdUtqWCttTjV4RU1jNzVOMjd3ZVFVT0w2Q0I4bU0wbzlJdmZPSk4rSWwzQTcwWXRpVDJPYmdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NDY3NTc5CWZpbGU6TUNNXzEuMC42N194NjQtc2V0dXAuZXhlCnRTYUVNQ1RyR2lscVlvRDRoNTZHWHMxZDFqaFR5MmRHU0ZiZ1NqYVgveU5EMHBRenZ3TDFBNktDQ3lLTFVVbE9yU29hVFZHT2JTRHI0b1ZNVFpmL0JBPT0K",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.67/MCM_1.0.67_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaGM1emxVMUcwcGFHanRNdFk3RGNEQnFWbmh5VWlaM0g2VmtHVDZYN2hRZldCbStac3RBRGxyRmN5MEFkYTlGdzhjb09qWU5ZYUR0aU41QmJnb2lXNUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjYxODIwCWZpbGU6TUNNXzEuMC42OF94NjQtc2V0dXAuZXhlClo4Sm83Tm1abGx5OWpmQUk4SmFLQTlSbmVMU1BrM09zeFl4dTlwMXpPUlNhd1NhYmYyNjRkWlFCMmJaZWFOZWtua0E4TUZXLzJCMW1ONVpMYm8rV0RRPT0K",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.68/MCM_1.0.68_x64-setup.exe"
     }
   }
 }
