@@ -1,11 +1,11 @@
 {
-  "version": "1.0.71",
-  "notes": "Fix: horário de tarefas errado em 3h (sincronização com a Central).",
-  "pub_date": "2026-09-16T14:23:26Z",
+  "version": "1.0.72",
+  "notes": "Fix: confirmação \"sozinha\" após reabrir/desfazer manualmente.",
+  "pub_date": "2026-09-24T15:15:16Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFhsUGgzdmxVek9JTVY0ci9jY29mVnVNVERMR3RmNi9LZlR1NVpNdTQwU25icE9TN09zdXZZSVlQamZYZlpSbTYrM3Y4N2ZkTktsdFFOZUgybkl1bUFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5NTY4NTgxCWZpbGU6TUNNIEJldGFfMS4wLjcxX3g2NC1zZXR1cC5leGUKZkowL0h1aG1CYms4U21jSThJWEhKdkk1NFZNbUVxSEVrUTRSYmttd1Y3OWxhaXlQVVRIUzRqMUxEdldQSmpyNjJhY0U5V0krSVE1ZHF1bEpzUTBaQnc9PQo=",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.71/MCM.Beta_1.0.71_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaGZqN1VGLysxT3FSNFRtcmJDaWRoN2VGRU05ak83OWdLKzZRZVNQMm9zY1Q0cy9KKzVObzN2aUUyL0hldkFFWHZIU0ZjcVg4Kzh2ZTZiYU9yK3ZCRVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjYyOTAxCWZpbGU6TUNNIEJldGFfMS4wLjcyX3g2NC1zZXR1cC5leGUKdEZhbmc1dWQvL1dDZ2pWZHY1OGFhOUdiNGx2eEo3UzlYZUY2TE0xcWdxMWhjZHlDYk1DenBIWmpMWXZzaFRqYjlqanBFMDhmMnhKamZ3cnZ3cnBMRGc9PQo=",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.72/MCM.Beta_1.0.72_x64-setup.exe"
     }
   }
 }
