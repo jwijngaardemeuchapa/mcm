@@ -191,3 +191,24 @@ Também: `src/lib/firestoreQueue.test.ts` tem 5 falhas antigas (espera UPDATE se
 `confirmado_via`) — não confundir com regressão. E cherry-pick beta→main
 quebra tipo fácil quando o tipo local difere (ex.: `ChapaRow` do
 ApproachingAlert não tinha `idTarefa` na main) — sempre rodar o delta na main.
+
+## 2026-10-05 — Build do Tauri: o harness mata o processo em 10 min e o PowerShell apaga a senha vazia
+
+Build assinado do Tauri (~20-35 min aqui) rodado como "background" do harness
+é encerrado no limite de 10 min; o processo pai morto no meio do link
+derrubou o `link.exe` (`0xc0000142`, parece falha de toolchain mas não é) e
+o `cargo` nativo às vezes sobrevive e conflita com o reinício ("Blocking
+waiting for file lock"). Receita que funcionou:
+- Lançar DESACOPLADO: `Start-Process "C:\Program Files\Git\usr\bin\bash.exe" -ArgumentList '-lc "<comando inteiro>"'`
+  — o comando precisa ir ENTRE ASPAS dentro do argumento (sem aspas o bash
+  recebe só `-c cd` e nada roda) e o shell tem que ser de login (`-l`),
+  senão o filho não acha `bash`/`node`/`npx`. Redirecionar saída pra
+  `tauri_build_*.log` e acompanhar por PowerShell (`Get-CimInstance
+  Win32_Process`: o `ps` do git-bash não enxerga cargo/rustc).
+- Chave de assinatura: `export TAURI_SIGNING_PRIVATE_KEY="$(cat tauri_update_key)"
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""` no GIT BASH. No PowerShell
+  `$env:X = ""` apaga a variável → o assinador pede senha e trava (exe sai,
+  .sig não). Se travar: matar os node.exe presos e rodar
+  `npx tauri signer sign "<exe>"` no Git Bash.
+- Não trocar de branch com o build rodando (o empacotamento ainda lê
+  `tauri.conf.json`).
