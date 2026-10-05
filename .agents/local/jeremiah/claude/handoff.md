@@ -4,9 +4,9 @@
 
 **Releases publicadas (24/09):** main **v1.0.68** e beta **v1.0.72** — fix da confirmação "sozinha" após reabrir/desfazer (Firestore: marca `processed` antes de apagar; beta: reabrir agora avisa a Central).
 
-**Nova feature, COMMITADA mas NÃO lançada (main e beta no GitHub):** Configurações > "Mensagem automática ao confirmar" (desligada por padrão; gatilhos PréFUP/FUP/manual selecionáveis; lista de mensagens salvas, uma ativa). Código em `src/lib/mensagemPosConfirmacao.ts`. **Falta:** decidir release (main v1.0.69 / beta v1.0.73) e testar com 1 chapa real — só foi testado com Umbler simulada.
+**ATUALIZAÇÃO (mesma data): LANÇADA** — main **v1.0.69** e beta **v1.0.73** publicadas e verificadas. Central: Analistas/Dashboard/Relatórios corrigidos (central-hub 8d63e89); migration do chat_ref pendente (banco da Central fora do ar em 05/10). Feature, como estava descrita: Configurações > "Mensagem automática ao confirmar" (desligada por padrão; gatilhos PréFUP/FUP/manual selecionáveis; lista de mensagens salvas, uma ativa). Código em `src/lib/mensagemPosConfirmacao.ts`. **Falta:** testar com 1 chapa real — só foi testado com Umbler simulada.
 
-**Armadilhas desta sessão:** `npx tsc --noEmit` na raiz não checa nada (ver LESSONS 2026-10-05); build local do Tauri leva ~20-35min e o `ps` do git-bash não mostra cargo/rustc — usar PowerShell `Get-CimInstance Win32_Process`. Host `uesgakycmstdhnctdtpc.supabase.co` não resolvia DNS nesta máquina em 05/10 (Central DB inacessível daqui) — confirmar com o usuário se a Central abre normalmente.
+**Armadilhas desta sessão:** build do Tauri precisa rodar desacoplado e assinar pelo Git Bash (ver LESSONS 2026-10-05, 2ª entrada); `npx tsc --noEmit` na raiz não checa nada (ver LESSONS 2026-10-05); build local do Tauri leva ~20-35min e o `ps` do git-bash não mostra cargo/rustc — usar PowerShell `Get-CimInstance Win32_Process`. Host `uesgakycmstdhnctdtpc.supabase.co` não resolvia DNS nesta máquina em 05/10 (Central DB inacessível daqui) — confirmar com o usuário se a Central abre normalmente.
 
 **Central/Umbler (investigação, sem código):** contagem baixa de disparos = `bot_dispatches` só tem execuções de bot (PréFUP é template, não aparece) + limite de 2.000 linhas de todos os bots + `chat_ref` quebrado. Ver JOURNAL do central-hub.
 
