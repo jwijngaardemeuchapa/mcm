@@ -50,7 +50,7 @@ async function clipboardCopy(text: string, msg = "Copiado") {
 
 /* ── types ── */
 
-type ChapaRow = { id: string; nome: string; telefone: string; dataTarefa: string; empresa: string };
+type ChapaRow = { id: string; nome: string; telefone: string; dataTarefa: string; empresa: string; idTarefa: number };
 type ParaRemoverRow = { id: string; nome_chapa: string; empresa: string; id_tarefa: number };
 
 type TaskGroup = {
@@ -87,6 +87,7 @@ function computeGroups(tasks: TaskWithChapas[]): TaskGroup[] {
         telefone: c.telefone_chapa ?? "",
         dataTarefa: task.data_tarefa,
         empresa: task.empresa,
+        idTarefa: task.id_tarefa,
       })),
     });
   });
