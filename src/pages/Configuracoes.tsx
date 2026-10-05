@@ -25,12 +25,16 @@ import {
   Upload,
   GanttChart,
   UserMinus,
+  MessageSquare,
 } from "lucide-react";
 import { getLeoConfig, saveLeoConfig, syncLeo, extractSpreadsheetId, parseRespostasBidCsv } from "@/pages/AnaliseBase/modules/M_leo";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
@@ -61,6 +65,7 @@ const CONFIG_SECTIONS = [
   { id: "cfg-prioridades",  icon: Zap,           label: "Prioridades",    desc: "Painel de urgência no Dashboard" },
   { id: "cfg-visualizacao", icon: LayoutList,    label: "Visualização",   desc: "Modo padrão Cards ou Panorama" },
   { id: "cfg-agenda",       icon: KanbanSquare,  label: "Agenda",         desc: "Ordenação do Kanban" },
+  { id: "cfg-msg-auto",     icon: MessageSquare, label: "Mensagem automática", desc: "Texto enviado ao chapa depois de confirmar" },
   { id: "cfg-operador",     icon: User,          label: "Operador",       desc: "Seu nome nos logs de FUP" },
   { id: "cfg-backup",       icon: HardDrive,     label: "Backup",         desc: "Copiar banco para Documentos/MCM" },
   { id: "cfg-leo",          icon: Sheet,         label: "Planilha LEO",   desc: "Histórico BID para ranqueamento" },
@@ -91,6 +96,28 @@ export default function Configuracoes() {
   const [leoHasCred, setLeoHasCred] = useState(false);
   const [leoSyncing, setLeoSyncing] = useState(false);
   const [leoCsvLoading, setLeoCsvLoading] = useState(false);
+
+  const msgAuto = settings.mensagemPosConfirmacao;
+  function atualizarMsgAuto(patch: Partial<typeof msgAuto>) {
+    setSettings(writeSettings({ mensagemPosConfirmacao: { ...msgAuto, ...patch } }));
+  }
+  function editarMensagem(id: string, patch: { nome?: string; texto?: string }) {
+    atualizarMsgAuto({ mensagens: msgAuto.mensagens.map((m) => (m.id === id ? { ...m, ...patch } : m)) });
+  }
+  function adicionarMensagem() {
+    const nova = { id: crypto.randomUUID(), nome: "Nova mensagem", texto: "" };
+    atualizarMsgAuto({
+      mensagens: [...msgAuto.mensagens, nova],
+      mensagemAtivaId: msgAuto.mensagemAtivaId ?? nova.id,
+    });
+  }
+  function removerMensagem(id: string) {
+    const restantes = msgAuto.mensagens.filter((m) => m.id !== id);
+    atualizarMsgAuto({
+      mensagens: restantes,
+      mensagemAtivaId: msgAuto.mensagemAtivaId === id ? (restantes[0]?.id ?? null) : msgAuto.mensagemAtivaId,
+    });
+  }
 
   useEffect(() => {
     getDb()
@@ -1027,6 +1054,133 @@ export default function Configuracoes() {
                   <SelectItem value="importancia">Por importância</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Mensagem automática pós-confirmação ── */}
+      <div id="cfg-msg-auto" className="scroll-mt-20">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <MessageSquare className="h-5 w-5 text-muted-foreground" />
+              Mensagem automática ao confirmar
+            </CardTitle>
+            <CardDescription>
+              Envia uma mensagem ao chapa logo depois que ele é confirmado — útil pra orientações
+              (roupa, documentos, atualizar etapas no app). Sai uma vez por chapa em cada tarefa.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Enviar mensagem automática</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Desligado por padrão. Usa a mesma conta da Umbler configurada em Integrações.
+                </p>
+              </div>
+              <Switch
+                checked={msgAuto.ativo}
+                onCheckedChange={(v) => atualizarMsgAuto({ ativo: v })}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Enviar quando a confirmação for…</p>
+              {([
+                { key: "prefup", label: "Resposta do chapa ao PréFUP", hint: "Ele respondeu SIM ao template enviado com antecedência." },
+                { key: "fup", label: "Resposta do chapa ao FUP", hint: "Ele respondeu SIM ao FUP (bot ou template perto da tarefa)." },
+                { key: "manual", label: "Confirmação manual", hint: "Você clicou em confirmar. A Umbler só aceita texto livre dentro de 24h da última mensagem do chapa — sem resposta recente, o envio falha." },
+              ] as const).map((g) => (
+                <label key={g.key} className="flex items-start gap-2.5 cursor-pointer">
+                  <Checkbox
+                    checked={msgAuto.gatilhos[g.key]}
+                    onCheckedChange={(v) =>
+                      atualizarMsgAuto({ gatilhos: { ...msgAuto.gatilhos, [g.key]: v === true } })
+                    }
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm text-foreground">{g.label}</span>
+                    <span className="block text-xs text-muted-foreground">{g.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Mensagens salvas</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Marque qual fica ativa — só uma é enviada por vez. Troque quando quiser.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={adicionarMensagem}>
+                  <Plus className="h-3.5 w-3.5" /> Adicionar
+                </Button>
+              </div>
+
+              {msgAuto.mensagens.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                  Nenhuma mensagem salva — adicione uma pra poder ativar o envio.
+                </div>
+              ) : (
+                <RadioGroup
+                  value={msgAuto.mensagemAtivaId ?? ""}
+                  onValueChange={(v) => atualizarMsgAuto({ mensagemAtivaId: v })}
+                  className="space-y-3"
+                >
+                  {msgAuto.mensagens.map((m) => {
+                    const ativa = m.id === msgAuto.mensagemAtivaId;
+                    return (
+                      <div
+                        key={m.id}
+                        className={`rounded-lg border p-3 space-y-2 ${ativa ? "border-primary/40 bg-primary/5" : "border-border"}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value={m.id} id={`msg-auto-${m.id}`} />
+                          <label htmlFor={`msg-auto-${m.id}`} className="text-xs font-semibold text-muted-foreground cursor-pointer shrink-0">
+                            {ativa ? "Ativa" : "Usar esta"}
+                          </label>
+                          <Input
+                            value={m.nome}
+                            onChange={(e) => editarMensagem(m.id, { nome: e.target.value })}
+                            placeholder="Nome da mensagem"
+                            className="h-8 flex-1"
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => removerMensagem(m.id)}
+                            aria-label={`Excluir ${m.nome}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Textarea
+                          value={m.texto}
+                          onChange={(e) => editarMensagem(m.id, { texto: e.target.value })}
+                          placeholder="Texto que o chapa vai receber…"
+                          rows={7}
+                          className="text-sm"
+                        />
+                      </div>
+                    );
+                  })}
+                </RadioGroup>
+              )}
+              {msgAuto.ativo && !msgAuto.mensagens.some((m) => m.id === msgAuto.mensagemAtivaId && m.texto.trim()) && (
+                <p className="text-xs text-warning">
+                  O envio está ligado, mas não há mensagem ativa com texto — nada será enviado.
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

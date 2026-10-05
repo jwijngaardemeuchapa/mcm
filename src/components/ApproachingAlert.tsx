@@ -24,6 +24,7 @@ import { playAlertBeep } from "@/lib/sound";
 import { getDb, uuid, errMsg } from "@/lib/db";
 import { sendUmblerFup, startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
 import { upsertChatLink } from "@/lib/chatLinks";
+import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
 import { toast } from "sonner";
 
 /* ── helpers ── */
@@ -283,6 +284,10 @@ function ChapaItem({
       await db.execute(
         "UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id = ?",
         [new Date().toISOString(), chapa.id],
+      );
+      enviarMensagemPosConfirmacao(
+        [{ idTarefa: chapa.idTarefa, chapaId: chapa.id, nome: chapa.nome, telefone: chapa.telefone }],
+        "manual",
       );
       toast.success(`${chapa.nome} confirmado`);
       onConfirm();

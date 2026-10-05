@@ -32,6 +32,22 @@ export type UmblerSettings = {
   groupChannelPhone: string;
 };
 
+export type MensagemAutomatica = {
+  id: string;
+  nome: string;
+  texto: string;
+};
+
+// Mensagem enviada ao chapa logo depois que ele é dado como confirmado
+// (ver lib/mensagemPosConfirmacao.ts). Uma mensagem ativa por vez, escolhida
+// de uma lista salva; os gatilhos dizem DE QUAL tipo de confirmação ela sai.
+export type MensagemPosConfirmacaoSettings = {
+  ativo: boolean;
+  gatilhos: { prefup: boolean; fup: boolean; manual: boolean };
+  mensagens: MensagemAutomatica[];
+  mensagemAtivaId: string | null;
+};
+
 export type SonsSettings = {
   intro: boolean;        // áudio do vídeo de abertura
   alertas: boolean;      // bipe de chapa sem confirmação
@@ -73,9 +89,26 @@ export type AppSettings = {
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
   fupEsquecerConfirmacaoHoras: number;
+  mensagemPosConfirmacao: MensagemPosConfirmacaoSettings;
   saacApiUrl?: string;
   saacApiKey?: string;
 };
+
+export const MENSAGEM_ORIENTACOES_PADRAO = [
+  "⚠️ IMPORTANTE!",
+  "✔️ Vá com:",
+  "",
+  "* Calça comprida jeans",
+  "* Blusa de manga ou camiseta",
+  "* 🚫 Proibido camiseta de time e regata",
+  "* Sapato de segurança (bota)",
+  "* Documento com foto",
+  "* Marmita/alimentação",
+  "",
+  "📱 Não se esqueça de atualizar as etapas no app:",
+  "➡️ Quando estiver a caminho do local",
+  "➡️ Quando chegar ao local",
+].join("\n");
 
 const STORAGE_KEY = "fup_settings";
 
@@ -113,6 +146,14 @@ export const SETTING_DEFAULTS: AppSettings = {
   autoCancelFupMinutes: 60,
   fupAutoDispatchBloqueioHoras: 4,
   fupEsquecerConfirmacaoHoras: 6,
+  mensagemPosConfirmacao: {
+    ativo: false,
+    gatilhos: { prefup: true, fup: true, manual: false },
+    mensagens: [
+      { id: "orientacoes-pre-tarefa", nome: "Orientações pré-tarefa", texto: MENSAGEM_ORIENTACOES_PADRAO },
+    ],
+    mensagemAtivaId: "orientacoes-pre-tarefa",
+  },
 };
 
 export function readSettings(): AppSettings {
@@ -126,6 +167,14 @@ export function readSettings(): AppSettings {
       sons: {
         ...SETTING_DEFAULTS.sons,
         ...(parsed.sons ?? {}),
+      },
+      mensagemPosConfirmacao: {
+        ...SETTING_DEFAULTS.mensagemPosConfirmacao,
+        ...(parsed.mensagemPosConfirmacao ?? {}),
+        gatilhos: {
+          ...SETTING_DEFAULTS.mensagemPosConfirmacao.gatilhos,
+          ...(parsed.mensagemPosConfirmacao?.gatilhos ?? {}),
+        },
       },
       umblerSettings: (() => {
         const merged = { ...SETTING_DEFAULTS.umblerSettings, ...(parsed.umblerSettings ?? {}) };
