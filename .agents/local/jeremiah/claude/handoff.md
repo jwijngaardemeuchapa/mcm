@@ -1,5 +1,17 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-05 (Sonnet 5.5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
+
+**Releases publicadas (24/09):** main **v1.0.68** e beta **v1.0.72** — fix da confirmação "sozinha" após reabrir/desfazer (Firestore: marca `processed` antes de apagar; beta: reabrir agora avisa a Central).
+
+**Nova feature, COMMITADA mas NÃO lançada (main e beta no GitHub):** Configurações > "Mensagem automática ao confirmar" (desligada por padrão; gatilhos PréFUP/FUP/manual selecionáveis; lista de mensagens salvas, uma ativa). Código em `src/lib/mensagemPosConfirmacao.ts`. **Falta:** decidir release (main v1.0.69 / beta v1.0.73) e testar com 1 chapa real — só foi testado com Umbler simulada.
+
+**Armadilhas desta sessão:** `npx tsc --noEmit` na raiz não checa nada (ver LESSONS 2026-10-05); build local do Tauri leva ~20-35min e o `ps` do git-bash não mostra cargo/rustc — usar PowerShell `Get-CimInstance Win32_Process`. Host `uesgakycmstdhnctdtpc.supabase.co` não resolvia DNS nesta máquina em 05/10 (Central DB inacessível daqui) — confirmar com o usuário se a Central abre normalmente.
+
+**Central/Umbler (investigação, sem código):** contagem baixa de disparos = `bot_dispatches` só tem execuções de bot (PréFUP é template, não aparece) + limite de 2.000 linhas de todos os bots + `chat_ref` quebrado. Ver JOURNAL do central-hub.
+
+---
+
 **Data:** 2026-09-16 (Sonnet 5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
 
 **Versão:** `v1.0.70` publicada e assinada, `.sig` verificado. Sem pendência de release aberta.
