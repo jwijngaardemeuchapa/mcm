@@ -177,3 +177,17 @@ Lição: verificar o `latest.json` **uma vez por release**, não em loop/retry.
 Se precisar reconfirmar depois, usar `gh api repos/.../contents/latest.json`
 (API autenticada do GitHub, não sofre esse limite) em vez de bater direto
 no raw.githubusercontent.com de novo.
+
+## 2026-10-05 — `npx tsc --noEmit` na raiz NÃO verifica nada neste repo
+
+`tsconfig.json` da raiz tem `"files": []` + `references` — o comando passa
+sempre, mesmo com erro de tipo real. Declarei "typecheck limpo" várias vezes
+com isso (inclusive em fixes de produção). O check real é `npm run typecheck`
+(`tsconfig.app.json`) e ele tem ~14 erros ANTIGOS em main/beta — então a
+conta é: rodar antes/depois e olhar só o que é novo:
+`npm run typecheck | grep "error TS" | sed -E 's/\([0-9]+,[0-9]+\)//' | sort > a.txt`
+(no HEAD limpo e depois com a mudança) e `comm -13 antes.txt depois.txt`.
+Também: `src/lib/firestoreQueue.test.ts` tem 5 falhas antigas (espera UPDATE sem
+`confirmado_via`) — não confundir com regressão. E cherry-pick beta→main
+quebra tipo fácil quando o tipo local difere (ex.: `ChapaRow` do
+ApproachingAlert não tinha `idTarefa` na main) — sempre rodar o delta na main.
