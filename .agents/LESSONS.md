@@ -182,3 +182,17 @@ no raw.githubusercontent.com de novo.
 **Rule:** `tauri.conf.json`'s `bundle` precisa de `"createUpdaterArtifacts": true` — sem isso, `tauri build` (CLI 2.11.1) NÃO gera o `.sig` do updater mesmo com `TAURI_SIGNING_PRIVATE_KEY`/`_PASSWORD` corretas nas env vars, silenciosamente (sem erro, sem warning).
 **Why:** Descoberto no build da v1.0.66 (beta) — o `.exe` saiu, o `.sig` não. Esse campo nunca esteve configurado; builds anteriores devem ter sido assinados manualmente à parte (`npx tauri signer sign -f tauri_update_key -p "" <arquivo>`), sem deixar rastro do porquê no JOURNAL.
 **How to apply:** Antes de qualquer release, checar se `createUpdaterArtifacts: true` está no `bundle` do `tauri.conf.json`. Se um build sair sem `.sig`, não precisa rebuildar — `npx tauri signer sign -f tauri_update_key -p "" "caminho/do/instalador.exe"` assina o artefato já pronto. Chave privada fica em `tauri_update_key` na raiz do repo (gitignored), senha vazia.
+
+## 2026-10-05 — `npx tsc --noEmit` na raiz NÃO verifica nada neste repo
+
+`tsconfig.json` da raiz tem `"files": []` + `references` — o comando passa
+sempre, mesmo com erro de tipo real. Declarei "typecheck limpo" várias vezes
+com isso (inclusive em fixes de produção). O check real é `npm run typecheck`
+(`tsconfig.app.json`) e ele tem ~14 erros ANTIGOS em main/beta — então a
+conta é: rodar antes/depois e olhar só o que é novo:
+`npm run typecheck | grep "error TS" | sed -E 's/\([0-9]+,[0-9]+\)//' | sort > a.txt`
+(no HEAD limpo e depois com a mudança) e `comm -13 antes.txt depois.txt`.
+Também: `src/lib/firestoreQueue.test.ts` tem 5 falhas antigas (espera UPDATE sem
+`confirmado_via`) — não confundir com regressão. E cherry-pick beta→main
+quebra tipo fácil quando o tipo local difere (ex.: `ChapaRow` do
+ApproachingAlert não tinha `idTarefa` na main) — sempre rodar o delta na main.
