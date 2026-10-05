@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getDb } from "./db";
 import { normalize } from "./normalize";
+import { canalConfirmacao } from "./prefup";
+import { enviarMensagemPosConfirmacao } from "./mensagemPosConfirmacao";
 import { toast } from "sonner";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
@@ -113,6 +115,13 @@ export function useNotificationWatcher(
               "UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id = ?",
               [new Date().toISOString(), found.id],
             );
+            if (parentTask) {
+              const canal = await canalConfirmacao(parentTask.id_tarefa, found.id).catch(() => null);
+              enviarMensagemPosConfirmacao(
+                [{ idTarefa: parentTask.id_tarefa, chapaId: found.id, nome: found.nome_chapa, telefone: found.telefone_chapa }],
+                canal === "prefup" ? "prefup" : "fup",
+              );
+            }
           } catch {
             // DB update failed — still show the notification so the user can act manually
           }

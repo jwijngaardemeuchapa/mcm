@@ -37,6 +37,7 @@ import { FillRateBar } from "@/components/FillRateBar";
 import { useClienteInfo } from "@/lib/useClienteInfo";
 import { useUndo } from "@/lib/undo";
 import { getDb, errMsg, placeholders } from "@/lib/db";
+import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
 import { readSettings, writeSettings } from "@/lib/settings";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { toast } from "sonner";
@@ -348,6 +349,10 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
       toast.error(errMsg(e));
       return;
     }
+    enviarMensagemPosConfirmacao(
+      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa })),
+      "manual",
+    );
     push({
       label: `confirmar ${ids.length} chapas — #${task.id_tarefa}`,
       revert: async () => {
@@ -524,6 +529,12 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     } catch (e) {
       toast.error(errMsg(e));
       return;
+    }
+    if (patch.status_contato === "confirmado") {
+      enviarMensagemPosConfirmacao(
+        [{ idTarefa: task!.id_tarefa, chapaId, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa }],
+        "manual",
+      );
     }
     push({
       label,

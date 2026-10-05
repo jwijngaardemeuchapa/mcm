@@ -61,6 +61,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { getDb, uuid, placeholders, errMsg } from "@/lib/db";
+import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
 import { StatusBadge } from "./StatusBadge";
 import { FillRateBar } from "./FillRateBar";
 import { Confetti } from "./Confetti";
@@ -330,6 +331,12 @@ export function TaskCard({
       toast.error(errMsg(e));
       return;
     }
+    if (patch.status_contato === "confirmado") {
+      enviarMensagemPosConfirmacao(
+        [{ idTarefa: task.id_tarefa, chapaId: chapa.id, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa }],
+        "manual",
+      );
+    }
     push({
       label,
       revert: async () => {
@@ -417,6 +424,10 @@ Precisamos de 1 substituto para esta tarefa.`;
       toast.error(errMsg(e));
       return;
     }
+    enviarMensagemPosConfirmacao(
+      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa })),
+      "manual",
+    );
     push({
       label: `confirmar ${ids.length} chapas — #${task.id_tarefa}`,
       revert: async () => {

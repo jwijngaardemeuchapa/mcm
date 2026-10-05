@@ -2,6 +2,7 @@ import { getDb, uuid } from "./db";
 import { normalize } from "./normalize";
 import { pushChapaStatusToCentral, pushRespostaToCentral } from "./central";
 import { canalConfirmacao } from "./prefup";
+import { enviarMensagemPosConfirmacao } from "./mensagemPosConfirmacao";
 
 // Traduz o status (mais rico) do BID pro mesmo vocabulário de categoria
 // (ResponseCategory) que a Central já usa pro badge da aba "Respostas ao
@@ -387,6 +388,12 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
        VALUES (?,?,?,?,?,?,?,?,?,?)`,
       [uuid(), "fup", fup.nome_chapa, fup.telefone_chapa, fupResposta, fup.id_tarefa, fup.empresa, fonte, body, now],
     );
+    if (fupResposta === "confirmado") {
+      enviarMensagemPosConfirmacao(
+        [{ idTarefa: fup.id_tarefa, chapaId: fup.id, nome: fup.nome_chapa, telefone: fup.telefone_chapa }],
+        canalConf === "prefup" ? "prefup" : "fup",
+      );
+    }
     // Espelha na Central — confirmação/cancelamento automático (via bot/
     // WhatsApp) nunca chegava lá antes: a Central só tinha um fallback
     // (syncFirestoreStatus, polling no Firestore a cada 5min) que quase
