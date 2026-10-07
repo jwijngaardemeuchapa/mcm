@@ -115,7 +115,12 @@ pub struct NotificationMatch {
 /// "SIM, estou nessa!" or "NÃO, quero cancelar!" plus one of the
 /// provided chapa names. Returns an empty Vec on any error so the
 /// feature stays dormant when notifications are disabled or locked.
-#[tauri::command]
+///
+/// `async`: comando síncrono do Tauri roda na thread principal (a mesma da
+/// janela). Isto abre o wpndatabase.db do Windows e varre notificações a cada
+/// 10 s — na thread principal, qualquer lentidão do disco/lock do SQLite
+/// trava cliques e rolagem. Com `async` roda numa thread de trabalho.
+#[tauri::command(async)]
 fn check_notification_responses(
     chapa_names: Vec<String>,
     since_epoch_secs: i64,
@@ -217,7 +222,8 @@ pub struct BidResponseMatch {
 /// Lê wpndatabase.db e retorna respostas BID de chapas da lista fornecida.
 /// Detecta: "SIM"/"NÃO" curtos (≤4 palavras) e "Preciso de ajuda".
 /// Ignora frases do FUP ("nessa", "quero cancelar") para não conflitar.
-#[tauri::command]
+/// `async` pelo mesmo motivo de check_notification_responses (fora da thread da janela).
+#[tauri::command(async)]
 fn check_bid_responses(
     chapa_names: Vec<String>,
     since_epoch_secs: i64,
