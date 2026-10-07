@@ -1,11 +1,11 @@
 {
-  "version": "1.0.75",
-  "notes": "Correção: travadinha ao clicar (Dashboard carrega só os últimos dias e só redesenha quando algo muda).",
-  "pub_date": "2026-10-07T10:51:21Z",
+  "version": "1.0.76",
+  "notes": "Correção: congelamentos (loops que liam todo o histórico, redesenho em massa dos cards e abertura lenta).",
+  "pub_date": "2026-10-07T15:58:51Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaGFWZTNJTnRUenBWdGczbzkvcmlIRWkvbFlxNXJyK0FIZ0pkYkUwU0V6dkRIVXJtS0cvaUJ4SnFPR2N0SE1NM1BldXowZ252aFNKWTRUV3BkSytFWGdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMzY5ODQ2CWZpbGU6TUNNIEJldGFfMS4wLjc1X3g2NC1zZXR1cC5leGUKSTFVQ2g4eGFucmZETm1WR0crdTh6NUxacm1pS2V4SmxuZUphWjVjVCt6Ly9GeXJrNjVIMStJMmdwRHpZMTRiKzFwWjRoUEtaZGFYQXM3WllHQWJpRFE9PQo=",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.75/MCM.Beta_1.0.75_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFZNWER4VEFqaWZ2L0prY21DM2N1YWhETGpob2dUWkhyNnJ2YzhvYUZXSWRuTGlJUHdlL1YxSUlMd0RoYndVaWp2RjhHblBCZDduSk1wSUJNa2FIaXdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMzg4NzE5CWZpbGU6TUNNIEJldGFfMS4wLjc2X3g2NC1zZXR1cC5leGUKVzVTM1Y1bzM2clF6MWVEdlMyRTBlTlVCZ1V3bDdJSE1RK0Y4VCtIcUhHWmhrQk1rVFB0RmZwMEI4Zi82NGg1Z2J2ME1nblRibHhhUzhUUFhGWlIxQ1E9PQo=",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.76/MCM.Beta_1.0.76_x64-setup.exe"
     }
   }
 }
