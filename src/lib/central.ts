@@ -175,12 +175,29 @@ export type CentralChapaStatus = {
 // Puxa da Central o status de chapas confirmadas/canceladas por OUTRO
 // analista ou pelo bot da Umbler — pra este MCM local espelhar sem
 // precisar que o próprio analista tenha visto a resposta.
+// Só os últimos dias importam pro sync a cada 60 s: tarefa mais antiga que isso
+// já aconteceu. Sem este filtro o MCM baixava (e aplicava, linha por linha) o
+// histórico inteiro da Central a cada minuto — até ~2000 idas ao banco por
+// ciclo, CPU alta e a interface engasgando.
+export const CENTRAL_SYNC_JANELA_DIAS = 7;
+function desdeIso(): string {
+  return new Date(Date.now() - CENTRAL_SYNC_JANELA_DIAS * 86_400_000).toISOString();
+}
+
+// Última carga já aplicada (por tipo). Se a Central devolve exatamente o mesmo
+// conteúdo do ciclo anterior não há nada novo a aplicar — pula o laço inteiro.
+// Gravada só DEPOIS de aplicar com sucesso (falha no meio tenta de novo).
+// Bônus: um status antigo da Central não é reaplicado por cima de uma
+// reabertura local a cada minuto.
+const ultimaCargaAplicada: Record<string, string> = {};
+
 export async function pullCentralStatus(): Promise<CentralChapaStatus[]> {
   try {
     const url =
       `${CENTRAL_SUPABASE_URL}/rest/v1/tarefa_chapas` +
       `?select=id_tarefa,telefone_chapa,cpf,status_contato,status_source,status_changed_at` +
-      `&status_source=not.is.null`;
+      `&status_source=not.is.null` +
+      `&status_changed_at=gte.${encodeURIComponent(desdeIso())}`;
     const res = await fetch(url, {
       headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` },
     });
@@ -200,6 +217,8 @@ export async function applyCentralStatusLocally(): Promise<number> {
   const rows = await pullCentralStatus();
   const relevant = rows.filter((r) => r.status_contato === "confirmado" || r.status_contato === "cancelado");
   if (relevant.length === 0) return 0;
+  const assinaturaCarga = JSON.stringify(relevant);
+  if (ultimaCargaAplicada["status"] === assinaturaCarga) return 0;
 
   const db = await getDb();
   let updated = 0;
@@ -225,6 +244,7 @@ export async function applyCentralStatusLocally(): Promise<number> {
     }
     updated += res.rowsAffected ?? 0;
   }
+  ultimaCargaAplicada["status"] = assinaturaCarga;
   return updated;
 }
 
@@ -270,7 +290,8 @@ export async function pullChatLinksFromCentral(): Promise<CentralChatLink[]> {
   try {
     const url =
       `${CENTRAL_SUPABASE_URL}/rest/v1/chat_links` +
-      `?select=id_tarefa,telefone_chapa,cpf,nome_chapa,umbler_chat_id,canal,atualizado_em`;
+      `?select=id_tarefa,telefone_chapa,cpf,nome_chapa,umbler_chat_id,canal,atualizado_em` +
+      `&atualizado_em=gte.${encodeURIComponent(desdeIso())}`;
     const res = await fetch(url, {
       headers: { apikey: CENTRAL_API_KEY, Authorization: `Bearer ${CENTRAL_API_KEY}` },
     });
@@ -290,6 +311,8 @@ export async function pullChatLinksFromCentral(): Promise<CentralChatLink[]> {
 export async function applyChatLinksLocally(): Promise<number> {
   const rows = await pullChatLinksFromCentral();
   if (rows.length === 0) return 0;
+  const assinaturaCarga = JSON.stringify(rows);
+  if (ultimaCargaAplicada["chat_links"] === assinaturaCarga) return 0;
 
   const db = await getDb();
   let updated = 0;
@@ -330,6 +353,7 @@ export async function applyChatLinksLocally(): Promise<number> {
       updated++;
     }
   }
+  ultimaCargaAplicada["chat_links"] = assinaturaCarga;
   return updated;
 }
 
