@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-07 (Sonnet 5.5, 3ª entrada do dia) — ver JOURNAL.md.
+
+**Versão atual: main v1.0.71 / beta v1.0.75 — sem pendência de release.** Incluem a correção de travamento ao clicar (Dashboard por janela de dados + mapas + menos re-render; comandos Rust async; beta também sync da Central de 7 dias). **Falta validar na prática** (dia cheio de uso: clique atrasa? ventoinha sobe?) — não foi testado em tela real. Se persistir: memoizar TaskCard / virtualizar a lista. Banco da Central continuava fora do ar (migration do chat_ref do central-hub pendente).
+
+---
+
 **Data:** 2026-10-07 (Sonnet 5.5, 2ª entrada do dia) — ver JOURNAL.md.
 
 **Releases publicadas hoje:** main v1.0.70 / beta v1.0.74 (mensagem por empresa + copiar ID da tarefa+nome+telefone). **Depois delas, commitado e NÃO lançado:** correção de travamento ao clicar (Dashboard.load lia tabelas inteiras a cada 30 s; carga por janela + mapas + menos re-render + comandos Rust async; sync com a Central só dos últimos 7 dias). Próxima release seria main v1.0.71 / beta v1.0.75 — perguntar ao usuário (sugerir beta primeiro). Não testado em tela real.
