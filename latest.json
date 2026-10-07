@@ -1,11 +1,11 @@
 {
-  "version": "1.0.69",
-  "notes": "Mensagem automática ao confirmar (nova, desligada por padrão).",
-  "pub_date": "2026-10-05T14:30:16Z",
+  "version": "1.0.70",
+  "notes": "Mensagem automática por empresa e opção de copiar ID da tarefa + nome + telefone.",
+  "pub_date": "2026-10-07T09:57:06Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFZpeU8yQUxlVWNjV2FLMlhTWXNuZFUzREd5MGpaNElqU1Y1MGRnYk5vL085RUltN0JEUHVmSWhYM3FpN2RQV0JZKzhDVlU0dXhicW0rTXVpdVdCQlFBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMjEwNjA3CWZpbGU6TUNNXzEuMC42OV94NjQtc2V0dXAuZXhlClB3aDZLUVZJekx0MDhyM1pnRWtZU0xYVHdGOW5vN21NWkIvVDNndzQvdWo3Tk5qM0ZKQkVZRjJBdzRaMFdUMnJzbmdIQSsvaTZmdXk4Vk1BK0JLSkFBPT0K",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.69/MCM_1.0.69_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFJyR3dzZWpnWWlZZ1FWS1Z0aW04NS8zbEtWREd0eGR1czdUNHNaVmZnK2NrZW1xcm5yMTNqdUpiNWpTZUJzbUlqZUJtbUdObm9MNWlrbTAzTHptdWdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMzY2NjEwCWZpbGU6TUNNXzEuMC43MF94NjQtc2V0dXAuZXhlCnpjZUhYcFJyT0F1akRmZzJXRzlIUUthS2dpK294eFBJam9pMHFUUnh6L0M1blBDZXppK2RGMkg1eXNlZ29Jbjd1blRwVE14aDVKOGwrMDc3SVJqQ0N3PT0K",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.70/MCM_1.0.70_x64-setup.exe"
     }
   }
 }
