@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 export type UndoAction = {
@@ -17,7 +17,13 @@ type UndoContextValue = {
   clear: () => void;
 };
 
-const UndoContext = createContext<UndoContextValue | null>(null);
+// Dois contextos: as AÇÕES (push/undo/clear) nunca mudam de identidade; o "último"
+// muda a cada push. Antes era um objeto só, recriado a cada render: cada clique
+// que empilha um "desfazer" (toda confirmação) re-renderizava TODOS os TaskCards,
+// que só querem o push. Quem precisa do "último" (botão Desfazer) usa useUndo().
+type UndoActions = Pick<UndoContextValue, "push" | "undo" | "clear">;
+const UndoActionsContext = createContext<UndoActions | null>(null);
+const UndoLastContext = createContext<UndoAction | null>(null);
 
 const MAX_STACK = 20;
 
@@ -70,15 +76,25 @@ export function UndoProvider({ children }: { children: ReactNode }) {
 
   const last = stackRef.current[stackRef.current.length - 1] ?? null;
 
+  const actions = useMemo(() => ({ push, undo, clear }), [push, undo, clear]);
+
   return (
-    <UndoContext.Provider value={{ last, push, undo, clear }}>
-      {children}
-    </UndoContext.Provider>
+    <UndoActionsContext.Provider value={actions}>
+      <UndoLastContext.Provider value={last}>{children}</UndoLastContext.Provider>
+    </UndoActionsContext.Provider>
   );
 }
 
-export function useUndo() {
-  const ctx = useContext(UndoContext);
+/** Só push/undo/clear — estável, não re-renderiza quando a pilha muda. */
+export function useUndoActions(): UndoActions {
+  const ctx = useContext(UndoActionsContext);
   if (!ctx) throw new Error("useUndo must be used within UndoProvider");
   return ctx;
+}
+
+/** Tudo, incluindo o "último" — re-renderiza a cada push/undo. */
+export function useUndo(): UndoContextValue {
+  const actions = useUndoActions();
+  const last = useContext(UndoLastContext);
+  return { last, ...actions };
 }

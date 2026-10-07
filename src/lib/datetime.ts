@@ -63,6 +63,21 @@ export function fmtTime(d: Date | string): string {
   return formatInTimeZone(typeof d === "string" ? new Date(d) : d, TZ, "HH:mm");
 }
 
+// Data (AAAA-MM-DD) de São Paulo de um instante. Mesmo resultado de
+// fmtSP(d, "yyyy-MM-dd"), sem passar pelo date-fns-tz (dezenas de microssegundos
+// por chamada, e o Dashboard chama isso pra milhares de tarefas a cada ciclo):
+// data_tarefa é gravada "AAAA-MM-DDTHH:mm:ss-03:00" e São Paulo é UTC-3 fixo desde
+// 2019, então a data local é a do próprio texto. Qualquer outro formato cai no
+// caminho completo.
+const RE_DATA_SP_FIXA = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?-03:00$/;
+export function dataSP(d: Date | string): string {
+  if (typeof d === "string") {
+    const m = RE_DATA_SP_FIXA.exec(d);
+    if (m && Number(m[1]) >= 2020) return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  return formatInTimeZone(typeof d === "string" ? new Date(d) : d, TZ, "yyyy-MM-dd");
+}
+
 export function fmtDateTime(d: Date | string): string {
   return formatInTimeZone(typeof d === "string" ? new Date(d) : d, TZ, "dd/MM/yyyy HH:mm");
 }
@@ -75,6 +90,12 @@ export function tomorrowDateISO_SP(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return formatInTimeZone(d, TZ, "yyyy-MM-dd");
+}
+
+/** "2026-10-07" − 4 dias → "2026-10-03" (só calendário, sem fuso). */
+export function somaDiasISO(iso: string, dias: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10);
 }
 
 export function yesterdayDateISO_SP(): string {

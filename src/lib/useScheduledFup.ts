@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { readSettings } from "./settings";
 import { getDb } from "./db";
-import { minutesUntil } from "./datetime";
+import { minutesUntil, somaDiasISO, todayDateISO_SP } from "./datetime";
 import { dispatchQueue, type TaskSnap } from "./dispatchQueue";
 import { logActivity } from "./activityLog";
 
@@ -15,6 +15,26 @@ export type AutoFupPending = {
 
 // Confirmation window: show dialog this many minutes before the scheduled dispatch
 const CONFIRM_WINDOW_MIN = 15;
+
+type BancoSelect = { select<T>(sql: string, params?: unknown[]): Promise<T> };
+
+/**
+ * Tarefas candidatas ao disparo automático. O loop abaixo descarta toda tarefa que já
+ * passou ("minUntilTask < 0"), então só as de ontem em diante interessam — antes a
+ * consulta trazia TODAS as tarefas ativas do histórico a cada minuto.
+ */
+export async function buscarTarefasParaAgendar(
+  db: BancoSelect,
+  hojeISO: string = todayDateISO_SP(),
+): Promise<{ id_tarefa: number; data_tarefa: string; empresa: string }[]> {
+  return db.select<{ id_tarefa: number; data_tarefa: string; empresa: string }[]>(
+    `SELECT id_tarefa, data_tarefa, empresa FROM tarefas
+     WHERE ativo = 1
+       AND status_tarefa NOT IN ('Concluído', 'Cancelado')
+       AND substr(data_tarefa, 1, 10) >= ?`,
+    [somaDiasISO(hojeISO, -1)],
+  );
+}
 
 export function useScheduledFup() {
   const [pending, setPendingState] = useState<AutoFupPending | null>(null);
@@ -66,11 +86,7 @@ export function useScheduledFup() {
 
       try {
         const db = await getDb();
-        const tasks = await db.select<{ id_tarefa: number; data_tarefa: string; empresa: string }[]>(
-          `SELECT id_tarefa, data_tarefa, empresa FROM tarefas
-           WHERE ativo = 1
-             AND status_tarefa NOT IN ('Concluído', 'Cancelado')`,
-        );
+        const tasks = await buscarTarefasParaAgendar(db);
 
         for (const t of tasks) {
           const taskId = t.id_tarefa;

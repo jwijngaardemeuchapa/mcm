@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDb, placeholders } from "@/lib/db";
-import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
+import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate, dataSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
-import { TaskCard, type TaskWithChapas } from "@/components/TaskCard";
+import { type TaskWithChapas } from "@/components/TaskCard";
+import { LazyTaskCard, montarCardAgora } from "@/components/LazyTaskCard";
+import { criarExecutorAgrupado } from "@/lib/agruparChamadas";
 import { TaskDetailPanel } from "@/components/TaskDetailPanel";
 import { TaskPanorama } from "@/components/TaskPanorama";
 import { TaskTimeline } from "@/components/TaskTimeline";
@@ -20,6 +22,8 @@ import {
   filtrarAtivas,
   ordenarFupRecentePrimeiro,
   recortesDashboard,
+  reaproveitarCartoes,
+  type CartoesGuardados,
 } from "@/lib/dashboardData";
 import { buildConfiabilidadeMap, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import {
@@ -158,6 +162,13 @@ export default function Dashboard() {
   // Assinaturas do que já foi aplicado ao estado — load() roda a cada 30 s e
   // só mexe no estado se algo mudou de verdade (ver aplicarSeMudou).
   const estadoAplicadoRef = useRef<Record<string, string>>({});
+  // Cards do load anterior (por lista): os que não mudaram mantêm a mesma
+  // referência, então o TaskCard memoizado não re-renderiza (ver reaproveitarCartoes).
+  const cartoesRef = useRef<{
+    overnight: CartoesGuardados<TaskWithChapas>;
+    today: CartoesGuardados<TaskWithChapas>;
+    all: CartoesGuardados<TaskWithChapas>;
+  }>({ overnight: new Map(), today: new Map(), all: new Map() });
   const load = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
@@ -278,7 +289,6 @@ export default function Dashboard() {
       const linksPorTarefa = agruparPorTarefa(chatLinks as Array<Record<string, unknown> & { id_tarefa: number }>);
       const buildCard = (raw: Record<string, unknown>, continuing: boolean): TaskWithChapas => {
         const t = raw as T;
-        const d = toSP(t.data_tarefa);
         return {
           id_tarefa: t.id_tarefa,
           data_tarefa: t.data_tarefa,
@@ -299,7 +309,7 @@ export default function Dashboard() {
           chapas: [...(chapasPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["chapas"],
           fup_log: [...(fupPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["fup_log"],
           chat_links: [...(linksPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["chat_links"],
-          urgent: !continuing && fmtSP(t.data_tarefa, "yyyy-MM-dd") === todayISO && (d.getHours() < 6 || d.getTime() < Date.now()),
+          urgent: !continuing && dataSP(t.data_tarefa) === todayISO && ((d) => d.getHours() < 6 || d.getTime() < Date.now())(toSP(t.data_tarefa)),
           continuingFromYesterday: continuing,
         };
       };
@@ -390,9 +400,13 @@ export default function Dashboard() {
       const allDatesCards = allDatesTasks
         .map((t) => buildCard(t, false))
         .sort((a, b) => new Date(a.data_tarefa).getTime() - new Date(b.data_tarefa).getTime());
-      aplicarSeMudou(estadoAplicadoRef.current, "allDatesCards", allDatesCards, setAllDatesCards);
-      aplicarSeMudou(estadoAplicadoRef.current, "overnightCards", overnightCards, setOvernightContinuing);
-      aplicarSeMudou(estadoAplicadoRef.current, "todayCards", todayCards, setTasksToday);
+      const cAll = reaproveitarCartoes(cartoesRef.current.all, allDatesCards);
+      const cOv = reaproveitarCartoes(cartoesRef.current.overnight, overnightCards);
+      const cToday = reaproveitarCartoes(cartoesRef.current.today, todayCards);
+      cartoesRef.current = { all: cAll.guardados, overnight: cOv.guardados, today: cToday.guardados };
+      aplicarSeMudou(estadoAplicadoRef.current, "allDatesCards", cAll.lista, setAllDatesCards, cAll.sig);
+      aplicarSeMudou(estadoAplicadoRef.current, "overnightCards", cOv.lista, setOvernightContinuing, cOv.sig);
+      aplicarSeMudou(estadoAplicadoRef.current, "todayCards", cToday.lista, setTasksToday, cToday.sig);
 
       // Load agenda items due within 2h for banner alerts
       try {
@@ -479,6 +493,11 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Pedidos de recarga (eventos "fup:refresh", ações dos cards, timer) passam por aqui:
+  // um load por vez, e uma rajada vira no máximo uma recarga extra (ver agruparChamadas).
+  // O botão "Atualizar" e a sincronização do Metabase continuam chamando load() direto.
+  const loadAgrupado = useMemo(() => criarExecutorAgrupado(() => load(false)), [load]);
+
   // Clean URL params after reading them into state
   useEffect(() => {
     try {
@@ -491,7 +510,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     load();
-    const t = setInterval(() => load(false), 30_000);
+    const t = setInterval(() => { void loadAgrupado(); }, 30_000);
 
     // Auto-sync a cada 5 min (silencioso — sem toast). Chamava Metabase
     // direto via invoke (metabaseTarefasCardId, config local antiga) —
@@ -520,13 +539,18 @@ export default function Dashboard() {
       const last = localStorage.getItem("metabase_last_sync");
       const lastDate = last ? new Date(last) : null;
       const nextDate = lastDate ? new Date(lastDate.getTime() + 5 * 60 * 1000) : null;
-      setSyncClock({ lastSync: lastDate, nextSync: nextDate });
+      // só atualiza se mudou: setState com objeto novo a cada 30 s re-renderiza o Dashboard todo
+      setSyncClock((atual) =>
+        atual.lastSync?.getTime() === lastDate?.getTime() && atual.nextSync?.getTime() === nextDate?.getTime()
+          ? atual
+          : { lastSync: lastDate, nextSync: nextDate },
+      );
     }
     updateSyncClock();
     const tClock = setInterval(updateSyncClock, 30_000);
 
     return () => { clearInterval(t); clearInterval(tMeta); clearInterval(tClock); };
-  }, [load]);
+  }, [load, loadAgrupado]);
 
   // Apply pending flash from URL param once tasks finish loading
   useEffect(() => {
@@ -543,7 +567,12 @@ export default function Dashboard() {
   useEffect(() => { flashTaskRef.current = flashTask; });
   useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
   useEffect(() => {
-    const onRefresh = () => load();
+    // junta eventos muito próximos (cada chapa de um FUP em massa dispara um) numa recarga só
+    let adiar: ReturnType<typeof setTimeout> | undefined;
+    const onRefresh = () => {
+      if (adiar) clearTimeout(adiar);
+      adiar = setTimeout(() => { void loadAgrupado(); }, 200);
+    };
     const onFlash = (e: Event) => flashTaskRef.current((e as CustomEvent<number>).detail);
     const onRemoveChapa = (e: Event) => {
       const { taskId, chapaName } = (e as CustomEvent<{ taskId: number; chapaName: string }>).detail;
@@ -552,6 +581,7 @@ export default function Dashboard() {
         setAutoRemoveChapaName(chapaName);
       } else {
         // Visão cards: flash na tarefa + highlight no chapa específico
+        montarCardAgora(taskId); // o chapa só existe no DOM com o card montado
         flashTaskRef.current(taskId);
         setTimeout(() => {
           const normName = chapaName.toLowerCase().trim().replace(/\s+/g, " ");
@@ -562,18 +592,19 @@ export default function Dashboard() {
             chapaEl.classList.add("ring-2", "ring-destructive", "ring-inset", "rounded");
             setTimeout(() => chapaEl.classList.remove("ring-2", "ring-destructive", "ring-inset", "rounded"), 2500);
           }
-        }, 300);
+        }, 450);
       }
     };
     window.addEventListener("fup:refresh", onRefresh);
     window.addEventListener("fup:flash-task", onFlash);
     window.addEventListener("fup:remove-chapa", onRemoveChapa);
     return () => {
+      if (adiar) clearTimeout(adiar);
       window.removeEventListener("fup:refresh", onRefresh);
       window.removeEventListener("fup:flash-task", onFlash);
       window.removeEventListener("fup:remove-chapa", onRemoveChapa);
     };
-  }, [load]);
+  }, [loadAgrupado]);
 
   // Keyboard shortcuts (ignored when focus is inside an input/textarea)
   useEffect(() => {
@@ -688,17 +719,21 @@ export default function Dashboard() {
   const displayCards = useMemo(() => {
     const base = selectedDate === todayDateISO_SP()
       ? [...overnightContinuing, ...filteredToday]
-      : allDatesCards.filter((t) => fmtSP(t.data_tarefa, "yyyy-MM-dd") === selectedDate);
+      : allDatesCards.filter((t) => dataSP(t.data_tarefa) === selectedDate);
     if (hiddenCompanies.length === 0) return base;
     return base.filter((t) => !companyMatches(t.empresa, hiddenCompanies));
   }, [selectedDate, overnightContinuing, filteredToday, allDatesCards, hiddenCompanies]);
 
   const tasksForDisplay = isOnToday ? filteredToday : displayCards;
-  const overnightForDisplay = isOnToday
-    ? (hiddenCompanies.length > 0
-        ? overnightContinuing.filter((t) => !companyMatches(t.empresa, hiddenCompanies))
-        : overnightContinuing)
-    : [];
+  const overnightForDisplay = useMemo(
+    () =>
+      isOnToday
+        ? (hiddenCompanies.length > 0
+            ? overnightContinuing.filter((t) => !companyMatches(t.empresa, hiddenCompanies))
+            : overnightContinuing)
+        : ([] as TaskWithChapas[]),
+    [isOnToday, hiddenCompanies, overnightContinuing],
+  );
 
   const allCards = useMemo(() => {
     const base = [...overnightContinuing, ...filteredToday];
@@ -765,7 +800,7 @@ export default function Dashboard() {
   // por data (pendentes antes de concluídas dentro de cada data). Precisa
   // espelhar exatamente o que o bloco de render mais abaixo mostra na tela;
   // alimenta as setas prev/next do TaskCard (navegação entre tarefas).
-  const cardsOrder = useMemo(() => {
+  const cardsOrderCalculado = useMemo(() => {
     if (viewMode !== "detailed") return [] as number[];
     const overnightIds = overnightForDisplay
       .filter((t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)))
@@ -775,7 +810,7 @@ export default function Dashboard() {
     );
     const byDate = new Map<string, TaskWithChapas[]>();
     visible.forEach((t) => {
-      const k = fmtSP(t.data_tarefa, "yyyy-MM-dd");
+      const k = dataSP(t.data_tarefa);
       if (!byDate.has(k)) byDate.set(k, []);
       byDate.get(k)!.push(t);
     });
@@ -789,6 +824,19 @@ export default function Dashboard() {
     return [...overnightIds, ...dateIds];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, overnightForDisplay, tasksForDisplay, companyFilter, onlyNotUploaded, onlyNoUmblerFup, search, searchMatchIds]);
+  // Todo TaskCard recebe isto por prop: um array novo (mesmo com os mesmos ids) a cada
+  // vez que UM card muda — ex.: uma tarefa que acabou de começar vira "urgente" —
+  // anulava o memo e re-renderizava as centenas de cards (segundos de tela travada).
+  // Mantém a mesma referência enquanto a ordem for a mesma.
+  const cardsOrderRef = useRef<number[]>(cardsOrderCalculado);
+  if (
+    cardsOrderRef.current !== cardsOrderCalculado &&
+    (cardsOrderRef.current.length !== cardsOrderCalculado.length ||
+      cardsOrderRef.current.some((id, i) => id !== cardsOrderCalculado[i]))
+  ) {
+    cardsOrderRef.current = cardsOrderCalculado;
+  }
+  const cardsOrder = cardsOrderRef.current;
 
   // Tarefas visíveis na Timeline — mesmo filtro usado no render mais abaixo,
   // extraído aqui pra alimentar tanto o <TaskTimeline> quanto a ordem prev/
@@ -799,7 +847,7 @@ export default function Dashboard() {
     return tasksForDisplay.filter(
       (t) => passesExtraFilters(t)
         && (!searchMatchIds || searchMatchIds.has(t.id_tarefa))
-        && fmtSP(t.data_tarefa, "yyyy-MM-dd") === selectedDate,
+        && dataSP(t.data_tarefa) === selectedDate,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, tasksForDisplay, companyFilter, onlyNotUploaded, onlyNoUmblerFup, search, searchMatchIds, selectedDate]);
@@ -820,10 +868,12 @@ export default function Dashboard() {
   // as tarefas conhecidas localmente (allDatesCards, amostra maior que só o
   // dia selecionado), aplicada às tarefas do dia (displayCards) pra projetar
   // o pedido real quando entrarem Em Andamento. Ver lib/fillRatePrevisto.ts.
-  const confirmadosPorTarefa = new Map(
-    displayCards.map((t) => [t.id_tarefa, t.chapas.filter((c) => c.status_contato === "confirmado").length]),
-  );
-  const previsao = fillRatePrevisto(displayCards, confirmadosPorTarefa, allDatesCards);
+  const previsao = useMemo(() => {
+    const confirmadosPorTarefa = new Map(
+      displayCards.map((t) => [t.id_tarefa, t.chapas.filter((c) => c.status_contato === "confirmado").length]),
+    );
+    return fillRatePrevisto(displayCards, confirmadosPorTarefa, allDatesCards);
+  }, [displayCards, allDatesCards]);
   const fillTone = fillPct >= 80 ? "success" : fillPct >= 50 ? "warning" : "destructive";
   const validacaoPendente = displayCards.filter(
     (t) => (t.validacao_status ?? "aguardando") !== "subido_meu_chapa",
@@ -856,10 +906,30 @@ export default function Dashboard() {
     setForceCollapseMap((prev) => ({ ...prev, [fromId]: true, [toId]: false }));
     setTimeout(() => doFlash(toId), 260);
   }
+  // Callback estável por card (o TaskCard é memoizado: uma arrow nova a cada
+  // render do Dashboard anularia o memo).
+  const navigateCardRef = useRef(navigateCard);
+  navigateCardRef.current = navigateCard;
+  const navCallbacks = useRef(new Map<number, (toId: number) => void>());
+  const navCallbackDe = useCallback((id: number) => {
+    let f = navCallbacks.current.get(id);
+    if (!f) {
+      f = (toId: number) => navigateCardRef.current(id, toId);
+      navCallbacks.current.set(id, f);
+    }
+    return f;
+  }, []);
 
-  function doFlash(id: number) {
+  function doFlash(id: number, tentativa = 0) {
     const el = document.querySelector(`[data-task-card="${id}"]`) as HTMLElement | null;
     if (!el) return;
+    // Card fora da tela ainda é o quadro leve (ver LazyTaskCard): monta o de verdade
+    // antes de rolar/destacar.
+    if (el.hasAttribute("data-lazy") && tentativa < 5) {
+      montarCardAgora(id);
+      setTimeout(() => doFlash(id, tentativa + 1), 120);
+      return;
+    }
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     el.classList.add("ring-2", "ring-primary", "ring-offset-2");
     setTimeout(() => el.classList.remove("ring-2", "ring-primary", "ring-offset-2"), 500);
@@ -1348,7 +1418,7 @@ export default function Dashboard() {
           <AndamentoJustificationAlert
             tasks={allCards}
             onFlashTask={flashTask}
-            onRefresh={() => load()}
+            onRefresh={loadAgrupado}
           />
           <AlertBanner
             tasks={allCards}
@@ -1485,17 +1555,18 @@ export default function Dashboard() {
           </h2>
           {overnightForDisplay
             .filter((t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)))
-            .map((t) => (
-              <TaskCard
+            .map((t, i) => (
+              <LazyTaskCard
+                eager={i < 3}
                 key={`ov-${t.id_tarefa}`}
                 task={t}
-                onRefresh={load}
+                onRefresh={loadAgrupado}
                 forceCollapse={forceCollapseMap[t.id_tarefa]}
                 matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                 newChapaKeys={newChapaKeys}
                 confiabilidade={confiabilidade}
                 cardsOrder={cardsOrder}
-                onNavigateCard={(toId) => navigateCard(t.id_tarefa, toId)}
+                onNavigateCard={navCallbackDe(t.id_tarefa)}
               />
             ))}
         </section>
@@ -1643,7 +1714,7 @@ export default function Dashboard() {
           overnightTasks={overnightForDisplay.filter(
             (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
           )}
-          onRefresh={load}
+          onRefresh={loadAgrupado}
           threshold={readSettings().fillRateWarningThreshold}
           autoOpenTaskId={autoOpenTaskId ?? undefined}
           autoRemoveChapaName={autoRemoveChapaName ?? undefined}
@@ -1701,17 +1772,18 @@ export default function Dashboard() {
                       </span>
                       <div className="flex-1 h-px bg-border" />
                     </div>
-                    {pending.map((t) => (
-                      <TaskCard
+                    {pending.map((t, i) => (
+                      <LazyTaskCard
+                        eager={i < 3}
                         key={t.id_tarefa}
                         task={t}
-                        onRefresh={load}
+                        onRefresh={loadAgrupado}
                         forceCollapse={forceCollapseMap[t.id_tarefa]}
                         matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                         newChapaKeys={newChapaKeys}
                         confiabilidade={confiabilidade}
                         cardsOrder={cardsOrder}
-                        onNavigateCard={(toId) => navigateCard(t.id_tarefa, toId)}
+                        onNavigateCard={navCallbackDe(t.id_tarefa)}
                       />
                     ))}
                   </>
@@ -1728,16 +1800,16 @@ export default function Dashboard() {
                       <div className="flex-1 h-px bg-border" />
                     </div>
                     {done.map((t) => (
-                      <TaskCard
+                      <LazyTaskCard
                         key={t.id_tarefa}
                         task={t}
-                        onRefresh={load}
+                        onRefresh={loadAgrupado}
                         forceCollapse={forceCollapseMap[t.id_tarefa]}
                         matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
                         newChapaKeys={newChapaKeys}
                         confiabilidade={confiabilidade}
                         cardsOrder={cardsOrder}
-                        onNavigateCard={(toId) => navigateCard(t.id_tarefa, toId)}
+                        onNavigateCard={navCallbackDe(t.id_tarefa)}
                       />
                     ))}
                   </>
@@ -1755,7 +1827,7 @@ export default function Dashboard() {
       )}
       </div>
 
-      <ApproachingAlert tasks={allCards} onRefresh={() => load(false)} />
+      <ApproachingAlert tasks={allCards} onRefresh={loadAgrupado} />
       {diffResult && (
         <RefreshDiff
           diff={diffResult}
@@ -1840,7 +1912,7 @@ export default function Dashboard() {
             task={overlayTask}
             open={timelineOverlayTaskId !== null}
             onClose={() => setTimelineOverlayTaskId(null)}
-            onRefresh={() => load()}
+            onRefresh={loadAgrupado}
             orderedIds={timelineOrderedIds}
             onNavigateTask={(id) => setTimelineOverlayTaskId(id)}
           />

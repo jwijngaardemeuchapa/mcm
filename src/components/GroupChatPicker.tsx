@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { searchUmblerGroupChats, humanizarErroUmbler, type UmblerChatSummary } from "@/lib/umbler";
 import { type UmblerSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
+import { invalidarClienteBook } from "@/lib/useClienteInfo";
 import { toast } from "sonner";
 
 type GroupChatPickerProps = {
@@ -66,6 +67,7 @@ export function GroupChatPicker({
         "UPDATE cliente_book SET umbler_group_chat_id = ? WHERE id = ?",
         [chat.id, clienteId],
       );
+      invalidarClienteBook();
       onLinked(chat.id);
       toast.success(`Grupo "${chat.contactName}" vinculado a ${clienteNome}`);
       onOpenChange(false);

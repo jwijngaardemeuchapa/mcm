@@ -1,4 +1,4 @@
-import { fmtSP } from "./datetime";
+import { dataSP } from "./datetime";
 
 // Carga do Dashboard (ver Dashboard.load). Antes ele lia as tabelas INTEIRAS
 // (tarefas, chapas, fup_log, chat_links — todo o histórico, que só cresce) a
@@ -117,14 +117,14 @@ export function recortesDashboard<T extends TarefaLinha>(
     if (t.status_tarefa === "Finalizado") return false;
     if (t.status_tarefa?.toLowerCase().startsWith("cancel")) return false;
     // Todas as datas >= hoje (hoje + futuras presentes na importação)
-    if (fmtSP(t.data_tarefa, "yyyy-MM-dd") < todayISO) return false;
+    if (dataSP(t.data_tarefa) < todayISO) return false;
     return inCarteira(t.empresa);
   });
 
   const yesterdayOvernight = ativas.filter((t) => {
     if (!t.is_overnight) return false;
     if (t.status_tarefa?.toLowerCase().startsWith("cancel")) return false;
-    if (fmtSP(t.data_tarefa, "yyyy-MM-dd") !== yISO) return false;
+    if (dataSP(t.data_tarefa) !== yISO) return false;
     if ((t.validacao_status ?? "aguardando") === "subido_meu_chapa") return false;
     return inCarteira(t.empresa);
   });
@@ -144,6 +144,34 @@ export function assinatura(valor: unknown): string {
   return JSON.stringify(valor, (_chave, v) =>
     v instanceof Map ? { __map: [...v.entries()] } : v instanceof Set ? { __set: [...v.values()] } : v,
   );
+}
+
+export type CartoesGuardados<T> = Map<number, { sig: string; card: T }>;
+
+/**
+ * Mantém a MESMA referência dos cards que não mudaram desde o último load.
+ * Sem isso, todo load que muda UMA chapa gera objetos novos para TODOS os cards e
+ * o React (mesmo com TaskCard memoizado) re-renderiza as centenas de uma vez; com
+ * isso só o card que mudou de verdade refaz. Igualdade = mesma assinatura (o card
+ * inteiro, incluindo chapas e fup_log), então reaproveitar nunca esconde mudança.
+ */
+export function reaproveitarCartoes<T extends { id_tarefa: number }>(
+  anteriores: CartoesGuardados<T>,
+  novos: T[],
+): { lista: T[]; guardados: CartoesGuardados<T>; sig: string } {
+  const guardados: CartoesGuardados<T> = new Map();
+  const sigs: string[] = [];
+  const lista = novos.map((c) => {
+    // card é dado puro (sem Map/Set): JSON.stringify direto é bem mais rápido que a
+    // versão com replacer, e roda pra milhares de cards a cada ciclo
+    const sig = JSON.stringify(c);
+    const ant = anteriores.get(c.id_tarefa);
+    const card = ant && ant.sig === sig ? ant.card : c;
+    guardados.set(c.id_tarefa, { sig, card });
+    sigs.push(sig);
+    return card;
+  });
+  return { lista, guardados, sig: sigs.join("§") };
 }
 
 // Só chama o setState se o valor mudou desde a última aplicação (por chave).

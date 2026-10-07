@@ -36,7 +36,7 @@ import { ObservationsPanel } from "@/components/ObservationsPanel";
 import { FillRateBar } from "@/components/FillRateBar";
 import { useClienteInfo } from "@/lib/useClienteInfo";
 import { pushChapaStatusToCentral, pushPaymentRequestToCentral } from "@/lib/central";
-import { useUndo } from "@/lib/undo";
+import { useUndoActions } from "@/lib/undo";
 import { getDb, errMsg } from "@/lib/db";
 import { canalConfirmacao } from "@/lib/prefup";
 import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
@@ -48,7 +48,7 @@ import { dispatchQueue, type ChapaSnap, type TaskSnap } from "@/lib/dispatchQueu
 import { useChapaJobState, useTaskCancelState, useMassFupState, useCustomMsgState } from "@/lib/useDispatchJob";
 import { type TaskWithChapas, UnreadDot, AndamentoJustificationBadge } from "@/components/TaskCard";
 import { last11Digits } from "@/lib/umbler";
-import { useWatcherLog } from "@/lib/WatcherContext";
+import { useUnreadChats } from "@/lib/WatcherContext";
 import { setActiveTaskNav } from "@/lib/taskNav";
 import { needsAndamentoJustification } from "@/lib/taskState";
 import { findChatLinkForChapa } from "@/lib/chatLinks";
@@ -205,10 +205,10 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   const [paymentValores, setPaymentValores] = useState<Record<string, string>>({});
   const [paymentMotivo, setPaymentMotivo] = useState("");
   const [paymentSending, setPaymentSending] = useState(false);
-  const { push } = useUndo();
+  const { push } = useUndoActions();
   const umblerSettings = readSettings().umblerSettings;
   const [clienteInfo, reloadClienteInfo] = useClienteInfo(task?.empresa ?? "");
-  const { unreadPhones, unreadChatIds } = useWatcherLog();
+  const { unreadPhones, unreadChatIds } = useUnreadChats();
 
   const umblerReady = !!(umblerSettings.bearerToken && umblerSettings.fromPhone && umblerSettings.organizationId);
   const cancelTemplateReady = umblerReady && !!umblerSettings.cancelTemplateId;

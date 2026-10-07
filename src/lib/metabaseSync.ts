@@ -4,6 +4,7 @@ import { readSettings } from "./settings";
 import { ingestTarefas } from "./ingestTarefas";
 import { getDb, uuid } from "./db";
 import { companyMatches } from "./company";
+import { invalidarClienteBook } from "./useClienteInfo";
 import { normalize } from "./normalize";
 import { fmtSP, todayDateISO_SP, tomorrowDateISO_SP } from "./datetime";
 import { pullTarefasFromCentral, syncRegistroFromCentral } from "./central";
@@ -261,6 +262,7 @@ export async function sincronizarEnderecos(silent = false): Promise<boolean> {
       }
     }
 
+    invalidarClienteBook();
     localStorage.setItem("enderecos_last_sync", now);
     if (!silent) toast.success(`Endereços sincronizados — ${enderecosNovos} novos em ${empresasAtualizadas} empresas`);
     return true;

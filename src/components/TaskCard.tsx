@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import {
@@ -73,7 +73,7 @@ import { ValidationStepper, type ValidationStep } from "./ValidationStepper";
 import { ValidationPanel } from "./ValidationPanel";
 import { ObservationsPanel } from "./ObservationsPanel";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate, taskTzLabel, minutesUntil } from "@/lib/datetime";
-import { useUndo } from "@/lib/undo";
+import { useUndoActions } from "@/lib/undo";
 import { readSettings, writeSettings, type UmblerSettings } from "@/lib/settings";
 import { ChatSheet } from "@/components/ChatSheet";
 import { GroupChatPicker } from "@/components/GroupChatPicker";
@@ -88,7 +88,7 @@ import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgStat
 import { umblerChatLink, last11Digits } from "@/lib/umbler";
 import { pushChapaStatusToCentral } from "@/lib/central";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useWatcherLog } from "@/lib/WatcherContext";
+import { useUnreadChats } from "@/lib/WatcherContext";
 
 async function clipboardWrite(text: string, successMsg: string) {
   try {
@@ -253,7 +253,7 @@ function formatPhone(s: string | null): string {
   return s;
 }
 
-export function TaskCard({
+function TaskCardBase({
   task,
   onRefresh,
   forceCollapse,
@@ -300,7 +300,7 @@ export function TaskCard({
   const [fupOpen, setFupOpen] = useState(false);
   const [newFupCanal, setNewFupCanal] = useState("whatsapp_web");
   const [newFupObs, setNewFupObs] = useState("");
-  const { push, undo } = useUndo();
+  const { push, undo } = useUndoActions();
   const [csvExportedAt, setCsvExportedAt] = useState<string | null>(() => getCsvExportedAt(task.id_tarefa));
   const [taskCancelSent, setTaskCancelSent] = useState(() => {
     try { return !!localStorage.getItem(`umbler_task_cancel_${task.id_tarefa}`); } catch { return false; }
@@ -347,7 +347,7 @@ export function TaskCard({
 
   // MCM-159: mensagem nova no Umbler (chapa ou grupo do cliente) mesmo com a
   // tarefa colapsada/minimizada — agregado pro ponto no header do card.
-  const { unreadPhones, unreadChatIds } = useWatcherLog();
+  const { unreadPhones, unreadChatIds } = useUnreadChats();
   const taskHasUnread =
     task.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa))) ||
     (!!clienteInfo?.umbler_group_chat_id && unreadChatIds.has(clienteInfo.umbler_group_chat_id));
@@ -878,9 +878,15 @@ Precisamos de 1 substituto para esta tarefa.`;
   // Countdown timers (massFup, taskCancel, chapaJob) live in dispatchQueue (module-level)
   // so they are intentionally not cleaned up here — they survive navigation.
 
+  // Relógio do "há X min" de cada card. Com centenas de cards montados no mesmo
+  // instante, um setInterval igual pra todos disparava os re-renders juntos (uns
+  // segundos de tela travada a cada 2 min): começa num momento aleatório pra espalhar,
+  // e não faz nada com a janela escondida.
   useEffect(() => {
-    const id = setInterval(() => setNowTs(Date.now()), 120_000);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | undefined;
+    const tick = () => { if (!document.hidden) setNowTs(Date.now()); };
+    const inicio = setTimeout(() => { tick(); id = setInterval(tick, 120_000); }, Math.random() * 120_000);
+    return () => { clearTimeout(inicio); if (id) clearInterval(id); };
   }, []);
 
   // Sync "sent" flags when queue completes (massFupState / taskCancelState → null)
@@ -2004,7 +2010,7 @@ function ChapaRowView({
   // MCM-159: ponto vermelho por chapa — some sozinho no próximo poll do
   // WatcherContext (~40s) quando `totalUnread` zerar no servidor (a
   // conversa foi aberta/lida), sem precisar de uma camada própria de "visto".
-  const { unreadPhones: chapaUnreadPhones } = useWatcherLog();
+  const { unreadPhones: chapaUnreadPhones } = useUnreadChats();
   const chapaHasUnread = !!chapa.telefone_chapa && chapaUnreadPhones.has(last11Digits(chapa.telefone_chapa));
 
   // cancelSent is stored in localStorage so it persists across re-renders / refreshes
@@ -2506,3 +2512,9 @@ function RowMenu({
     </DropdownMenu>
   );
 }
+
+// Memoizado: o Dashboard re-renderiza por qualquer estado (relógio de sync,
+// filtros...) e antes isso re-renderizava as centenas de cards junto. Agora o
+// card só refaz quando o que ele recebe muda de fato (o Dashboard mantém a
+// identidade de task/callbacks estável quando nada mudou).
+export const TaskCard = memo(TaskCardBase);

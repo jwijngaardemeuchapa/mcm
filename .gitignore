@@ -56,3 +56,6 @@ FUP_Manager_Documentacao.md
 "dashboard de BID.txt"
 dashboard.csv
 logo_meuchapa.png
+
+# Bancada de performance (scripts/perf-bench): saída do build
+scripts/perf-bench/.dist

@@ -6,7 +6,7 @@ import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed } from "
 import { computeTaskState, taskSeverityBlockClass, needsAndamentoJustification } from "@/lib/taskState";
 import { readSettings } from "@/lib/settings";
 import { last11Digits } from "@/lib/umbler";
-import { useWatcherLog } from "@/lib/WatcherContext";
+import { useUnreadChats } from "@/lib/WatcherContext";
 
 interface TaskTimelineProps {
   tasks: TaskWithChapas[];
@@ -24,7 +24,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
   // MCM-159: agregado por tarefa (bloco denso, sem linha por chapa) — só
   // considera chapas por telefone, mesmo trade-off do TaskPanorama (grupo do
   // cliente ficaria de fora pra não disparar 1 query por tarefa).
-  const { unreadPhones } = useWatcherLog();
+  const { unreadPhones } = useUnreadChats();
 
   const { startHour, endHour, processedTasks } = useMemo(() => {
     if (tasks.length === 0) return { startHour: 6, endHour: 18, processedTasks: [] };
