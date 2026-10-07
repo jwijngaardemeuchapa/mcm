@@ -212,3 +212,7 @@ waiting for file lock"). Receita que funcionou:
   `npx tauri signer sign "<exe>"` no Git Bash.
 - Não trocar de branch com o build rodando (o empacotamento ainda lê
   `tauri.conf.json`).
+
+## 2026-10-07 — Rotina periódica nunca lê tabela inteira (nem filtra a lista inteira por item)
+
+`Dashboard.load()` rodava a cada 30 s com `SELECT *` das tabelas inteiras + `.filter()` das listas inteiras por card: custo quadrático no histórico, imperceptível nas primeiras semanas e, depois, segundos de CPU na thread da interface (clique atrasa, ventoinha sobe). Regras: (1) toda leitura em loop/intervalo precisa de janela (data/status) feita no SQL; (2) casar linhas de N listas por chave = agrupar em `Map` uma vez, nunca `.filter()` dentro de `.map()`; (3) ordenar por data = calcular o timestamp uma vez, não `new Date()` no comparador; (4) `setState` com array novo a cada ciclo re-renderiza tudo quando o componente filho não é memoizado — comparar conteúdo antes de aplicar; (5) comando Tauri síncrono roda na thread da janela — I/O periódico vai com `#[tauri::command(async)]`. Pra provar que uma janela de dados não muda o resultado: teste diferencial com SQLite real (`createRequire(import.meta.url)("node:sqlite")` funciona no vitest) comparando carga antiga × nova, e uma mutação (encolher a janela) pra ver o teste falhar. Teste que contém o algoritmo antigo (lento de propósito) precisa de timeout explícito — o padrão do vitest é 5 s.

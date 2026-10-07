@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-07 (Sonnet 5.5, 2ª entrada do dia) — ver JOURNAL.md.
+
+**Releases publicadas hoje:** main v1.0.70 / beta v1.0.74 (mensagem por empresa + copiar ID da tarefa+nome+telefone). **Depois delas, commitado e NÃO lançado:** correção de travamento ao clicar (Dashboard.load lia tabelas inteiras a cada 30 s; carga por janela + mapas + menos re-render + comandos Rust async). Próxima release seria main v1.0.71 / beta v1.0.75 — perguntar ao usuário (sugerir beta primeiro). Não testado em tela real.
+
+---
+
 **Data:** 2026-10-07 (Sonnet 5.5) — ver JOURNAL.md.
 
 **Commitado em main e beta, NÃO lançado:** (1) mensagem automática pós-confirmação agora com mensagem própria por empresa (resto = padrão); (2) opção "ID + nome + telefone" nas cópias (TaskCard, TaskDetailPanel, BID Dashboard). Próxima release seria main v1.0.70 / beta v1.0.74. Não clicado em tela (só typecheck + testes). Banco da Central continuava fora do ar em 05-07/10 (migration do chat_ref pendente).
