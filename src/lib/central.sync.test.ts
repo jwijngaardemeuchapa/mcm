@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// o primeiro import de ./central carrega um grafo grande; com a suíte inteira rodando em
+// paralelo estourava os 5 s padrão (passa em ~3 s sozinho)
+vi.setConfig({ testTimeout: 30_000 });
+
 const execMock = vi.fn();
 const selectMock = vi.fn();
 vi.mock("./db", () => ({ getDb: async () => ({ execute: execMock, select: selectMock }) }));
