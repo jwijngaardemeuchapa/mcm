@@ -118,7 +118,7 @@ export function useNotificationWatcher(
             if (parentTask) {
               const canal = await canalConfirmacao(parentTask.id_tarefa, found.id).catch(() => null);
               enviarMensagemPosConfirmacao(
-                [{ idTarefa: parentTask.id_tarefa, chapaId: found.id, nome: found.nome_chapa, telefone: found.telefone_chapa }],
+                [{ idTarefa: parentTask.id_tarefa, chapaId: found.id, nome: found.nome_chapa, telefone: found.telefone_chapa, empresa: parentTask.empresa }],
                 canal === "prefup" ? "prefup" : "fup",
               );
             }

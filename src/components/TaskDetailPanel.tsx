@@ -40,6 +40,7 @@ import { useUndo } from "@/lib/undo";
 import { getDb, errMsg } from "@/lib/db";
 import { canalConfirmacao } from "@/lib/prefup";
 import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
+import { linhaIdNomeTelefone } from "@/lib/copyFormats";
 import { readSettings, writeSettings } from "@/lib/settings";
 import { fmtTime, fmtDateTime, fmtSP, parseTaskDate } from "@/lib/datetime";
 import { toast } from "sonner";
@@ -366,7 +367,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
       return;
     }
     enviarMensagemPosConfirmacao(
-      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa })),
+      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa, empresa: task.empresa })),
       "manual",
     );
     push({
@@ -573,7 +574,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     }
     if (patch.status_contato === "confirmado") {
       enviarMensagemPosConfirmacao(
-        [{ idTarefa: task!.id_tarefa, chapaId, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa }],
+        [{ idTarefa: task!.id_tarefa, chapaId, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa, empresa: task!.empresa }],
         "manual",
       );
     }
@@ -624,6 +625,23 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
     const lines = confirmados.map((c) => `${c.nome_chapa}${c.telefone_chapa ? ` - ${c.telefone_chapa}` : ""}`);
     clipboardWrite(lines.join("\n"), `${confirmados.length} confirmado(s) copiado(s)`);
+  }
+
+  // Mesmas duas listas (confirmados / todos), com o ID da tarefa no começo de
+  // cada linha (`#id | nome | telefone`) — pra colar onde várias tarefas se
+  // misturam sem perder de qual cada chapa é.
+  function copyConfirmedIdList() {
+    const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
+    if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
+    const lines = confirmados.map((c) => linhaIdNomeTelefone(task!.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    clipboardWrite(lines.join("\n"), `${confirmados.length} confirmado(s) copiado(s) com ID da tarefa`);
+  }
+
+  function copyAllIdList() {
+    const ativos = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    if (ativos.length === 0) { toast.error("Nenhum ajudante nesta tarefa"); return; }
+    const lines = ativos.map((c) => linhaIdNomeTelefone(task!.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    clipboardWrite(lines.join("\n"), `${ativos.length} ajudante(s) copiado(s) com ID da tarefa`);
   }
 
   // Todos os ajudantes da tarefa (não só confirmados) — existia no TaskCard
@@ -944,6 +962,12 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                   <DropdownMenuItem onClick={copyConfirmedList}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={copyAllIdList}>
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone de todos
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={copyConfirmedIdList}>
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone dos confirmados
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={copyAllNamesAndCpf}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
                   </DropdownMenuItem>
@@ -1208,6 +1232,17 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                       >
                         <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" />
                         Copiar nome + telefone
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          clipboardWrite(
+                            linhaIdNomeTelefone(task.id_tarefa, selectedChapa.nome_chapa, selectedChapa.telefone_chapa),
+                            "ID, nome e telefone copiados",
+                          )
+                        }
+                      >
+                        <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" />
+                        Copiar ID + nome + telefone
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => updateChapaStatus(selectedChapa.id, { status_contato: "nao_respondeu" }, `não respondeu — ${selectedChapa.nome_chapa}`)}
@@ -1715,6 +1750,16 @@ function CompactChapaRow({
             }}
           >
             <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar nome + telefone
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              clipboardWrite(
+                linhaIdNomeTelefone(taskSnap.id_tarefa, c.nome_chapa, c.telefone_chapa),
+                "ID, nome e telefone copiados",
+              )
+            }
+          >
+            <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar ID + nome + telefone
           </DropdownMenuItem>
           {c.telefone_chapa && (taskCancelTemplateReady || everSentTask) && (
             <DropdownMenuItem

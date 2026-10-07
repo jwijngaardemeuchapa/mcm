@@ -26,6 +26,7 @@ import {
   GanttChart,
   UserMinus,
   MessageSquare,
+  X,
 } from "lucide-react";
 import { getLeoConfig, saveLeoConfig, syncLeo, extractSpreadsheetId, parseRespostasBidCsv } from "@/pages/AnaliseBase/modules/M_leo";
 import { Input } from "@/components/ui/input";
@@ -101,11 +102,17 @@ export default function Configuracoes() {
   function atualizarMsgAuto(patch: Partial<typeof msgAuto>) {
     setSettings(writeSettings({ mensagemPosConfirmacao: { ...msgAuto, ...patch } }));
   }
-  function editarMensagem(id: string, patch: { nome?: string; texto?: string }) {
+  function editarMensagem(id: string, patch: { nome?: string; texto?: string; empresas?: string[] }) {
     atualizarMsgAuto({ mensagens: msgAuto.mensagens.map((m) => (m.id === id ? { ...m, ...patch } : m)) });
   }
+  // Cada empresa só pode ter UMA mensagem própria — senão não dá pra saber qual
+  // vale. Empresa já usada em outra mensagem aparece desabilitada no seletor.
+  function empresaEmUsoPor(nome: string, ignorarId: string): string | null {
+    const dono = msgAuto.mensagens.find((m) => m.id !== ignorarId && m.empresas.includes(nome));
+    return dono ? dono.nome : null;
+  }
   function adicionarMensagem() {
-    const nova = { id: crypto.randomUUID(), nome: "Nova mensagem", texto: "" };
+    const nova = { id: crypto.randomUUID(), nome: "Nova mensagem", texto: "", empresas: [] as string[] };
     atualizarMsgAuto({
       mensagens: [...msgAuto.mensagens, nova],
       mensagemAtivaId: msgAuto.mensagemAtivaId ?? nova.id,
@@ -1118,7 +1125,8 @@ export default function Configuracoes() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">Mensagens salvas</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Marque qual fica ativa — só uma é enviada por vez. Troque quando quiser.
+                    A marcada como padrão vai para todas as empresas. Uma mensagem com empresas
+                    escolhidas vai só para elas, no lugar da padrão.
                   </p>
                 </div>
                 <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={adicionarMensagem}>
@@ -1146,7 +1154,7 @@ export default function Configuracoes() {
                         <div className="flex items-center gap-2">
                           <RadioGroupItem value={m.id} id={`msg-auto-${m.id}`} />
                           <label htmlFor={`msg-auto-${m.id}`} className="text-xs font-semibold text-muted-foreground cursor-pointer shrink-0">
-                            {ativa ? "Ativa" : "Usar esta"}
+                            {ativa ? "Padrão" : "Tornar padrão"}
                           </label>
                           <Input
                             value={m.nome}
@@ -1171,6 +1179,54 @@ export default function Configuracoes() {
                           rows={7}
                           className="text-sm"
                         />
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Só para estas empresas
+                            {m.empresas.length === 0 && (
+                              <span className="font-normal"> — opcional; sem empresas, só vale se for a padrão</span>
+                            )}
+                          </p>
+                          {m.empresas.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {m.empresas.map((nome) => (
+                                <span
+                                  key={nome}
+                                  className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs"
+                                >
+                                  {nome}
+                                  <button
+                                    type="button"
+                                    aria-label={`Remover ${nome}`}
+                                    onClick={() => editarMensagem(m.id, { empresas: m.empresas.filter((e) => e !== nome) })}
+                                    className="text-muted-foreground hover:text-destructive"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <Select
+                            value=""
+                            onValueChange={(nome) => editarMensagem(m.id, { empresas: [...m.empresas, nome] })}
+                          >
+                            <SelectTrigger className="h-8 w-full max-w-xs text-xs" aria-label={`Adicionar empresa a ${m.nome}`}>
+                              <SelectValue placeholder={companies.length > 0 ? "Adicionar empresa…" : "Sem empresas na Carteira"} />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[260px]">
+                              {companies.map((c) => {
+                                const dono = empresaEmUsoPor(c, m.id);
+                                const jaAqui = m.empresas.includes(c);
+                                return (
+                                  <SelectItem key={c} value={c} disabled={!!dono || jaAqui}>
+                                    {c}
+                                    {dono ? ` — já em "${dono}"` : jaAqui ? " — adicionada" : ""}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     );
                   })}
@@ -1178,7 +1234,8 @@ export default function Configuracoes() {
               )}
               {msgAuto.ativo && !msgAuto.mensagens.some((m) => m.id === msgAuto.mensagemAtivaId && m.texto.trim()) && (
                 <p className="text-xs text-warning">
-                  O envio está ligado, mas não há mensagem ativa com texto — nada será enviado.
+                  O envio está ligado, mas não há mensagem padrão com texto — só as empresas que têm
+                  mensagem própria vão receber alguma coisa.
                 </p>
               )}
             </div>

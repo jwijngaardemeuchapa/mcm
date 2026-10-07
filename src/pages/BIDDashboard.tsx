@@ -18,6 +18,7 @@ import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
 import { companyMatches } from "@/lib/company";
 import { cepGeocoder, cityGeocoder } from "@/lib/geocode";
+import { linhaIdNomeTelefone } from "@/lib/copyFormats";
 import { toast } from "sonner";
 import { getLeoCache, parseRespostasBidCsv, getLeoConfig, syncLeo, normalizePhone } from "@/pages/AnaliseBase/modules/M_leo";
 import type { LeoMetrics } from "@/pages/AnaliseBase/types";
@@ -44,6 +45,7 @@ import {
   RefreshCw,
   MapPin,
   Phone,
+  ClipboardList,
   Send,
   Check,
   X,
@@ -415,6 +417,33 @@ async function clipCopy(text: string, msg: string) {
     document.body.removeChild(ta);
   }
   toast.success(msg);
+}
+
+// Botão pequeno "ID da tarefa + nome + telefone" pras linhas que já estão
+// dentro de uma tarefa específica (recomendados, leads, novos, respostas).
+function CopyIdNomeTelBtn({
+  idTarefa,
+  nome,
+  telefone,
+}: {
+  idTarefa: number;
+  nome: string;
+  telefone: string | null | undefined;
+}) {
+  return (
+    <button
+      type="button"
+      title="Copiar ID da tarefa + nome + telefone"
+      aria-label="Copiar ID da tarefa, nome e telefone"
+      onClick={(e) => {
+        e.stopPropagation();
+        void clipCopy(linhaIdNomeTelefone(idTarefa, nome, telefone), "ID, nome e telefone copiados");
+      }}
+      className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <ClipboardList className="h-3 w-3" />
+    </button>
+  );
 }
 
 /* ── Constants ──────────────────────────────────────────────────── */
@@ -2625,7 +2654,10 @@ function BidTaskCard({
                                 </span>
                               )}
                             </div>
-                            {it.telefone && <span className="text-[10px] text-muted-foreground">{it.telefone}</span>}
+                            <div className="flex items-center gap-1.5">
+                              {it.telefone && <span className="text-[10px] text-muted-foreground">{it.telefone}</span>}
+                              <CopyIdNomeTelBtn idTarefa={task.id_tarefa} nome={it.nome} telefone={it.telefone} />
+                            </div>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {it.telefone && (
@@ -2808,6 +2840,7 @@ function BidTaskCard({
                                   {r.telefone}
                                 </button>
                               )}
+                              <CopyIdNomeTelBtn idTarefa={task.id_tarefa} nome={r.nome} telefone={r.telefone} />
                               {r.data_criacao && <span>desde {r.data_criacao}</span>}
                             </div>
                           </div>
@@ -2967,12 +3000,15 @@ function BidTaskCard({
                             );
                           })()}
                         </div>
-                        {c.telefone && (
-                          <button type="button" onClick={() => clipCopy(c.telefone!.replace(/\D/g, ""), "Telefone copiado")}
-                            className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5">
-                            <Phone className="h-2.5 w-2.5" />{c.telefone}
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {c.telefone && (
+                            <button type="button" onClick={() => clipCopy(c.telefone!.replace(/\D/g, ""), "Telefone copiado")}
+                              className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5">
+                              <Phone className="h-2.5 w-2.5" />{c.telefone}
+                            </button>
+                          )}
+                          <CopyIdNomeTelBtn idTarefa={task.id_tarefa} nome={c.nome} telefone={c.telefone} />
+                        </div>
                         {c.bairro && <div className="text-[10px] text-muted-foreground/40 mt-0.5 truncate">{c.bairro}</div>}
                       </div>
                       <div className="text-xs tabular-nums">
@@ -3111,10 +3147,13 @@ function BidTaskCard({
                           className="font-medium text-sm hover:text-primary hover:underline">
                           {d.chapa_nome}
                         </button>
-                        <button type="button" onClick={() => clipCopy(d.chapa_telefone.replace(/\D/g, ""), "Telefone copiado")}
-                          className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5">
-                          <Phone className="h-2.5 w-2.5" /> {d.chapa_telefone}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => clipCopy(d.chapa_telefone.replace(/\D/g, ""), "Telefone copiado")}
+                            className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5">
+                            <Phone className="h-2.5 w-2.5" /> {d.chapa_telefone}
+                          </button>
+                          <CopyIdNomeTelBtn idTarefa={task.id_tarefa} nome={d.chapa_nome} telefone={d.chapa_telefone} />
+                        </div>
                       </div>
                       <div className="text-[11px] text-muted-foreground space-y-0.5 shrink-0">
                         <div>Disparo: {fmtDateTime(d.data_disparo)}</div>

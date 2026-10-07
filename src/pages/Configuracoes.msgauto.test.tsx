@@ -34,7 +34,7 @@ describe("Configurações — mensagem automática ao confirmar", () => {
     expect(screen.getByText("Mensagem automática ao confirmar")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Orientações pré-tarefa")).toBeInTheDocument();
     expect(screen.getByDisplayValue(/Calça comprida jeans/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Ativa")).toBeChecked();
+    expect(screen.getByLabelText("Padrão")).toBeChecked();
     const card = screen.getByText("Mensagem automática ao confirmar").closest("div[id='cfg-msg-auto']") as HTMLElement;
     expect(within(card).getByRole("switch")).toHaveAttribute("aria-checked", "false");
   });
@@ -65,7 +65,7 @@ describe("Configurações — mensagem automática ao confirmar", () => {
     expect(salvo().mensagemAtivaId).toBe("orientacoes-pre-tarefa");
 
     const nova = salvo().mensagens[1];
-    fireEvent.click(within(card).getByLabelText("Usar esta"));
+    fireEvent.click(within(card).getByLabelText("Tornar padrão"));
     expect(salvo().mensagemAtivaId).toBe(nova.id);
 
     fireEvent.click(within(card).getByRole("button", { name: /Excluir Nova mensagem/ }));
@@ -85,6 +85,6 @@ describe("Configurações — mensagem automática ao confirmar", () => {
       }),
     );
     render(<Configuracoes />);
-    expect(screen.getByText(/não há mensagem ativa com texto/)).toBeInTheDocument();
+    expect(screen.getByText(/não há mensagem padrão com texto/)).toBeInTheDocument();
   });
 });

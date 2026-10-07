@@ -6,7 +6,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn() } }));
 
 import { enviarMensagemPosConfirmacao, type AlvoMensagem } from "./mensagemPosConfirmacao";
 
-const alvo: AlvoMensagem = { idTarefa: 10, chapaId: "c1", nome: "João", telefone: "(11) 99999-0000" };
+const alvo: AlvoMensagem = { idTarefa: 10, chapaId: "c1", nome: "João", telefone: "(11) 99999-0000", empresa: "Acme" };
 
 function config(over: Record<string, unknown> = {}) {
   localStorage.setItem(
@@ -16,7 +16,7 @@ function config(over: Record<string, unknown> = {}) {
       mensagemPosConfirmacao: {
         ativo: true,
         gatilhos: { prefup: true, fup: true, manual: false },
-        mensagens: [{ id: "m", nome: "M", texto: "Olá!" }],
+        mensagens: [{ id: "m", nome: "M", texto: "Olá!", empresas: [] }],
         mensagemAtivaId: "m",
         ...over,
       },
@@ -81,7 +81,7 @@ describe("enviarMensagemPosConfirmacao", () => {
         mensagemPosConfirmacao: {
           ativo: true,
           gatilhos: { prefup: true, fup: true, manual: true },
-          mensagens: [{ id: "m", nome: "M", texto: "Olá!" }],
+          mensagens: [{ id: "m", nome: "M", texto: "Olá!", empresas: [] }],
           mensagemAtivaId: "m",
         },
       }),
@@ -89,6 +89,31 @@ describe("enviarMensagemPosConfirmacao", () => {
     enviarMensagemPosConfirmacao([alvo], "fup");
     await flush();
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("empresa com mensagem própria recebe a dela; as outras recebem a padrão (mesmo lote)", async () => {
+    config({
+      gatilhos: { prefup: true, fup: true, manual: true },
+      mensagens: [
+        { id: "m", nome: "Padrão", texto: "Texto padrão", empresas: [] },
+        { id: "s", nome: "Acme", texto: "Texto da Acme", empresas: ["Acme"] },
+      ],
+    });
+    enviarMensagemPosConfirmacao(
+      [
+        alvo,
+        { ...alvo, chapaId: "c2", nome: "Maria", telefone: "11988887777", empresa: "Outra Ltda" },
+        { ...alvo, chapaId: "c3", nome: "Pedro", telefone: "11977776666", empresa: null },
+      ],
+      "manual",
+    );
+    await flush();
+    const enviados = sendMock.mock.calls.map((c) => [c[0].chapaTelefone, c[0].message]);
+    expect(enviados).toEqual([
+      ["(11) 99999-0000", "Texto da Acme"],
+      ["11988887777", "Texto padrão"],
+      ["11977776666", "Texto padrão"],
+    ]);
   });
 
   it("se o envio falhar, libera pra tentar de novo na próxima confirmação", async () => {
