@@ -1,31 +1,14 @@
 import { useEffect, useRef } from "react";
 import { getDb, uuid } from "./db";
-import { toSP, todayDateISO_SP, hoursUntil, fmtTime, nowSP, parseTaskDate } from "./datetime";
+import { todayDateISO_SP, nowSP } from "./datetime";
 import { companyMatches } from "./company";
-
-type Tarefa = {
-  id_tarefa: number;
-  data_tarefa: string;
-  cidade_uf: string | null;
-  empresa: string;
-  status_tarefa: string;
-  is_overnight?: number | null;
-  validacao_status?: string | null;
-};
-
-async function alreadyFired(tipo: string, id_tarefa: number | null, dateISO: string): Promise<boolean> {
-  const db = await getDb();
-  const rows = id_tarefa !== null
-    ? await db.select<{ id: string }[]>(
-        "SELECT id FROM notificacoes_enviadas WHERE tipo = ? AND referencia_data = ? AND id_tarefa = ? LIMIT 1",
-        [tipo, dateISO, id_tarefa],
-      )
-    : await db.select<{ id: string }[]>(
-        "SELECT id FROM notificacoes_enviadas WHERE tipo = ? AND referencia_data = ? AND id_tarefa IS NULL LIMIT 1",
-        [tipo, dateISO],
-      );
-  return rows.length > 0;
-}
+import {
+  chaveDisparo,
+  JANELA_NOTIFICACOES_DIAS,
+  planejarNotificacoes,
+  somaDiasISO,
+  type TarefaNotif,
+} from "./notificacoesLogica";
 
 async function markFired(tipo: string, id_tarefa: number | null, dateISO: string): Promise<void> {
   const db = await getDb();
@@ -66,75 +49,46 @@ export function useNotifications() {
         const minute = spNow.getMinutes();
         const dateISO = todayDateISO_SP();
 
+        // Este ciclo roda a cada 60 s: só lê a janela de dias que pode gerar
+        // lembrete (ver JANELA_NOTIFICACOES_DIAS) e o que já foi disparado nela,
+        // em UMA consulta — nada de varrer o histórico nem de consultar por tarefa.
+        // (referencia_data pode ficar 1 dia antes da data da tarefa, por isso a folga.)
+        const desde = somaDiasISO(dateISO, -JANELA_NOTIFICACOES_DIAS);
+        const [tarefas, carteira, disparadasRows] = await Promise.all([
+          db.select<TarefaNotif[]>(
+            "SELECT id_tarefa, data_tarefa, cidade_uf, empresa, status_tarefa, is_overnight, validacao_status FROM tarefas WHERE ativo = 1 AND substr(data_tarefa, 1, 10) >= ? AND substr(data_tarefa, 1, 10) <= ?",
+            [somaDiasISO(desde, -1), somaDiasISO(dateISO, 1)],
+          ),
+          db.select<{ nome_fantasia: string }[]>("SELECT nome_fantasia FROM carteira"),
+          db.select<{ tipo: string; id_tarefa: number | null; referencia_data: string }[]>(
+            "SELECT tipo, id_tarefa, referencia_data FROM notificacoes_enviadas WHERE referencia_data >= ?",
+            [somaDiasISO(desde, -2)],
+          ),
+        ]);
+        const disparadas = new Set(disparadasRows.map((r) => chaveDisparo(r.tipo, r.id_tarefa, r.referencia_data)));
+
         if (hour >= 6 && hour <= 15 && minute < 5) {
           const tipo = `refresh_${hour}h`;
-          if (!(await alreadyFired(tipo, null, dateISO))) {
+          if (!disparadas.has(chaveDisparo(tipo, null, dateISO))) {
             browserNotify("🔄 Atualizar planilha", "Importe a nova versão da planilha de tarefas");
             await markFired(tipo, null, dateISO);
+            disparadas.add(chaveDisparo(tipo, null, dateISO));
           }
         }
 
-        const quietHours = hour >= 22 || hour < 6;
-
-        const [tarefas, carteira] = await Promise.all([
-          db.select<Tarefa[]>(
-            "SELECT id_tarefa, data_tarefa, cidade_uf, empresa, status_tarefa, is_overnight, validacao_status FROM tarefas WHERE ativo = 1",
-          ),
-          db.select<{ nome_fantasia: string }[]>("SELECT nome_fantasia FROM carteira"),
-        ]);
-
         const names = carteira.map((c) => c.nome_fantasia);
-        const relevant = tarefas.filter((t) => companyMatches(t.empresa, names));
-
-        for (const t of relevant) {
-          const startMs = parseTaskDate(t.data_tarefa, t.cidade_uf).getTime();
-          const minutesSinceStart = (Date.now() - startMs) / 60000;
-          const hUntil = (startMs - Date.now()) / 3600000;
-          const vStatus = t.validacao_status ?? "aguardando";
-          const taskTimeStr = fmtTime(t.data_tarefa);
-          const refDate = toSP(t.data_tarefa).toISOString().slice(0, 10);
-          const isToday =
-            toSP(t.data_tarefa).toISOString().slice(0, 10) === spNow.toISOString().slice(0, 10);
-
-          if (isToday && !quietHours) {
-            if (
-              ["Aguardando Aprovação", "Em Aberto", "Em Análise"].includes(t.status_tarefa) &&
-              hUntil <= 3 &&
-              hUntil > 0
-            ) {
-              if (!(await alreadyFired("fup_3h", t.id_tarefa, dateISO))) {
-                browserNotify("📋 FUP pendente", `${t.empresa} às ${taskTimeStr}. Dispare os follow-ups.`);
-                await markFired("fup_3h", t.id_tarefa, dateISO);
-              }
-            }
-            if (t.status_tarefa === "Aguardando Início" && hUntil <= 1 && hUntil > -0.5) {
-              if (!(await alreadyFired("chapa_1h", t.id_tarefa, dateISO))) {
-                browserNotify("👷 Verificar chapas", `${t.empresa} às ${taskTimeStr}. Confirme presença.`);
-                await markFired("chapa_1h", t.id_tarefa, dateISO);
-              }
-            }
-          }
-
-          if (!quietHours) {
-            if (vStatus === "pendente" && minutesSinceStart >= 30) {
-              if (!(await alreadyFired("val_30m", t.id_tarefa, refDate))) {
-                browserNotify(
-                  "📋 Validação pendente",
-                  `${t.empresa} às ${taskTimeStr}. O cliente já pode ter confirmado presenças.`,
-                );
-                await markFired("val_30m", t.id_tarefa, refDate);
-              }
-            }
-            if (
-              (vStatus === "pendente" || vStatus === "validacao_recebida") &&
-              minutesSinceStart >= 120
-            ) {
-              if (!(await alreadyFired("val_2h", t.id_tarefa, refDate))) {
-                browserNotify("⬆️ Lembrete Meu Chapa", `${t.empresa}. Suba as validações no sistema.`);
-                await markFired("val_2h", t.id_tarefa, refDate);
-              }
-            }
-          }
+        const aEnviar = planejarNotificacoes({
+          tarefas,
+          empresaNaCarteira: (empresa) => companyMatches(empresa, names),
+          agoraMs: Date.now(),
+          spNow,
+          dateISO,
+          quietHours: hour >= 22 || hour < 6,
+          jaDisparada: (chave) => disparadas.has(chave),
+        });
+        for (const n of aEnviar) {
+          browserNotify(n.titulo, n.corpo);
+          await markFired(n.tipo, n.idTarefa, n.referencia);
         }
       } finally {
         running.current = false;

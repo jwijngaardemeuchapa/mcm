@@ -12,7 +12,7 @@ import { logActivity } from "@/lib/activityLog";
 import { ActivityBell } from "@/components/ActivityBell";
 import { ChatSheet } from "@/components/ChatSheet";
 import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink, last11Digits } from "@/lib/umbler";
-import { useWatcherLog } from "@/lib/WatcherContext";
+import { useUnreadChats } from "@/lib/WatcherContext";
 import { UnreadDot, fmtElapsed } from "@/components/TaskCard";
 import { bidDispatchQueue, BID_WAVE_SIZE, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
@@ -526,7 +526,7 @@ function BidTaskCard({
   const [expanded, setExpanded] = useState(initialExpanded);
   // MCM-159: ponto vermelho didático em chapas disponíveis com mensagem nova
   // no Umbler — mesmo padrão visual de TaskCard/TaskDetailPanel/Panorama/Timeline.
-  const { unreadPhones: bidUnreadPhones } = useWatcherLog();
+  const { unreadPhones: bidUnreadPhones } = useUnreadChats();
   const [dispatchParams, setDispatchParams] = useState<DispatchParams>(() => {
     try {
       const saved = localStorage.getItem(`bid_params_${task.id_tarefa}`);

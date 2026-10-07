@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { getDb } from "./db";
 import { todayDateISO_SP } from "./datetime";
 import { useNotificationWatcher, type WatcherActivity } from "./useNotificationWatcher";
@@ -19,11 +19,16 @@ import type { TaskWithChapas } from "@/components/TaskCard";
 type WatcherCtx = {
   notifLog: WatcherActivity[];
   clearLog: () => void;
-  // Mensagens não lidas no Umbler Talk — telefone (últimos 11 dígitos) e
-  // chatId (grupo do cliente, mesmo id de cliente_book.umbler_group_chat_id)
-  // de chats com totalUnread > 0. MCM-159: alimenta o ponto vermelho
-  // didático em TaskCard/TaskDetailPanel/TaskPanorama/TaskTimeline/
-  // BIDDashboard, pra avisar de mensagem nova mesmo com a tarefa fechada.
+};
+
+// Mensagens não lidas no Umbler Talk — telefone (últimos 11 dígitos) e
+// chatId (grupo do cliente, mesmo id de cliente_book.umbler_group_chat_id)
+// de chats com totalUnread > 0. MCM-159: alimenta o ponto vermelho
+// didático em TaskCard/TaskDetailPanel/TaskPanorama/TaskTimeline/
+// BIDDashboard, pra avisar de mensagem nova mesmo com a tarefa fechada.
+// Contexto SEPARADO do log: os cards só querem as não lidas, e não devem
+// re-renderizar (centenas de uma vez) a cada notificação nova do log.
+type UnreadCtx = {
   unreadPhones: Set<string>;
   unreadChatIds: Set<string>;
 };
@@ -31,12 +36,25 @@ type WatcherCtx = {
 const WatcherContext = createContext<WatcherCtx>({
   notifLog: [],
   clearLog: () => {},
+});
+
+const UnreadContext = createContext<UnreadCtx>({
   unreadPhones: new Set(),
   unreadChatIds: new Set(),
 });
 
 export function useWatcherLog() {
   return useContext(WatcherContext);
+}
+
+export function useUnreadChats() {
+  return useContext(UnreadContext);
+}
+
+function mesmoConjunto(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
 }
 
 /* ─── provider ── */
@@ -173,12 +191,12 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
       const { umblerSettings } = readSettings();
       if (!umblerSettings.bearerToken || !umblerSettings.organizationId) return;
       const chats = await fetchUmblerUnreadChats({ settings: umblerSettings });
-      setUnreadPhones(new Set(
-        chats.map((c) => last11Digits(c.phoneNumber)).filter((d) => d.length > 0),
-      ));
-      setUnreadChatIds(new Set(
-        chats.map((c) => c.chatId).filter((id): id is string => !!id),
-      ));
+      // Só troca o Set se o conteúdo mudou (a cada 40 s, quase sempre é igual):
+      // Set novo = re-render de todo mundo que consome as não lidas.
+      const phones = new Set(chats.map((c) => last11Digits(c.phoneNumber)).filter((d) => d.length > 0));
+      const chatIds = new Set(chats.map((c) => c.chatId).filter((id): id is string => !!id));
+      setUnreadPhones((atual) => (mesmoConjunto(atual, phones) ? atual : phones));
+      setUnreadChatIds((atual) => (mesmoConjunto(atual, chatIds) ? atual : chatIds));
     };
     tick();
     const t = setInterval(tick, 40_000);
@@ -265,10 +283,12 @@ export function WatcherProvider({ children }: { children: React.ReactNode }) {
   useAutoCancelFup(handleRefresh);
 
   const clearLog = useCallback(() => setNotifLog([]), []);
+  const logValue = useMemo(() => ({ notifLog, clearLog }), [notifLog, clearLog]);
+  const unreadValue = useMemo(() => ({ unreadPhones, unreadChatIds }), [unreadPhones, unreadChatIds]);
 
   return (
-    <WatcherContext.Provider value={{ notifLog, clearLog, unreadPhones, unreadChatIds }}>
-      {children}
+    <WatcherContext.Provider value={logValue}>
+      <UnreadContext.Provider value={unreadValue}>{children}</UnreadContext.Provider>
     </WatcherContext.Provider>
   );
 }

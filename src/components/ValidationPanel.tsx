@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
 import { Check, X, Upload, ClipboardCheck, ChevronDown } from "lucide-react";
 import type { ValidationStep } from "./ValidationStepper";
-import { useUndo } from "@/lib/undo";
+import { useUndoActions } from "@/lib/undo";
 
 type Chapa = {
   id: string;
@@ -47,7 +47,7 @@ export function ValidationPanel({
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadObs, setUploadObs] = useState(obs_validacao ?? "");
   const [open, setOpen] = useState(false);
-  const { push } = useUndo();
+  const { push } = useUndoActions();
 
   // Update otimista: o clique reflete na UI imediatamente, sem esperar o
   // reload completo do Dashboard (que faz fetch de todo o banco). Quando os

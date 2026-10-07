@@ -16,7 +16,7 @@ import { todayDateISO_SP } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
 import { computeTaskState, taskSeverityRowClass } from "@/lib/taskState";
 import { last11Digits } from "@/lib/umbler";
-import { useWatcherLog } from "@/lib/WatcherContext";
+import { useUnreadChats } from "@/lib/WatcherContext";
 
 function csvExported(id: number) {
   try {
@@ -177,7 +177,7 @@ function PanoramaRow({
   // ponto aqui é "alguém desta tarefa tem mensagem nova". Só considera
   // chapas (telefone) — o grupo do cliente ficaria de fora pra não disparar
   // 1 query por linha (useClienteInfo faz SELECT completo em cliente_book).
-  const { unreadPhones } = useWatcherLog();
+  const { unreadPhones } = useUnreadChats();
   const taskHasUnread = task.chapas.some((c) => c.telefone_chapa && unreadPhones.has(last11Digits(c.telefone_chapa)));
 
   const hasCsv = csvExported(task.id_tarefa);

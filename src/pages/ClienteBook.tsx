@@ -25,6 +25,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getDb, uuid } from "@/lib/db";
+import { invalidarClienteBook } from "@/lib/useClienteInfo";
 import { readSettings } from "@/lib/settings";
 import { ChatSheet } from "@/components/ChatSheet";
 import { GroupChatPicker } from "@/components/GroupChatPicker";
@@ -303,6 +304,7 @@ export default function ClienteBook() {
         );
         toast.success("Cliente adicionado");
       }
+      invalidarClienteBook();
       setDialogOpen(false);
       load();
     } catch (e) {
@@ -315,6 +317,7 @@ export default function ClienteBook() {
     try {
       const db = await getDb();
       await db.execute("DELETE FROM cliente_book WHERE id = ?", [deleteTarget.id]);
+      invalidarClienteBook();
       setDeleteTarget(null);
       toast.success("Cliente removido");
       load();

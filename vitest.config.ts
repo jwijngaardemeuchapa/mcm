@@ -9,6 +9,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // Com a suíte inteira em paralelo, testes que importam telas/grafos grandes
+    // (Configurações, central) passam de 5 s sem estar quebrados — passam em ~3 s sozinhos.
+    testTimeout: 30_000,
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
