@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-07 (Sonnet 5.5) — ver JOURNAL.md.
+
+**Commitado em main e beta, NÃO lançado:** (1) mensagem automática pós-confirmação agora com mensagem própria por empresa (resto = padrão); (2) opção "ID + nome + telefone" nas cópias (TaskCard, TaskDetailPanel, BID Dashboard). Próxima release seria main v1.0.70 / beta v1.0.74. Não clicado em tela (só typecheck + testes). Banco da Central continuava fora do ar em 05-07/10 (migration do chat_ref pendente).
+
+---
+
 **Data:** 2026-10-05 (Sonnet 5.5) — ver JOURNAL.md pra detalhe completo, isto é só o resumo de retomada.
 
 **Releases publicadas (24/09):** main **v1.0.68** e beta **v1.0.72** — fix da confirmação "sozinha" após reabrir/desfazer (Firestore: marca `processed` antes de apagar; beta: reabrir agora avisa a Central).
