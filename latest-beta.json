@@ -1,11 +1,11 @@
 {
-  "version": "1.0.74",
-  "notes": "Mensagem automática por empresa e opção de copiar ID da tarefa + nome + telefone.",
-  "pub_date": "2026-10-07T10:13:39Z",
+  "version": "1.0.75",
+  "notes": "Correção: travadinha ao clicar (Dashboard carrega só os últimos dias e só redesenha quando algo muda).",
+  "pub_date": "2026-10-07T10:51:21Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFJrTnR3UkRjM0svYUxoakNLVUdnTUhZbDRQUE1XRWVFT3RiamRJamF5cnZkalZ3NlZSOHNPa2VhYW1rcTF5alN5VjFtS3l3RCtTQmlCeVYyWVZyQndzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMzY3OTAzCWZpbGU6TUNNIEJldGFfMS4wLjc0X3g2NC1zZXR1cC5leGUKVDZkeTg1KzRHZHZnUnpJcjQ4RjJQcXoxQWRqL2sxRnlIRnA1a1BkZ3g3WnEyWExvS2hLeGtEcGVURWpGbm1GY0NZaFp6NU9Ba2QxbW5sTUpDNkVGQlE9PQo=",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.74/MCM.Beta_1.0.74_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaGFWZTNJTnRUenBWdGczbzkvcmlIRWkvbFlxNXJyK0FIZ0pkYkUwU0V6dkRIVXJtS0cvaUJ4SnFPR2N0SE1NM1BldXowZ252aFNKWTRUV3BkSytFWGdZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMzY5ODQ2CWZpbGU6TUNNIEJldGFfMS4wLjc1X3g2NC1zZXR1cC5leGUKSTFVQ2g4eGFucmZETm1WR0crdTh6NUxacm1pS2V4SmxuZUphWjVjVCt6Ly9GeXJrNjVIMStJMmdwRHpZMTRiKzFwWjRoUEtaZGFYQXM3WllHQWJpRFE9PQo=",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/beta-v1.0.75/MCM.Beta_1.0.75_x64-setup.exe"
     }
   }
 }
