@@ -36,11 +36,16 @@ export type MensagemAutomatica = {
   id: string;
   nome: string;
   texto: string;
+  // Empresas (nomes da Carteira) que recebem ESTA mensagem no lugar da padrão.
+  // Vazio = não é específica de ninguém (só vale se for a ativa).
+  empresas: string[];
 };
 
 // Mensagem enviada ao chapa logo depois que ele é dado como confirmado
-// (ver lib/mensagemPosConfirmacao.ts). Uma mensagem ativa por vez, escolhida
-// de uma lista salva; os gatilhos dizem DE QUAL tipo de confirmação ela sai.
+// (ver lib/mensagemPosConfirmacao.ts). A mensagem ATIVA é a padrão (vale pra
+// toda empresa sem mensagem própria); uma mensagem com `empresas` preenchidas
+// vale só pra essas empresas. Os gatilhos dizem DE QUAL tipo de confirmação
+// ela sai.
 export type MensagemPosConfirmacaoSettings = {
   ativo: boolean;
   gatilhos: { prefup: boolean; fup: boolean; manual: boolean };
@@ -150,7 +155,7 @@ export const SETTING_DEFAULTS: AppSettings = {
     ativo: false,
     gatilhos: { prefup: true, fup: true, manual: false },
     mensagens: [
-      { id: "orientacoes-pre-tarefa", nome: "Orientações pré-tarefa", texto: MENSAGEM_ORIENTACOES_PADRAO },
+      { id: "orientacoes-pre-tarefa", nome: "Orientações pré-tarefa", texto: MENSAGEM_ORIENTACOES_PADRAO, empresas: [] },
     ],
     mensagemAtivaId: "orientacoes-pre-tarefa",
   },
@@ -175,6 +180,10 @@ export function readSettings(): AppSettings {
           ...SETTING_DEFAULTS.mensagemPosConfirmacao.gatilhos,
           ...(parsed.mensagemPosConfirmacao?.gatilhos ?? {}),
         },
+        // Mensagens salvas antes de existir "empresas" não têm o campo.
+        mensagens: (parsed.mensagemPosConfirmacao?.mensagens ?? SETTING_DEFAULTS.mensagemPosConfirmacao.mensagens).map(
+          (m: MensagemAutomatica) => ({ ...m, empresas: Array.isArray(m.empresas) ? m.empresas : [] }),
+        ),
       },
       umblerSettings: (() => {
         const merged = { ...SETTING_DEFAULTS.umblerSettings, ...(parsed.umblerSettings ?? {}) };

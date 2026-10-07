@@ -390,7 +390,7 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
     );
     if (fupResposta === "confirmado") {
       enviarMensagemPosConfirmacao(
-        [{ idTarefa: fup.id_tarefa, chapaId: fup.id, nome: fup.nome_chapa, telefone: fup.telefone_chapa }],
+        [{ idTarefa: fup.id_tarefa, chapaId: fup.id, nome: fup.nome_chapa, telefone: fup.telefone_chapa, empresa: fup.empresa }],
         canalConf === "prefup" ? "prefup" : "fup",
       );
     }

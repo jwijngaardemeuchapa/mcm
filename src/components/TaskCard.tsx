@@ -62,6 +62,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { toast } from "sonner";
 import { getDb, uuid, placeholders, errMsg } from "@/lib/db";
 import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
+import { linhaIdNomeTelefone } from "@/lib/copyFormats";
 import { StatusBadge } from "./StatusBadge";
 import { FillRateBar } from "./FillRateBar";
 import { Confetti } from "./Confetti";
@@ -333,7 +334,7 @@ export function TaskCard({
     }
     if (patch.status_contato === "confirmado") {
       enviarMensagemPosConfirmacao(
-        [{ idTarefa: task.id_tarefa, chapaId: chapa.id, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa }],
+        [{ idTarefa: task.id_tarefa, chapaId: chapa.id, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa, empresa: task.empresa }],
         "manual",
       );
     }
@@ -425,7 +426,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       return;
     }
     enviarMensagemPosConfirmacao(
-      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa })),
+      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa, empresa: task.empresa })),
       "manual",
     );
     push({
@@ -575,6 +576,29 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     const lines = confirmados.map((c) => `${c.nome_chapa}${c.telefone_chapa ? ` - ${c.telefone_chapa}` : ""}`);
     clipboardWrite(lines.join("\n"), `${confirmados.length} confirmado(s) copiado(s)`);
+  }
+
+  // Mesmas duas listas acima, mas cada linha começa com o ID da tarefa
+  // (`#id | nome | telefone`) — pra colar numa planilha/mensagem que mistura
+  // várias tarefas sem perder de qual cada chapa é.
+  function copyAllIdList() {
+    const ativos = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
+    if (ativos.length === 0) {
+      toast.error("Nenhum ajudante nesta tarefa");
+      return;
+    }
+    const lines = ativos.map((c) => linhaIdNomeTelefone(task.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    clipboardWrite(lines.join("\n"), `${ativos.length} ajudante(s) copiado(s) com ID da tarefa`);
+  }
+
+  function copyConfirmedIdList() {
+    const confirmados = task.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
+    if (confirmados.length === 0) {
+      toast.error("Nenhum confirmado ainda");
+      return;
+    }
+    const lines = confirmados.map((c) => linhaIdNomeTelefone(task.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    clipboardWrite(lines.join("\n"), `${confirmados.length} confirmado(s) copiado(s) com ID da tarefa`);
   }
 
   async function registerFup() {
@@ -1350,6 +1374,12 @@ Precisamos de 1 substituto para esta tarefa.`;
                 <DropdownMenuItem onClick={copyConfirmedList}>
                   <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyAllIdList}>
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone de todos
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={copyConfirmedIdList}>
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone dos confirmados
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={copyAllNamesAndCpf}>
                   <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
                 </DropdownMenuItem>
@@ -2010,13 +2040,12 @@ function ChapaRowView({
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  onClick={() => {
-                    const phone = (chapa.telefone_chapa ?? "").replace(/\D/g, "");
+                  onClick={() =>
                     clipboardWrite(
-                      `#${taskId} | ${chapa.nome_chapa} | ${phone || "sem telefone"}`,
+                      linhaIdNomeTelefone(taskId, chapa.nome_chapa, chapa.telefone_chapa),
                       "Dados copiados",
-                    );
-                  }}
+                    )
+                  }
                   className="shrink-0 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted transition-colors"
                   aria-label="Copiar dados completos"
                 >

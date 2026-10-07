@@ -272,7 +272,7 @@ function ChapaItem({
         [new Date().toISOString(), chapa.id],
       );
       enviarMensagemPosConfirmacao(
-        [{ idTarefa: chapa.idTarefa, chapaId: chapa.id, nome: chapa.nome, telefone: chapa.telefone }],
+        [{ idTarefa: chapa.idTarefa, chapaId: chapa.id, nome: chapa.nome, telefone: chapa.telefone, empresa: chapa.empresa }],
         "manual",
       );
       toast.success(`${chapa.nome} confirmado`);
