@@ -1374,11 +1374,11 @@ Precisamos de 1 substituto para esta tarefa.`;
                 <DropdownMenuItem onClick={copyConfirmedList}>
                   <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={copyAllIdList}>
-                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone de todos
+                <DropdownMenuItem onClick={copyAllIdList} title="Ex.: #475543 | João Silva | 11999990000">
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID da tarefa + nome + telefone de todos
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={copyConfirmedIdList}>
-                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone dos confirmados
+                <DropdownMenuItem onClick={copyConfirmedIdList} title="Ex.: #475543 | João Silva | 11999990000">
+                  <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID da tarefa + nome + telefone dos confirmados
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={copyAllNamesAndCpf}>
                   <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
@@ -2052,7 +2052,7 @@ function ChapaRowView({
                   <ClipboardList className="h-3 w-3" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right">Copiar ID + nome + telefone</TooltipContent>
+              <TooltipContent side="right">Copiar ID da tarefa + nome + telefone (ex.: #475543 | João Silva | 11999990000)</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>

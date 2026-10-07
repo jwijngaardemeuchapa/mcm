@@ -60,10 +60,17 @@ describe("Configurações — mensagem automática por empresa", () => {
     ]);
     render(<Configuracoes />);
     const card = within(cardMsgAuto());
-    expect(card.getByText("Casa Forte")).toBeInTheDocument();
+    expect(card.getAllByText("Casa Forte").length).toBeGreaterThan(0);
+
+    // quadro "Como vai ficar": empresa escolhida → mensagem própria; resto → padrão
+    const resumo = card.getByText("Como vai ficar").parentElement as HTMLElement;
+    expect(resumo).toHaveTextContent("Casa Forte → “Específica”");
+    expect(resumo).toHaveTextContent("Todas as outras empresas → “Padrão”");
 
     fireEvent.click(card.getByRole("button", { name: "Remover Casa Forte" }));
     expect(salvo().mensagens.find((m: { id: string }) => m.id === "esp").empresas).toEqual([]);
+    // sem empresas escolhidas, o quadro vira "todas as empresas → padrão"
+    expect(card.getByText("Como vai ficar").parentElement).toHaveTextContent("Todas as empresas → “Padrão”");
   });
 
   it("adiciona uma empresa da Carteira a uma mensagem", async () => {
@@ -74,7 +81,7 @@ describe("Configurações — mensagem automática por empresa", () => {
     render(<Configuracoes />);
     const gatilho = await waitFor(() => {
       const el = within(cardMsgAuto()).getByRole("combobox", { name: "Adicionar empresa a Específica" });
-      expect(el).toHaveTextContent("Adicionar empresa…"); // carteira já carregada
+      expect(el).toHaveTextContent("Adicionar empresa da Carteira…"); // carteira já carregada
       return el;
     });
     abrirSelect(gatilho);
@@ -90,7 +97,7 @@ describe("Configurações — mensagem automática por empresa", () => {
     render(<Configuracoes />);
     const gatilho = await waitFor(() => {
       const el = within(cardMsgAuto()).getByRole("combobox", { name: "Adicionar empresa a Padrão" });
-      expect(el).toHaveTextContent("Adicionar empresa…");
+      expect(el).toHaveTextContent("Adicionar empresa da Carteira…");
       return el;
     });
     abrirSelect(gatilho);
