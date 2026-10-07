@@ -13,7 +13,14 @@ import { AlertBanner, type AlertItem } from "@/components/AlertBanner";
 import { AndamentoJustificationAlert } from "@/components/AndamentoJustificationAlert";
 import { PriorityPanel, type LembreteAlertItem } from "@/components/PriorityPanel";
 import { RefreshDiff, computeRefreshDiff, chapKey, type DiffResult } from "@/components/RefreshDiff";
-import { fetchAllRows } from "@/lib/fetchAll";
+import {
+  agruparPorTarefa,
+  aplicarSeMudou,
+  carregarTabelasDashboard,
+  filtrarAtivas,
+  ordenarFupRecentePrimeiro,
+  recortesDashboard,
+} from "@/lib/dashboardData";
 import { buildConfiabilidadeMap, type ConfiabilidadeStats } from "@/lib/confiabilidade";
 import {
   AlertTriangle,
@@ -148,19 +155,19 @@ export default function Dashboard() {
   const [hiddenCompanies, setHiddenCompanies] = useState<string[]>([]);
   const [confiabilidade, setConfiabilidade] = useState<Map<string, ConfiabilidadeStats>>(() => new Map());
   const [carteiraFilterInfo, setCarteiraFilterInfo] = useState<{ gruposAtivos: string[]; activeCount: number; totalCount: number; fallback: boolean } | null>(null);
+  // Assinaturas do que já foi aplicado ao estado — load() roda a cada 30 s e
+  // só mexe no estado se algo mudou de verdade (ver aplicarSeMudou).
+  const estadoAplicadoRef = useRef<Record<string, string>>({});
   const load = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
       const carteiraDb = await getDb();
-      const [tarefas, chapas, fup, chatLinks, carteira] = await Promise.all([
-        fetchAllRows<Record<string, unknown>>("tarefas", "*"),
-        fetchAllRows<Record<string, unknown>>("chapas", "*"),
-        fetchAllRows<Record<string, unknown>>("fup_log", "*"),
-        // chat_links — "chat atual conhecido" por chapa, pode ter sido gravado
-        // por OUTRO analista via Central (ver applyChatLinksLocally). Nunca
-        // deve derrubar o load do dashboard se a tabela ainda não existir
-        // numa instalação que não rodou a migração (ver lib.rs, version 25).
-        fetchAllRows<Record<string, unknown>>("chat_links", "*").catch(() => [] as Record<string, unknown>[]),
+      // Só a janela que o Dashboard usa (ver dashboardData.ts) — antes eram as
+      // tabelas inteiras, e o histórico só cresce. chat_links ("chat atual
+      // conhecido" por chapa, pode ter sido gravado por OUTRO analista via
+      // Central) nunca derruba o load se a tabela ainda não existir.
+      const [{ tarefas, chapas, fup, chatLinks }, carteira] = await Promise.all([
+        carregarTabelasDashboard(carteiraDb),
         carteiraDb.select<{ nome_fantasia: string; grupo: string | null }[]>(
           "SELECT nome_fantasia, grupo FROM carteira"
         ).catch(() => [] as { nome_fantasia: string; grupo: string | null }[]),
@@ -171,10 +178,15 @@ export default function Dashboard() {
 
       // Score de confiabilidade — janela de 15 dias sobre o histórico completo já carregado
       try {
-        setConfiabilidade(buildConfiabilidadeMap(
-          tarefas as unknown as Array<{ id_tarefa: number; data_tarefa: string }>,
-          chapas as unknown as Array<{ id_tarefa: number; nome_chapa?: string | null; cpf?: string | null; telefone_chapa?: string | null; status_contato?: string | null; validacao_presenca?: string | null }>,
-        ));
+        aplicarSeMudou(
+          estadoAplicadoRef.current,
+          "confiabilidade",
+          buildConfiabilidadeMap(
+            tarefas as unknown as Array<{ id_tarefa: number; data_tarefa: string }>,
+            chapas as unknown as Array<{ id_tarefa: number; nome_chapa?: string | null; cpf?: string | null; telefone_chapa?: string | null; status_contato?: string | null; validacao_presenca?: string | null }>,
+          ),
+          setConfiabilidade,
+        );
       } catch { /* indicador opcional — nunca bloqueia o load */ }
 
       try {
@@ -182,18 +194,16 @@ export default function Dashboard() {
         const hiddenRows = await cfgDb.select<{ nome_fantasia: string }[]>(
           "SELECT nome_fantasia FROM empresa_config WHERE oculta_dashboard = 1",
         );
-        setHiddenCompanies(hiddenRows.map((r) => r.nome_fantasia));
+        aplicarSeMudou(
+          estadoAplicadoRef.current,
+          "hidden",
+          hiddenRows.map((r) => r.nome_fantasia),
+          setHiddenCompanies,
+        );
       } catch { /* tabela pode não existir antes da migração 7 */ }
 
-      const activeTarefas = (tarefas as Array<Record<string, unknown> & { ativo?: boolean | number; status_tarefa?: string }>).filter(
-        (t) => t.ativo !== false && t.ativo !== 0
-          && !t.status_tarefa?.toLowerCase().startsWith("cancel"),
-      );
-      const sortedFup = [...fup].sort(
-        (a, b) =>
-          new Date((b as { data_disparo: string }).data_disparo).getTime() -
-          new Date((a as { data_disparo: string }).data_disparo).getTime(),
-      );
+      const activeTarefas = filtrarAtivas(tarefas);
+      const sortedFup = ordenarFupRecentePrimeiro(fup as Array<Record<string, unknown> & { data_disparo: string }>);
 
       const { carteiraGruposAtivos: gruposAtivos = [] } = readSettings();
       const carteiraRows = carteira ?? [];
@@ -210,9 +220,14 @@ export default function Dashboard() {
       } else {
         names = allCarteiraNames;
       }
-      setCarteiraFilterInfo(carteiraFilterActive
-        ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allCarteiraNames.length, fallback: namesByFilter.length === 0 }
-        : null);
+      aplicarSeMudou(
+        estadoAplicadoRef.current,
+        "carteiraFilterInfo",
+        carteiraFilterActive
+          ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allCarteiraNames.length, fallback: namesByFilter.length === 0 }
+          : null,
+        setCarteiraFilterInfo,
+      );
       const todayISO = todayDateISO_SP();
 
       const nowMs = Date.now();
@@ -236,34 +251,7 @@ export default function Dashboard() {
 
       const inCarteira = (empresa: string) => names.length === 0 || companyMatches(empresa, names);
 
-      const todaysTasks = activeTarefas.filter((t) => {
-        const tt = t as { data_tarefa: string; status_tarefa: string; empresa: string };
-        if (tt.status_tarefa === "Finalizado") return false;
-        if (tt.status_tarefa?.toLowerCase().startsWith("cancel")) return false;
-        // Show all dates >= today (today + future dates present in import)
-        const dISO = fmtSP(tt.data_tarefa, "yyyy-MM-dd");
-        if (dISO < todayISO) return false;
-        return inCarteira(tt.empresa);
-      });
-
-      const yesterdayOvernight = activeTarefas.filter((t) => {
-        const tt = t as {
-          data_tarefa: string;
-          empresa: string;
-          status_tarefa: string;
-          is_overnight?: boolean | null;
-          validacao_status?: string | null;
-        };
-        if (!tt.is_overnight) return false;
-        if (tt.status_tarefa?.toLowerCase().startsWith("cancel")) return false;
-        const dISO = fmtSP(tt.data_tarefa, "yyyy-MM-dd");
-        const y = new Date(`${todayISO}T00:00:00-03:00`);
-        y.setDate(y.getDate() - 1);
-        const yISO = y.toISOString().slice(0, 10);
-        if (dISO !== yISO) return false;
-        if ((tt.validacao_status ?? "aguardando") === "subido_meu_chapa") return false;
-        return inCarteira(tt.empresa);
-      });
+      const { todaysTasks, yesterdayOvernight, allDatesTasks } = recortesDashboard(activeTarefas, todayISO, inCarteira);
 
       type T = Record<string, unknown> & {
         id_tarefa: number;
@@ -283,6 +271,11 @@ export default function Dashboard() {
         andamento_motivo?: string | null;
         andamento_motivo_registrado_em?: string | null;
       };
+      // Agrupa por tarefa uma vez (antes: 3 .filter() sobre as listas inteiras
+      // pra CADA card — custo quadrático com o histórico).
+      const chapasPorTarefa = agruparPorTarefa(chapas as Array<Record<string, unknown> & { id_tarefa: number }>);
+      const fupPorTarefa = agruparPorTarefa(sortedFup as unknown as Array<Record<string, unknown> & { id_tarefa: number }>);
+      const linksPorTarefa = agruparPorTarefa(chatLinks as Array<Record<string, unknown> & { id_tarefa: number }>);
       const buildCard = (raw: Record<string, unknown>, continuing: boolean): TaskWithChapas => {
         const t = raw as T;
         const d = toSP(t.data_tarefa);
@@ -303,15 +296,9 @@ export default function Dashboard() {
           importado_em: t.importado_em ?? null,
           andamento_motivo: t.andamento_motivo ?? null,
           andamento_motivo_registrado_em: t.andamento_motivo_registrado_em ?? null,
-          chapas: (chapas as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
-            (c) => c.id_tarefa === t.id_tarefa,
-          ) as unknown as TaskWithChapas["chapas"],
-          fup_log: (sortedFup as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
-            (f) => f.id_tarefa === t.id_tarefa,
-          ) as unknown as TaskWithChapas["fup_log"],
-          chat_links: (chatLinks as Array<Record<string, unknown> & { id_tarefa: number }>).filter(
-            (cl) => cl.id_tarefa === t.id_tarefa,
-          ) as unknown as TaskWithChapas["chat_links"],
+          chapas: [...(chapasPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["chapas"],
+          fup_log: [...(fupPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["fup_log"],
+          chat_links: [...(linksPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["chat_links"],
           urgent: !continuing && fmtSP(t.data_tarefa, "yyyy-MM-dd") === todayISO && (d.getHours() < 6 || d.getTime() < Date.now()),
           continuingFromYesterday: continuing,
         };
@@ -341,7 +328,12 @@ export default function Dashboard() {
         for (const [k, ts] of newChapaTimestampsRef.current) {
           if (nowMs - ts > TWENTY_MIN) newChapaTimestampsRef.current.delete(k);
         }
-        setNewChapaKeys(new Set(newChapaTimestampsRef.current.keys()));
+        aplicarSeMudou(
+          estadoAplicadoRef.current,
+          "newChapaKeys",
+          new Set(newChapaTimestampsRef.current.keys()),
+          setNewChapaKeys,
+        );
         if (diff.added.length > 0 || diff.removed.length > 0 || diff.accepted.length > 0) {
           setDiffResult(diff);
           const nowMs = Date.now();
@@ -393,20 +385,14 @@ export default function Dashboard() {
       }
 
       // All active tasks for any date — powers date navigation
-      const allDatesTasks = activeTarefas.filter((t) => {
-        const tt = t as { status_tarefa: string; empresa: string };
-        if (tt.status_tarefa === "Finalizado") return false;
-        if (tt.status_tarefa?.toLowerCase().startsWith("cancel")) return false;
-        return inCarteira(tt.empresa);
-      });
-      setAllDatesCards(
-        allDatesTasks
-          .map((t) => buildCard(t, false))
-          .sort((a, b) => new Date(a.data_tarefa).getTime() - new Date(b.data_tarefa).getTime()),
-      );
-
-      setOvernightContinuing(overnightCards);
-      setTasksToday(todayCards);
+      // (os cards só vão pro estado se mudaram: assim, quando nada mudou, o
+      // Dashboard não re-renderiza todos os TaskCards a cada 30 s)
+      const allDatesCards = allDatesTasks
+        .map((t) => buildCard(t, false))
+        .sort((a, b) => new Date(a.data_tarefa).getTime() - new Date(b.data_tarefa).getTime());
+      aplicarSeMudou(estadoAplicadoRef.current, "allDatesCards", allDatesCards, setAllDatesCards);
+      aplicarSeMudou(estadoAplicadoRef.current, "overnightCards", overnightCards, setOvernightContinuing);
+      aplicarSeMudou(estadoAplicadoRef.current, "todayCards", todayCards, setTasksToday);
 
       // Load agenda items due within 2h for banner alerts
       try {
@@ -431,7 +417,13 @@ export default function Dashboard() {
               onAction: () => navigate("/agenda"),
             };
           });
-        setAgendaAlerts(built);
+        aplicarSeMudou(
+          estadoAplicadoRef.current,
+          "agendaAlerts",
+          built,
+          setAgendaAlerts,
+          built.map((a) => `${a.id}|${a.level}|${a.text}`).join("§"),
+        );
       } catch {
         /* agenda table may not exist on first run before migration */
       }
@@ -465,7 +457,14 @@ export default function Dashboard() {
             });
           }
         }
-        setLembreteAlerts(built);
+        aplicarSeMudou(
+          estadoAplicadoRef.current,
+          "lembreteAlerts",
+          built,
+          setLembreteAlerts,
+          // minutesUntil muda a cada load (vem de Date.now()); a tela mostra minutos inteiros
+          built.map((b) => `${b.id}|${Math.floor(b.minutesUntil)}`).join("§"),
+        );
       } catch {
         /* lembretes table may not exist before migration 6 */
       }
