@@ -757,7 +757,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.73</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.74</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -771,8 +771,8 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.73 (beta) — Novidade:</strong>{" "}
-              <strong>Mensagem automática ao confirmar</strong> — em Configurações, ligue o envio de uma mensagem (ex.: orientações de roupa e documentos) logo depois que o ajudante confirma. Escolha quais confirmações disparam (resposta ao PréFUP, ao FUP ou confirmação manual) e salve várias mensagens, deixando uma ativa. Vem desligada por padrão; sai uma vez por ajudante em cada tarefa.
+              <strong>v1.0.74 (beta) — Novidades:</strong>{" "}
+              <strong>Mensagem automática por empresa</strong> — em Configurações, cada mensagem pode valer só para empresas escolhidas; as demais seguem na mensagem padrão (o quadro "Como vai ficar" mostra o resultado). <strong>Copiar ID da tarefa + nome + telefone</strong> — nova opção nos menus Copiar do card, do painel e do BID Dashboard, no formato #475543 | João Silva | 11999990000.
             </span>
           </div>
         )}
@@ -1008,7 +1008,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.73 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.74 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1043,7 +1043,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.73 · © 2026 Wijngaarde Design
+        MCM v1.0.74 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
