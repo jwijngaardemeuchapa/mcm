@@ -962,11 +962,11 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                   <DropdownMenuItem onClick={copyConfirmedList}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + telefone dos confirmados
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={copyAllIdList}>
-                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone de todos
+                  <DropdownMenuItem onClick={copyAllIdList} title="Ex.: #475543 | João Silva | 11999990000">
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID da tarefa + nome + telefone de todos
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={copyConfirmedIdList}>
-                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID + nome + telefone dos confirmados
+                  <DropdownMenuItem onClick={copyConfirmedIdList} title="Ex.: #475543 | João Silva | 11999990000">
+                    <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> ID da tarefa + nome + telefone dos confirmados
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={copyAllNamesAndCpf}>
                     <Copy className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Nome + CPF de todos
@@ -1237,12 +1237,12 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                         onClick={() =>
                           clipboardWrite(
                             linhaIdNomeTelefone(task.id_tarefa, selectedChapa.nome_chapa, selectedChapa.telefone_chapa),
-                            "ID, nome e telefone copiados",
+                            "ID da tarefa, nome e telefone copiados",
                           )
                         }
                       >
                         <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" />
-                        Copiar ID + nome + telefone
+                        Copiar ID da tarefa + nome + telefone
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => updateChapaStatus(selectedChapa.id, { status_contato: "nao_respondeu" }, `não respondeu — ${selectedChapa.nome_chapa}`)}
@@ -1755,11 +1755,11 @@ function CompactChapaRow({
             onClick={() =>
               clipboardWrite(
                 linhaIdNomeTelefone(taskSnap.id_tarefa, c.nome_chapa, c.telefone_chapa),
-                "ID, nome e telefone copiados",
+                "ID da tarefa, nome e telefone copiados",
               )
             }
           >
-            <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar ID + nome + telefone
+            <ClipboardList className="h-3.5 w-3.5 mr-1.5 opacity-60" /> Copiar ID da tarefa + nome + telefone
           </DropdownMenuItem>
           {c.telefone_chapa && (taskCancelTemplateReady || everSentTask) && (
             <DropdownMenuItem

@@ -1125,8 +1125,9 @@ export default function Configuracoes() {
                 <div>
                   <p className="text-sm font-semibold text-foreground">Mensagens salvas</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    A marcada como padrão vai para todas as empresas. Uma mensagem com empresas
-                    escolhidas vai só para elas, no lugar da padrão.
+                    A marcada como padrão vai para todas as empresas. Quer um texto diferente para
+                    algumas? Escolha as empresas dentro de outra mensagem — só elas recebem essa, no
+                    lugar da padrão.
                   </p>
                 </div>
                 <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={adicionarMensagem}>
@@ -1211,7 +1212,7 @@ export default function Configuracoes() {
                             onValueChange={(nome) => editarMensagem(m.id, { empresas: [...m.empresas, nome] })}
                           >
                             <SelectTrigger className="h-8 w-full max-w-xs text-xs" aria-label={`Adicionar empresa a ${m.nome}`}>
-                              <SelectValue placeholder={companies.length > 0 ? "Adicionar empresa…" : "Sem empresas na Carteira"} />
+                              <SelectValue placeholder={companies.length > 0 ? "Adicionar empresa da Carteira…" : "Sem empresas na Carteira"} />
                             </SelectTrigger>
                             <SelectContent className="max-h-[260px]">
                               {companies.map((c) => {
@@ -1231,6 +1232,32 @@ export default function Configuracoes() {
                     );
                   })}
                 </RadioGroup>
+              )}
+              {msgAuto.mensagens.length > 0 && (
+                <div className="rounded-lg border border-dashed border-border bg-muted/30 p-3 text-xs space-y-1">
+                  <p className="font-semibold text-foreground">Como vai ficar</p>
+                  {msgAuto.mensagens
+                    .filter((m) => m.empresas.length > 0)
+                    .map((m) => (
+                      <p key={m.id} className="text-muted-foreground">
+                        <strong className="text-foreground">{m.empresas.join(", ")}</strong> → “{m.nome}”
+                        {!m.texto.trim() && " (sem texto — recebe a padrão)"}
+                      </p>
+                    ))}
+                  <p className="text-muted-foreground">
+                    {msgAuto.mensagens.some((m) => m.empresas.length > 0)
+                      ? "Todas as outras empresas"
+                      : "Todas as empresas"}{" "}
+                    →{" "}
+                    {(() => {
+                      const padrao = msgAuto.mensagens.find((m) => m.id === msgAuto.mensagemAtivaId);
+                      return padrao?.texto.trim() ? `“${padrao.nome}”` : "nenhuma mensagem (não há padrão com texto)";
+                    })()}
+                  </p>
+                  {!msgAuto.ativo && (
+                    <p className="text-muted-foreground">O envio está desligado — nada é enviado até você ligar acima.</p>
+                  )}
+                </div>
               )}
               {msgAuto.ativo && !msgAuto.mensagens.some((m) => m.id === msgAuto.mensagemAtivaId && m.texto.trim()) && (
                 <p className="text-xs text-warning">
