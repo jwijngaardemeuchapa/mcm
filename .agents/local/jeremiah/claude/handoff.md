@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-14 (Sonnet 5.5) — ver JOURNAL.md.
+
+**Última release: main v1.0.72 / beta v1.0.76.** Depois dela, **commitado e NÃO lançado** (main `3eb2429`, beta cherry-pick): (1) BID Dashboard — Recomendados seleciona o ranking inteiro (levas de 30 e parada ao preencher no disparo, inclusive na Captação, com Cancelar); (2) mensagem automática do PréFUP — o poll do chat só confirma resposta DEPOIS do disparo (e antes de disparo seguinte no mesmo chat), só o chapa lido, tarefas de ontem em diante, e `canalConfirmacao` deixou de classificar PréFUP em massa como "fup". Próxima release sugerida: main v1.0.73 primeiro (foco do usuário), depois beta v1.0.77. NÃO testado com a Umbler real. `firestoreQueue.test.ts` voltou a passar inteiro (153 testes na main).
+
+---
+
 **Data:** 2026-10-07 (Sonnet 5.5, 4ª entrada do dia) — ver JOURNAL.md.
 
 **Versão atual: main v1.0.72 / beta v1.0.76 (a beta ainda vai sair).** Incluem a 2ª rodada de correção do congelamento ao clicar (loops periódicos que liam o histórico, re-render em massa dos cards, cliente_book por card, `LazyTaskCard`, Collapsible lazy, recarga do Dashboard agrupada). Medido só na bancada `scripts/perf-bench/` (sintética): arranque 19,3 s → 0,67 s de travada; parado, maior bloqueio 7 s → ~0,3 s. **Falta** validar com um dia real de uso no app do Tauri. Mudanças de comportamento: lembretes de validação só dos últimos 4 dias; cards fora da tela viram quadro leve; som/confete só com card montado. Se ainda engasgar: ciclo de `Dashboard.load` (30 s).
