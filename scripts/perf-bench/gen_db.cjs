@@ -110,3 +110,22 @@ for (const t of ["tarefas", "chapas", "fup_log", "cliente_book", "carteira"].con
   console.log(t, db.prepare(`SELECT COUNT(*) c FROM ${t}`).get().c);
 }
 console.log("hoje:", hojeSP);
+
+// ── BID Dashboard: chapas do cadastro geral (chapa_registry) pra cidade das tarefas de São Paulo, com
+// coordenadas em cep_cache, e vagas em aberto nas tarefas de amanhã (senão a tela de BID não lista nada).
+try { db.exec("ALTER TABLE chapa_registry ADD COLUMN fonte TEXT DEFAULT 'metabase'"); } catch { /* já existe */ }
+{
+  const insR = db.prepare("INSERT INTO chapa_registry (cpf, nome, telefone, cidade, bairro, estado, rua, cep, numero, tarefas, situacao) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+  const insCep = db.prepare("INSERT OR REPLACE INTO cep_cache (cep, lat, lng, geocodificado_em) VALUES (?,?,?,?)");
+  db.exec("BEGIN");
+  for (let i = 0; i < 220; i++) {
+    const cep = String(1000000 + i * 37).padStart(8, "0");
+    insR.run(String(10000000000 + i), `${pick(nomes)} ${pick(sobrenomes)} ${pick(sobrenomes)} R${i}`, `1198${String(1000000 + i).slice(-7)}`,
+      "São Paulo", `Bairro ${i % 12}`, "SP", `Rua ${i}`, cep, String(i), Math.floor(r() * 40), "ativado");
+    insCep.run(cep, -23.55 + (r() - 0.5) * 0.3, -46.63 + (r() - 0.5) * 0.3, iso(agoraMs));
+  }
+  db.exec("COMMIT");
+  const amanha = new Date(agoraMs + dia - 3 * 3600_000).toISOString().slice(0, 10);
+  db.prepare("UPDATE tarefas SET cidade_uf = 'São Paulo/SP', quantidade_chapas = quantidade_chapas + 5 WHERE substr(data_tarefa,1,10) = ? AND ativo = 1").run(amanha);
+  console.log("BID: 220 chapas no cadastro geral; tarefas de", amanha, "com 5 vagas em aberto");
+}

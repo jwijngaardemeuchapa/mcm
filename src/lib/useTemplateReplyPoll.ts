@@ -4,6 +4,7 @@ import { getDb } from "./db";
 import { readSettings } from "./settings";
 import { fetchUmblerRecentMessages } from "./umbler";
 import { processFirestoreMessage, type RespostaEvent } from "./firestoreQueue";
+import { buscarPendentesPrefup, respostaDoPrefup } from "./respostaPrefup";
 
 const RESPOSTA_LABEL: Record<string, string> = {
   confirmado: "Confirmado ✓",
@@ -12,56 +13,40 @@ const RESPOSTA_LABEL: Record<string, string> = {
   interesse_nao: "Sem interesse ✗",
 };
 
-type PendingRow = {
-  chapa_id: string;
-  telefone_chapa: string | null;
-  umbler_chat_id: string;
-};
-
 /**
  * PréFUP (template aixkbF8X47lF-5Rt, ver dispatchQueue.ts/isPrefupTemplateWindow)
  * não passa pelo fluxo de chatbot — não existe start-bot nem webhook chamando
  * de volta a resposta. A única forma de saber se o chapa respondeu SIM/NÃO é
  * ler o chat da Umbler direto. `fup_log.aguarda_resposta_chat = 1` marca os
  * disparos feitos por esse caminho (gravado em _executeChapaFup/_executeMassFup);
- * aqui a gente varre os chapas ainda pendentes com esse flag, busca a última
- * mensagem do CONTATO em cada chat e reaproveita o mesmo classificador/pipeline
- * de resposta do Firestore (classifyResponse já entende "SIM"/"NÃO" isolados —
- * ver a branch de `words.length <= 4` em firestoreQueue.ts), só trocando a
- * origem do payload.
+ * aqui a gente varre os chapas ainda pendentes cujo ÚLTIMO disparo foi um PréFUP,
+ * busca as mensagens do chat e reaproveita o mesmo classificador/pipeline de
+ * resposta do Firestore (classifyResponse já entende "SIM"/"NÃO" isolados — ver a
+ * branch de `words.length <= 4` em firestoreQueue.ts), só trocando a origem do payload.
+ *
+ * Só conta a fala do contato que veio DEPOIS do disparo do PréFUP (e antes de qualquer
+ * disparo seguinte no mesmo chat) — ver respostaPrefup.ts. Antes valia a última fala do
+ * contato em qualquer momento, e um "sim" antigo confirmava o chapa sozinho.
  */
-async function pollOnce(onEvent?: (ev: RespostaEvent) => void) {
+export async function pollOnce(onEvent?: (ev: RespostaEvent) => void) {
   const { umblerSettings } = readSettings();
   if (!umblerSettings.bearerToken || !umblerSettings.organizationId) return;
 
   const db = await getDb();
-  const rows = await db
-    .select<PendingRow[]>(
-      `SELECT c.id AS chapa_id, c.telefone_chapa, f.umbler_chat_id
-       FROM chapas c
-       JOIN tarefas t ON c.id_tarefa = t.id_tarefa
-       JOIN (
-         SELECT chapa_id, umbler_chat_id, MAX(data_disparo) AS md
-         FROM fup_log
-         WHERE aguarda_resposta_chat = 1 AND umbler_chat_id IS NOT NULL AND chapa_id IS NOT NULL
-         GROUP BY chapa_id
-       ) f ON f.chapa_id = c.id
-       WHERE c.canal_contato = 'umbler_talk'
-         AND c.status_contato NOT IN ('confirmado', 'cancelado', 'removido')
-         AND t.ativo = 1`,
-    )
-    .catch(() => []);
+  const rows = await buscarPendentesPrefup(db).catch(() => []);
   if (rows.length === 0) return;
 
   for (const row of rows) {
     try {
       const messages = await fetchUmblerRecentMessages({ chatId: row.umbler_chat_id, settings: umblerSettings, take: 10 });
-      const lastContact = [...messages].reverse().find((m) => m.source === "Contact" && m.content?.trim());
-      if (!lastContact?.content) continue;
+      const resposta = respostaDoPrefup(messages, { disparoEm: row.data_disparo, proximoDisparoEm: row.proximo_disparo });
+      if (!resposta) continue;
 
       const result = await processFirestoreMessage(
-        { chat: { phone: row.telefone_chapa }, resposta_opcao: lastContact.content },
+        { chat: { phone: row.telefone_chapa }, resposta_opcao: resposta },
         "chat_umbler",
+        // só ESTE chapa, e sabemos que é PréFUP (o poll só olha disparos de PréFUP)
+        { chapaId: row.chapa_id, origem: "prefup" },
       );
       if (!result.handled) continue;
 

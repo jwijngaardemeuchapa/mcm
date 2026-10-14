@@ -14,7 +14,9 @@ import { ChatSheet } from "@/components/ChatSheet";
 import { startUmblerBot, sendUmblerFup, fmtTaskDateParam, umblerChatLink, last11Digits } from "@/lib/umbler";
 import { useUnreadChats } from "@/lib/WatcherContext";
 import { UnreadDot, fmtElapsed } from "@/components/TaskCard";
-import { bidDispatchQueue, BID_WAVE_SIZE, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
+import { bidDispatchQueue, BID_WAVE_SIZE, tarefaPreenchida, type BidBatchState, type BidDispatchRecord } from "@/lib/dispatchQueue";
+import { chavesSelecionaveis, linhasExibidas, separarSelecionados } from "@/lib/bidRecomendados";
+import { rodarEmLevas } from "@/lib/levas";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
 import { companyMatches } from "@/lib/company";
@@ -550,6 +552,8 @@ function BidTaskCard({
   const [captacaoSendingIds, setCaptacaoSendingIds] = useState<Set<string>>(new Set());
   const [captacaoBulkSending, setCaptacaoBulkSending] = useState(false);
   const [captacaoWaitSeconds, setCaptacaoWaitSeconds] = useState<number | null>(null);
+  // "Cancelar" durante a Captação em levas (o BID tem o seu, na fila; esta fase não passa por ela).
+  const captacaoAbortRef = useRef(false);
   const [showOccupied, setShowOccupied] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1480,7 +1484,7 @@ function BidTaskCard({
       setCaptacaoWaitSeconds(remaining);
       const tick = setInterval(() => {
         remaining--;
-        if (remaining <= 0) {
+        if (remaining <= 0 || captacaoAbortRef.current) {
           clearInterval(tick);
           setCaptacaoWaitSeconds(null);
           resolve();
@@ -1499,16 +1503,31 @@ function BidTaskCard({
   // antecipada — só o teto fixo por leva (CAPTACAO_WAVE_CAP). Reusado tanto
   // pelo botão dedicado da aba Leads Região quanto pelo disparo misto de
   // Recomendados.
-  async function sendCaptacaoSequencial(items: { id: string; nome: string; telefone: string | null }[]) {
-    let offset = 0;
-    while (offset < items.length) {
-      const wave = items.slice(offset, offset + CAPTACAO_WAVE_CAP);
-      for (let i = 0; i < wave.length; i++) {
-        await sendCaptacao(wave[i]);
-        if (i < wave.length - 1) await captacaoWait(7);
-      }
-      offset += wave.length;
-      if (offset < items.length) await captacaoWait(CAPTACAO_WAVE_PAUSE_S);
+  // `pararSeTarefaPreenchida`: no disparo de Recomendados a Captação também para quando a
+  // tarefa fecha (o objetivo é preencher a vaga); na aba Leads Região, que é captação pura
+  // de cadastro, segue como sempre — só o "Cancelar" encerra.
+  async function sendCaptacaoSequencial(
+    items: { id: string; nome: string; telefone: string | null }[],
+    opcoes: { pararSeTarefaPreenchida?: boolean } = {},
+  ) {
+    captacaoAbortRef.current = false;
+    const r = await rodarEmLevas({
+      itens: items,
+      tamanhoLeva: CAPTACAO_WAVE_CAP,
+      pausaEntreEnviosS: 7,
+      pausaEntreLevasS: CAPTACAO_WAVE_PAUSE_S,
+      enviar: sendCaptacao,
+      esperar: captacaoWait,
+      deveParar: async () =>
+        captacaoAbortRef.current ||
+        (!!opcoes.pararSeTarefaPreenchida && (await tarefaPreenchida(task.id_tarefa, task.quantidade_chapas))),
+    });
+    if (r.parou) {
+      toast.info(
+        captacaoAbortRef.current
+          ? `Captação cancelada — ${r.enviados} enviada(s)`
+          : `Tarefa preenchida — captação interrompida (${r.enviados} enviada(s))`,
+      );
     }
   }
 
@@ -1538,10 +1557,10 @@ function BidTaskCard({
   // (nunca se cadastrou) — vai pro template de Captação, sequencial (função
   // já tem seu próprio loading/erro por item, sem fila dedicada).
   async function handleDispatchSelectedRecomendados() {
-    const selecionados = recomendadosVisible.filter((it) => selectedIds.has(it._key) && it.telefone);
-    if (selecionados.length === 0) return;
-    const botEligible = selecionados.filter((it) => it.origin !== "lead_regiao");
-    const captacaoEligible = selecionados.filter((it) => it.origin === "lead_regiao");
+    // Seleção sobre o ranking INTEIRO (como em Disponíveis): quem divide em levas de 30, com
+    // 5 min entre elas, e para quando a tarefa fecha é o próprio disparo (BidDispatchQueue).
+    const { bot: botEligible, captacao: captacaoEligible } = separarSelecionados(recomendados, selectedIds);
+    if (botEligible.length + captacaoEligible.length === 0) return;
 
     if (botEligible.length > 0) {
       const us = readSettings().umblerSettings;
@@ -1568,12 +1587,23 @@ function BidTaskCard({
       // Captação — sem isso os dois rodavam em paralelo (startBatch é
       // fire-and-forget), embaralhando a cadência e a ordem combinada do
       // ranking entre as duas origens de disparo.
-      if (started) await bidDispatchQueue.waitBatch(task.id_tarefa);
+      let resultado: Awaited<ReturnType<typeof bidDispatchQueue.waitBatch>> = null;
+      if (started) {
+        try { resultado = await bidDispatchQueue.waitBatch(task.id_tarefa); } catch { /* erro já foi avisado pela fila */ }
+      }
+      // Tarefa preenchida (ou lote cancelado) no meio do BID: não adianta seguir pra Captação.
+      if (resultado?.filledEarly || resultado?.aborted) {
+        setSelectedIds(new Set());
+        return;
+      }
     }
     if (captacaoEligible.length > 0) {
       setCaptacaoBulkSending(true);
       try {
-        await sendCaptacaoSequencial(captacaoEligible.map((it) => ({ id: it._key, nome: it.nome, telefone: it.telefone })));
+        await sendCaptacaoSequencial(
+          captacaoEligible.map((it) => ({ id: it._key, nome: it.nome, telefone: it.telefone })),
+          { pararSeTarefaPreenchida: true },
+        );
       } finally {
         setCaptacaoBulkSending(false);
         setCaptacaoWaitSeconds(null);
@@ -1830,13 +1860,13 @@ function BidTaskCard({
     });
   }, [available, novosVisible, leadsBidVisible, leadsRegiaoComDist, basePhoneSet, occupiedPhoneSet, leadsSaacPhoneSet, novoPhoneSet, leoCache, dispatchParams.localLat, dispatchParams.localLng, maxDistKm, searchActive, searchNorm, searchDigits]); // eslint-disable-line
   const recomendadosLoading = candidatesLoading || !leadsBidLoaded || !novosLoaded || !leadsRegiaoLoaded;
-  // MCM-130/132: só mostra a leva da vez — mesmo tamanho fixo do disparo em
-  // massa (BID_WAVE_SIZE=30, BidDispatchQueue._run). Extras já entram no
-  // ranking acima (origin "disponivel", isExtra=true) e ficam ordenados por
-  // tarefas executadas dentro do próprio tier (computeRecommendedScore soma
-  // tarefas*2 antes da leo) — sem lista à parte, é a mesma ordem geral, só
-  // limitada ao tamanho da leva.
-  const recomendadosVisible = recomendados.slice(0, BID_WAVE_SIZE);
+  // Extras já entram no ranking acima (origin "disponivel", isExtra=true) e ficam
+  // ordenados por tarefas executadas dentro do próprio tier (computeRecommendedScore
+  // soma tarefas*2 antes da leo) — sem lista à parte, é a mesma ordem geral. O disparo
+  // em massa corta em levas de BID_WAVE_SIZE (=30) sozinho (BidDispatchQueue._run).
+  // Mesma lógica de Disponíveis: a lista mostra as 40 primeiras (ou todas em "ver todos"/busca),
+  // mas a seleção e o disparo valem pro ranking inteiro.
+  const recomendadosExibidos = linhasExibidas(recomendados, showAllEffective);
 
   // Lista efetivamente renderizada na aba ativa — alimenta o virtualizer.
   // leads_bid tem render próprio (lista simples, sem virtualizer).
@@ -1858,18 +1888,20 @@ function BidTaskCard({
     );
   }
 
+  // O que o "selecionar todos" (e a caixinha do cabeçalho) considera na aba ativa.
+  const chavesDaAba: string[] = candidateView === "bloqueados"
+    ? blockedVisible.filter((c) => c.telefone).map((c) => c._key)
+    : candidateView === "leads_bid"
+      ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? ""))).map((c) => c._key)
+      : candidateView === "novos"
+        ? novosVisible.filter((c) => c.telefone).map((c) => c._key)
+        : candidateView === "recomendados"
+          ? chavesSelecionaveis(recomendados)
+          : available.filter((c) => c.telefone).map((c) => c._key);
+  const todosSelecionados = chavesDaAba.length > 0 && chavesDaAba.every((k) => selectedIds.has(k));
+
   function toggleSelectAll() {
-    const pool = candidateView === "bloqueados"
-      ? blockedVisible.filter((c) => c.telefone)
-      : candidateView === "leads_bid"
-        ? leadsBidVisible.filter((c) => !c.bloqueio && c.telefone && !basePhoneSet.has(normalizePhone(c.telefone ?? "")))
-        : candidateView === "novos"
-          ? novosVisible.filter((c) => c.telefone)
-          : candidateView === "recomendados"
-            ? recomendadosVisible.filter((it) => it.telefone)
-            : available.filter((c) => c.telefone);
-    const allSel = pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
-    setSelectedIds(allSel ? new Set() : new Set(pool.map((c) => c._key)));
+    setSelectedIds(todosSelecionados ? new Set() : new Set(chavesDaAba));
   }
 
   return (
@@ -2263,7 +2295,7 @@ function BidTaskCard({
                   onClick={() => { setCandidateView("recomendados"); setShowAll(false); }}
                   className={`px-2.5 py-1 transition-colors flex items-center gap-1 ${candidateView === "recomendados" ? "bg-gradient-to-r from-primary to-success text-white" : "text-muted-foreground hover:bg-muted/50"}`}>
                   <Star className="h-3 w-3" />
-                  Recomendados{recomendadosVisible.length > 0 ? ` (${recomendadosVisible.length}${recomendados.length > recomendadosVisible.length ? `/${recomendados.length}` : ""})` : ""}
+                  Recomendados{recomendados.length > 0 ? ` (${recomendados.length})` : ""}
                 </button>
                 <button type="button"
                   onClick={() => { setCandidateView("disponiveis"); setShowAll(false); }}
@@ -2302,11 +2334,27 @@ function BidTaskCard({
               </div>
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex-1 flex items-center flex-wrap gap-1.5">
                 {candidateView === "recomendados" ? (
-                  <span className="font-normal normal-case bg-gradient-to-r from-primary to-success bg-clip-text text-transparent font-semibold">
-                    {recomendadosLoading
-                      ? "Cruzando cadastro geral, Novos, Leads Saac e Leads Região..."
-                      : `${recomendadosVisible.length} desta leva (de ${recomendados.length} ranqueados) — conversão (histórico de aceite) + distância`}
-                  </span>
+                  <>
+                    <span className="font-normal normal-case bg-gradient-to-r from-primary to-success bg-clip-text text-transparent font-semibold">
+                      {recomendadosLoading
+                        ? "Cruzando cadastro geral, Novos, Leads Saac e Leads Região..."
+                        : `${recomendados.length} ranqueados — conversão (histórico de aceite) + distância. Pode marcar todos: o disparo sai em levas de ${BID_WAVE_SIZE} (5 min entre levas) e para quando a tarefa fechar`}
+                    </span>
+                    {!recomendadosLoading && !searchActive && recomendados.length > recomendadosExibidos.length && !showAll && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowAll(true); }}
+                        className="font-normal normal-case text-primary hover:underline">
+                        {`ver todos (${recomendados.length})`}
+                      </button>
+                    )}
+                    {!recomendadosLoading && !searchActive && showAll && recomendados.length > 40 && (
+                      <button type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowAll(false); }}
+                        className="font-normal normal-case text-primary hover:underline">
+                        mostrar menos
+                      </button>
+                    )}
+                  </>
                 ) : candidateView === "disponiveis" ? (
                   <>
                     {available.length > 0 && (
@@ -2433,6 +2481,15 @@ function BidTaskCard({
                     : `Disparar Captação (${leadsRegiaoVisible.filter((r) => r.telefone && !captacaoStatus.get(normalizePhone(r.telefone))?.chatId).length})`}
                 </Button>
               )}
+              {candidateView === "leads_regiao" && captacaoBulkSending && (
+                <Button
+                  size="sm" variant="outline"
+                  className="h-6 px-2 text-[10px] gap-1 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => { captacaoAbortRef.current = true; }}
+                >
+                  <X className="h-3 w-3" /> Cancelar
+                </Button>
+              )}
               {candidateView === "bloqueados" && blockedTipos.length > 1 && (
                 <Select value={blockedTipoFilter} onValueChange={(v) => { setBlockedTipoFilter(v); setBlockedMotivoFilter("__all__"); setShowAll(false); }}>
                   <SelectTrigger className="h-6 w-[160px] text-[10px] border-border/50">
@@ -2504,14 +2561,14 @@ function BidTaskCard({
                   Apenas BID positivo
                 </button>
               )}
-              {selectedIds.size > 0 && !isBatchDispatching && (
+              {selectedIds.size > 0 && !isBatchDispatching && !captacaoBulkSending && (
                 <span className="text-xs text-muted-foreground">{selectedIds.size} selecionado{selectedIds.size > 1 ? "s" : ""}</span>
               )}
-              {isBatchDispatching && (
+              {(isBatchDispatching || (captacaoBulkSending && candidateView !== "leads_regiao")) && (
                 <Button
                   size="sm" variant="outline"
                   className="h-7 text-xs gap-1 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => bidDispatchQueue.abortBatch(task.id_tarefa)}
+                  onClick={() => { bidDispatchQueue.abortBatch(task.id_tarefa); captacaoAbortRef.current = true; }}
                 >
                   <X className="h-3.5 w-3.5" /> Cancelar
                 </Button>
@@ -2524,7 +2581,8 @@ function BidTaskCard({
                   !dispatchParams.atividades ||
                   !dispatchParams.diaria ||
                   !dispatchParams.localCep ||
-                  isBatchDispatching
+                  isBatchDispatching ||
+                  captacaoBulkSending
                 }
                 onClick={handleDispatchSelected}
               >
@@ -2534,6 +2592,11 @@ function BidTaskCard({
                     {waitSeconds !== null
                       ? `próximo em ${waitSeconds}s`
                       : batchProgress ? `${batchProgress.current}/${batchProgress.total}` : "…"}
+                  </>
+                ) : captacaoBulkSending ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {captacaoWaitSeconds !== null ? `captação — próximo em ${captacaoWaitSeconds}s` : "captação…"}
                   </>
                 ) : (
                   <><Send className="h-3.5 w-3.5" />Disparar{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}</>
@@ -2549,12 +2612,7 @@ function BidTaskCard({
                 <span>
                   <input
                     type="checkbox" className="h-3.5 w-3.5 rounded"
-                    checked={(() => {
-                      const pool = candidateView === "bloqueados"
-                        ? blockedVisible.filter((c) => c.telefone)
-                        : available.filter((c) => c.telefone);
-                      return pool.length > 0 && pool.every((c) => selectedIds.has(c._key));
-                    })()}
+                    checked={todosSelecionados}
                     onChange={toggleSelectAll}
                   />
                 </span>
@@ -2583,9 +2641,9 @@ function BidTaskCard({
                     Nenhum candidato disponível em nenhuma das 4 listas para {task.cidade_uf || "esta cidade"}.
                   </div>
                 )}
-                {candidateView === "recomendados" && !recomendadosLoading && recomendadosVisible.length > 0 && (
+                {candidateView === "recomendados" && !recomendadosLoading && recomendadosExibidos.length > 0 && (
                   <div className="divide-y divide-border/50">
-                    {recomendadosVisible.map((it, idx) => {
+                    {recomendadosExibidos.map((it, idx) => {
                       const isDispatching = dispatchingIds.has(it._key) || captacaoSendingIds.has(it._key);
                       const originBadge = {
                         disponivel: { label: "CADASTRO", cls: "bg-primary/15 text-primary" },

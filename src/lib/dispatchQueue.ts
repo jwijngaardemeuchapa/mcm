@@ -952,6 +952,16 @@ async function countAlocados(taskId: number): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** A tarefa já tem todas as vagas ocupadas? Mesma conta que o BID em massa usa pra parar.
+ *  Sem quantidade de vagas conhecida (0), nunca considera preenchida. */
+export async function tarefaPreenchida(taskId: number, quantidadeChapas: number): Promise<boolean> {
+  if (!(quantidadeChapas > 0)) return false;
+  return (await countAlocados(taskId)) >= quantidadeChapas;
+}
+
+/** Como um disparo em levas terminou: quantos saíram e por que parou antes do fim, se parou. */
+export type BidBatchOutcome = { dispatched: number; filledEarly: boolean; aborted: boolean };
+
 export type BidDispatchRecord = {
   id: string;
   id_tarefa: number;
@@ -1014,7 +1024,7 @@ class BidDispatchQueue {
   // aguardar o batch inteiro terminar (ver waitBatch), em vez de startBatch
   // ser só fire-and-forget. Usado pra encadear disparo de bot (Recomendados)
   // ANTES da captação de Leads Região, sem os dois rodarem em paralelo.
-  private batchRunPromises = new Map<number, Promise<void>>();
+  private batchRunPromises = new Map<number, Promise<BidBatchOutcome>>();
 
   startBatch(job: BidBatchJob): boolean {
     if (this.batchAborts.has(job.taskId)) return false;
@@ -1022,14 +1032,20 @@ class BidDispatchQueue {
     this.batchAborts.set(job.taskId, false);
     this.batchStates.set(job.taskId, { progress: { current: 0, total: job.candidates.length }, waitSeconds: null });
     this._notify(job.taskId);
-    this.batchRunPromises.set(job.taskId, this._run(job));
+    const rodando = this._run(job);
+    this.batchRunPromises.set(job.taskId, rodando);
+    // Terminou: tira da tabela, pra um waitBatch tardio não devolver o resultado de um disparo velho.
+    const limpar = () => { if (this.batchRunPromises.get(job.taskId) === rodando) this.batchRunPromises.delete(job.taskId); };
+    rodando.then(limpar, limpar);
     return true;
   }
 
-  /** Aguarda o batch em andamento (todas as levas) da tarefa terminar. Resolve
-   *  na hora se não houver batch rodando. */
-  async waitBatch(taskId: number): Promise<void> {
-    await this.batchRunPromises.get(taskId);
+  /** Aguarda o batch em andamento (todas as levas) da tarefa terminar e diz como acabou
+   *  (inclusive se parou porque a tarefa foi preenchida ou o analista cancelou). Resolve
+   *  na hora com null se não houver batch rodando. */
+  async waitBatch(taskId: number): Promise<BidBatchOutcome | null> {
+    const rodando = this.batchRunPromises.get(taskId);
+    return rodando ? await rodando : null;
   }
 
   abortBatch(taskId: number) {
@@ -1066,7 +1082,7 @@ class BidDispatchQueue {
     });
   }
 
-  private async _run(job: BidBatchJob) {
+  private async _run(job: BidBatchJob): Promise<BidBatchOutcome> {
     const { taskId } = job;
     const { umblerSettings } = readSettings();
     const localParam = job.params.sendMapsAsLocal && job.params.mapsLink
@@ -1190,6 +1206,7 @@ class BidDispatchQueue {
             : `${dispatchedTotal} BIDs disparados`,
       );
     }
+    return { dispatched: dispatchedTotal, filledEarly, aborted };
   }
 }
 

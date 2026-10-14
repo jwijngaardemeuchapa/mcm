@@ -24,18 +24,35 @@ export function isPrefupTemplateWindow(
 // Descobre qual disparo (PréFUP ou FUP normal) gerou uma confirmação — olha
 // o fup_log mais recente do chapa/tarefa (aguarda_resposta_chat = 1 quando
 // foi PréFUP). Usado tanto na confirmação automática (processFirestoreMessage)
-// quanto na manual, pra gravar chapas.confirmado_via.
+// quanto na manual, pra gravar chapas.confirmado_via e decidir se a mensagem
+// automática pós-confirmação vale (gatilho PréFUP x FUP).
+//
+// Vale o disparo do PRÓPRIO chapa. O FUP em massa grava, além de uma linha por
+// chapa, uma linha-resumo da tarefa (chapa_id nulo, sem o flag) com o MESMO
+// data_disparo — e a consulta antiga (chapa OU resumo, ordenada só por data)
+// empatava e podia devolver o resumo: toda confirmação de um PréFUP em massa
+// virava "fup". Só sem disparo próprio é que cai no registro geral da tarefa;
+// empate de data desempata pelo último gravado.
 export async function canalConfirmacao(
   idTarefa: number,
   chapaId: string | null,
 ): Promise<"prefup" | "fup" | null> {
   const db = await getDb();
-  const rows = await db.select<{ aguarda_resposta_chat: number | null }[]>(
+  if (chapaId) {
+    const proprio = await db.select<{ aguarda_resposta_chat: number | null }[]>(
+      `SELECT aguarda_resposta_chat FROM fup_log
+       WHERE id_tarefa = ? AND chapa_id = ?
+       ORDER BY data_disparo DESC, rowid DESC LIMIT 1`,
+      [idTarefa, chapaId],
+    );
+    if (proprio.length > 0) return proprio[0].aguarda_resposta_chat ? "prefup" : "fup";
+  }
+  const geral = await db.select<{ aguarda_resposta_chat: number | null }[]>(
     `SELECT aguarda_resposta_chat FROM fup_log
-     WHERE id_tarefa = ? AND (chapa_id = ? OR chapa_id IS NULL)
-     ORDER BY data_disparo DESC LIMIT 1`,
-    [idTarefa, chapaId],
+     WHERE id_tarefa = ? AND chapa_id IS NULL
+     ORDER BY data_disparo DESC, rowid DESC LIMIT 1`,
+    [idTarefa],
   );
-  if (rows.length === 0) return null;
-  return rows[0].aguarda_resposta_chat ? "prefup" : "fup";
+  if (geral.length === 0) return null;
+  return geral[0].aguarda_resposta_chat ? "prefup" : "fup";
 }

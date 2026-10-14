@@ -287,7 +287,20 @@ const MOTIVOS_VALIDOS = [
  *  `fonte` identifica a origem no resposta_log (default "firestore" — o
  *  webhook do bot); useTemplateReplyPoll.ts passa "chat_umbler" pra
  *  respostas lidas direto do chat, sem bot/webhook envolvido. */
-export async function processFirestoreMessage(payload: unknown, fonte: string = "firestore"): Promise<ProcessResult> {
+export type OpcoesProcessamento = {
+  /** Resposta lida do chat de UM chapa específico (PréFUP): só esse chapa pode ser atualizado.
+   *  Sem isso a busca é por telefone e pega "o chapa mais recente" daquele número — que pode
+   *  ser de outra tarefa. Também pula BID e Captação (não se aplicam a esta resposta). */
+  chapaId?: string;
+  /** Origem já conhecida da confirmação (o poll do chat só olha disparos de PréFUP). */
+  origem?: "prefup" | "fup";
+};
+
+export async function processFirestoreMessage(
+  payload: unknown,
+  fonte: string = "firestore",
+  opts: OpcoesProcessamento = {},
+): Promise<ProcessResult> {
   const phoneDigits = extractPhone(payload);
   if (!phoneDigits) return { handled: false, reason: "sem telefone no payload" };
 
@@ -296,15 +309,17 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
   const now = new Date().toISOString();
 
   // 1. BID — webhook chega ao final do fluxo do bot, com todas as respostas de uma vez
-  const bidRows = await db.select<BidRow[]>(
-    `SELECT id, chapa_nome, chapa_telefone, id_tarefa, empresa, data_tarefa, status
-     FROM bid_disparos
-     WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(chapa_telefone,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
-       AND status = 'aguardando'
-       AND data_disparo >= datetime('now','-7 days')
-     ORDER BY data_disparo DESC LIMIT 1`,
-    [pattern],
-  );
+  const bidRows = opts.chapaId
+    ? []
+    : await db.select<BidRow[]>(
+        `SELECT id, chapa_nome, chapa_telefone, id_tarefa, empresa, data_tarefa, status
+         FROM bid_disparos
+         WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(chapa_telefone,'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
+           AND status = 'aguardando'
+           AND data_disparo >= datetime('now','-7 days')
+         ORDER BY data_disparo DESC LIMIT 1`,
+        [pattern],
+      );
   const bid = bidRows[0];
   if (bid) {
     const resolved = resolveBidStatus(payload);
@@ -367,9 +382,9 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
      WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(c.telefone_chapa,''),'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
        AND t.ativo = 1
        AND c.canal_contato = 'umbler_talk'
-       AND c.status_contato NOT IN ('confirmado','removido')
+       AND c.status_contato NOT IN ('confirmado','removido')${opts.chapaId ? " AND c.id = ?" : ""}
      ORDER BY c.data_contato DESC LIMIT 1`,
-    [pattern],
+    opts.chapaId ? [pattern, opts.chapaId] : [pattern],
   );
   const fup = fupRows[0];
   if (fup) {
@@ -378,7 +393,7 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
       : code === "interesse_nao" || code === "cancelado"
         ? "cancelado"
         : code;
-    const canalConf = fupResposta === "confirmado" ? await canalConfirmacao(fup.id_tarefa, fup.id) : null;
+    const canalConf = fupResposta === "confirmado" ? (opts.origem ?? (await canalConfirmacao(fup.id_tarefa, fup.id))) : null;
     await db.execute(
       "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
       [fupResposta, now, canalConf, fup.id],
@@ -436,6 +451,9 @@ export async function processFirestoreMessage(payload: unknown, fonte: string = 
       },
     };
   }
+
+  // Resposta lida do chat de um chapa específico: se ele não está mais pendente, acabou aqui.
+  if (opts.chapaId) return { handled: false, reason: "chapa não está mais pendente" };
 
   // 3. Captação (MCM-121) — leads_regiao não são chapas/tarefas, então o
   // match é direto contra captacao_log por telefone, sem passar por

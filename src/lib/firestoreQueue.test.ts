@@ -8,6 +8,8 @@ vi.mock("./db", () => ({
   getDb: async () => ({ execute: execMock, select: selectMock }),
   uuid: () => "test-uuid",
 }));
+// nada de rede nos testes: os espelhos pra Central são best-effort e aqui só atrapalham
+vi.mock("./central", () => ({ pushChapaStatusToCentral: vi.fn(), pushRespostaToCentral: vi.fn() }));
 
 import {
   classifyResponse,
@@ -48,7 +50,9 @@ describe("classifyResponse", () => {
 describe("extractores de payload", () => {
   it("extrai telefone de formatos variados", () => {
     expect(extractPhone({ from: "+55 19 99726-0135" })).toBe("5519997260135");
-    expect(extractPhone({ data: { contact: { phone: "5519997260135" } } })).toBe("5519997260135");
+    expect(extractPhone({ contact: { phone: "5519997260135" } })).toBe("5519997260135");
+    expect(extractPhone({ Chat: { PhoneNumber: "+55 (19) 99726-0135" } })).toBe("5519997260135");
+    expect(extractPhone({ chat: { phone: "5519997260135" } })).toBe("5519997260135"); // formato do poll do chat
     expect(extractPhone({ from: "123" })).toBeNull();
     expect(extractPhone({})).toBeNull();
   });
@@ -56,6 +60,7 @@ describe("extractores de payload", () => {
   it("extrai corpo e nome", () => {
     expect(extractBody({ body: "SIM" })).toBe("SIM");
     expect(extractBody({ data: { Data: "Preciso de ajuda" } })).toBe("Preciso de ajuda");
+    expect(extractBody({ resposta_opcao: "SIM, estou nessa!" })).toBe("SIM, estou nessa!");
     expect(extractName({ contact: { name: "João" } })).toBe("João");
   });
 });
@@ -67,6 +72,11 @@ describe("processFirestoreMessage", () => {
     selectMock.mockResolvedValue([]); // sem matches por padrão
   });
 
+  const bidRow = (id: string, status = "aguardando") => ({
+    id, chapa_nome: "Gabriel", chapa_telefone: "5519997260135", id_tarefa: 7, empresa: "ACME", data_tarefa: "2026-06-17", status,
+  });
+  const SQL_BID = "UPDATE bid_disparos SET status=?, data_resposta1=?, data_resposta2=?, motivo_nao=? WHERE id=?";
+
   it("retorna handled:false quando não há telefone", async () => {
     const r = await processFirestoreMessage({ body: "SIM" });
     expect(r.handled).toBe(false);
@@ -77,43 +87,47 @@ describe("processFirestoreMessage", () => {
     expect(r.handled).toBe(false);
   });
 
-  it("BID etapa 1: aguardando + SIM → interesse_sim (data_resposta1)", async () => {
-    selectMock.mockResolvedValueOnce([
-      { id: "d1", chapa_nome: "Gabriel", chapa_telefone: "5519997260135", id_tarefa: 7, empresa: "ACME", data_tarefa: "2026-06-17", status: "aguardando" },
-    ]);
-    const r = await processFirestoreMessage({ from: "5519997260135", body: "SIM" });
-    expect(r.handled).toBe(true);
-    if (r.handled) expect(r.event.resposta).toBe("interesse_sim");
-    expect(execMock).toHaveBeenCalledWith(
-      "UPDATE bid_disparos SET status=?, data_resposta1=? WHERE id=?",
-      expect.arrayContaining(["interesse_sim", expect.any(String), "d1"]),
-    );
-  });
-
-  it("BID etapa 2: interesse_sim + Sim → aceita_app (data_resposta2)", async () => {
-    selectMock.mockResolvedValueOnce([
-      { id: "d2", chapa_nome: "Gabriel", chapa_telefone: "5519997260135", id_tarefa: 7, empresa: "ACME", data_tarefa: "2026-06-17", status: "interesse_sim" },
-    ]);
-    const r = await processFirestoreMessage({ from: "5519997260135", body: "Sim" });
+  it("BID: interesse SIM sem etapa 2 (fluxo curto) → aceita_app", async () => {
+    selectMock.mockResolvedValueOnce([bidRow("d1")]);
+    const r = await processFirestoreMessage({ from: "5519997260135", resposta_interesse: "SIM" });
     expect(r.handled).toBe(true);
     if (r.handled) expect(r.event.resposta).toBe("aceita_app");
-    expect(execMock).toHaveBeenCalledWith(
-      "UPDATE bid_disparos SET status=?, data_resposta2=? WHERE id=?",
-      expect.arrayContaining(["aceita_app", expect.any(String), "d2"]),
-    );
+    expect(execMock).toHaveBeenCalledWith(SQL_BID, expect.arrayContaining(["aceita_app", "d1"]));
   });
 
-  it("BID etapa 2: interesse_sim + Preciso de ajuda → precisa_ajuda", async () => {
-    selectMock.mockResolvedValueOnce([
-      { id: "d3", chapa_nome: "Gabriel", chapa_telefone: "5519997260135", id_tarefa: 7, empresa: "ACME", data_tarefa: "2026-06-17", status: "interesse_sim" },
-    ]);
-    const r = await processFirestoreMessage({ from: "5519997260135", body: "Preciso de ajuda" });
+  it("BID: interesse SIM + aceite Sim → aceita_app", async () => {
+    selectMock.mockResolvedValueOnce([bidRow("d2")]);
+    const r = await processFirestoreMessage({ from: "5519997260135", resposta_interesse: "SIM", resposta_aceite: "Sim" });
+    expect(r.handled).toBe(true);
+    if (r.handled) expect(r.event.resposta).toBe("aceita_app");
+  });
+
+  it("BID: interesse SIM + aceite 'Preciso de ajuda' → precisa_ajuda", async () => {
+    selectMock.mockResolvedValueOnce([bidRow("d3")]);
+    const r = await processFirestoreMessage({ from: "5519997260135", resposta_interesse: "SIM", resposta_aceite: "Preciso de ajuda" });
     expect(r.handled).toBe(true);
     if (r.handled) expect(r.event.resposta).toBe("precisa_ajuda");
   });
 
-  it("FUP: positivo → confirmado", async () => {
-    // 1ª chamada (BID) sem match; 2ª chamada (FUP) com match
+  it("BID: interesse NÃO → interesse_nao", async () => {
+    selectMock.mockResolvedValueOnce([bidRow("d4")]);
+    const r = await processFirestoreMessage({ from: "5519997260135", resposta_interesse: "NÃO" });
+    expect(r.handled).toBe(true);
+    if (r.handled) expect(r.event.resposta).toBe("interesse_nao");
+  });
+
+  it("BID: não aceita o app, com motivo válido → nao_aceita_app + motivo gravado", async () => {
+    selectMock.mockResolvedValueOnce([bidRow("d5")]);
+    const r = await processFirestoreMessage({
+      from: "5519997260135", resposta_interesse: "SIM", resposta_aceite: "Não aceito", motivo_nao: "Valor da Tarefa",
+    });
+    expect(r.handled).toBe(true);
+    if (r.handled) expect(r.event.resposta).toBe("nao_aceita_app");
+    expect(execMock).toHaveBeenCalledWith(SQL_BID, expect.arrayContaining(["nao_aceita_app", "Valor da Tarefa", "d5"]));
+  });
+
+  it("FUP: positivo → confirmado (grava confirmado_via)", async () => {
+    // 1ª chamada (BID) sem match; 2ª chamada (FUP) com match; as seguintes (canalConfirmacao) vazias
     selectMock
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
@@ -126,8 +140,8 @@ describe("processFirestoreMessage", () => {
       expect(r.event.resposta).toBe("confirmado");
     }
     expect(execMock).toHaveBeenCalledWith(
-      "UPDATE chapas SET status_contato=?, data_contato=? WHERE id=?",
-      expect.arrayContaining(["confirmado", expect.any(String), "c1"]),
+      "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
+      ["confirmado", expect.any(String), null, "c1"],
     );
   });
 
@@ -145,5 +159,54 @@ describe("processFirestoreMessage", () => {
   it("retorna handled:false quando não há disparo pendente", async () => {
     const r = await processFirestoreMessage({ from: "5519997260135", body: "SIM" });
     expect(r.handled).toBe(false);
+  });
+});
+
+describe("processFirestoreMessage — resposta lida do chat de UM chapa (PréFUP)", () => {
+  beforeEach(() => {
+    execMock.mockReset();
+    selectMock.mockReset();
+    selectMock.mockResolvedValue([]);
+  });
+
+  const fupRow = { id: "c1", nome_chapa: "Maria", telefone_chapa: "5519997260135", id_tarefa: 9, empresa: "ACME" };
+
+  it("só olha o chapa pedido (consulta com c.id) e não passa por BID nem por Captação", async () => {
+    selectMock.mockResolvedValueOnce([fupRow]); // a 1ª consulta já é a do FUP: BID foi pulado
+    const r = await processFirestoreMessage(
+      { chat: { phone: "5519997260135" }, resposta_opcao: "SIM" }, "chat_umbler", { chapaId: "c1", origem: "prefup" },
+    );
+    expect(r.handled).toBe(true);
+    const [sql, params] = selectMock.mock.calls[0];
+    expect(sql).toContain("FROM chapas c");
+    expect(sql).toContain("AND c.id = ?");
+    expect(params).toEqual([expect.stringContaining("997260135"), "c1"]);
+    expect(selectMock.mock.calls.some(([s]) => String(s).includes("bid_disparos"))).toBe(false);
+  });
+
+  it("origem informada vale: grava confirmado_via=prefup sem consultar o fup_log", async () => {
+    selectMock.mockResolvedValueOnce([fupRow]);
+    await processFirestoreMessage(
+      { chat: { phone: "5519997260135" }, resposta_opcao: "SIM" }, "chat_umbler", { chapaId: "c1", origem: "prefup" },
+    );
+    expect(execMock).toHaveBeenCalledWith(
+      "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
+      ["confirmado", expect.any(String), "prefup", "c1"],
+    );
+    expect(selectMock.mock.calls.some(([s]) => String(s).includes("fup_log"))).toBe(false);
+  });
+
+  it("chapa que já não está pendente: handled:false e NÃO cai na Captação nem em outro chapa", async () => {
+    const r = await processFirestoreMessage(
+      { chat: { phone: "5519997260135" }, resposta_opcao: "SIM" }, "chat_umbler", { chapaId: "c1", origem: "prefup" },
+    );
+    expect(r.handled).toBe(false);
+    expect(selectMock.mock.calls.some(([s]) => String(s).includes("captacao_log"))).toBe(false);
+    expect(execMock).not.toHaveBeenCalled();
+  });
+
+  it("sem opções (webhook do bot, notificação) o comportamento de sempre: BID primeiro, busca por telefone", async () => {
+    await processFirestoreMessage({ from: "5519997260135", body: "SIM" });
+    expect(String(selectMock.mock.calls[0][0])).toContain("bid_disparos");
   });
 });
