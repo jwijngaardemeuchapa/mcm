@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-15 (Sonnet 5.5) — ver JOURNAL.md.
+
+**Versão atual: main v1.0.73 (publicada) / beta v1.0.76.** A v1.0.73 leva o ajuste de BID (Recomendados seleciona o ranking inteiro) e da mensagem automática do PréFUP. **Falta a beta v1.0.77** (mesmo conteúdo; já está na beta local, não enviada). Sem pendência de release na main.
+
+---
+
 **Data:** 2026-10-14 (Sonnet 5.5) — ver JOURNAL.md.
 
 **Última release: main v1.0.72 / beta v1.0.76.** Depois dela, **commitado e NÃO lançado** (main `3eb2429`, beta cherry-pick): (1) BID Dashboard — Recomendados seleciona o ranking inteiro (levas de 30 e parada ao preencher no disparo, inclusive na Captação, com Cancelar); (2) mensagem automática do PréFUP — o poll do chat só confirma resposta DEPOIS do disparo (e antes de disparo seguinte no mesmo chat), só o chapa lido, tarefas de ontem em diante, e `canalConfirmacao` deixou de classificar PréFUP em massa como "fup". Próxima release sugerida: main v1.0.73 primeiro (foco do usuário), depois beta v1.0.77. NÃO testado com a Umbler real. `firestoreQueue.test.ts` voltou a passar inteiro (153 testes na main).
