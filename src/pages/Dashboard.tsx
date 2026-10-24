@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDb, placeholders } from "@/lib/db";
+import { resolveCpfs } from "@/lib/cpfResolver";
 import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate, dataSP } from "@/lib/datetime";
 import { companyMatches } from "@/lib/company";
 import { type TaskWithChapas } from "@/components/TaskCard";
@@ -932,7 +933,7 @@ export default function Dashboard() {
     setTimeout(() => doFlash(id), 150);
   }
 
-  function exportPreFup() {
+  async function exportPreFup() {
     const todayISO = todayDateISO_SP();
     const tomorrow = new Date(`${todayISO}T12:00:00-03:00`);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -947,23 +948,28 @@ export default function Dashboard() {
     // Group chapas by company
     type Row = { empresa: string; horario: string; id_tarefa: number; nome: string; telefone: string; cpf: string };
     const rows: Row[] = [];
+    const flat: { t: (typeof tomorrowTasks)[number]; c: (typeof tomorrowTasks)[number]["chapas"][number] }[] = [];
     tomorrowTasks
       .slice()
       .sort((a, b) => a.empresa.localeCompare(b.empresa) || a.data_tarefa.localeCompare(b.data_tarefa))
       .forEach((t) => {
         t.chapas
           .filter((c) => c.nome_chapa && c.status_contato !== "removido")
-          .forEach((c) => {
-            rows.push({
-              empresa: t.empresa,
-              horario: fmtSP(t.data_tarefa, "dd/MM/yyyy HH:mm"),
-              id_tarefa: t.id_tarefa,
-              nome: c.nome_chapa ?? "",
-              telefone: c.telefone_chapa ?? "",
-              cpf: c.cpf ?? "",
-            });
-          });
+          .forEach((c) => flat.push({ t, c }));
       });
+    const { cpfs: cpfsPreFup } = await resolveCpfs(
+      flat.map(({ c }) => ({ id: (c as { id?: string }).id, cpf: c.cpf, telefone_chapa: c.telefone_chapa, nome_chapa: c.nome_chapa })),
+    );
+    flat.forEach(({ t, c }, i) => {
+      rows.push({
+        empresa: t.empresa,
+        horario: fmtSP(t.data_tarefa, "dd/MM/yyyy HH:mm"),
+        id_tarefa: t.id_tarefa,
+        nome: c.nome_chapa ?? "",
+        telefone: c.telefone_chapa ?? "",
+        cpf: cpfsPreFup[i] ?? "",
+      });
+    });
     if (rows.length === 0) {
       toast.error("Nenhum chapa nas tarefas de amanhã.");
       return;
@@ -1040,8 +1046,13 @@ export default function Dashboard() {
     setXlsxDialogOpen(true);
   }
 
-  function exportarXlsx() {
+  async function exportarXlsx() {
     const selecionadas = allCards.filter((t) => xlsxSelected.has(t.id_tarefa));
+    const flatX = selecionadas.flatMap((task) => task.chapas.map((c) => ({ task, c })));
+    const { cpfs: cpfsX } = await resolveCpfs(
+      flatX.map(({ c }) => ({ id: (c as { id?: string }).id, cpf: (c as { cpf?: string | null }).cpf, telefone_chapa: c.telefone_chapa, nome_chapa: c.nome_chapa })),
+    );
+    let ix = 0;
     const rows = selecionadas.flatMap((task) =>
       task.chapas.map((c) => ({
         "ID Tarefa": task.id_tarefa,
@@ -1051,7 +1062,7 @@ export default function Dashboard() {
         "Status Tarefa": task.status_tarefa,
         "Nome Chapa": c.nome_chapa ?? "",
         "Telefone": c.telefone_chapa ?? "",
-        "CPF": ("cpf" in c ? (c as { cpf?: string }).cpf : undefined) ?? "",
+        "CPF": cpfsX[ix++] ?? "",
         "Status": c.status_contato,
         "Confirmado": c.status_contato === "confirmado" ? "SIM" : "NÃO",
       })),

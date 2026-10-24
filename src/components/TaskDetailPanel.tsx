@@ -49,6 +49,7 @@ import { last11Digits } from "@/lib/umbler";
 import { useUnreadChats } from "@/lib/WatcherContext";
 import { setActiveTaskNav } from "@/lib/taskNav";
 import { formatCpf } from "@/lib/normalize";
+import { resolveCpfs } from "@/lib/cpfResolver";
 
 const CLIENTE_KEY = "__cliente__";
 
@@ -255,10 +256,11 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   // Segue o mesmo modelo "Lista de Presença" do TaskCard (Cards) — título
   // mesclado A1:F1, campos Data/Empresa/Local/Responsável nas linhas 2-3,
   // cabeçalho na linha 5, chapas numeradas a partir da 6.
-  function exportCSV() {
+  async function exportCSV() {
     if (!task) return;
     const chapasValidas = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
     const { operadorNome } = readSettings();
+    const { cpfs, semCpf } = await resolveCpfs(chapasValidas);
 
     const wsData: (string | number)[][] = [
       ["LISTA DE PRESENÇA", "", "", "", "", ""],
@@ -266,7 +268,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
       ["Local da operação:", task.cidade_uf ?? "", "", "Responsável:", operadorNome || "", ""],
       [],
       ["Nº", "Nome", "CPF", "Horário de Entrada", "Horário de Saída", "Assinatura"],
-      ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", c.cpf ?? "", "", "", ""]),
+      ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", cpfs[i] ? formatCpf(cpfs[i]!) : "", "", "", ""]),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -288,6 +290,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     }
     setCsvExportedAt(new Date().toISOString());
     toast.success(`Lista de presença exportada: ${filename}`);
+    if (semCpf > 0) toast.warning(`${semCpf} ajudante(s) sem CPF na lista — preencha à mão`);
   }
 
   function startTaskCancelCountdown() {
@@ -595,27 +598,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   async function copyCpfConfirmados() {
     const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
     if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
-    const semCpf = confirmados.filter((c) => !c.cpf && c.telefone_chapa);
-    const phoneToCpf: Record<string, string> = {};
-    if (semCpf.length > 0) {
-      try {
-        const db = await getDb();
-        const phones = semCpf.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
-        const rows = await db.select<{ cpf: string; telefone: string }[]>(
-          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
-           FROM chapa_registry
-           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
-             AND cpf IS NOT NULL`,
-          phones,
-        );
-        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
-      } catch { /* silencioso — segue só com o que já tinha */ }
-    }
-    const lines = confirmados.map((c) => {
-      const cpf = c.cpf ?? phoneToCpf[(c.telefone_chapa ?? "").replace(/\D/g, "")] ?? "(não encontrado)";
-      return `${c.nome_chapa} — ${formatCpf(cpf)}`;
-    });
-    clipboardWrite(lines.join("\n"), `${lines.length} CPF(s) de confirmados copiados`);
+    const { cpfs, semCpf } = await resolveCpfs(confirmados);
+    const lines = confirmados.map((c, i) => `${c.nome_chapa} — ${cpfs[i] ? formatCpf(cpfs[i]!) : "(não encontrado)"}`);
+    clipboardWrite(lines.join("\n"), `${lines.length} CPF(s) de confirmados copiados${semCpf ? ` — ${semCpf} sem CPF` : ""}`);
   }
 
   // Nome + CPF de todos os ajudantes da tarefa (não só confirmados) — existia
@@ -624,27 +609,9 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   async function copyAllNamesAndCpf() {
     const ativos = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
     if (ativos.length === 0) { toast.error("Nenhum ajudante nesta tarefa"); return; }
-    const semCpf = ativos.filter((c) => !c.cpf && c.telefone_chapa);
-    const phoneToCpf: Record<string, string> = {};
-    if (semCpf.length > 0) {
-      try {
-        const db = await getDb();
-        const phones = semCpf.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
-        const rows = await db.select<{ cpf: string; telefone: string }[]>(
-          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
-           FROM chapa_registry
-           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
-             AND cpf IS NOT NULL`,
-          phones,
-        );
-        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
-      } catch { /* silencioso — segue só com o que já tinha */ }
-    }
-    const lines = ativos.map((c) => {
-      const cpf = c.cpf ?? phoneToCpf[(c.telefone_chapa ?? "").replace(/\D/g, "")] ?? null;
-      return `${c.nome_chapa}${cpf ? ` — ${formatCpf(cpf)}` : ""}`;
-    });
-    clipboardWrite(lines.join("\n"), `${lines.length} ajudante(s) copiados com CPF`);
+    const { cpfs, semCpf } = await resolveCpfs(ativos);
+    const lines = ativos.map((c, i) => `${c.nome_chapa}${cpfs[i] ? ` — ${formatCpf(cpfs[i]!)}` : ""}`);
+    clipboardWrite(lines.join("\n"), `${lines.length} ajudante(s) copiados com CPF${semCpf ? ` — ${semCpf} sem CPF` : ""}`);
   }
 
   // Painel abre compacto (só lista) e cresce quando uma conversa é aberta —

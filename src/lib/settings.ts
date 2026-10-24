@@ -90,6 +90,10 @@ export type AppSettings = {
   // pega bloqueio/desbloqueio no mesmo dia, sem esperar o próximo sync 2x/
   // semana do cadastro geral completo. Ver sincronizarBloqueiosHoje.
   metabaseBloqueiosHojeCardId: number;
+  // Question dedicada de CPF dos chapas (id_chapa, cpf, telefone_norm...) —
+  // alimenta a resolução de CPF quando a Question de tarefas vem sem ele.
+  // Ver src/lib/cpfResolver.ts.
+  metabaseCpfCardId: number;
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
@@ -147,6 +151,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   metabaseLeadsRegiaoCardId: 983,
   metabaseRegistroCardId: 1296,
   metabaseBloqueiosHojeCardId: 1558,
+  metabaseCpfCardId: 1725,
   autoCancelFupEnabled: false,
   autoCancelFupMinutes: 60,
   fupAutoDispatchBloqueioHoras: 4,

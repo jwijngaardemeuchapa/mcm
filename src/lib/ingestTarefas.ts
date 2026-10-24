@@ -156,9 +156,18 @@ export async function ingestTarefas(
       `SELECT id, id_tarefa, nome_chapa, cpf, telefone_chapa, status_contato, validacao_presenca, data_validacao, data_contato, canal_contato, data_remocao, motivo_remocao FROM chapas WHERE id_tarefa IN (${ph})`,
       chunk,
     );
-    existingC.forEach((c) =>
-      chapaPrev.set(chapaKey(c.id_tarefa as number, c.cpf as string | null, c.nome_chapa as string | null), c),
-    );
+    // Indexa pelas DUAS chaves (cpf e nome): o CPF pode ter sido resolvido e
+    // gravado localmente (cpfResolver) depois da primeira importação, enquanto
+    // a linha nova do Metabase continua vindo sem CPF — sem a chave por nome,
+    // esse chapa viraria "novo" (id novo, status de contato perdido).
+    existingC.forEach((c) => {
+      const idT = c.id_tarefa as number;
+      chapaPrev.set(chapaKey(idT, c.cpf as string | null, c.nome_chapa as string | null), c);
+      if (c.cpf) {
+        const byName = chapaKey(idT, null, c.nome_chapa as string | null);
+        if (!chapaPrev.has(byName)) chapaPrev.set(byName, c);
+      }
+    });
   }
 
   tarefasMap.forEach((t, id) => {
@@ -187,7 +196,9 @@ export async function ingestTarefas(
   const chapasToInsert = dedupedChapas.map((c) => {
     const prev = chapaPrev.get(
       chapaKey(c.id_tarefa as number, c.cpf as string | null, c.nome_chapa as string | null),
-    );
+    ) ?? (((c.cpf as string | null) ?? "").replace(/\D/g, "")
+      ? undefined
+      : chapaPrev.get(chapaKey(c.id_tarefa as number, null, c.nome_chapa as string | null)));
     const taskStatus = String((tarefasMap.get(c.id_tarefa as number)?.status_tarefa) ?? "");
     const taskInProgressOrDone = /em\s*andamento|finalizado/i.test(taskStatus);
     const chapaId = (prev?.id as string | undefined) ?? uuid();
@@ -280,7 +291,7 @@ export async function ingestTarefas(
          id_tarefa = excluded.id_tarefa,
          nome_chapa = excluded.nome_chapa,
          telefone_chapa = excluded.telefone_chapa,
-         cpf = excluded.cpf,
+         cpf = COALESCE(NULLIF(excluded.cpf, ''), chapas.cpf),
          status_contato = excluded.status_contato,
          validacao_presenca = excluded.validacao_presenca,
          data_validacao = excluded.data_validacao,

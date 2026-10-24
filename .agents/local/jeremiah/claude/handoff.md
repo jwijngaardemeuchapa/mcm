@@ -1,5 +1,15 @@
 # Handoff — Jeremiah / claude
 
+**ATUALIZAÇÃO 2026-10-24 (mais recente — vale sobre o resto abaixo):** `main` tem
+`resolveCpfs()` (`src/lib/cpfResolver.ts`) + Question 1725 de CPF (ver JOURNAL de
+hoje). **Sem release feita** — falta decidir. Pendentes: (1) usuário autorizar
+`id_chapa` na Question de tarefas (1576) pra casar por id; (2) validar com dado
+real (rodar sync em Integrações → "CPF dos Chapas" e testar "Nome + CPF"); (3)
+otimizações de abertura (paralelizar sync etc.) só descritas, não aplicadas;
+(4) erro 404 "manual start block" de BID de uma analista: causa = Trigger Name
+divergente do gatilho do robô no Umbler; proposta de validar Bot ID+Trigger Name
+no Select NÃO implementada. Baseline typecheck é **14**, não 13.
+
 **Data:** 2026-10-15 (Sonnet 5.5) — ver JOURNAL.md.
 
 **Versão atual: main v1.0.73 (publicada) / beta v1.0.76.** A v1.0.73 leva o ajuste de BID (Recomendados seleciona o ranking inteiro) e da mensagem automática do PréFUP. **Falta a beta v1.0.77** (mesmo conteúdo; já está na beta local, não enviada). Sem pendência de release na main.

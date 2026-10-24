@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
+import { sincronizarCpfChapas } from "@/lib/cpfResolver";
 import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, sincronizarLeadsRegiao, sincronizarBloqueiosHoje } from "@/lib/metabaseSync";
 import { fmtDateTime } from "@/lib/datetime";
 import { collection, query, where, onSnapshot, type Unsubscribe } from "firebase/firestore";
@@ -149,6 +150,21 @@ function SincronizarBloqueiosHojeBtn() {
   async function handle() {
     setSyncing(true);
     await sincronizarBloqueiosHoje(false);
+    setSyncing(false);
+  }
+  return (
+    <Button variant="outline" size="sm" onClick={handle} disabled={syncing} className="gap-1.5">
+      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+      Sincronizar agora
+    </Button>
+  );
+}
+
+function SincronizarCpfChapasBtn() {
+  const [syncing, setSyncing] = useState(false);
+  async function handle() {
+    setSyncing(true);
+    await sincronizarCpfChapas(false);
     setSyncing(false);
   }
   return (
@@ -302,6 +318,10 @@ export default function Integracoes() {
   const [metabaseBloqueiosHojeCardIdInput, setMetabaseBloqueiosHojeCardIdInput] = useState(() => {
     const s = readSettings();
     return s.metabaseBloqueiosHojeCardId ? String(s.metabaseBloqueiosHojeCardId) : "";
+  });
+  const [metabaseCpfCardIdInput, setMetabaseCpfCardIdInput] = useState(() => {
+    const s = readSettings();
+    return s.metabaseCpfCardId ? String(s.metabaseCpfCardId) : "";
   });
   const [metabaseRegistroCardIdInput, setMetabaseRegistroCardIdInput] = useState(() => {
     const s = readSettings();
@@ -1402,6 +1422,31 @@ export default function Integracoes() {
             {localStorage.getItem("bloqueios_hoje_last_sync") && (
               <p className="text-xs text-muted-foreground">
                 Última sync: {new Date(localStorage.getItem("bloqueios_hoje_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              ID da pergunta — CPF dos Chapas
+              <span className="ml-1 text-muted-foreground/60">(sync diário — "MCM - Chapas (ID, CPF, Telefone)": usada pra achar o CPF quando a pergunta de tarefas vem sem ele; casa por telefone/nome e nunca apaga CPF já salvo)</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <Input
+                placeholder="ex: 1725"
+                value={metabaseCpfCardIdInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  setMetabaseCpfCardIdInput(v);
+                  writeSettings({ metabaseCpfCardId: v ? parseInt(v, 10) : undefined });
+                }}
+                className="max-w-[120px]"
+              />
+              <SincronizarCpfChapasBtn />
+            </div>
+            {localStorage.getItem("cpf_chapas_last_sync") && (
+              <p className="text-xs text-muted-foreground">
+                Última sync: {new Date(localStorage.getItem("cpf_chapas_last_sync")!).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </p>
             )}
           </div>

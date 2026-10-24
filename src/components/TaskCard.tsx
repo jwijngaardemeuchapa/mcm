@@ -61,6 +61,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { getDb, uuid, placeholders, errMsg } from "@/lib/db";
+import { resolveCpfs } from "@/lib/cpfResolver";
 import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
 import { linhaIdNomeTelefone } from "@/lib/copyFormats";
 import { StatusBadge } from "./StatusBadge";
@@ -447,9 +448,10 @@ Precisamos de 1 substituto para esta tarefa.`;
   // Segue o padrão da planilha "Lista de Presença" (modelo fornecido pelo
   // usuário): título mesclado A1:F1, campos Data/Empresa/Local/Responsável
   // nas linhas 2-3, cabeçalho na linha 5, chapas numeradas a partir da 6.
-  function exportCSV() {
+  async function exportCSV() {
     const chapasValidas = task.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
     const { operadorNome } = readSettings();
+    const { cpfs, semCpf } = await resolveCpfs(chapasValidas);
 
     const wsData: (string | number)[][] = [
       ["LISTA DE PRESENÇA", "", "", "", "", ""],
@@ -457,7 +459,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       ["Local da operação:", task.cidade_uf ?? "", "", "Responsável:", operadorNome || "", ""],
       [],
       ["Nº", "Nome", "CPF", "Horário de Entrada", "Horário de Saída", "Assinatura"],
-      ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", c.cpf ?? "", "", "", ""]),
+      ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", cpfs[i] ? formatCpf(cpfs[i]!) : "", "", "", ""]),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -479,6 +481,7 @@ Precisamos de 1 substituto para esta tarefa.`;
     }
     setCsvExportedAt(new Date().toISOString());
     toast.success(`Lista de presença exportada: ${filename}`);
+    if (semCpf > 0) toast.warning(`${semCpf} ajudante(s) sem CPF na lista — preencha à mão`);
   }
 
   async function copyCpfConfirmados() {
@@ -489,29 +492,9 @@ Precisamos de 1 substituto para esta tarefa.`;
       toast.info("Nenhum chapa confirmado");
       return;
     }
-    const comTelefone = confirmados.filter((c) => c.telefone_chapa);
-    let phoneToCpf: Record<string, string> = {};
-    if (comTelefone.length > 0) {
-      try {
-        const db = await getDb();
-        const phones = comTelefone.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
-        const rows = await db.select<{ cpf: string; telefone: string }[]>(
-          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
-           FROM chapa_registry
-           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
-             AND cpf IS NOT NULL`,
-          phones,
-        );
-        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
-      } catch { /* silencioso */ }
-    }
-    const lines = confirmados.map((c) => {
-      const cpf = c.cpf
-        ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
-        ?? "(não encontrado)";
-      return `${c.nome_chapa} — ${formatCpf(cpf)}`;
-    });
-    clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) de confirmados copiados`);
+    const { cpfs, semCpf } = await resolveCpfs(confirmados);
+    const lines = confirmados.map((c, i) => `${c.nome_chapa} — ${cpfs[i] ? formatCpf(cpfs[i]!) : "(não encontrado)"}`);
+    clipboardWrite(lines.join("\n"), `${confirmados.length} CPF(s) de confirmados copiados${semCpf ? ` — ${semCpf} sem CPF` : ""}`);
   }
 
   // Todos os ajudantes da tarefa (não só confirmados), nome + CPF já
@@ -523,29 +506,9 @@ Precisamos de 1 substituto para esta tarefa.`;
       toast.error("Nenhum ajudante nesta tarefa");
       return;
     }
-    const comTelefone = ativos.filter((c) => !c.cpf && c.telefone_chapa);
-    let phoneToCpf: Record<string, string> = {};
-    if (comTelefone.length > 0) {
-      try {
-        const db = await getDb();
-        const phones = comTelefone.map((c) => c.telefone_chapa!.replace(/\D/g, ""));
-        const rows = await db.select<{ cpf: string; telefone: string }[]>(
-          `SELECT cpf, REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') as telefone
-           FROM chapa_registry
-           WHERE REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')','') IN (${phones.map(() => "?").join(",")})
-             AND cpf IS NOT NULL`,
-          phones,
-        );
-        for (const r of rows) phoneToCpf[r.telefone] = r.cpf;
-      } catch { /* silencioso */ }
-    }
-    const lines = ativos.map((c) => {
-      const cpf = c.cpf
-        ?? phoneToCpf[c.telefone_chapa?.replace(/\D/g, "") ?? ""]
-        ?? "(não encontrado)";
-      return `${c.nome_chapa} — ${formatCpf(cpf)}`;
-    });
-    clipboardWrite(lines.join("\n"), `${lines.length} ajudante(s) copiados com CPF`);
+    const { cpfs, semCpf } = await resolveCpfs(ativos);
+    const lines = ativos.map((c, i) => `${c.nome_chapa} — ${cpfs[i] ? formatCpf(cpfs[i]!) : "(não encontrado)"}`);
+    clipboardWrite(lines.join("\n"), `${lines.length} ajudante(s) copiados com CPF${semCpf ? ` — ${semCpf} sem CPF` : ""}`);
   }
 
   function copyNamesOnly() {

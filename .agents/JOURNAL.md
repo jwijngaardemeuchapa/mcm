@@ -3,6 +3,49 @@
 
 ---
 
+## 2026-10-24 — MCM — CPF vazio: resolvedor único + Question dedicada (card 1725)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
+**Tickets:** nenhum (não aberto)
+**Commits:** ver git log (feat: resolveCpfs)
+
+Bug: alguns chapas voltavam sem CPF. Outro projeto (com acesso ao Metabase)
+descobriu: na "Tarefas 3 Dias", 596/1374 linhas sem CPF — 324 são tarefas sem
+chapa e 272 são o usuário-placeholder "DESCARGA PRÓPRIA" (id 107148, telefone
+00000000011); chapa real sem CPF é quase zero. Criou a Question **1725**
+"MCM - Chapas (ID, CPF, Telefone)" (id_chapa, nome, cpf, telefone_norm,
+telefone_ambiguo, ultima_tarefa; janela `dias`=90; ~4.014 chapas, ~2,7s).
+
+Aplicado no MCM:
+- `src/lib/cpfResolver.ts` (NOVO): `resolveCpfs()` única (antes 4 cópias do
+  SELECT por telefone). Ordem: CPF da tarefa → `chapa_cpf` por telefone
+  (últimos 11 dígitos, ignora ambíguo) → `chapa_registry` e `chapas_novos` por
+  telefone com variantes DDI/9º dígito (CPFs distintos pro mesmo telefone =
+  ambíguo, não resolve) → nome normalizado exato único. Grava em `chapas.cpf`
+  só o que resolveu e nunca sobrescreve CPF existente. Telefone placeholder
+  descartado. Falhas viram `console.warn`, não `catch {}` mudo; ações mostram
+  "N sem CPF".
+- `sincronizarCpfChapas()` + gate diário + job de boot + campo/botão em
+  Integrações (`settings.metabaseCpfCardId`, default 1725). Tabela `chapa_cpf`
+  criada em runtime (`CREATE TABLE IF NOT EXISTS`) — SEM migration em lib.rs,
+  de propósito (mcm/mcm-v2 compartilham o banco físico; evita colisão de versão).
+- Usado em: copiar CPF (confirmados/todos) no TaskCard e TaskDetailPanel,
+  XLSX Lista de Presença (os dois), CSV PréFUP e XLSX do Dashboard.
+- `ingestTarefas.ts`: UPSERT agora `cpf = COALESCE(NULLIF(excluded.cpf,''), chapas.cpf)`
+  (sync não apaga CPF já resolvido) e `chapaPrev` indexado pelas DUAS chaves
+  (cpf e nome) — sem isso, gravar CPF localmente mudaria a chave do chapa e o
+  próximo sync o trataria como novo (id novo, status de contato perdido).
+
+NÃO feito (precisa de autorização/Metabase): acrescentar `u."Id" AS id_chapa`
+na Question de tarefas (1576) — com isso o casamento vira por id, não por
+telefone/nome. Também não aplicados os itens de otimização de abertura
+(paralelizar sync, abrir com SQLite local, `{{desde}}` incremental no
+Financeiro, cache no Metabase) — só descritos pelo outro projeto.
+Typecheck: baseline 14 mantida (nenhum erro novo). Testes: `cpfResolver.test.ts` 5/5.
+Sem release — não pedida; está só em main (commit+push).
+**Não testado com dados reais** — esta máquina não tem Metabase nem DB de produção.
+
+---
+
 ## 2026-09-01 — Fixes na Troca de Turno + PréFUP unificado em 5h
 
 **Actor:** Jeremiah | **Agent:** sonnet

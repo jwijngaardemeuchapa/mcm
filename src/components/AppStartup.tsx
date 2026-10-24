@@ -3,6 +3,7 @@ import { Sun, Moon, Sunset, CheckCircle2, ArrowRight, Bell, Clock, AlertTriangle
 import logo from "@/assets/logo-meuchapa.png";
 import { invoke } from "@tauri-apps/api/core";
 import { sincronizarMetabase, sincronizarCarteira, devesSincronizarCarteira, sincronizarLeadsSaac, sincronizarRegistro, devesSincronizarRegistro, sincronizarEnderecos, devesSincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, devesSincronizarChapas15d, sincronizarLeadsRegiao, devesSincronizarLeadsRegiao, sincronizarBloqueiosHoje, devesSincronizarBloqueiosHoje } from "@/lib/metabaseSync";
+import { sincronizarCpfChapas, devesSincronizarCpfChapas } from "@/lib/cpfResolver";
 import { readSettings } from "@/lib/settings";
 import { getDb } from "@/lib/db";
 import { todayDateISO_SP, fmtSP, fmtTime, parseTaskDate } from "@/lib/datetime";
@@ -222,6 +223,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       const syncLeadsRegiao = hasLeadsRegiao && devesSincronizarLeadsRegiao();
       const syncRegistro = hasRegistro && devesSincronizarRegistro();
       const syncBloqueiosHoje = hasBloqueiosHoje && devesSincronizarBloqueiosHoje();
+      const syncCpf = !!s.metabaseCpfCardId && metabaseConfigured && devesSincronizarCpfChapas();
       // Leo (respostas de BID via Google Sheets) — config própria em leo_config
       // (planilha + service account), não em settings/Metabase. Gate diário.
       const syncLeo = await devesSincronizarLeo().catch(() => false);
@@ -236,6 +238,7 @@ export function AppStartup({ onDone }: { onDone: () => void }) {
       if (syncLeadsRegiao) jobs.push({ label: "Sincronizando leads regionais", run: () => sincronizarLeadsRegiao(true) });
       if (syncRegistro) jobs.push({ label: "Sincronizando cadastro", run: () => sincronizarRegistro(true) });
       if (syncBloqueiosHoje) jobs.push({ label: "Sincronizando bloqueios do dia", run: () => sincronizarBloqueiosHoje(true) });
+      if (syncCpf) jobs.push({ label: "Sincronizando CPF dos chapas", run: () => sincronizarCpfChapas(true) });
       if (hasSaac) jobs.push({ label: "Sincronizando leads", run: () => sincronizarLeadsSaac(true) });
       if (syncLeo) jobs.push({ label: "Sincronizando respostas BID (Leo)", run: () => sincronizarLeoAuto() });
 
