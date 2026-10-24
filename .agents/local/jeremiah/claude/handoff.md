@@ -1,8 +1,13 @@
 # Handoff — Jeremiah / claude
 
-**ATUALIZAÇÃO 2026-10-24 (mais recente — vale sobre o resto abaixo):** `main` tem
-`resolveCpfs()` (`src/lib/cpfResolver.ts`) + Question 1725 de CPF (ver JOURNAL de
-hoje). **Sem release feita** — falta decidir. Pendentes: (1) usuário autorizar
+**PRÓXIMO (2026-10-24): migrar o banco da Central pro Supabase próprio** — ver JOURNAL
+de hoje (apuração completa). Bloqueado em: ok do usuário pro `create_project`
+(`mcm-central`, sa-east-1, US$ 0), usuário excluir `booklog` (eu não excluo),
+dump dos dados só-Lovable, e usuário conectar o Supabase no Lovable + setar segredos.
+Rotacionar `CENTRAL_HOOK_SECRET` (está no repo público).
+
+**ATUALIZAÇÃO 2026-10-24:** `main` tem `resolveCpfs()` (`src/lib/cpfResolver.ts`) +
+Question 1725 de CPF, **release v1.0.74 publicada e verificada**. Pendentes: (1) usuário autorizar
 `id_chapa` na Question de tarefas (1576) pra casar por id; (2) validar com dado
 real (rodar sync em Integrações → "CPF dos Chapas" e testar "Nome + CPF"); (3)
 otimizações de abertura (paralelizar sync etc.) só descritas, não aplicadas;

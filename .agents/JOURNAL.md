@@ -3,6 +3,39 @@
 
 ---
 
+## 2026-10-24 — MCM — Release v1.0.74 (fix CPF vazio) + preparo da migração da Central pro Supabase
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
+**Commits:** c6e103d (bump), 945c52f (latest.json)
+
+v1.0.74 publicada, assinada (`npx tauri signer sign -f tauri_update_key -p ""` — o
+build do tauri falha na assinatura automática por falta de `TAURI_SIGNING_PRIVATE_KEY`,
+esperado, o `.exe` sai pronto) e verificada (latest.json 200, asset 302). O PC
+desligou no meio do primeiro build; refeito do zero (~12 min de Rust).
+
+**Migração da Central (beta) pro Supabase — decisão do usuário:** excluir o projeto
+Supabase `booklog`, manter o app no Lovable, mover só o BANCO pro Supabase próprio.
+Apurado (nada aplicado ainda):
+- Banco atual da Central = `uesgakycmstdhnctdtpc`, gerenciado pelo Lovable, NÃO está
+  na org Supabase "MeuChapa" (`toqnjwrjrpkznwftwcki`, projetos `booklog` e `saacaptacao`,
+  ambos INACTIVE). Novo projeto custa US$ 0/mês (get_cost); `create_project` exige
+  `confirm_cost` após ok explícito do usuário — ainda não dado.
+- `central-hub` (repo privado jwijngaardemeuchapa/central-hub): TanStack Start +
+  hooks `/api/public/hooks/*` + `sync.server.ts` (1440 linhas), 42 migrations (~54 KB),
+  2 `pg_cron` chamando `project--87e496f7-...lovable.app` com segredo em
+  `internal.cron_secrets`. Segredos de servidor: SUPABASE_SERVICE_ROLE_KEY,
+  MCM_HOOK_SECRET, GOOGLE_API_KEY. `.env` do repo é versionado (só chaves públicas).
+- Dados que só existem no banco Lovable (precisam de dump do usuário): usuários/auth,
+  ocorrências formais, solicitações de pagamento, chat links, ações configuradas.
+- Riscos: Lovable Cloud gerencia o `.env` (pode sobrescrever); hooks e crons continuam
+  dependendo da hospedagem Lovable (pausa por crédito ainda derruba).
+- **SEGURANÇA:** `CENTRAL_HOOK_SECRET` está em texto em `src/lib/central.ts` no repo
+  PÚBLICO (main e beta) — qualquer um escreve nos hooks. Rotacionar na migração e tirar
+  do código. Ainda não feito.
+- Minhas ferramentas Supabase não excluem projeto: `booklog` é com o usuário (irreversível).
+Clone de trabalho do central-hub: pasta scratchpad da sessão (não versionado).
+
+---
+
 ## 2026-10-24 — MCM — CPF vazio: resolvedor único + Question dedicada (card 1725)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
 **Tickets:** nenhum (não aberto)
