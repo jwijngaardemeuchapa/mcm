@@ -1,11 +1,10 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { minutesUntil, todayDateISO_SP } from "./datetime";
-import { buscarConfirmacoesEsquecidas, type ConfirmacaoCandidata } from "./useForgetFupConfirmation";
 import { buscarTarefasParaAgendar } from "./useScheduledFup";
 
 // SQLite de verdade: o ponto é provar que limitar a consulta a "ontem em diante" não muda
-// QUAIS linhas os loops de 60 s acabam usando (eles já descartavam o passado em JS).
+// QUAIS linhas o loop de 60 s do FUP agendado acaba usando (ele já descartava o passado em JS).
 const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite");
 
 const HORA = 3_600_000;
@@ -49,48 +48,6 @@ function criarBanco(n: number, semente: number) {
 
 const adaptador = (db: InstanceType<typeof DatabaseSync>) => ({
   select: async <T,>(sql: string, params: unknown[] = []) => db.prepare(sql).all(...(params as never[])) as unknown as T,
-});
-
-describe("useForgetFupConfirmation — consulta limitada dá as mesmas confirmações a reabrir", () => {
-  it("bate com a versão antiga (histórico inteiro) em 3 bancos", async () => {
-    let total = 0;
-    for (const semente of [1, 2, 3]) {
-      const db = criarBanco(4000, semente);
-      const limiarHoras = 6;
-      // versão ANTIGA: tudo do histórico, depois os filtros em JS
-      const velhas = db
-        .prepare(
-          `SELECT c.id, c.nome_chapa, t.empresa, t.id_tarefa, t.data_tarefa, c.data_contato
-           FROM chapas c JOIN tarefas t ON c.id_tarefa = t.id_tarefa
-           WHERE t.ativo = 1 AND t.status_tarefa NOT IN ('Concluído', 'Cancelado')
-             AND c.status_contato = 'confirmado' AND c.data_contato IS NOT NULL`,
-        )
-        .all() as ConfirmacaoCandidata[];
-      const agora = Date.now();
-      const esperado = velhas
-        .filter((x) => minutesUntil(x.data_tarefa) > 0 && agora - new Date(x.data_contato).getTime() > limiarHoras * HORA)
-        .map((x) => x.id);
-      const obtido = (await buscarConfirmacoesEsquecidas(adaptador(db), limiarHoras)).map((x) => x.id);
-      expect(obtido).toEqual(esperado);
-      total += obtido.length;
-      // e a consulta nova realmente lê bem menos que o histórico
-      expect(velhas.length).toBeGreaterThan(obtido.length * 3);
-    }
-    expect(total).toBeGreaterThan(30); // sanidade: o teste tem o que comparar
-  }, 60_000);
-
-  it("não deixa escapar confirmação de tarefa de hoje que ainda não começou", async () => {
-    const db = new DatabaseSync(":memory:");
-    db.exec(`
-      CREATE TABLE tarefas (id_tarefa INTEGER PRIMARY KEY, data_tarefa TEXT, empresa TEXT, status_tarefa TEXT, ativo INTEGER);
-      CREATE TABLE chapas (id TEXT PRIMARY KEY, id_tarefa INTEGER, nome_chapa TEXT, status_contato TEXT, data_contato TEXT);
-    `);
-    const agora = Date.now();
-    db.prepare("INSERT INTO tarefas VALUES (1, ?, 'X', 'Aguardando Início', 1)").run(iso(agora + 30 * 60_000));
-    db.prepare("INSERT INTO chapas VALUES ('1-0', 1, 'Fulano', 'confirmado', ?)").run(new Date(agora - 10 * HORA).toISOString());
-    const r = await buscarConfirmacoesEsquecidas(adaptador(db), 6);
-    expect(r.map((x) => x.id)).toEqual(["1-0"]);
-  });
 });
 
 describe("useScheduledFup — consulta limitada dá as mesmas tarefas candidatas", () => {

@@ -139,9 +139,10 @@ describe("processFirestoreMessage", () => {
       expect(r.event.tipo).toBe("fup");
       expect(r.event.resposta).toBe("confirmado");
     }
+    // sem origem conhecida a confirmação conta como FUP: grava a flag do FUP (não a do PréFUP)
     expect(execMock).toHaveBeenCalledWith(
-      "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
-      ["confirmado", expect.any(String), null, "c1"],
+      expect.stringContaining("confirmado_via=?, prefup_confirmado_em=COALESCE(?, prefup_confirmado_em), fup_confirmado_em=COALESCE(?, fup_confirmado_em)"),
+      ["confirmado", expect.any(String), null, null, expect.any(String), "c1"],
     );
   });
 
@@ -184,8 +185,21 @@ describe("processFirestoreMessage — resposta lida do chat de UM chapa (PréFUP
     expect(selectMock.mock.calls.some(([s]) => String(s).includes("bid_disparos"))).toBe(false);
   });
 
-  it("origem informada vale: grava confirmado_via=prefup sem consultar o fup_log", async () => {
+  it("origem informada vale: grava confirmado_via=prefup + a flag do PréFUP, sem consultar o fup_log", async () => {
     selectMock.mockResolvedValueOnce([fupRow]);
+    await processFirestoreMessage(
+      { chat: { phone: "5519997260135" }, resposta_opcao: "SIM" }, "chat_umbler", { chapaId: "c1", origem: "prefup" },
+    );
+    expect(execMock).toHaveBeenCalledWith(
+      expect.stringContaining("confirmado_via=?, prefup_confirmado_em=COALESCE(?, prefup_confirmado_em), fup_confirmado_em=COALESCE(?, fup_confirmado_em)"),
+      ["confirmado", expect.any(String), "prefup", expect.any(String), null, "c1"],
+    );
+    expect(selectMock.mock.calls.some(([s]) => String(s).includes("fup_log"))).toBe(false);
+  });
+
+  it("sem as colunas das fases no banco, grava a confirmação como antes (sem as flags)", async () => {
+    selectMock.mockResolvedValueOnce([fupRow]);
+    execMock.mockRejectedValueOnce(new Error("no such column: prefup_confirmado_em"));
     await processFirestoreMessage(
       { chat: { phone: "5519997260135" }, resposta_opcao: "SIM" }, "chat_umbler", { chapaId: "c1", origem: "prefup" },
     );
@@ -193,7 +207,6 @@ describe("processFirestoreMessage — resposta lida do chat de UM chapa (PréFUP
       "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
       ["confirmado", expect.any(String), "prefup", "c1"],
     );
-    expect(selectMock.mock.calls.some(([s]) => String(s).includes("fup_log"))).toBe(false);
   });
 
   it("chapa que já não está pendente: handled:false e NÃO cai na Captação nem em outro chapa", async () => {

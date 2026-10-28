@@ -97,7 +97,6 @@ export type AppSettings = {
   autoCancelFupEnabled: boolean;
   autoCancelFupMinutes: number;
   fupAutoDispatchBloqueioHoras: number;
-  fupEsquecerConfirmacaoHoras: number;
   mensagemPosConfirmacao: MensagemPosConfirmacaoSettings;
   saacApiUrl?: string;
   saacApiKey?: string;
@@ -155,7 +154,6 @@ export const SETTING_DEFAULTS: AppSettings = {
   autoCancelFupEnabled: false,
   autoCancelFupMinutes: 60,
   fupAutoDispatchBloqueioHoras: 4,
-  fupEsquecerConfirmacaoHoras: 6,
   mensagemPosConfirmacao: {
     ativo: false,
     gatilhos: { prefup: true, fup: true, manual: false },

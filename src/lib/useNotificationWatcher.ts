@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getDb } from "./db";
 import { normalize } from "./normalize";
 import { canalConfirmacao } from "./prefup";
+import { confirmarPorResposta, marcarFupDoReforco } from "./fasesConfirmacao";
 import { enviarMensagemPosConfirmacao } from "./mensagemPosConfirmacao";
 import { toast } from "sonner";
 import type { TaskWithChapas } from "@/components/TaskCard";
@@ -107,16 +108,39 @@ export function useNotificationWatcher(
           // notificação minutos antes, ou manualmente por outro caminho
           // enquanto essa notificação ainda não tinha sido lida) — não
           // repete o UPDATE nem o anúncio no painel.
-          if (confirmedIdsRef.current.has(found.id) || found.status_contato === "confirmado") continue;
+          if (confirmedIdsRef.current.has(found.id) || found.status_contato === "confirmado") {
+            // Já confirmado: só interessa se for a resposta do FUP de REFORÇO de quem confirmou o
+            // PréFUP antes — aí marca a flag do FUP (o banco só aceita se houve um FUP depois).
+            try {
+              const db = await getDb();
+              if (await marcarFupDoReforco(db, found.id, new Date().toISOString())) {
+                if (parentTask) {
+                  enviarMensagemPosConfirmacao(
+                    [{ idTarefa: parentTask.id_tarefa, chapaId: found.id, nome: found.nome_chapa, telefone: found.telefone_chapa, empresa: parentTask.empresa }],
+                    "fup",
+                  );
+                }
+                onActivityRef.current?.({
+                  id: key,
+                  chapa_nome: found.nome_chapa ?? match.chapa_nome,
+                  action: "confirmado",
+                  task_id: parentTask?.id_tarefa ?? null,
+                  empresa: parentTask?.empresa ?? null,
+                  data_tarefa: parentTask?.data_tarefa ?? null,
+                  timestamp: Date.now(),
+                });
+                onRefreshRef.current();
+              }
+            } catch { /* melhor esforço */ }
+            continue;
+          }
           confirmedIdsRef.current.add(found.id);
           try {
             const db = await getDb();
-            await db.execute(
-              "UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id = ?",
-              [new Date().toISOString(), found.id],
-            );
+            // a fase (PréFUP/FUP) vem do último disparo desse chapa; sem disparo registrado conta como FUP
+            const canal = parentTask ? await canalConfirmacao(parentTask.id_tarefa, found.id).catch(() => null) : null;
+            await confirmarPorResposta(db, found.id, canal, new Date().toISOString());
             if (parentTask) {
-              const canal = await canalConfirmacao(parentTask.id_tarefa, found.id).catch(() => null);
               enviarMensagemPosConfirmacao(
                 [{ idTarefa: parentTask.id_tarefa, chapaId: found.id, nome: found.nome_chapa, telefone: found.telefone_chapa, empresa: parentTask.empresa }],
                 canal === "prefup" ? "prefup" : "fup",

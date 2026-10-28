@@ -24,6 +24,7 @@ import { playAlertBeep } from "@/lib/sound";
 import { getDb, uuid, errMsg } from "@/lib/db";
 import { sendUmblerFup, startUmblerBot, fmtTaskDateParam } from "@/lib/umbler";
 import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
+import { confirmarManualEmLote } from "@/lib/fasesConfirmacao";
 import { toast } from "sonner";
 
 /* ── helpers ── */
@@ -267,10 +268,7 @@ function ChapaItem({
     setLoading("confirm");
     try {
       const db = await getDb();
-      await db.execute(
-        "UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id = ?",
-        [new Date().toISOString(), chapa.id],
-      );
+      await confirmarManualEmLote(db, [chapa.id], new Date().toISOString());
       enviarMensagemPosConfirmacao(
         [{ idTarefa: chapa.idTarefa, chapaId: chapa.id, nome: chapa.nome, telefone: chapa.telefone, empresa: chapa.empresa }],
         "manual",

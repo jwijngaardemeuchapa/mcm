@@ -276,6 +276,10 @@ const SECTIONS: Section[] = [
           "Critério 2 — Turno noturno: FUP disparado antes das 15h para tarefa com início às 17h ou mais tarde no mesmo dia",
           "Badge 'PréFUP' aparece ao lado do canal no histórico de FUPs de cada card",
           "PréFUPs realizados aparecem automaticamente na mensagem de Troca de Turno",
+          "Duas fases de confirmação: quem confirma o PréFUP ganha o selo 'PréFUP ✓' e quem confirma o FUP (resposta ao FUP ou botão Confirmado na mão) ganha 'FUP ✓'. Quem confirmou só o PréFUP mostra 'FUP —' até responder o FUP",
+          "A confirmação NÃO expira: o chapa continua confirmado (conta no fill rate) até você ou ele mudar — a antiga opção 'Reabrir confirmação esquecida' foi removida",
+          "FUP em massa na janela do FUP (menos de 5 h pra tarefa) também reforça quem confirmou só o PréFUP; quem já tem 'FUP ✓' não recebe de novo. Antes da janela, quem já confirmou não recebe um segundo PréFUP",
+          "Se o chapa responde NÃO ao FUP de reforço, a confirmação é cancelada e os dois selos saem",
         ],
       },
       {

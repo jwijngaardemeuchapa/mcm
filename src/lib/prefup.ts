@@ -1,4 +1,4 @@
-import { parseTaskDate } from "./datetime";
+import { fmtSP, parseTaskDate, todayDateISO_SP } from "./datetime";
 import { getDb } from "./db";
 
 // Janela de disparo do template de PréFUP (aixkbF8X47lF-5Rt) — decide se o
@@ -19,6 +19,13 @@ export function isPrefupTemplateWindow(
   if (taskDateStr > todayDateStr) return true;
   const hoursUntilStart = (parseTaskDate(dataTarefa, cidade_uf).getTime() - Date.now()) / 3_600_000;
   return hoursUntilStart > 5;
+}
+
+// Estamos na janela do FUP (menos de 5h antes da tarefa)? É a mesma fronteira que, no disparo,
+// escolhe PréFUP (template) x FUP (bot) — usada pra decidir se o FUP em massa reforça quem só
+// confirmou o PréFUP (ver fasesConfirmacao.ts).
+export function emJanelaDeFup(dataTarefa: string, cidadeUf?: string | null): boolean {
+  return !isPrefupTemplateWindow(fmtSP(dataTarefa, "yyyy-MM-dd"), todayDateISO_SP(), dataTarefa, cidadeUf);
 }
 
 // Descobre qual disparo (PréFUP ou FUP normal) gerou uma confirmação — olha

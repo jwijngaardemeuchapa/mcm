@@ -36,7 +36,7 @@ import { ObservationsPanel } from "@/components/ObservationsPanel";
 import { FillRateBar } from "@/components/FillRateBar";
 import { useClienteInfo } from "@/lib/useClienteInfo";
 import { useUndoActions } from "@/lib/undo";
-import { getDb, errMsg, placeholders } from "@/lib/db";
+import { getDb, errMsg } from "@/lib/db";
 import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
 import { linhaIdNomeTelefone } from "@/lib/copyFormats";
 import { readSettings, writeSettings } from "@/lib/settings";
@@ -47,6 +47,9 @@ import { useChapaJobState, useTaskCancelState, useMassFupState, useCustomMsgStat
 import { type TaskWithChapas, UnreadDot } from "@/components/TaskCard";
 import { last11Digits } from "@/lib/umbler";
 import { useUnreadChats } from "@/lib/WatcherContext";
+import { atualizarChapa, comFlagManual, confirmarManualEmLote, entraNoFupEmMassa } from "@/lib/fasesConfirmacao";
+import { emJanelaDeFup } from "@/lib/prefup";
+import { FasesChip } from "@/components/FasesChip";
 import { setActiveTaskNav } from "@/lib/taskNav";
 import { formatCpf } from "@/lib/normalize";
 import { resolveCpfs } from "@/lib/cpfResolver";
@@ -311,8 +314,10 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
 
   function startFupAll() {
     if (!task) return;
+    // confirmou só o PréFUP + janela do FUP (< 5h): entra de novo (reforço) — ver fasesConfirmacao.ts
+    const janelaFup = task.chapas.some((c) => c.status_contato === "confirmado") && emJanelaDeFup(task.data_tarefa, task.cidade_uf);
     const chapasWithPhone = task.chapas.filter(
-      (c) => c.telefone_chapa && c.nome_chapa && c.status_contato !== "removido" && c.status_contato !== "confirmado",
+      (c) => c.telefone_chapa && c.nome_chapa && entraNoFupEmMassa(c, janelaFup),
     ) as ChapaSnap[];
     if (chapasWithPhone.length === 0) {
       toast.error("Nenhum chapa pendente com telefone cadastrado nesta tarefa");
@@ -345,10 +350,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     const prev = targets.map((c) => ({ id: c.id, status_contato: c.status_contato }));
     try {
       const db = await getDb();
-      await db.execute(
-        `UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id IN (${placeholders(ids.length)})`,
-        [new Date().toISOString(), ...ids],
-      );
+      await confirmarManualEmLote(db, ids, new Date().toISOString());
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -524,12 +526,12 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   async function updateChapaStatus(chapaId: string, patch: Record<string, unknown>, label: string) {
     const chapa = task!.chapas.find((c) => c.id === chapaId);
     if (!chapa) return;
+    patch = comFlagManual(patch); // confirmação na mão conta como a fase FUP
     const prev: Record<string, unknown> = {};
     Object.keys(patch).forEach((k) => { prev[k] = (chapa as Record<string, unknown>)[k] ?? null; });
     try {
       const db = await getDb();
-      const setClauses = Object.keys(patch).map((k) => `${k} = ?`).join(", ");
-      await db.execute(`UPDATE chapas SET ${setClauses} WHERE id = ?`, [...Object.values(patch), chapaId]);
+      await atualizarChapa(db, chapaId, patch);
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -1402,6 +1404,7 @@ function CompactChapaRow({
           <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
             {STATUS_LABEL[c.status_contato] ?? c.status_contato}
+            {c.status_contato === "confirmado" && <FasesChip prefup={c.prefup_confirmado_em} fup={c.fup_confirmado_em} />}
             {c.status_contato === "pendente" && !lastDispatch && " — sem contato"}
             {elapsedMin !== null && c.status_contato !== "confirmado" && (
               <span className="text-muted-foreground font-normal">· há {fmtElapsed(elapsedMin)}</span>

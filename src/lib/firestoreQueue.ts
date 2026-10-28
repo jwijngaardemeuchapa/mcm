@@ -2,6 +2,7 @@ import { getDb, uuid } from "./db";
 import { normalize } from "./normalize";
 import { pushChapaStatusToCentral, pushRespostaToCentral } from "./central";
 import { canalConfirmacao } from "./prefup";
+import { flagsDaResposta, SQL_AGUARDA_REFORCO } from "./fasesConfirmacao";
 import { enviarMensagemPosConfirmacao } from "./mensagemPosConfirmacao";
 
 // Traduz o status (mais rico) do BID pro mesmo vocabulário de categoria
@@ -267,6 +268,7 @@ type FupRow = {
   cpf: string | null;
   id_tarefa: number;
   empresa: string;
+  data_contato?: string | null;
 };
 
 function extractMotivoNao(payload: unknown): string | null {
@@ -375,18 +377,49 @@ export async function processFirestoreMessage(
   const code = classifyResponse(body);
   if (!code) return { handled: false, reason: `resposta não classificada: "${body}"` };
 
+  const filtroChapa = opts.chapaId ? " AND c.id = ?" : "";
+  const params = opts.chapaId ? [pattern, opts.chapaId] : [pattern];
   const fupRows = await db.select<FupRow[]>(
-    `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.cpf, c.id_tarefa, t.empresa
+    `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.cpf, c.id_tarefa, c.data_contato, t.empresa
      FROM chapas c
      JOIN tarefas t ON c.id_tarefa = t.id_tarefa
      WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(c.telefone_chapa,''),'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
        AND t.ativo = 1
        AND c.canal_contato = 'umbler_talk'
-       AND c.status_contato NOT IN ('confirmado','removido')${opts.chapaId ? " AND c.id = ?" : ""}
+       AND c.status_contato NOT IN ('confirmado','removido')${filtroChapa}
      ORDER BY c.data_contato DESC LIMIT 1`,
-    opts.chapaId ? [pattern, opts.chapaId] : [pattern],
+    params,
   );
-  const fup = fupRows[0];
+  let fup: FupRow | undefined = fupRows[0];
+
+  // Reforço (2ª fase): quem confirmou só o PréFUP e recebeu um FUP depois responde o FUP. Só vale
+  // pra confirmar/cancelar, e só se HOUVE um FUP (não-PréFUP) disparado pra ele depois da confirmação
+  // do PréFUP — senão qualquer "não" solto no chat cancelaria um chapa já confirmado. Consulta à
+  // parte e protegida: a coluna fup_log.aguarda_resposta_chat só existe depois do primeiro disparo.
+  // (Resposta lida do chat de PréFUP — origem "prefup" — nunca é resposta de FUP: não há reforço a procurar.)
+  const respostaDeConfirmacao = code === "interesse_sim" || code === "confirmado" || code === "interesse_nao" || code === "cancelado";
+  if (respostaDeConfirmacao && opts.origem !== "prefup") {
+    const reforcoRows = await db
+      .select<FupRow[]>(
+        `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.cpf, c.id_tarefa, c.data_contato, t.empresa
+         FROM chapas c
+         JOIN tarefas t ON c.id_tarefa = t.id_tarefa
+         WHERE REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(c.telefone_chapa,''),'(',''),')',''),'-',''),' ',''),'+','') LIKE ?
+           AND t.ativo = 1
+           AND c.canal_contato = 'umbler_talk'
+           AND ${SQL_AGUARDA_REFORCO}
+           AND EXISTS (
+             SELECT 1 FROM fup_log f
+             WHERE f.chapa_id = c.id AND COALESCE(f.aguarda_resposta_chat, 0) = 0 AND f.data_disparo > c.prefup_confirmado_em
+           )${filtroChapa}
+         ORDER BY c.data_contato DESC LIMIT 1`,
+        params,
+      )
+      .catch(() => [] as FupRow[]);
+    const reforco = reforcoRows[0];
+    // entre um pendente e um em reforço do mesmo telefone, vale o contato mais recente
+    if (reforco && (!fup || (reforco.data_contato ?? "") > (fup.data_contato ?? ""))) fup = reforco;
+  }
   if (fup) {
     const fupResposta = code === "interesse_sim" || code === "confirmado"
       ? "confirmado"
@@ -394,10 +427,22 @@ export async function processFirestoreMessage(
         ? "cancelado"
         : code;
     const canalConf = fupResposta === "confirmado" ? (opts.origem ?? (await canalConfirmacao(fup.id_tarefa, fup.id))) : null;
-    await db.execute(
-      "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
-      [fupResposta, now, canalConf, fup.id],
-    );
+    // A confirmação grava a fase (PréFUP/FUP); outras respostas não mexem nas flags (e o gatilho do
+    // banco as limpa se o chapa sai de "confirmado"). Se as colunas novas não existirem, grava como antes.
+    const fases = fupResposta === "confirmado"
+      ? flagsDaResposta(canalConf === "prefup" ? "prefup" : "fup", now)
+      : { prefup_confirmado_em: null, fup_confirmado_em: null };
+    try {
+      await db.execute(
+        "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=?, prefup_confirmado_em=COALESCE(?, prefup_confirmado_em), fup_confirmado_em=COALESCE(?, fup_confirmado_em) WHERE id=?",
+        [fupResposta, now, canalConf, fases.prefup_confirmado_em, fases.fup_confirmado_em, fup.id],
+      );
+    } catch {
+      await db.execute(
+        "UPDATE chapas SET status_contato=?, data_contato=?, confirmado_via=? WHERE id=?",
+        [fupResposta, now, canalConf, fup.id],
+      );
+    }
     await db.execute(
       `INSERT OR IGNORE INTO resposta_log (id,tipo,chapa_nome,chapa_telefone,resposta,id_tarefa,empresa,fonte,message_body,received_at)
        VALUES (?,?,?,?,?,?,?,?,?,?)`,

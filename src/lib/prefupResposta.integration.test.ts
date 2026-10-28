@@ -40,9 +40,12 @@ vi.mock("./settings", () => ({
 vi.mock("./umbler", () => ({ fetchUmblerRecentMessages, sendUmblerFreeText }));
 
 import { canalConfirmacao } from "./prefup";
+import { processFirestoreMessage } from "./firestoreQueue";
+import { garantirFasesConfirmacao } from "./fasesConfirmacao";
 import { pollOnce } from "./useTemplateReplyPoll";
 
 const MIN = 60_000;
+const HORA_MS = 3_600_000;
 const agora = () => Date.now();
 const iso = (ms: number) => new Date(ms).toISOString();
 const tarefaIso = (ms: number) => new Date(ms - 3 * 3_600_000).toISOString().slice(0, 19) + "-03:00";
@@ -73,7 +76,7 @@ function semear(s: Seed) {
     h.db.prepare("INSERT INTO tarefas VALUES (?,?,?,?,1)").run(s.tarefa, tarefaIso(agora() + dias * 86_400_000), "São Paulo/SP", s.empresa ?? "ACME");
   }
   h.db
-    .prepare("INSERT INTO chapas VALUES (?,?,?,?,?,?,?,?,NULL)")
+    .prepare("INSERT INTO chapas (id,id_tarefa,nome_chapa,telefone_chapa,cpf,status_contato,data_contato,canal_contato) VALUES (?,?,?,?,?,?,?,?)")
     .run(s.chapa, s.tarefa, s.nome ?? "Maria", tel, null, "pendente", iso(s.disparoEm), "umbler_talk");
   h.db
     .prepare("INSERT INTO fup_log VALUES (?,?,?,?,?,?,?,?)")
@@ -85,10 +88,19 @@ const fala = (quando: number, texto: string, source = "Contact") => ({
 const chat = (id: string, ...msgs: ReturnType<typeof fala>[]) => h.mensagens.set(id, msgs);
 const statusDe = (chapa: string) =>
   h.db.prepare("SELECT status_contato AS s, confirmado_via AS v FROM chapas WHERE id = ?").get(chapa) as { s: string; v: string | null };
+const fasesDe = (chapa: string) =>
+  h.db.prepare("SELECT status_contato AS s, prefup_confirmado_em AS p, fup_confirmado_em AS f FROM chapas WHERE id = ?").get(chapa) as {
+    s: string; p: string | null; f: string | null;
+  };
 const esperarFireAndForget = () => new Promise((r) => setTimeout(r, 40));
 
-beforeEach(() => {
+beforeEach(async () => {
   h.db = criarBanco();
+  // colunas das fases + gatilho, como o app cria ao abrir o banco
+  await garantirFasesConfirmacao({
+    select: async <T,>(sql: string) => h.db.prepare(sql).all() as unknown as T,
+    execute: async (sql: string) => ({ rowsAffected: Number(h.db.prepare(sql).run().changes) }),
+  });
   h.mensagens.clear();
   h.gatilhos = { prefup: true, fup: true, manual: false };
   h.uuid = 0;
@@ -202,7 +214,7 @@ describe("poll de resposta ao PréFUP — só vale a resposta DEPOIS do disparo"
     semear({ tarefa: 1, chapa: "c1", chat: "A", disparoEm: D1 });
     // outra tarefa, mesmo telefone, contato mais recente, mas SEM PréFUP pendente (canal já tratado)
     h.db.prepare("INSERT INTO tarefas VALUES (?,?,?,?,1)").run(2, tarefaIso(agora() + 2 * 86_400_000), "São Paulo/SP", "BETA");
-    h.db.prepare("INSERT INTO chapas VALUES (?,?,?,?,?,?,?,?,NULL)").run("c2", 2, "Maria", "5511999990001", null, "pendente", iso(agora()), "umbler_talk");
+    h.db.prepare("INSERT INTO chapas (id,id_tarefa,nome_chapa,telefone_chapa,cpf,status_contato,data_contato,canal_contato) VALUES (?,?,?,?,?,?,?,?)").run("c2", 2, "Maria", "5511999990001", null, "pendente", iso(agora()), "umbler_talk");
     chat("A", fala(D1 + 5 * MIN, "SIM"));
     await pollOnce();
     expect(statusDe("c1").s).toBe("confirmado");
@@ -240,5 +252,93 @@ describe("canalConfirmacao — PréFUP em massa não vira 'fup'", () => {
     const { mensagemParaEnviar } = await import("./mensagemPosConfirmacao");
     const cfg = { ativo: true, gatilhos: { prefup: false, fup: true, manual: false }, mensagens: [{ id: "m1", nome: "x", texto: "T", empresas: [] }], mensagemAtivaId: "m1" };
     expect(mensagemParaEnviar(cfg, origem, "ACME")).toBeNull();
+  });
+});
+
+describe("duas fases de confirmação (PréFUP e FUP)", () => {
+  it("poll do chat: confirmar o PréFUP marca SÓ a flag do PréFUP", async () => {
+    const D = agora() - 30 * MIN;
+    semear({ tarefa: 1, chapa: "c1", chat: "A", disparoEm: D });
+    chat("A", fala(D + 2 * MIN, "SIM"));
+    await pollOnce();
+    const f = fasesDe("c1");
+    expect(f.s).toBe("confirmado");
+    expect(f.p).not.toBeNull();
+    expect(f.f).toBeNull();
+    expect(statusDe("c1").v).toBe("prefup");
+  });
+
+  // chapa que já confirmou o PréFUP (ontem à tarde) e recebeu o FUP de reforço agora
+  function chapaEmReforco(opts: { comFupDepois?: boolean } = {}) {
+    const confirmouEm = agora() - 8 * HORA_MS;
+    semear({ tarefa: 1, chapa: "c1", chat: "A", disparoEm: confirmouEm - 20 * MIN }); // PréFUP
+    h.db.prepare("UPDATE chapas SET status_contato = 'confirmado', data_contato = ?, confirmado_via = 'prefup', prefup_confirmado_em = ? WHERE id = 'c1'").run(iso(confirmouEm), iso(confirmouEm));
+    if (opts.comFupDepois !== false) {
+      h.db.prepare("INSERT INTO fup_log VALUES (?,?,?,?,?,?,?,?)").run("fup-reforco", 1, "umbler_talk", iso(agora() - 20 * MIN), "Disparado via API", "c1", "A", 0);
+    }
+  }
+  const respostaBot = (texto: string) => processFirestoreMessage({ from: "5511999990001", resposta_opcao: texto });
+
+  it("respondeu SIM ao FUP de reforço: marca a flag do FUP, mantém a do PréFUP e o status confirmado", async () => {
+    chapaEmReforco();
+    const antes = fasesDe("c1");
+    const r = await respostaBot("SIM, estou nessa!");
+    expect(r.handled).toBe(true);
+    const f = fasesDe("c1");
+    expect(f.s).toBe("confirmado");
+    expect(f.p).toBe(antes.p);
+    expect(f.f).not.toBeNull();
+    expect(statusDe("c1").v).toBe("fup");
+  });
+
+  it("respondeu NÃO ao FUP de reforço: o chapa vira cancelado (e as flags saem) — é a cobrança que a 2ª fase existe pra pegar", async () => {
+    chapaEmReforco();
+    const r = await respostaBot("NÃO, quero cancelar!");
+    expect(r.handled).toBe(true);
+    expect(fasesDe("c1")).toEqual({ s: "cancelado", p: null, f: null });
+  });
+
+  it("sem FUP disparado depois da confirmação do PréFUP, uma resposta solta NÃO mexe no chapa confirmado", async () => {
+    chapaEmReforco({ comFupDepois: false });
+    const r = await respostaBot("NÃO, quero cancelar!");
+    expect(r.handled).toBe(false);
+    expect(fasesDe("c1").s).toBe("confirmado");
+  });
+
+  it("quem já tem as duas flags não é reaberto por outra resposta", async () => {
+    chapaEmReforco();
+    h.db.prepare("UPDATE chapas SET fup_confirmado_em = ? WHERE id = 'c1'").run(iso(agora() - 10 * MIN));
+    const r = await respostaBot("NÃO, quero cancelar!");
+    expect(r.handled).toBe(false);
+    expect(fasesDe("c1").s).toBe("confirmado");
+  });
+
+  it("resposta que não é sim/não (ex.: pedido de ajuda) não altera chapa confirmado em reforço", async () => {
+    chapaEmReforco();
+    const r = await respostaBot("Preciso de ajuda");
+    expect(r.handled).toBe(false);
+    expect(fasesDe("c1").s).toBe("confirmado");
+  });
+
+  it("confirmação pelo bot de um chapa pendente: FUP normal marca a flag do FUP (origem pelo último disparo)", async () => {
+    const D = agora() - 30 * MIN;
+    semear({ tarefa: 2, chapa: "c9", chat: "B", disparoEm: D, prefup: false, tel: "5511999990009" });
+    const r = await processFirestoreMessage({ from: "5511999990009", resposta_opcao: "SIM, estou nessa!" });
+    expect(r.handled).toBe(true);
+    expect(fasesDe("c9")).toMatchObject({ s: "confirmado", p: null });
+    expect(fasesDe("c9").f).not.toBeNull();
+  });
+
+  it("PréFUP em massa (linha-resumo + linha do chapa no mesmo instante) confirmado pelo bot marca a flag do PréFUP", async () => {
+    const D = agora() - 30 * MIN;
+    h.db.prepare("INSERT INTO tarefas VALUES (?,?,?,?,1)").run(3, tarefaIso(agora() + 86_400_000), "São Paulo/SP", "ACME");
+    h.db.prepare("INSERT INTO chapas (id,id_tarefa,nome_chapa,telefone_chapa,cpf,status_contato,data_contato,canal_contato) VALUES ('m1',3,'Maria','5511999990003',NULL,'pendente',?,'umbler_talk')").run(iso(D));
+    h.db.prepare("INSERT INTO fup_log (id,id_tarefa,canal,data_disparo,observacao) VALUES ('resumo',3,'umbler_talk',?,'FUP em massa — 1 enviado(s)')").run(iso(D));
+    h.db.prepare("INSERT INTO fup_log VALUES (?,?,?,?,?,?,?,?)").run("l1", 3, "umbler_talk", iso(D), "Disparado via API (massa)", "m1", "chatM", 1);
+    const r = await processFirestoreMessage({ from: "5511999990003", resposta_opcao: "SIM, estou nessa!" });
+    expect(r.handled).toBe(true);
+    const f = fasesDe("m1");
+    expect(f.p).not.toBeNull();
+    expect(f.f).toBeNull();
   });
 });

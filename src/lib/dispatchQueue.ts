@@ -5,7 +5,8 @@ import { sendUmblerFup, sendUmblerFreeText, startUmblerBot, fmtTaskDateParam, hu
 import { fmtSP, todayDateISO_SP } from "./datetime";
 import { pushDispatchEventToCentral } from "./central";
 import { upsertChatLink } from "./chatLinks";
-import { isPrefupTemplateWindow } from "./prefup";
+import { emJanelaDeFup, isPrefupTemplateWindow } from "./prefup";
+import { SQL_AGUARDA_REFORCO } from "./fasesConfirmacao";
 
 export type MassFupProgress =
   | { phase: "sending"; sent: number; total: number }
@@ -344,11 +345,14 @@ class DispatchQueue {
     if (this.massFupStates.has(task.id_tarefa)) return;
     try {
       const db = await getDb();
+      // Na janela do FUP (< 5h) o disparo automático também reforça quem confirmou só o PréFUP
+      // (flag do PréFUP sem a do FUP) — ver fasesConfirmacao.ts.
+      const janelaFup = emJanelaDeFup(task.data_tarefa, task.cidade_uf);
       const chapas = await db.select<ChapaSnap[]>(
-        `SELECT id, nome_chapa, telefone_chapa, status_contato FROM chapas
-         WHERE id_tarefa = ?
-           AND status_contato NOT IN ('confirmado', 'removido')
-           AND telefone_chapa IS NOT NULL AND telefone_chapa != ''`,
+        `SELECT c.id, c.nome_chapa, c.telefone_chapa, c.status_contato FROM chapas c
+         WHERE c.id_tarefa = ?
+           AND (c.status_contato NOT IN ('confirmado', 'removido')${janelaFup ? ` OR ${SQL_AGUARDA_REFORCO}` : ""})
+           AND c.telefone_chapa IS NOT NULL AND c.telefone_chapa != ''`,
         [task.id_tarefa],
       );
       if (chapas.length === 0) {

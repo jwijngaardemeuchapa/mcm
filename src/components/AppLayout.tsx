@@ -14,7 +14,6 @@ import { DailyBriefing } from "./DailyBriefing";
 import { CarteiraSelector } from "./CarteiraSelector";
 import { useKeyboardNav, type NavShortcut } from "@/lib/useKeyboardNav";
 import { useScheduledFup } from "@/lib/useScheduledFup";
-import { useForgetFupConfirmation } from "@/lib/useForgetFupConfirmation";
 import { AutoFupConfirmDialog } from "./AutoFupConfirmDialog";
 
 const CARTEIRA_SELECTOR_ROUTES = ["/bid", "/dashboard"];
@@ -46,7 +45,6 @@ export default function AppLayout() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const { awaitingChord } = useKeyboardNav(NAV_SHORTCUTS);
   const { pending: autoFupPending, confirmDispatch, skipTask } = useScheduledFup();
-  useForgetFupConfirmation();
   const [todayStats, setTodayStats] = useState<{ tarefas: number; confirmados: number; fups: number } | null>(null);
 
   useEffect(() => {

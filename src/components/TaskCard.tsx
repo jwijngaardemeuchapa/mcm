@@ -60,7 +60,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { getDb, uuid, placeholders, errMsg } from "@/lib/db";
+import { getDb, uuid, errMsg } from "@/lib/db";
 import { resolveCpfs } from "@/lib/cpfResolver";
 import { enviarMensagemPosConfirmacao } from "@/lib/mensagemPosConfirmacao";
 import { linhaIdNomeTelefone } from "@/lib/copyFormats";
@@ -87,6 +87,9 @@ import { useMassFupState, useTaskCancelState, useChapaJobState, useCustomMsgStat
 import { umblerChatLink, last11Digits } from "@/lib/umbler";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useUnreadChats } from "@/lib/WatcherContext";
+import { aguardaReforcoDeFup, atualizarChapa, comFlagManual, confirmarManualEmLote, entraNoFupEmMassa } from "@/lib/fasesConfirmacao";
+import { emJanelaDeFup } from "@/lib/prefup";
+import { FasesChip } from "@/components/FasesChip";
 
 async function clipboardWrite(text: string, successMsg: string) {
   try {
@@ -132,6 +135,9 @@ export type TaskWithChapas = {
     canal_contato?: string | null;
     validacao_presenca?: string | null;
     data_validacao?: string | null;
+    // Fases de confirmação (ver lib/fasesConfirmacao.ts): quando o chapa confirmou o PréFUP / o FUP.
+    prefup_confirmado_em?: string | null;
+    fup_confirmado_em?: string | null;
   }>;
   fup_log: Array<{
     id: string; data_disparo: string; canal: string; observacao: string | null;
@@ -321,14 +327,14 @@ function TaskCardBase({
   };
 
   async function updateChapaWithUndo(chapa: ChapaRow, patch: Record<string, unknown>, label: string) {
+    patch = comFlagManual(patch); // confirmação na mão conta como a fase FUP
     const prev: Record<string, unknown> = {};
     Object.keys(patch).forEach((k) => {
       prev[k] = (chapa as Record<string, unknown>)[k] ?? null;
     });
     try {
       const db = await getDb();
-      const setClauses = Object.keys(patch).map((k) => `${k} = ?`).join(", ");
-      await db.execute(`UPDATE chapas SET ${setClauses} WHERE id = ?`, [...Object.values(patch), chapa.id]);
+      await atualizarChapa(db, chapa.id, patch);
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -417,11 +423,7 @@ Precisamos de 1 substituto para esta tarefa.`;
     const prev = targets.map((c) => ({ id: c.id, status_contato: c.status_contato }));
     try {
       const db = await getDb();
-      const ph = placeholders(ids.length);
-      await db.execute(
-        `UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id IN (${ph})`,
-        [new Date().toISOString(), ...ids],
-      );
+      await confirmarManualEmLote(db, ids, new Date().toISOString());
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -619,14 +621,27 @@ Precisamos de 1 substituto para esta tarefa.`;
   const cancelTemplateReady = umblerReady && !!umblerSettings.cancelTemplateId;
   const taskCancelTemplateReady = umblerReady && !!umblerSettings.taskCancelTemplateId;
 
+  // Quem confirmou SÓ o PréFUP entra de novo no FUP em massa quando chega a janela do FUP
+  // (< 5h antes da tarefa) — era o que a "reabertura de confirmação" simulava. Quem já tem a
+  // flag do FUP, e quem confirmou e ainda não é hora do FUP, fica de fora.
+  const reforcoPossivel = task.chapas.some((c) => aguardaReforcoDeFup(c));
+  const reforcoNoFup = reforcoPossivel && emJanelaDeFup(task.data_tarefa, task.cidade_uf);
+  const reforcoCount = reforcoNoFup ? task.chapas.filter((c) => c.telefone_chapa && c.nome_chapa && aguardaReforcoDeFup(c)).length : 0;
+
   function startFupAll() {
+    const janelaFup = reforcoNoFup;
     const chapasWithPhone = task.chapas.filter(
-      (c) => c.telefone_chapa && c.nome_chapa && c.status_contato !== "removido" && c.status_contato !== "confirmado",
+      (c) => c.telefone_chapa && c.nome_chapa && entraNoFupEmMassa(c, janelaFup),
     ) as ChapaSnap[];
     if (chapasWithPhone.length === 0) {
       const allConfirmed = task.chapas.filter((c) => c.status_contato === "confirmado").length;
       if (allConfirmed > 0) {
-        toast.info(`Todos os ${allConfirmed} chapa(s) já estão confirmados — nada a enviar`);
+        const soPrefup = task.chapas.filter((c) => aguardaReforcoDeFup(c)).length;
+        toast.info(
+          soPrefup > 0 && !janelaFup
+            ? `${allConfirmed} chapa(s) já confirmado(s) — os ${soPrefup} que confirmaram só o PréFUP entram no FUP quando faltarem menos de 5h`
+            : `Todos os ${allConfirmed} chapa(s) já estão confirmados — nada a enviar`,
+        );
       } else {
         toast.error("Nenhum chapa pendente com telefone cadastrado nesta tarefa");
       }
@@ -1510,6 +1525,8 @@ Precisamos de 1 substituto para esta tarefa.`;
                         ? "Clique para cancelar o disparo"
                         : (fupAllSent || fupAllCount > 0)
                         ? `Disparado ${fupAllCount}x — clique para reenviar a todos`
+                        : reforcoCount > 0
+                        ? `Enviar FUP para os pendentes e reforçar ${reforcoCount} chapa(s) que confirmaram só o PréFUP — 3 min de delay, 10 s entre cada disparo`
                         : "Enviar FUP para todos os chapas pendentes — 3 min de delay, 10 s entre cada disparo"}
                     </TooltipContent>
                   </Tooltip>
@@ -2067,6 +2084,7 @@ function ChapaRowView({
             {chapa.canal_contato && (
               <span className="font-normal opacity-80">· {canalLabel[chapa.canal_contato] ?? chapa.canal_contato}</span>
             )}
+            <FasesChip prefup={chapa.prefup_confirmado_em} fup={chapa.fup_confirmado_em} />
           </span>
           {conversaTrigger}
           {conversaSheet}
