@@ -11,6 +11,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { getDb, placeholders, errMsg } from "@/lib/db";
+import { confirmarManualEmLote } from "@/lib/fasesConfirmacao";
 import { toast } from "sonner";
 import { fmtDateTime } from "@/lib/datetime";
 import { Check, X, Upload, ClipboardCheck, ChevronDown } from "lucide-react";
@@ -80,12 +81,7 @@ export function ValidationPanel({
         "UPDATE chapas SET validacao_presenca = ?, data_validacao = ? WHERE id = ?",
         [value, now, chapa.id],
       );
-      if (shouldConfirm) {
-        await db.execute(
-          "UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id = ?",
-          [now, chapa.id],
-        );
-      }
+      if (shouldConfirm) await confirmarManualEmLote(db, [chapa.id], now); // na mão: conta como a fase FUP
     } catch (e) {
       setOverrides((o) => { const n = { ...o }; delete n[chapa.id]; return n; }); // reverte feedback
       toast.error(errMsg(e));
@@ -131,13 +127,7 @@ export function ValidationPanel({
         `UPDATE chapas SET validacao_presenca = 'presente', data_validacao = ? WHERE id IN (${ph})`,
         [now, ...ids],
       );
-      if (toConfirm.length > 0) {
-        const ph2 = placeholders(toConfirm.length);
-        await db.execute(
-          `UPDATE chapas SET status_contato = 'confirmado', data_contato = ? WHERE id IN (${ph2})`,
-          [now, ...toConfirm],
-        );
-      }
+      await confirmarManualEmLote(db, toConfirm, now); // na mão: conta como a fase FUP (lista vazia não faz nada)
     } catch (e) {
       setOverrides((o) => { const n = { ...o }; ids.forEach((id) => { delete n[id]; }); return n; });
       toast.error(errMsg(e));
