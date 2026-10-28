@@ -2385,3 +2385,11 @@ Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disp
 **Summary:** Pedido: "deixar as explicações menores, mais objetivas". O "Por quê" de cada chapa virou uma linha (ex.: "FUP há 31 min sem resposta (limite: 25 min)"), o bloco "Como o alarme decide?" ficou em 4 passos + 1 frase, e as descrições em Configurações e na Ajuda foram enxugadas. Só texto: regras, limites e comportamento iguais; testes ajustados às novas frases (337 passando).
 **Files changed:** `src/lib/alarmeChapas.ts`, `src/components/PainelDeAlarme.tsx`, `src/pages/{Configuracoes,Ajuda}.tsx`, testes.
 **Next:** NÃO lançado. Interpretei "explicações" como as do painel; se era sobre as respostas do Claude no chat, nada a mudar no código.
+
+## 2026-10-28 — Release v1.0.75 (main)
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Commits:** 33b9550 (bump), 7067b9b (latest.json)
+**Summary:** Publicada a **main v1.0.75** a pedido do usuário. Contém: alarme de chapas pendentes (painel global com próximo passo por chapa e remoção recomendada: 25 min sem resposta ao FUP / 1 h ao PréFUP), confirmação em duas fases PréFUP/FUP no lugar da reabertura de confirmação esquecida (fim do reset às 21h), FUP automático para chapa novo na tarefa depois do sync (desligado por padrão), fase FUP também na validação de presença, e as correções de BID/PréFUP já commitadas antes. Antes do release: 337 testes passando, typecheck 14 (baseline). Build `npx tauri build` (~12 min); a assinatura automática falhou como sempre (sem `TAURI_SIGNING_PRIVATE_KEY`) mas o `.exe` saiu; assinado à mão com `npx tauri signer sign -f tauri_update_key -p ""`. Release `v1.0.75` criada com o instalador (219 MB) + `.sig`; `latest.json` publicado e verificado (raw 200, versão 1.0.75, URL e assinatura de 412 caracteres); instalador responde 302. Push da main inclui os commits de trabalho (FUP de chapa novo, alarme, textos curtos).
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** a beta (beta-v1.0.77) segue sem release: a beta local tem tudo isso e mais o BID/PréFUP, ainda não enviado ao GitHub — só quando o usuário pedir. Validar em uso real (nunca testado com Umbler real): alarme (som e notificação do Windows), duas fases de confirmação e o reforço do FUP, e que a confirmação não expira mais às 21h.

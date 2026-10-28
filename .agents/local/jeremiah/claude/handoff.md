@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-28, 4ª entrada (Sonnet 5.5) — ver JOURNAL.md.
+
+**Versão atual: main v1.0.75 (PUBLICADA e verificada) / beta v1.0.76 (última lançada).** A v1.0.75 leva o alarme de chapas pendentes, a confirmação em duas fases (PréFUP/FUP, sem reabertura às 21h) e o FUP automático de chapa novo (desligado por padrão). **Falta a beta v1.0.77**: a beta local tem tudo isso + o BID/PréFUP da v1.0.73, nada enviado ao GitHub — só lançar quando o usuário pedir. Para validar em uso real: som e notificação do Windows do alarme, reforço do FUP, confirmação que não expira às 21h. Nada testado com a Umbler real.
+
+---
+
 **Data:** 2026-10-28, 3ª entrada (Sonnet 5.5) — ver JOURNAL.md.
 
 **Alarme de chapas pendentes (painel novo) — COMMITADO NA MAIN, NÃO LANÇADO, beta ainda não portada.** Substitui o popup `ApproachingAlert`: painel global (`PainelDeAlarme` no `AppLayout`) com diagnóstico por chapa (`alarmeChapas.ts`, regra pura): enviar → aguardar → ligar/WhatsApp → remover e repor, com "por quê". Remoção recomendada com **25 min sem resposta ao FUP / 1 h ao PréFUP** (configuráveis em Configurações), ou faltando < 10 min; resposta não lida nunca é removida; tarefa completa não alarma; só da carteira do analista, hoje e amanhã. Som (1/2/3 bipes) + notificação do Windows ao ENTRAR numa ação (1ª leitura silenciosa). "Remover e repor" remove (com Desfazer) e abre o BID na tarefa. 337 testes, typecheck 14. **Falta:** portar pra beta (o popup antigo existe lá também; checar conflitos em `Dashboard`/`Configuracoes`/`Ajuda`); conferir som e notificação no app real; os limiares (60% cobrar, 10/30 min, 2 h de rotina) são meus, não validados; contar candidatos do BID no painel (2ª rodada); release só quando o usuário pedir.
