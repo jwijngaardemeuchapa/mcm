@@ -19,9 +19,10 @@ import { ingestTarefas } from "./ingestTarefas";
 const SCHEMA = `
 CREATE TABLE tarefas (id_tarefa INTEGER PRIMARY KEY, data_tarefa TEXT, cidade_uf TEXT, empresa TEXT, cnpj TEXT, status_tarefa TEXT,
   quantidade_chapas INTEGER, ativo INTEGER, is_overnight INTEGER, importado_em TEXT, observacoes TEXT, observacoes_updated_at TEXT,
-  validacao_status TEXT, data_validacao_recebida TEXT, data_upload_meu_chapa TEXT, obs_validacao TEXT);
+  validacao_status TEXT, data_validacao_recebida TEXT, data_upload_meu_chapa TEXT, obs_validacao TEXT,
+  quantidade_chapas_original INTEGER, quantidade_chapas_em_andamento INTEGER); -- as 2 últimas só a beta lê/grava
 CREATE TABLE chapas (id TEXT PRIMARY KEY, id_tarefa INTEGER, nome_chapa TEXT, telefone_chapa TEXT, cpf TEXT, status_contato TEXT,
-  validacao_presenca TEXT, data_validacao TEXT, data_contato TEXT, canal_contato TEXT, data_remocao TEXT, motivo_remocao TEXT);`;
+  validacao_presenca TEXT, data_validacao TEXT, data_contato TEXT, canal_contato TEXT, confirmado_via TEXT, data_remocao TEXT, motivo_remocao TEXT);`;
 
 type Linha = { tarefa?: number; nome?: string; cpf?: string; tel?: string; status?: string };
 const linhas = (...ls: Linha[]) =>
