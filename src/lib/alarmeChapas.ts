@@ -112,14 +112,14 @@ export function diagnosticar(
   const base = { recomendaRemocao: false, minutosParaDecidir: null, silencioMin: null, tipoDisparo: null } as const;
   const remover = (motivos: string[], extra: Partial<Diagnostico> = {}): Diagnostico => ({
     ...base, acao: "remover", nivel: nivelDaRemocao(ctx.minParaTarefa), recomendaRemocao: true,
-    titulo: "Remover e repor", motivos: [...motivos, "Abrir a vaga agora deixa mais tempo para repor pelo BID"], ...extra,
+    titulo: "Remover e repor", motivos, ...extra,
   });
 
   // 1. Quem acabou de escrever nunca é tratado como "sem resposta".
   if (c.naoLida) {
     return {
       ...base, acao: "ler_resposta", nivel: "atencao", titulo: "Ler a resposta",
-      motivos: ["Ele mandou uma mensagem que o sistema não entendeu", "Leia antes de cobrar ou remover: pode ser uma confirmação ou um problema"],
+      motivos: ["Mandou mensagem. Leia antes de cobrar ou remover"],
     };
   }
 
@@ -127,16 +127,16 @@ export function diagnosticar(
   if (ctx.vagasAbertas <= 0) {
     return {
       ...base, acao: "sobrando", nivel: "calmo", titulo: "Sobra na tarefa",
-      motivos: ["A tarefa já tem todos os confirmados que pediu", "Esta chapa é excedente: dá para liberar sem repor"],
+      motivos: ["Tarefa já completa: dá para liberar"],
     };
   }
 
   // 3. Decisão já tomada por ele (ou por um aviso que você mandou).
   if (c.status === "cancelado") {
-    return remover(["Ele respondeu que não vai"]);
+    return remover(["Respondeu que não vai"]);
   }
   if (c.semRespostaEnviado) {
-    return remover(["Já recebeu o aviso de \"sem resposta\" e continua sem confirmar"]);
+    return remover(["Já recebeu o aviso de sem resposta"]);
   }
 
   // 4. Sem telefone não há como cobrar.
@@ -144,10 +144,10 @@ export function diagnosticar(
     if (ctx.minParaTarefa > TELEFONE_LIMITE_MIN) {
       return {
         ...base, acao: "achar_telefone", nivel: nivelDeRotina(ctx.minParaTarefa), titulo: "Achar o telefone",
-        motivos: ["Sem número não dá para enviar o FUP", `Procure no cadastro ou no grupo; sem achar até ${TELEFONE_LIMITE_MIN} min da tarefa, a remoção é recomendada`],
+        motivos: ["Sem número. Procure no cadastro ou no grupo"],
       };
     }
-    return remover([`Sem telefone e faltam só ${fmtMin(ctx.minParaTarefa)} para a tarefa`, "Não há como confirmar a tempo"]);
+    return remover([`Sem telefone e faltam só ${fmtMin(ctx.minParaTarefa)} para a tarefa`]);
   }
 
   // 5. Nunca recebeu nada.
@@ -155,7 +155,7 @@ export function diagnosticar(
   if (!d) {
     return {
       ...base, acao: "enviar", nivel: nivelDeRotina(ctx.minParaTarefa), titulo: `Enviar ${rotuloDisparo(ctx.tipoSugerido)}`, tipoDisparo: ctx.tipoSugerido,
-      motivos: ["Ainda não foi contatado", "Primeiro contato antes de qualquer decisão"],
+      motivos: ["Ainda sem contato"],
     };
   }
 
@@ -164,7 +164,7 @@ export function diagnosticar(
     return {
       ...base, acao: "enviar", nivel: nivelDeRotina(ctx.minParaTarefa), titulo: "Enviar FUP", tipoDisparo: "fup",
       silencioMin: (agora - d.quando) / 60_000,
-      motivos: ["Não confirmou o PréFUP", "A tarefa já está na janela do FUP: mande o reforço antes de pensar em remover"],
+      motivos: ["Não confirmou o PréFUP: mande o FUP de reforço"],
     };
   }
 
@@ -182,8 +182,8 @@ export function diagnosticar(
     return remover(
       [
         porSilencio
-          ? `${rotulo} enviado há ${fmtMin(silencio)} sem resposta (o limite do ${rotulo} é ${limite} min)`
-          : `Faltam só ${fmtMin(ctx.minParaTarefa)} para a tarefa: não dá mais para esperar a resposta`,
+          ? `${rotulo} há ${fmtMin(silencio)} sem resposta (limite: ${limite} min)`
+          : `Faltam só ${fmtMin(ctx.minParaTarefa)} para a tarefa`,
       ],
       ctxDisparo,
     );
@@ -193,18 +193,14 @@ export function diagnosticar(
     return {
       ...base, ...ctxDisparo, acao: "cobrar", nivel: "atencao", titulo: "Ligar ou chamar no WhatsApp",
       minutosParaDecidir: restante,
-      motivos: [
-        `${rotulo} enviado há ${fmtMin(silencio)} e ainda sem resposta`,
-        "O FUP sozinho não bastou: tente outro canal antes de remover",
-        `Se nada mudar, a remoção é recomendada em ${fmtMin(restante)}`,
-      ],
+      motivos: [`Sem resposta há ${fmtMin(silencio)}. Tente outro canal; remoção em ${fmtMin(restante)}`],
     };
   }
 
   return {
     ...base, ...ctxDisparo, acao: "aguardar", nivel: "calmo", titulo: "Aguardando resposta",
     minutosParaDecidir: restante,
-    motivos: [`${rotulo} enviado há ${fmtMin(silencio)}`, `Ainda dentro do prazo: a recomendação vem em ${fmtMin(restante)} se continuar em silêncio`],
+    motivos: [`${rotulo} há ${fmtMin(silencio)}. Decisão em ${fmtMin(restante)}`],
   };
 }
 

@@ -78,8 +78,8 @@ describe("PainelDeAlarme", () => {
     monta(trio());
     renderizar();
     expect(screen.getByText("recomendado")).toBeTruthy();
-    expect(screen.getByText(/FUP enviado há 30 min sem resposta/)).toBeTruthy();
-    expect(screen.getByText(/limite do FUP é 25 min/)).toBeTruthy();
+    expect(screen.getByText(/FUP há 30 min sem resposta/)).toBeTruthy();
+    expect(screen.getByText(/limite: 25 min/)).toBeTruthy();
     expect(screen.getByText(/2 faltas em 15 dias/)).toBeTruthy();
     expect(screen.getByText("Ligar ou chamar no WhatsApp")).toBeTruthy();
   });

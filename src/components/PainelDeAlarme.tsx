@@ -129,12 +129,9 @@ function LinhaAcionavel({ item, tarefa, acoes, umblerPronto, semRespostaPronto }
         {d.recomendaRemocao && <span className="ml-auto text-[10px] font-medium uppercase tracking-wide">recomendado</span>}
       </div>
 
-      <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">Por quê</p>
-        <ul className="space-y-0.5 text-[11px] text-muted-foreground list-disc pl-4">
-          {d.motivos.map((m) => <li key={m}>{m}</li>)}
-        </ul>
-      </div>
+      <p className="text-[11px] text-muted-foreground">
+        <span className="font-semibold text-foreground">Por quê:</span> {d.motivos.join(" · ")}
+      </p>
 
       <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
         {job?.status === "countdown" ? (
@@ -265,19 +262,15 @@ function Ajuda({ config, aberta, onToggle }: { config: ConfigAlarme; aberta: boo
       </button>
       {aberta && (
         <div className="mt-2 space-y-2 text-[11px] text-muted-foreground">
-          <p>Para cada chapa que ainda não confirmou, o alarme mostra o próximo passo — sempre nesta ordem:</p>
-          <ol className="space-y-1">
-            <li><b className="text-foreground">1 · Enviar</b> — ainda não foi contatado.</li>
-            <li><b className="text-foreground">2 · Aguardar</b> — o FUP ou PréFUP saiu; dá tempo de responder.</li>
-            <li><b className="text-foreground">3 · Ligar ou WhatsApp</b> — passou de {Math.round(COBRAR_APOS * 100)}% do prazo sem resposta (no FUP, {cobrarFup} min): tente outro canal.</li>
+          <ol className="space-y-0.5">
+            <li><b className="text-foreground">1 · Enviar</b> — sem contato ainda.</li>
+            <li><b className="text-foreground">2 · Aguardar</b> — FUP ou PréFUP enviado.</li>
+            <li><b className="text-foreground">3 · Ligar ou WhatsApp</b> — {Math.round(COBRAR_APOS * 100)}% do prazo sem resposta (FUP: {cobrarFup} min).</li>
             <li>
               <b className="text-foreground">4 · Remover e repor</b> — {config.limiteFupMin} min sem resposta ao FUP, {fmtMin(config.limitePrefupMin)} ao PréFUP, ou faltando menos de {CRITICO_MIN} min para a tarefa.
             </li>
           </ol>
-          <p>
-            Quem mandou mensagem fica em <b className="text-foreground">Ler a resposta</b> e nunca entra na remoção. Se a tarefa já está completa, quem sobra não gera alarme.
-            Nada é enviado nem removido sozinho: cada passo é um clique seu. Os prazos mudam em Configurações.
-          </p>
+          <p>Quem mandou mensagem nunca vai para remoção. Prazos em Configurações.</p>
         </div>
       )}
     </div>
@@ -453,7 +446,7 @@ export function PainelDeAlarme() {
       {aberto && (
         <div className="px-4 py-2 bg-muted/40 border-t border-border">
           <p className="text-[10px] text-muted-foreground">
-            Nada é enviado nem removido sozinho. <Phone className="inline h-2.5 w-2.5 -mt-0.5" /> Envios saem após 60 s e dá para cancelar.
+            Nada é removido sozinho. <Phone className="inline h-2.5 w-2.5 -mt-0.5" /> Envios saem em 60 s (dá para cancelar).
           </p>
         </div>
       )}

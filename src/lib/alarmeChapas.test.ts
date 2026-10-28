@@ -28,8 +28,7 @@ describe("padrões pedidos: FUP 25 min, PréFUP 1 h", () => {
     const d = diag({ ultimoDisparo: disparo("fup", 25), disparos: 1 });
     expect(d.acao).toBe("remover");
     expect(d.recomendaRemocao).toBe(true);
-    expect(d.motivos[0]).toContain("FUP enviado há 25 min sem resposta");
-    expect(d.motivos[0]).toContain("limite do FUP é 25 min");
+    expect(d.motivos[0]).toBe("FUP há 25 min sem resposta (limite: 25 min)");
   });
 
   it("PréFUP: com 59 min ainda não; com 60 min recomenda (tarefa longe, fora da janela do FUP)", () => {
@@ -37,7 +36,7 @@ describe("padrões pedidos: FUP 25 min, PréFUP 1 h", () => {
     expect(diag({ ultimoDisparo: disparo("prefup", 59), disparos: 1 }, longe).recomendaRemocao).toBe(false);
     const d = diag({ ultimoDisparo: disparo("prefup", 60), disparos: 1 }, longe);
     expect(d.acao).toBe("remover");
-    expect(d.motivos[0]).toContain("limite do PréFUP é 60 min");
+    expect(d.motivos[0]).toBe("PréFUP há 1 h sem resposta (limite: 60 min)");
   });
 
   it("os limites são configuráveis", () => {
@@ -64,7 +63,7 @@ describe("a escada: aguardar → cobrar → remover", () => {
     expect(d.acao).toBe("cobrar");
     expect(d.nivel).toBe("atencao");
     expect(d.titulo).toContain("Ligar");
-    expect(d.motivos.join(" ")).toContain("recomendada em 10 min");
+    expect(d.motivos[0]).toBe("Sem resposta há 15 min. Tente outro canal; remoção em 10 min");
   });
 
   it("PréFUP: cobra a partir de 36 min", () => {
@@ -112,13 +111,13 @@ describe("exceções que vencem o relógio", () => {
   it("respondeu que não vai (cancelado): remover já, sem esperar o relógio", () => {
     const d = diag({ status: "cancelado", ultimoDisparo: disparo("fup", 1), disparos: 1 });
     expect(d.acao).toBe("remover");
-    expect(d.motivos[0]).toBe("Ele respondeu que não vai");
+    expect(d.motivos[0]).toBe("Respondeu que não vai");
   });
 
   it("já recebeu o aviso de 'sem resposta': remover", () => {
     const d = diag({ semRespostaEnviado: true, ultimoDisparo: disparo("fup", 1), disparos: 1 });
     expect(d.acao).toBe("remover");
-    expect(d.motivos[0]).toContain("aviso de \"sem resposta\"");
+    expect(d.motivos[0]).toBe("Já recebeu o aviso de sem resposta");
   });
 
   it("nunca contatado: enviar — PréFUP ou FUP conforme a janela de hoje", () => {
@@ -180,7 +179,7 @@ describe("PréFUP sem resposta e a tarefa já na janela do FUP", () => {
     const d = diag({ ultimoDisparo: disparo("prefup", 600), disparos: 1 }, { tipoSugerido: "fup", minParaTarefa: 180 });
     expect(d.acao).toBe("enviar");
     expect(d.titulo).toBe("Enviar FUP");
-    expect(d.motivos[0]).toBe("Não confirmou o PréFUP");
+    expect(d.motivos[0]).toBe("Não confirmou o PréFUP: mande o FUP de reforço");
   });
 
   it("mas a menos de 10 min da tarefa não dá mais tempo de reforço: remover", () => {

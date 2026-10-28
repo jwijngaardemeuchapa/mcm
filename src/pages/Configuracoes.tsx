@@ -455,8 +455,7 @@ export default function Configuracoes() {
               <div>
                 <p className="text-sm font-semibold text-foreground">Alarme de chapas pendentes</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Painel flutuante que acompanha cada chapa que ainda não confirmou e diz o próximo passo: enviar, aguardar, ligar
-                  ou remover e repor — com o motivo de cada recomendação. Nada é enviado nem removido sozinho.
+                  Diz, chapa por chapa, o próximo passo (enviar, aguardar, ligar ou remover e repor) e o motivo. Nada é removido sozinho.
                 </p>
               </div>
               <Switch
