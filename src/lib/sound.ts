@@ -69,3 +69,29 @@ export function playTeamsCopy(): void {
     setTimeout(() => ctx.close(), 800);
   } catch { /* noop */ }
 }
+
+// Alarme de chapas pendentes: `vezes` bipes (1 = atenção, 2 = decidir, 3 = crítico). Mais bipes e mais agudo
+// conforme a urgência, pra dar pra distinguir sem olhar a tela. Só toca com `alarme.som` ligado.
+export function playAlarme(vezes: number): void {
+  if (vezes <= 0 || !readSettings().alarme.som) return;
+  try {
+    const ctx = new AudioContext();
+    const base = vezes >= 3 ? 988 : vezes === 2 ? 880 : 784;
+    for (let i = 0; i < Math.min(vezes, 3); i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "triangle";
+      const t = ctx.currentTime + i * 0.28;
+      osc.frequency.setValueAtTime(base, t);
+      osc.frequency.setValueAtTime(base * 0.75, t + 0.1);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.24, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+      osc.start(t);
+      osc.stop(t + 0.25);
+    }
+    setTimeout(() => ctx.close(), 1800);
+  } catch { /* AudioContext pode estar bloqueado pela política do navegador */ }
+}

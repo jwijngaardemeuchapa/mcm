@@ -390,14 +390,14 @@ export default function Configuracoes() {
 
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-foreground">Alertas de chapa</p>
+                <p className="text-sm font-semibold text-foreground">Alarme de chapas pendentes</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Bipe curto quando um chapa entra na janela de 1 hora sem confirmação.
+                  Bipes quando uma chapa precisa de você: 1 para atenção, 2 para decidir, 3 para crítico.
                 </p>
               </div>
               <Switch
-                checked={settings.sons.alertas}
-                onCheckedChange={(v) => setSettings(writeSettings({ sons: { ...settings.sons, alertas: v } }))}
+                checked={settings.alarme.som}
+                onCheckedChange={(v) => setSettings(writeSettings({ alarme: { ...settings.alarme, som: v } }))}
               />
             </div>
 
@@ -453,9 +453,10 @@ export default function Configuracoes() {
             {/* Toggle: approaching alert */}
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-foreground">Painel de chapas a confirmar</p>
+                <p className="text-sm font-semibold text-foreground">Alarme de chapas pendentes</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Exibe o painel flutuante com chapas sem confirmação em tarefas que iniciam em até 1 hora.
+                  Painel flutuante que acompanha cada chapa que ainda não confirmou e diz o próximo passo: enviar, aguardar, ligar
+                  ou remover e repor — com o motivo de cada recomendação. Nada é enviado nem removido sozinho.
                 </p>
               </div>
               <Switch
@@ -464,22 +465,48 @@ export default function Configuracoes() {
               />
             </div>
 
-            {/* Toggle: sound alert */}
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-start gap-2.5">
-                <Volume2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Alerta sonoro</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Emite um bipe curto quando um chapa entra na janela de 1 hora sem confirmação.
-                  </p>
+            {settings.approachingAlertEnabled && (
+              <div className="space-y-4 pl-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-2.5">
+                    <Volume2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <p className="text-xs text-muted-foreground">Tocar bipes quando uma chapa entra numa ação que pede você.</p>
+                  </div>
+                  <Switch
+                    checked={settings.alarme.som}
+                    onCheckedChange={(v) => setSettings(writeSettings({ alarme: { ...settings.alarme, som: v } }))}
+                  />
                 </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-2.5">
+                    <Bell className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                    <p className="text-xs text-muted-foreground">Notificação do Windows (funciona com o MCM em segundo plano).</p>
+                  </div>
+                  <Switch
+                    checked={settings.alarme.notificacao}
+                    onCheckedChange={(v) => setSettings(writeSettings({ alarme: { ...settings.alarme, notificacao: v } }))}
+                  />
+                </div>
+                {([
+                  ["limiteFupMin", "Recomendar remoção após o FUP sem resposta", [10, 15, 20, 25, 30, 45, 60], (v: number) => `${v} min`],
+                  ["limitePrefupMin", "Recomendar remoção após o PréFUP sem resposta", [30, 45, 60, 90, 120, 180], (v: number) => (v >= 60 ? `${v / 60 === Math.floor(v / 60) ? v / 60 : (v / 60).toFixed(1)} h` : `${v} min`)],
+                  ["horizonteHoras", "Acompanhar tarefas que começam em até", [6, 12, 24, 30, 48], (v: number) => `${v} h`],
+                ] as const).map(([chave, rotulo, opcoes, fmt]) => (
+                  <div key={chave} className="flex items-center justify-between gap-4">
+                    <p className="text-xs text-muted-foreground flex-1">{rotulo}</p>
+                    <Select
+                      value={String(settings.alarme[chave])}
+                      onValueChange={(v) => setSettings(writeSettings({ alarme: { ...settings.alarme, [chave]: Number(v) } }))}
+                    >
+                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {opcoes.map((o) => <SelectItem key={o} value={String(o)}>{fmt(o)}{chave === "limiteFupMin" && o === 25 ? " (padrão)" : chave === "limitePrefupMin" && o === 60 ? " (padrão)" : ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
               </div>
-              <Switch
-                checked={settings.soundAlertEnabled}
-                onCheckedChange={(enabled) => setSettings(writeSettings({ soundAlertEnabled: enabled }))}
-              />
-            </div>
+            )}
 
             <Separator />
 

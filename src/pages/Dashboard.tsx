@@ -10,7 +10,6 @@ import { criarExecutorAgrupado } from "@/lib/agruparChamadas";
 import { TaskDetailPanel } from "@/components/TaskDetailPanel";
 import { TaskPanorama } from "@/components/TaskPanorama";
 import { TaskTimeline } from "@/components/TaskTimeline";
-import { ApproachingAlert } from "@/components/ApproachingAlert";
 import { ActivityBell } from "@/components/ActivityBell";
 import { AlertBanner, type AlertItem } from "@/components/AlertBanner";
 import { PriorityPanel, type LembreteAlertItem } from "@/components/PriorityPanel";
@@ -732,7 +731,7 @@ export default function Dashboard() {
   const allCards = useMemo(() => {
     const base = [...overnightContinuing, ...filteredToday];
     return hiddenCompanies.length > 0 ? base.filter((t) => !companyMatches(t.empresa, hiddenCompanies)) : base;
-  }, [overnightContinuing, filteredToday, hiddenCompanies]); // kept for ApproachingAlert (always today)
+  }, [overnightContinuing, filteredToday, hiddenCompanies]);
 
   const isFullyValidated = (t: TaskWithChapas) => {
     const real = t.chapas.filter((c) => c.nome_chapa);
@@ -1826,7 +1825,6 @@ export default function Dashboard() {
       )}
       </div>
 
-      <ApproachingAlert tasks={allCards} onRefresh={loadAgrupado} />
       {diffResult && (
         <RefreshDiff
           diff={diffResult}

@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ActiveDispatchesOverlay } from "./ActiveDispatchesOverlay";
+import { PainelDeAlarme } from "./PainelDeAlarme";
 import { fmtDateLong, timeAgo, todayDateISO_SP } from "@/lib/datetime";
 import { Clock, Undo2, Search, CheckCircle2, Send } from "lucide-react";
 import { getDb } from "@/lib/db";
@@ -129,6 +130,7 @@ export default function AppLayout() {
           onSkip={() => skipTask(autoFupPending.taskId)}
         />
       )}
+      <PainelDeAlarme />
       <ActiveDispatchesOverlay />
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />

@@ -60,11 +60,21 @@ export type SonsSettings = {
   turno: boolean;        // som ao copiar troca de turno
 };
 
+// Alarme de chapas pendentes (ver lib/alarmeChapas.ts). O painel liga/desliga em `approachingAlertEnabled`.
+export type AlarmeSettings = {
+  som: boolean;            // bipes (1, 2 ou 3 conforme a urgência) quando uma chapa entra numa ação que pede o analista
+  notificacao: boolean;    // notificação do Windows no mesmo momento
+  limiteFupMin: number;    // sem resposta ao FUP por tanto tempo → recomenda remover
+  limitePrefupMin: number; // idem pro PréFUP
+  horizonteHoras: number;  // só olha tarefas que começam daqui a tanto tempo ou menos
+};
+
 export type AppSettings = {
   fillRateWarningThreshold: number;
   defaultDashboardView: "detailed" | "panorama" | "timeline";
   approachingAlertEnabled: boolean;
-  soundAlertEnabled: boolean;
+  soundAlertEnabled: boolean; // sem uso (o bipe do alarme é `alarme.som`); fica no tipo pra não quebrar o que já foi salvo
+  alarme: AlarmeSettings;
   sons: SonsSettings;
   portariaRules: PortariaRule[];
   priorityPanelEnabled: boolean;
@@ -128,6 +138,7 @@ export const SETTING_DEFAULTS: AppSettings = {
   defaultDashboardView: "detailed",
   approachingAlertEnabled: true,
   soundAlertEnabled: false,
+  alarme: { som: true, notificacao: true, limiteFupMin: 25, limitePrefupMin: 60, horizonteHoras: 30 },
   sons: { intro: true, alertas: false, confirmacoes: true, turno: true },
   portariaRules: [],
   priorityPanelEnabled: true,
@@ -180,6 +191,7 @@ export function readSettings(): AppSettings {
         ...SETTING_DEFAULTS.sons,
         ...(parsed.sons ?? {}),
       },
+      alarme: { ...SETTING_DEFAULTS.alarme, ...(parsed.alarme ?? {}) },
       mensagemPosConfirmacao: {
         ...SETTING_DEFAULTS.mensagemPosConfirmacao,
         ...(parsed.mensagemPosConfirmacao ?? {}),

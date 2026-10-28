@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-28, 3ª entrada (Sonnet 5.5) — ver JOURNAL.md.
+
+**Alarme de chapas pendentes (painel novo) — COMMITADO NA MAIN, NÃO LANÇADO, beta ainda não portada.** Substitui o popup `ApproachingAlert`: painel global (`PainelDeAlarme` no `AppLayout`) com diagnóstico por chapa (`alarmeChapas.ts`, regra pura): enviar → aguardar → ligar/WhatsApp → remover e repor, com "por quê". Remoção recomendada com **25 min sem resposta ao FUP / 1 h ao PréFUP** (configuráveis em Configurações), ou faltando < 10 min; resposta não lida nunca é removida; tarefa completa não alarma; só da carteira do analista, hoje e amanhã. Som (1/2/3 bipes) + notificação do Windows ao ENTRAR numa ação (1ª leitura silenciosa). "Remover e repor" remove (com Desfazer) e abre o BID na tarefa. 337 testes, typecheck 14. **Falta:** portar pra beta (o popup antigo existe lá também; checar conflitos em `Dashboard`/`Configuracoes`/`Ajuda`); conferir som e notificação no app real; os limiares (60% cobrar, 10/30 min, 2 h de rotina) são meus, não validados; contar candidatos do BID no painel (2ª rodada); release só quando o usuário pedir.
+
+---
+
 **Data:** 2026-10-28, 2ª entrada (Sonnet 5.5) — ver JOURNAL.md.
 
 **FUP automático para chapa novo na tarefa depois de um sync — COMMITADO NA MAIN, NÃO LANÇADO, beta ainda não portada.** Tabela `chapas_vistos` (semeada no 1º sync) distingue chapa NOVO de chapa que saiu e voltou; `ingestTarefas` devolve `chapasNovas` e emite `chapas:novos`; `fupNovosChapas.ts` agenda o `startChapaJob` (60 s, cancelável, conferência `aindaVale` no fim) só pra pendente, com telefone, tarefa futura ativa, **empresa da carteira do analista**, máx. 40 por sync, espaçado 10 s. **Desligado por padrão** (`fupAutoNovosChapas`, toggle em Configurações); planilha CSV não dispara. 248 testes, typecheck 14. Pendências: portar pra beta (a `ingestTarefas` da beta difere da main — sem cpfResolver); release quando o usuário pedir; decidir se liga por padrão; validar com sync real e Umbler real. Limites conhecidos no JOURNAL (2 analistas na mesma empresa disparam os dois; app fechado durante a contagem perde o envio).

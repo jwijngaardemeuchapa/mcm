@@ -174,19 +174,18 @@ const SECTIONS: Section[] = [
       },
       {
         icon: Bell,
-        name: "Painel Flutuante",
-        subtitle: "Chapas a confirmar · Portaria · Disparos rápidos",
+        name: "Alarme de Chapas",
+        subtitle: "O que fazer agora · Remoção recomendada · Portaria",
         color: "text-warning bg-warning/10 border-warning/20",
         savings: "~2min por chapa",
         features: [
-          "Lista em tempo real de chapas sem confirmação em tarefas com menos de 1 hora para início",
-          "Confirmar (✓) ou remover (×) diretamente no painel — sem precisar abrir o card da tarefa",
-          "Copiar telefone e abrir WhatsApp Web para cada chapa com 1 clique",
-          "Enviar FUP de confirmação via Umbler com countdown de 60 s — cancele clicando no botão durante a contagem",
-          "Avisar chapa de ausência de resposta via Umbler com o mesmo padrão de 60 s",
-          "Alerta de portaria: aviso antecipado configurável por empresa (1h a 24h antes do início)",
-          "Copiar lista de nomes da tarefa para portaria com 1 clique",
-          "Alerta sonoro quando um novo chapa entra na janela de 1h (ativável nas Configurações)",
+          "Acompanha toda chapa que ainda não confirmou (tarefas de hoje e de amanhã, só da sua carteira) e mostra o PRÓXIMO PASSO com o motivo: Enviar → Aguardar → Ligar ou WhatsApp → Remover e repor",
+          "O relógio que manda é o do silêncio: recomenda remover com 25 min sem resposta ao FUP ou 1 h ao PréFUP (os prazos mudam em Configurações). Faltando menos de 10 min para a tarefa, não espera mais",
+          "Cada recomendação traz o 'Por quê' em português simples: há quanto tempo o FUP saiu, quantas faltas a chapa teve nos últimos 15 dias, quantas vagas ainda faltam",
+          "Quem mandou mensagem fica em 'Ler a resposta' e nunca entra na remoção. Se a tarefa já está completa, quem sobra não gera alarme. Nada é enviado nem removido sozinho",
+          "'Remover e repor' remove a chapa (com Desfazer) e abre o BID já na tarefa. Também há 'Só remover', 'Avisar sem resposta' (template, 60 s para cancelar), 'Reenviar FUP' e 'Confirmou' (confirma na mão)",
+          "Alarme sonoro e notificação do Windows quando uma chapa passa a precisar de você: 1 bipe = atenção, 2 = decidir, 3 = crítico (faltam 30 min ou menos). Abrir o app não toca por tudo que já estava pendente",
+          "Alerta de portaria: aviso antecipado configurável por empresa (1h a 24h antes do início) e cópia da lista de nomes com 1 clique",
         ],
       },
       {
@@ -550,8 +549,7 @@ const SECTIONS: Section[] = [
         color: "text-muted-foreground bg-muted/30 border-border",
         savings: null,
         features: [
-          "Painel flutuante de chapas a confirmar: ative ou desative conforme preferência",
-          "Alerta sonoro ao entrar na janela de 1h",
+          "Alarme de chapas: ative ou desative, escolha os prazos de remoção (FUP e PréFUP), o horizonte de tarefas, o som e a notificação do Windows",
           "Timer de sem-resposta (Disparos Umbler): define após quantos minutos o aviso laranja aparece",
           "Portaria por empresa: configure antecedência de 1h a 24h para cada cliente",
           "Mensagem automática ao confirmar (desligada por padrão): manda um texto ao chapa logo depois que ele é confirmado — ex.: orientações de roupa e documentos. Escolha quando sai: resposta do chapa ao PréFUP, resposta ao FUP e/ou confirmação manual (a manual só funciona dentro de 24h da última mensagem do chapa). Sai uma vez por chapa em cada tarefa. A resposta ao PréFUP só conta se veio DEPOIS do disparo dele: um 'sim' de outro momento no mesmo chat não confirma",
@@ -850,7 +848,7 @@ export default function Ajuda() {
               {
                 time: "Ao longo do dia — Monitoramento",
                 title: "Acompanhar e reagir",
-                desc: "O Painel Flutuante avisa quando uma tarefa chega a menos de 1h sem fill suficiente. O Painel de Prioridades ranqueia o que precisa de atenção agora. Para portarias configuradas: copie a lista de nomes com 1 clique.",
+                desc: "O Alarme de Chapas avisa, chapa por chapa, o que fazer agora (enviar, aguardar, ligar, remover e repor). O Painel de Prioridades ranqueia o que precisa de atenção agora. Para portarias configuradas: copie a lista de nomes com 1 clique.",
               },
               {
                 time: "Após início — Validação",
