@@ -256,6 +256,7 @@ export default function Importar() {
     if (!preview.length) return;
     try {
       const result = await ingestTarefas(preview as Record<string, unknown>[], {
+        semFupAutomatico: true, // planilha importada na mão não dispara FUP automático de "chapa novo"
         confirmDateMismatch: async (summary) =>
           window.confirm(
             `Atenção: o arquivo contém tarefas de datas diferentes de hoje.\n\n${summary}\n\nDeseja importar mesmo assim?`,

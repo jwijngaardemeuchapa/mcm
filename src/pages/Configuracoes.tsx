@@ -25,6 +25,7 @@ import {
   Upload,
   GanttChart,
   UserMinus,
+  UserPlus,
   MessageSquare,
   X,
 } from "lucide-react";
@@ -687,6 +688,30 @@ export default function Configuracoes() {
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* FUP automático — chapa novo na tarefa depois de um sync */}
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-2.5">
+                  <UserPlus className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">FUP automático para chapa novo na tarefa</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Quando uma sincronização traz um nome que nunca tinha aparecido numa tarefa que já existia, o sistema dispara o FUP
+                      (ou PréFUP, conforme a janela) pra esse chapa — com 1 minuto pra cancelar no painel de disparos. Quem já esteve na
+                      tarefa, saiu e voltou não recebe de novo. Só vale pra empresas da sua carteira, tarefa que ainda não começou e chapa
+                      ainda pendente; planilha importada na mão não dispara.
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={settings.fupAutoNovosChapas}
+                  onCheckedChange={(v) => setSettings(writeSettings({ fupAutoNovosChapas: v }))}
+                />
               </div>
             </div>
 

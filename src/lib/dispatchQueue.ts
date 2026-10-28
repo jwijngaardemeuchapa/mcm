@@ -692,7 +692,12 @@ class DispatchQueue {
 
   // ---- Individual Chapa ----
 
-  startChapaJob(chapaId: string, action: "fup" | "cancel" | "cancel_task", chapa: ChapaSnap, task: TaskSnap) {
+  // `aindaVale` (opcional): conferido quando acaba a contagem, ANTES de enviar — quem agenda sozinho (FUP de
+  // chapa novo) usa pra desistir se o analista mudou a situação do chapa nesse meio tempo.
+  startChapaJob(
+    chapaId: string, action: "fup" | "cancel" | "cancel_task", chapa: ChapaSnap, task: TaskSnap,
+    opts?: { aindaVale?: () => Promise<boolean> },
+  ) {
     this.chapaMeta.set(chapaId, { nome: chapa.nome_chapa ?? "chapa", taskId: task.id_tarefa, empresa: task.empresa });
     this._clearChapaTimers(chapaId);
     this.chapaJobStates.set(chapaId, { status: "countdown", remaining: 60, action });
@@ -707,10 +712,19 @@ class DispatchQueue {
     }, 1000);
     this.chapaIntervals.set(chapaId, interval);
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       clearInterval(interval);
       this.chapaIntervals.delete(chapaId);
       this.chapaTimers.delete(chapaId);
+      if (opts?.aindaVale) {
+        let vale = false;
+        try { vale = await opts.aindaVale(); } catch { /* na dúvida, não envia */ }
+        if (!vale) {
+          this.chapaJobStates.delete(chapaId);
+          this.notifyChapaJob(chapaId);
+          return;
+        }
+      }
       if (action === "fup") {
         this._executeChapaFup(chapaId, chapa, task);
       } else if (action === "cancel_task") {

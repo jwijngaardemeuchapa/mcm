@@ -1,6 +1,12 @@
 import { getDb, uuid, placeholders } from "@/lib/db";
 import { todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { cleanupTaskLocalStorage } from "@/lib/storageCleanup";
+import {
+  analisarAvistamentos, carregarVistos, garantirChapasVistos, normCpfChapa, normNomeChapa, registrarVistos, type Vistos,
+} from "@/lib/chapasNovos";
+
+/** Chapa que apareceu na tarefa depois de um sync e nunca tinha estado nela (ver lib/chapasNovos.ts). */
+export type ChapaNovaSync = { id: string; id_tarefa: number; nome_chapa: string };
 
 export function pick(row: Record<string, unknown>, ...keys: string[]): string {
   for (const k of keys) {
@@ -51,8 +57,12 @@ function parseDateForIngest(val: string): string | null {
 
 export async function ingestTarefas(
   rows: Record<string, unknown>[],
-  opts?: { confirmDateMismatch?: (summary: string) => Promise<boolean> },
-): Promise<{ tarefas: number; chapas: number }> {
+  opts?: {
+    confirmDateMismatch?: (summary: string) => Promise<boolean>;
+    /** Importação manual de planilha: registra os chapas, mas NÃO avisa "chapas novos" (sem FUP automático). */
+    semFupAutomatico?: boolean;
+  },
+): Promise<{ tarefas: number; chapas: number; chapasNovas: ChapaNovaSync[] }> {
   const tarefasMap = new Map<number, Record<string, unknown>>();
   const rowCounts = new Map<number, number>();
   const chapas: Record<string, unknown>[] = [];
@@ -127,7 +137,7 @@ export async function ingestTarefas(
         .map(([d, n]) => `• ${fmtSP(`${d}T12:00:00-03:00`, "dd/MM/yyyy")}: ${n} tarefa(s)${d === todayISO ? " (hoje)" : ""}`)
         .join("\n");
       const ok = await opts.confirmDateMismatch(summary);
-      if (!ok) return { tarefas: 0, chapas: 0 };
+      if (!ok) return { tarefas: 0, chapas: 0, chapasNovas: [] };
     }
   }
 
@@ -170,6 +180,16 @@ export async function ingestTarefas(
     });
   }
 
+  // Histórico de quem já esteve em cada tarefa (distingue chapa NOVO de chapa que saiu e voltou). Nunca
+  // pode atrapalhar o sync: se falhar, o sync segue normal e nenhum chapa é tratado como novo.
+  let vistos: Vistos | null = null;
+  try {
+    await garantirChapasVistos(db);
+    vistos = await carregarVistos(db, ids);
+  } catch {
+    vistos = null;
+  }
+
   tarefasMap.forEach((t, id) => {
     const prev = tarefaPrev.get(id);
     const csvQty = t.quantidade_chapas_csv as number;
@@ -207,6 +227,7 @@ export async function ingestTarefas(
       return {
         ...c,
         id: chapaId,
+        nova: false,
         status_contato: wasRemoved ? "removido" : (taskInProgressOrDone ? "confirmado" : (prev.status_contato ?? "pendente")),
         validacao_presenca: wasRemoved ? null : (taskInProgressOrDone ? "presente" : (prev.validacao_presenca ?? "pendente")),
         data_validacao: wasRemoved ? null : (taskInProgressOrDone ? (prev.data_validacao ?? new Date().toISOString()) : (prev.data_validacao ?? null)),
@@ -220,6 +241,7 @@ export async function ingestTarefas(
     return {
       ...c,
       id: chapaId,
+      nova: true, // não existia na tarefa no banco (se também nunca esteve nela, é "novo" — ver abaixo)
       status_contato: taskInProgressOrDone ? "confirmado" : "pendente",
       validacao_presenca: taskInProgressOrDone ? "presente" : "pendente",
       data_validacao: taskInProgressOrDone ? new Date().toISOString() : null,
@@ -331,5 +353,32 @@ export async function ingestTarefas(
     cleanupTaskLocalStorage(new Set(allIds.map((r) => r.id_tarefa)));
   } catch { /* limpeza é melhor-esforço */ }
 
-  return { tarefas: tarefasMap.size, chapas: chapasFinais.length };
+  // Chapas novos: apareceram numa tarefa que JÁ era conhecida e nunca tinham estado nela. Grava o histórico
+  // de todos os avistados (inclusive os que só voltaram) e avisa quem dispara o FUP automático.
+  let chapasNovas: ChapaNovaSync[] = [];
+  if (vistos) {
+    try {
+      const finais: Array<Record<string, unknown>> = chapasFinais; // (o tipo inferido de chapasFinais é uma união estreita)
+      const itens = finais.map((c) => ({
+        id_tarefa: c.id_tarefa as number,
+        nome: normNomeChapa(c.nome_chapa as string | null),
+        cpf: normCpfChapa(c.cpf as string | null),
+        podeSerNovo: c.nova === true && tarefaPrev.has(c.id_tarefa as number),
+      }));
+      const { novos, linhas } = analisarAvistamentos(vistos, itens);
+      await registrarVistos(db, linhas);
+      chapasNovas = novos.map((i) => ({
+        id: finais[i].id as string,
+        id_tarefa: finais[i].id_tarefa as number,
+        nome_chapa: finais[i].nome_chapa as string,
+      }));
+    } catch {
+      chapasNovas = [];
+    }
+  }
+  if (chapasNovas.length > 0 && !opts?.semFupAutomatico && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("chapas:novos", { detail: { chapas: chapasNovas } }));
+  }
+
+  return { tarefas: tarefasMap.size, chapas: chapasFinais.length, chapasNovas };
 }

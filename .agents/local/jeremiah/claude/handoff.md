@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-10-28, 2ª entrada (Sonnet 5.5) — ver JOURNAL.md.
+
+**FUP automático para chapa novo na tarefa depois de um sync — COMMITADO NA MAIN, NÃO LANÇADO, beta ainda não portada.** Tabela `chapas_vistos` (semeada no 1º sync) distingue chapa NOVO de chapa que saiu e voltou; `ingestTarefas` devolve `chapasNovas` e emite `chapas:novos`; `fupNovosChapas.ts` agenda o `startChapaJob` (60 s, cancelável, conferência `aindaVale` no fim) só pra pendente, com telefone, tarefa futura ativa, **empresa da carteira do analista**, máx. 40 por sync, espaçado 10 s. **Desligado por padrão** (`fupAutoNovosChapas`, toggle em Configurações); planilha CSV não dispara. 248 testes, typecheck 14. Pendências: portar pra beta (a `ingestTarefas` da beta difere da main — sem cpfResolver); release quando o usuário pedir; decidir se liga por padrão; validar com sync real e Umbler real. Limites conhecidos no JOURNAL (2 analistas na mesma empresa disparam os dois; app fechado durante a contagem perde o envio).
+
+---
+
 **Data:** 2026-10-28 (Sonnet 5.5) — ver JOURNAL.md.
 
 **Duas fases de confirmação (PréFUP / FUP) — COMMITADO NA MAIN, NÃO LANÇADO, beta ainda não portada.** Substitui a "Reabrir confirmação esquecida" (removida; era ela que "resetava tudo às 21h"): o chapa fica `confirmado` e ganha `prefup_confirmado_em` / `fup_confirmado_em`; chip "PréFUP ✓ / FUP ✓ / FUP —" nos cards; FUP em massa na janela de 5 h reforça quem só tem o PréFUP; confirmar na mão conta como FUP; NÃO ao reforço cancela. Colunas/gatilho criados em tempo de execução (`garantirFasesConfirmacao`, ao abrir o banco). 185 testes na main, typecheck 14 (baseline). **Falta:** (1) portar pra beta (cherry-pick; avaliar flags a partir de `confirmado_via` em `applyCentralStatusLocally`); (2) release quando o usuário pedir — main v1.0.75 (origin/main está em v1.0.74), beta v1.0.77 (BID/PréFUP, local `f267ca1`+`9a11697`, nunca lançada) ou v1.0.78 conforme o que sair; (3) avisar os analistas do novo comportamento (ver "Next" no JOURNAL). Não testado com a Umbler real.

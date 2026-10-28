@@ -76,6 +76,9 @@ export type AppSettings = {
   fupElapsedAlertMinutes: number;
   customMsgTemplates: string[];
   fupAgendarMinAntes: number;
+  // FUP automático (individual, com 60 s pra cancelar) pra chapa que aparece numa tarefa depois de um sync
+  // e nunca tinha estado nela — ver lib/chapasNovos.ts e lib/fupNovosChapas.ts. Desligado por padrão.
+  fupAutoNovosChapas: boolean;
   firestoreEnabled: boolean;
   carteiraGruposAtivos: string[];
   metabaseTarefasCardId?: number;
@@ -139,6 +142,7 @@ export const SETTING_DEFAULTS: AppSettings = {
     "Obrigado pela confirmação, qualquer problema me avise aqui",
   ],
   fupAgendarMinAntes: 0,
+  fupAutoNovosChapas: false,
   firestoreEnabled: true,
   carteiraGruposAtivos: [],
   metabaseTarefasCardId: 1290,

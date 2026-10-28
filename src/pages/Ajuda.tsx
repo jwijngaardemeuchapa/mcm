@@ -198,6 +198,8 @@ const SECTIONS: Section[] = [
         features: [
           "Após cada atualização, o sistema compara o estado anterior e destaca o que mudou",
           "Chapas novos: exibidos com badge 'NOVO' verde por 20 minutos",
+          "FUP automático para chapa novo (Configurações, desligado por padrão): quando a sincronização traz um nome que nunca tinha aparecido numa tarefa que já existia, o FUP (ou PréFUP, conforme a janela) sai sozinho para ele, com 1 minuto para cancelar no painel de disparos; vários nomes saem espaçados",
+          "Quem já esteve na tarefa, saiu e voltou NÃO recebe de novo — o sistema guarda quem já apareceu em cada tarefa. Só vale para empresas da sua carteira, tarefa que ainda não começou e chapa ainda pendente; planilha importada na mão não dispara, e mais de 40 nomes novos de uma vez não disparam (use o FUP em massa)",
           "Chapas removidos externamente: abre workflow de ocorrência com 7 tipos e mensagem formatada pronta para copiar",
           "Detecção automática de validação coletiva do cliente: 3+ chapas removidos após início geram alerta específico",
         ],
