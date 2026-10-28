@@ -1,11 +1,11 @@
 {
-  "version": "1.0.74",
-  "notes": "Correção: CPF vazio — busca em mais de uma fonte (pergunta dedicada do Metabase, cadastro geral por telefone, nome único), salvo na tarefa e usado em copiar CPF, Lista de Presença e exports.",
-  "pub_date": "2026-10-24T19:50:05Z",
+  "version": "1.0.75",
+  "notes": "Novidades: alarme de chapas pendentes (próximo passo de cada chapa e recomendação de remoção: 25 min sem resposta ao FUP, 1 h ao PréFUP); confirmação em duas fases PréFUP/FUP (acabou o reset às 21h); FUP automático para chapa novo na tarefa (desligado por padrão).",
+  "pub_date": "2026-10-28T14:20:41Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFIvczFtK1JzZzR3WTY4YnRCWDZ3dStsNXRXRFFaV0pCVzd6Q3B3aXE3RU82bWh5RVpwWFl2WGZyM0lTd0xsaWdyQW1BeGJxZ29zSEsvNm51OGRlblFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkyODcxMzYyCWZpbGU6TUNNXzEuMC43NF94NjQtc2V0dXAuZXhlCjhsa0M2cUhsU0tuakpFSEtCN2hkZDU1NEl1bHk3c2JhZHhzeWJPZHBmTEJHcGdyWk9obkNnQmpLVkJyQ3psYXJQUzROTmh1VjAwWTRFWUVGczl1ZkNBPT0K",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.74/MCM_1.0.74_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFk3dzY3aHdCU3lGM0VNUGFWQVVJWmU4azg1NVJ3MVgvc2RXbG5IQjNMbkx2Y3F6a3JmVGZNUnJMZmdSYWpFNGJCNGRRSVpiK043dVQzYWg2dW9FRFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk3MTg4CWZpbGU6TUNNXzEuMC43NV94NjQtc2V0dXAuZXhlCklMRXBSK1dnanlFZC8yWmJSMGVld0w4SHlIRlBHc3ZGZlZiRVBnYlZlVzZ0TEVUV3lWcE40UEsyZk52NTJ2SUVFQ1pILzB5cmJEbW5FaitMOGZCM0FBPT0K",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.75/MCM_1.0.75_x64-setup.exe"
     }
   }
 }
