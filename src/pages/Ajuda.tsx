@@ -761,7 +761,7 @@ export default function Ajuda() {
               Substitui planilhas isoladas e anotações dispersas por um painel único integrado ao banco de dados em tempo real.
             </p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.76</Badge>
+          <Badge variant="outline" className="text-xs shrink-0 self-start">v1.0.77</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
@@ -775,8 +775,8 @@ export default function Ajuda() {
           <div className="mt-4 flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-4 py-3">
             <Sparkles className="h-4 w-4 text-success shrink-0 mt-0.5" />
             <span className="text-xs text-success font-medium leading-relaxed">
-              <strong>v1.0.76 — Novidades:</strong>{" "}
-              <strong>Tipo de trabalho, remessa e "Em oferta"</strong> — aparecem nos Cards, Panorama, Timeline e BID; a busca e o Ctrl+K acham por remessa ou tipo, e a Lista de Presença, as planilhas e a Troca de Turno também os trazem. <strong>Visual revisado</strong> — status nunca só por cor (ícone e texto), Panorama que não esconde a empresa em tela menor, textos maiores e menos botões em evidência.
+              <strong>v1.0.77 — Correção:</strong>{" "}
+              <strong>Remessa, tipo de trabalho e "Em oferta"</strong> — o app agora aceita variações no nome dessas colunas e mostra, em Integrações, quais colunas o card do Metabase trouxe no último sync (✓ ou ✗, com os nomes recebidos). Se algo não aparecer, é só olhar ali e sincronizar de novo.
             </span>
           </div>
         )}
@@ -1012,7 +1012,7 @@ export default function Ajuda() {
               <h3 className="font-display font-bold text-lg text-foreground">MCM</h3>
               <p className="text-sm text-muted-foreground">Sistema operacional para gestão de tarefas de alocação de chapas</p>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">v1.0.76 · {totalModules} módulos</Badge>
+            <Badge variant="outline" className="text-xs shrink-0">v1.0.77 · {totalModules} módulos</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div className="space-y-3">
@@ -1047,7 +1047,7 @@ export default function Ajuda() {
       </section>
 
       <div className="text-center text-xs text-muted-foreground pt-4">
-        MCM v1.0.76 · © 2026 Wijngaarde Design
+        MCM v1.0.77 · © 2026 Wijngaarde Design
       </div>
     </div>
   );
