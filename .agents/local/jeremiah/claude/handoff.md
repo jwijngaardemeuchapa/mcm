@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-11-16, 4ª entrada (Sonnet 5.5) — ver JOURNAL.md.
+
+**v1.0.76 publicada, mas o usuário relatou que Remessa/Tipo/Oferta NÃO aparecem (nenhum modo).** Causa mais provável: o card 1290/1289 não entrega as colunas no export `/query/json` (colunas fora das configurações de visualização). Preparado e COMMITADO NA MAIN (não lançado): leitura tolerante do nome da coluna + diagnóstico em Integrações (✓/✗ por coluna, nomes recebidos) + toast ao sincronizar. **Próximo:** lançar v1.0.77 se o usuário pedir, rodar "Sincronizar agora" e ler o painel; conferir no Metabase a visibilidade das colunas nos cards 1290/1289. Beta: portar.
+
+---
+
 **Data:** 2026-11-16, 3ª entrada (Sonnet 5.5) — ver JOURNAL.md.
 
 **Versão atual: main v1.0.76 (PUBLICADA e verificada) / beta v1.0.76 (última lançada).** A v1.0.76 leva tipo de trabalho, remessa e "Em oferta" (nas 3 visualizações do FUP Dashboard, BID, busca, exports e Troca de Turno) e a revisão visual. **Falta a beta v1.0.77**: a beta local tem tudo (BID/PréFUP, duas fases, FUP de chapa novo, alarme, remessa/oferta, revisão visual), nada enviado ao GitHub — só lançar quando o usuário pedir. Validar em uso real: o card real do Metabase (Remessa, Tipo de Trabalho, Em Oferta), som e notificação do alarme, e a aprovação das setas escondidas.

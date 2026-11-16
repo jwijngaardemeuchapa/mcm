@@ -2,6 +2,7 @@ import { getDb, uuid, placeholders } from "@/lib/db";
 import { todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { cleanupTaskLocalStorage } from "@/lib/storageCleanup";
 import { garantirColunasDaTarefa, lerSimNao, textoOuNulo } from "@/lib/tarefaExtras";
+import { diagnosticarColunas, gravarDiagnostico, nomesDoCampo, valorDaColuna } from "@/lib/colunasMetabase";
 import {
   analisarAvistamentos, carregarVistos, garantirChapasVistos, normCpfChapa, normNomeChapa, registrarVistos, type Vistos,
 } from "@/lib/chapasNovos";
@@ -107,10 +108,11 @@ export async function ingestTarefas(
     // Tipo de trabalho, remessa e oferta a chapa dirigido (card consulta_fup do Metabase) — lidos por NOME de
     // coluna; o 1º valor preenchido entre as linhas da tarefa vale (a tarefa em oferta não tem chapa alocado).
     const tarefaAtual = tarefasMap.get(id_tarefa)!;
-    if (!tarefaAtual.remessa) tarefaAtual.remessa = textoOuNulo(pick(row, "Remessa", "remessa", "Shipping"));
-    if (!tarefaAtual.tipo_trabalho) tarefaAtual.tipo_trabalho = textoOuNulo(pick(row, "Tipo de Trabalho", "tipo_trabalho"));
-    if (!tarefaAtual.chapa_em_oferta) tarefaAtual.chapa_em_oferta = textoOuNulo(pick(row, "Chapa em Oferta", "chapa_em_oferta"));
-    if (lerSimNao(pick(row, "Em Oferta", "em_oferta"))) tarefaAtual.em_oferta = 1;
+    // (nome da coluna casado sem diferenciar caixa, acento, espaço ou "_": ver lib/colunasMetabase.ts)
+    if (!tarefaAtual.remessa) tarefaAtual.remessa = textoOuNulo(valorDaColuna(row, nomesDoCampo("remessa")));
+    if (!tarefaAtual.tipo_trabalho) tarefaAtual.tipo_trabalho = textoOuNulo(valorDaColuna(row, nomesDoCampo("tipo_trabalho")));
+    if (!tarefaAtual.chapa_em_oferta) tarefaAtual.chapa_em_oferta = textoOuNulo(valorDaColuna(row, nomesDoCampo("chapa_em_oferta")));
+    if (lerSimNao(valorDaColuna(row, nomesDoCampo("em_oferta")))) tarefaAtual.em_oferta = 1;
 
     const nome = pick(row, "Nome do Chapa", "nome_chapa");
     if (nome) {
@@ -122,12 +124,13 @@ export async function ingestTarefas(
 
   // A fonte trouxe essas colunas? (CSV antigo e Central não trazem: nesse caso o que já está gravado fica como está,
   // em vez de ser apagado pelo INSERT OR REPLACE.)
-  const temColuna = (...nomes: string[]) =>
-    rows.some((r) => Object.keys(r).some((k) => nomes.some((n) => n.toLowerCase() === k.toLowerCase().trim())));
+  const diagnostico = diagnosticarColunas(rows, opts?.semFupAutomatico ? "planilha" : "metabase");
+  gravarDiagnostico(diagnostico); // a tela de Integrações mostra o que o card realmente trouxe
+  const temColuna = (campo: "remessa" | "tipo_trabalho" | "em_oferta" | "chapa_em_oferta") => diagnostico.achadas[campo] !== null;
   const fonteTem = {
-    remessa: temColuna("Remessa", "remessa", "Shipping"),
-    tipo: temColuna("Tipo de Trabalho", "tipo_trabalho"),
-    oferta: temColuna("Em Oferta", "em_oferta", "Chapa em Oferta", "chapa_em_oferta"),
+    remessa: temColuna("remessa"),
+    tipo: temColuna("tipo_trabalho"),
+    oferta: temColuna("em_oferta") || temColuna("chapa_em_oferta"),
   };
 
   // Dedupe chapas por id_tarefa | cpf || nome

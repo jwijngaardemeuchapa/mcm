@@ -150,3 +150,34 @@ describe("sync — banco sem as colunas", () => {
     expect((h.db.prepare("SELECT COUNT(*) n FROM chapas").get() as { n: number }).n).toBe(1);
   });
 });
+
+describe("sync — nome da coluna tolerante e diagnóstico do que o card trouxe", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("aceita grafias diferentes (caixa, acento, espaço, '_')", async () => {
+    await ingestTarefas([{ ...linha(), REMESSA: "CTE 7", "tipo de trabalho": "Carga", em_oferta: "Sim", "chapa em oferta": "Ana" }]);
+    expect(tarefa()).toEqual({ remessa: "CTE 7", tipo_trabalho: "Carga", em_oferta: 1, chapa_em_oferta: "Ana" });
+  });
+
+  it("registra o diagnóstico: colunas recebidas e quais das quatro vieram", async () => {
+    await ingestTarefas([linha({ Remessa: "R1", "Em Oferta": false })]);
+    const d = JSON.parse(localStorage.getItem("mcm_metabase_colunas")!);
+    expect(d.origem).toBe("metabase");
+    expect(d.colunas).toContain("Remessa");
+    expect(d.achadas).toEqual({ remessa: "Remessa", tipo_trabalho: null, em_oferta: "Em Oferta", chapa_em_oferta: null });
+  });
+
+  it("card que NÃO traz as colunas fica registrado como faltando (e o gravado é preservado)", async () => {
+    await ingestTarefas([linha({ Remessa: "R1", "Tipo de Trabalho": "Descarga" })]);
+    await ingestTarefas([linha()]); // o card deixou de trazer
+    const d = JSON.parse(localStorage.getItem("mcm_metabase_colunas")!);
+    expect(d.achadas).toEqual({ remessa: null, tipo_trabalho: null, em_oferta: null, chapa_em_oferta: null });
+    expect(tarefa()).toMatchObject({ remessa: "R1", tipo_trabalho: "Descarga" });
+  });
+
+  it("importação de planilha (semFupAutomatico) não sobrescreve o retrato do Metabase", async () => {
+    await ingestTarefas([linha({ Remessa: "R1" })]);
+    await ingestTarefas([linha()], { semFupAutomatico: true });
+    expect(JSON.parse(localStorage.getItem("mcm_metabase_colunas")!).origem).toBe("metabase");
+  });
+});

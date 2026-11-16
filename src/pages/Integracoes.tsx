@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
+import { lerDiagnostico, rotulosFaltando } from "@/lib/colunasMetabase";
+import { DiagnosticoColunas } from "@/components/DiagnosticoColunas";
 import { sincronizarCpfChapas } from "@/lib/cpfResolver";
 import { sincronizarCarteira, sincronizarRegistro, sincronizarLeadsSaac, sincronizarEnderecos, sincronizarTarefaEnderecos, sincronizarChapas15d, sincronizarLeadsRegiao, sincronizarBloqueiosHoje } from "@/lib/metabaseSync";
 import { fmtDateTime } from "@/lib/datetime";
@@ -468,6 +470,11 @@ export default function Integracoes() {
       localStorage.setItem("metabase_last_sync", now);
       setMetabaseLastSync(now);
       if (!silent) toast.success(`✓ ${result.tarefas} tarefas · ${result.chapas} chapas sincronizados`);
+      const diag = lerDiagnostico();
+      const faltando = diag ? rotulosFaltando(diag) : [];
+      if (!silent && faltando.length > 0) {
+        toast.warning(`O card ${cardId} não trouxe: ${faltando.join(", ")}. Veja "Colunas do último sync" abaixo.`, { duration: 12_000 });
+      }
     } catch (e) {
       if (!silent) toast.error(`Erro na sincronização: ${errMsg(e)}`);
     } finally {
@@ -1233,6 +1240,7 @@ export default function Integracoes() {
                 Última sincronização: {new Date(metabaseLastSync).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}
               </p>
             )}
+            <DiagnosticoColunas chave={metabaseLastSync} />
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">
