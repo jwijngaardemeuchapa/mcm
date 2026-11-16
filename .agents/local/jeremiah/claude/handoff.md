@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-11-16, 5ª entrada (Sonnet 5.5) — ver JOURNAL.md.
+
+**Versão atual: main v1.0.77 (PUBLICADA e verificada) / beta v1.0.76 (última lançada).** A v1.0.77 traz o diagnóstico das colunas do card do Metabase (Integrações). **Aguardando o usuário:** "Sincronizar agora" em Integrações e o que o painel de colunas mostra — se Remessa/Tipo de Trabalho/Em Oferta/Chapa em Oferta vierem ✗, o problema é a visibilidade das colunas nos cards 1290/1289 no Metabase (⚙ da tabela + salvar). Se vierem ✓ e mesmo assim não aparecer na tela, investigar a gravação (`ingestTarefas`/colunas da tarefa). Beta-v1.0.77 segue sem release (a beta sincroniza tarefas pela Central).
+
+---
+
 **Data:** 2026-11-16, 4ª entrada (Sonnet 5.5) — ver JOURNAL.md.
 
 **v1.0.76 publicada, mas o usuário relatou que Remessa/Tipo/Oferta NÃO aparecem (nenhum modo).** Causa mais provável: o card 1290/1289 não entrega as colunas no export `/query/json` (colunas fora das configurações de visualização). Preparado e COMMITADO NA MAIN (não lançado): leitura tolerante do nome da coluna + diagnóstico em Integrações (✓/✗ por coluna, nomes recebidos) + toast ao sincronizar. **Próximo:** lançar v1.0.77 se o usuário pedir, rodar "Sincronizar agora" e ler o painel; conferir no Metabase a visibilidade das colunas nos cards 1290/1289. Beta: portar.

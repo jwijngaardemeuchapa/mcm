@@ -2428,3 +2428,11 @@ Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disp
 **Testes:** 399 passando (novos: `colunasMetabase` 12, `DiagnosticoColunas` 5, +4 no sync); typecheck 14 (baseline); eslint sem erro novo.
 **Files changed:** novos `src/lib/colunasMetabase.ts`, `src/components/DiagnosticoColunas.tsx` + 2 testes; `src/lib/ingestTarefas.ts`, `src/pages/Integracoes.tsx`, `src/lib/ingestTarefas.extras.test.ts`.
 **Next:** NÃO lançado (precisa de release pra o usuário ver o diagnóstico). Conferir no Metabase se Remessa/Tipo de Trabalho/Em Oferta/Chapa em Oferta estão visíveis nos cards 1290 e 1289 (e salvar o card); depois de lançar, rodar "Sincronizar agora" em Integrações e ler o painel de colunas.
+
+## 2026-11-16 — Release v1.0.77 (main)
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Commits:** 7ac1df7 (bump), b121a4f (latest.json); conteúdo em a6aa33a
+**Summary:** Publicada a **main v1.0.77** (usuário: "sim" ao lançar). Leva o casamento tolerante do nome das colunas (Remessa, Tipo de Trabalho, Em Oferta, Chapa em Oferta) e o **diagnóstico do que o card do Metabase trouxe** (Integrações: ✓/✗ por coluna, nomes recebidos, causa provável; toast ao "Sincronizar agora"). Motivo: depois da v1.0.76 o usuário viu que as novas informações não apareciam em nenhuma visualização; hipótese principal = o export `/query/json` só inclui colunas visíveis nas configurações da tabela do card. 399 testes, typecheck 14. Build ~12 min, assinatura manual, release `v1.0.77` com `.exe` (219 MB) + `.sig`, `latest.json` e verificação (raw 200, versão 1.0.77, assinatura 412 caracteres, instalador 302).
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** o usuário deve abrir Integrações → Metabase → "Sincronizar agora" e ler o painel de colunas; com isso se confirma (ou descarta) a hipótese da visibilidade das colunas nos cards 1290/1289. Beta: o diagnóstico foi portado, mas a Integrações da beta sincroniza pela Central (sem o painel); beta-v1.0.77 continua sem release.

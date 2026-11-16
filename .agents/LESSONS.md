@@ -265,3 +265,7 @@ A 1ª correção do "clica e congela" (só o `Dashboard.load`) melhorou e não r
 ## 2026-11-16 — Coluna nova do Metabase "não aparece": veja o que o EXPORT entrega, não o que a consulta devolve
 
 (1) O MCM lê `/api/card/{id}/query/json` (export); conferir o card pelo endpoint `/query` ou pela tela mostra colunas que o export pode omitir (colunas escondidas/ausentes nas configurações de visualização). Quando a informação some, o primeiro passo é um **diagnóstico dentro do app** do que chegou — sem ele, é chute. (2) Casar nome de coluna sem caixa/acento/espaço/`_` e aceitar prefixo de origem custa pouco e elimina uma classe de falhas silenciosas. (3) Falha silenciosa por "fonte sem a coluna preserva o valor" é segura pro dado, mas esconde o problema: sempre registre o motivo em algum lugar visível. (4) Escapes de regex dentro de template literal de script de edição se perdem (`\.` virou `.`): cheque o arquivo gerado e prefira a ferramenta Edit pra linhas com regex.
+
+## 2026-11-16 — Release de correção: o ciclo continua o mesmo
+
+(1) Bump → push → `gh release create` com `.exe` + `.sig` → `latest.json` → push → verificar 200/302. (2) Um release de diagnóstico vale a pena quando o problema só se vê no ambiente do usuário: o app passa a mostrar a evidência (colunas recebidas) em vez de eu adivinhar.
