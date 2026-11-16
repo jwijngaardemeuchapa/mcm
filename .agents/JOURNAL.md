@@ -2412,3 +2412,11 @@ Quatro bugs relatados no BID: (1) nomes de mulheres/estranhos aparecendo em Disp
 **Limites:** não testado com analistas; esconder as setas é uma aposta de menos ruído (alcançáveis por teclado e hover); o Panorama estreito passa a ter rolagem horizontal (a coluna "Alertas" fica fora da tela até rolar); BID, Cards e outras telas fora das listadas continuam com os tamanhos antigos.
 **Files changed:** `src/lib/taskState.ts`, `src/components/{FillRateBar,TaskPanorama,TaskTimeline,TaskCard,TaskDetailPanel,TarefaInfo,FasesChip,PainelDeAlarme,StatusBadge,ValidationStepper}.tsx` + 2 testes novos.
 **Next:** vai na v1.0.76 (main). Portar pra beta.
+
+## 2026-11-16 — Release v1.0.76 (main)
+
+**Actor:** Jeremiah | **Agent:** sonnet
+**Commits:** 08d73c9 (bump), 1b6d366 (latest.json)
+**Summary:** Publicada a **main v1.0.76** a pedido do usuário ("faça o restante das recomendações e já faça a release"). Contém: tipo de trabalho, remessa e "Em oferta" (Metabase 1290/1289 com 18 colunas) nos Cards, Panorama, Timeline, BID, busca/Ctrl+K, Lista de Presença, planilha e Troca de Turno; e a revisão visual (cor + ícone + texto, setas do card no hover, Panorama que não esconde a empresa, texto mínimo 11 px). Antes do release: 379 testes passando, typecheck 14 (baseline). Mesmo procedimento da v1.0.75: build `npx tauri build` (~12 min), assinatura manual (`tauri signer sign -f tauri_update_key -p ""`, a automática falha por falta de `TAURI_SIGNING_PRIVATE_KEY`), push da main, `gh release create v1.0.76` com `.exe` (219 MB) + `.sig`, `latest.json` e verificação (raw 200, versão 1.0.76, assinatura de 412 caracteres, instalador 302).
+**Files changed:** `src-tauri/tauri.conf.json`, `src/pages/Ajuda.tsx`, `latest.json`
+**Next:** a beta (beta-v1.0.77) segue sem release; a beta local tem a revisão visual portada mas não é enviada ao GitHub. Validar em uso real: o card real do Metabase traz Remessa/Tipo de Trabalho/Em Oferta como esperado; o alarme (som/notificação); e se os analistas aprovam as setas do card só no hover.

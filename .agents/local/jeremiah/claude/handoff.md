@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-11-16, 3ª entrada (Sonnet 5.5) — ver JOURNAL.md.
+
+**Versão atual: main v1.0.76 (PUBLICADA e verificada) / beta v1.0.76 (última lançada).** A v1.0.76 leva tipo de trabalho, remessa e "Em oferta" (nas 3 visualizações do FUP Dashboard, BID, busca, exports e Troca de Turno) e a revisão visual. **Falta a beta v1.0.77**: a beta local tem tudo (BID/PréFUP, duas fases, FUP de chapa novo, alarme, remessa/oferta, revisão visual), nada enviado ao GitHub — só lançar quando o usuário pedir. Validar em uso real: o card real do Metabase (Remessa, Tipo de Trabalho, Em Oferta), som e notificação do alarme, e a aprovação das setas escondidas.
+
+---
+
 **Data:** 2026-11-16, 2ª entrada (Sonnet 5.5) — ver JOURNAL.md.
 
 **Revisão visual (princípios de design/UX) — COMMITADA NA MAIN, vai na v1.0.76; beta ainda não portada.** Cor + ícone + texto na severidade (FillRateBar com listras no crítico; Timeline e Panorama com ícone; `severityLabel`), setas de navegação do card só no hover/foco, "Mensagem" neutra em repouso, Panorama com coluna da empresa que não some (rolagem horizontal), texto mínimo 11 px nas telas do FUP Dashboard e do alarme. 379 testes, typecheck 14. Não testado com os analistas: se as setas escondidas incomodarem, reverter a classe `opacity-0` do wrapper em `TaskCard.tsx`.
