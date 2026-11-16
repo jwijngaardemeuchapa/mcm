@@ -1,11 +1,11 @@
 {
-  "version": "1.0.75",
-  "notes": "Novidades: alarme de chapas pendentes (próximo passo de cada chapa e recomendação de remoção: 25 min sem resposta ao FUP, 1 h ao PréFUP); confirmação em duas fases PréFUP/FUP (acabou o reset às 21h); FUP automático para chapa novo na tarefa (desligado por padrão).",
-  "pub_date": "2026-10-28T14:20:41Z",
+  "version": "1.0.76",
+  "notes": "Novidades: tipo de trabalho, remessa e 'Em oferta' nos Cards, Panorama, Timeline e BID (busca e Ctrl+K por remessa; Lista de Presença, planilhas e Troca de Turno também); visual revisado — status nunca só por cor, Panorama que não esconde a empresa, textos maiores e menos botões em evidência.",
+  "pub_date": "2026-11-16T14:44:11Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFk3dzY3aHdCU3lGM0VNUGFWQVVJWmU4azg1NVJ3MVgvc2RXbG5IQjNMbkx2Y3F6a3JmVGZNUnJMZmdSYWpFNGJCNGRRSVpiK043dVQzYWg2dW9FRFFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMTk3MTg4CWZpbGU6TUNNXzEuMC43NV94NjQtc2V0dXAuZXhlCklMRXBSK1dnanlFZC8yWmJSMGVld0w4SHlIRlBHc3ZGZlZiRVBnYlZlVzZ0TEVUV3lWcE40UEsyZk52NTJ2SUVFQ1pILzB5cmJEbW5FaitMOGZCM0FBPT0K",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.75/MCM_1.0.75_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFVCaWhZNWxUZzFaNHBER20yZWtqU1RoTkRUM1ZLckkvZUdrR20wYU1BWHpPSzVBRWtvRWdkWVBRZUFoWEZMWUxISVpNeGRoZ2JobGxDakhLRXlZdVE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODQwMjEzCWZpbGU6TUNNXzEuMC43Nl94NjQtc2V0dXAuZXhlCi9FMDRQaHdUSWVGQnZaRit5NGdIQWhKZDhuNVJrNDRxelBzUit5THNONVNXVEN1bC80VVhWZXQrOU1xbFczdEU0RUhvUVpIVkRDcGF2ZUpuaDlRcEJnPT0K",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.76/MCM_1.0.76_x64-setup.exe"
     }
   }
 }
