@@ -217,6 +217,7 @@ const SECTIONS: Section[] = [
         color: "text-muted-foreground bg-muted/30 border-border",
         savings: "~7min por tarefa",
         features: [
+          "Tipo de trabalho, remessa (clique copia) e selo 'Em oferta' (chapa dirigido que ainda não aceitou: a vaga conta como aberta) aparecem nos Cards, Panorama, Timeline e BID; a busca e o Ctrl+K acham por remessa ou tipo, e a Lista de Presença, os exports e a Troca de Turno também os trazem",
           "Confirmar chapa por canal: WhatsApp Web, Umbler Talk ou Ligação 3C — cada canal fica registrado no histórico",
           "Enviar Umbler: dispara template de confirmação com delay de 60 s — a contagem continua se você navegar — cancele clicando durante a contagem",
           "Botão 'Enviado (Nx)': mostra quantas vezes o chapa foi contactado via Umbler — sempre resendável",

@@ -50,6 +50,8 @@ import { useUnreadChats } from "@/lib/WatcherContext";
 import { atualizarChapa, comFlagManual, confirmarManualEmLote, entraNoFupEmMassa } from "@/lib/fasesConfirmacao";
 import { emJanelaDeFup } from "@/lib/prefup";
 import { FasesChip } from "@/components/FasesChip";
+import { TarefaInfo } from "@/components/TarefaInfo";
+import { linhaTipoRemessaPlanilha } from "@/lib/tarefaExtras";
 import { setActiveTaskNav } from "@/lib/taskNav";
 import { formatCpf } from "@/lib/normalize";
 import { resolveCpfs } from "@/lib/cpfResolver";
@@ -269,7 +271,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
       ["LISTA DE PRESENÇA", "", "", "", "", ""],
       ["Data:", fmtSP(task.data_tarefa, "dd/MM/yyyy"), "Empresa:", task.empresa, "", ""],
       ["Local da operação:", task.cidade_uf ?? "", "", "Responsável:", operadorNome || "", ""],
-      [],
+      linhaTipoRemessaPlanilha(task),
       ["Nº", "Nome", "CPF", "Horário de Entrada", "Horário de Saída", "Assinatura"],
       ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", cpfs[i] ? formatCpf(cpfs[i]!) : "", "", "", ""]),
     ];
@@ -734,6 +736,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                       </Tooltip>
                     )}
                   </div>
+                  <TarefaInfo t={task} sobreCor className="mt-1.5" />
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[26px] font-display font-bold text-white leading-none tabular-nums">{fillPct}%</div>

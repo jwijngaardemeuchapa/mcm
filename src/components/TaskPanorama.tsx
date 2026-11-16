@@ -17,6 +17,8 @@ import { getDb } from "@/lib/db";
 import { computeTaskState, taskSeverityRowClass } from "@/lib/taskState";
 import { last11Digits } from "@/lib/umbler";
 import { useUnreadChats } from "@/lib/WatcherContext";
+import { OfertaBadge } from "@/components/TarefaInfo";
+import { estaEmOferta, resumoDaTarefa } from "@/lib/tarefaExtras";
 
 function csvExported(id: number) {
   try {
@@ -275,8 +277,14 @@ function PanoramaRow({
           >
             {task.empresa.toLowerCase()}
           </span>
+          {estaEmOferta(task) && <OfertaBadge chapa={task.chapa_em_oferta} compacto />}
         </div>
-        <div className="text-[11px] text-muted-foreground truncate">{task.cidade_uf ?? "—"}</div>
+        <div
+          className="text-[11px] text-muted-foreground truncate"
+          title={[task.cidade_uf, resumoDaTarefa(task, 200)].filter(Boolean).join(" · ")}
+        >
+          {[task.cidade_uf ?? "—", resumoDaTarefa(task, 18)].filter(Boolean).join(" · ")}
+        </div>
       </div>
 
       {/* Fill rate bar */}

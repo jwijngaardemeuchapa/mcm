@@ -12,8 +12,9 @@ import { toast } from "sonner";
 import { Confetti } from "./Confetti";
 import { playTeamsCopy } from "@/lib/sound";
 import { isPrefupTemplateWindow } from "@/lib/prefup";
+import { estaEmOferta, resumoDaTarefa, textoOuNulo, type TarefaExtras } from "@/lib/tarefaExtras";
 
-type TarefaRow = {
+export type TarefaRow = TarefaExtras & {
   id_tarefa: number;
   empresa: string;
   data_tarefa: string;
@@ -23,14 +24,14 @@ type TarefaRow = {
   validacao_status: string | null;
 };
 
-type ChapaRow = {
+export type ChapaRow = {
   id_tarefa: number;
   nome_chapa: string | null;
   status_contato: string;
   data_remocao: string | null;
 };
 
-type AgendaRow = {
+export type AgendaRow = {
   id: string;
   titulo: string;
   prazo: string | null;
@@ -49,7 +50,14 @@ function activeChapas(chapas: ChapaRow[], id_tarefa: number) {
   );
 }
 
-function buildMessage(
+// Complemento de cada tarefa na mensagem: " — Descarga · Remessa CTE 123" (vazio se não houver nada).
+function complemento(t: TarefaExtras): string {
+  const r = resumoDaTarefa(t);
+  return r ? ` — ${r}` : "";
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- exportada só pra ser testada
+export function buildMessage(
   grupoLabel: string,
   tarefas: TarefaRow[],
   chapas: ChapaRow[],
@@ -95,7 +103,7 @@ function buildMessage(
     for (const t of pendentes) {
       const dataFmt = fmtSP(t.data_tarefa, "dd/MM HH:mm");
       const statusLabel = t.validacao_status === "pendente" ? "aguardando cliente" : "sem validação";
-      lines.push(`• ${t.empresa} — ${dataFmt} (${statusLabel})`);
+      lines.push(`• ${t.empresa} — ${dataFmt} (${statusLabel})${complemento(t)}`);
     }
     lines.push("");
   }
@@ -135,7 +143,7 @@ function buildMessage(
       const datePrefix = taskDateISO === tomorrowISO ? "amanhã " : "";
       const dataFmt = datePrefix + fmtSP(t.data_tarefa, "dd/MM HH:mm");
       const prefupLabel = isPrefupTask ? " [PréFUP]" : "";
-      lines.push(`• ${t.empresa} — ${dataFmt} — ${confirmed}/${requested} confirmados${prefupLabel}`);
+      lines.push(`• ${t.empresa} — ${dataFmt} — ${confirmed}/${requested} confirmados${prefupLabel}${complemento(t)}`);
     }
     lines.push("");
   }
@@ -175,7 +183,10 @@ function buildMessage(
     lines.push("🎯 *BID — CAPTAÇÕES EM ABERTO*");
     for (const { t, linhasVazias } of bidEntries) {
       const dataFmt = fmtSP(t.data_tarefa, "dd/MM HH:mm");
-      lines.push(`• ${t.empresa} — ${dataFmt} — ${linhasVazias} linha${linhasVazias > 1 ? "s" : ""} vazia${linhasVazias > 1 ? "s" : ""}`);
+      const oferta = estaEmOferta(t)
+        ? ` [Em oferta${textoOuNulo(t.chapa_em_oferta) ? `: ${t.chapa_em_oferta}` : ""}]`
+        : "";
+      lines.push(`• ${t.empresa} — ${dataFmt} — ${linhasVazias} linha${linhasVazias > 1 ? "s" : ""} vazia${linhasVazias > 1 ? "s" : ""}${oferta}${complemento(t)}`);
     }
     lines.push("");
   }
@@ -277,7 +288,8 @@ export function TrocaDeTurno({
 
       const [tarefas, chapas, carteira, agenda] = await Promise.all([
         db.select<TarefaRow[]>(
-          `SELECT id_tarefa, empresa, data_tarefa, cidade_uf, status_tarefa, quantidade_chapas, validacao_status
+          `SELECT id_tarefa, empresa, data_tarefa, cidade_uf, status_tarefa, quantidade_chapas, validacao_status,
+                  remessa, tipo_trabalho, em_oferta, chapa_em_oferta
            FROM tarefas
            WHERE ativo = 1
              AND (date(data_tarefa) = ? OR date(data_tarefa) = ?)

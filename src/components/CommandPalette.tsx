@@ -66,6 +66,14 @@ type RecentTask = {
   data_tarefa: string;
 };
 
+type TarefaResult = {
+  id_tarefa: number;
+  empresa: string;
+  data_tarefa: string;
+  remessa: string | null;
+  tipo_trabalho: string | null;
+};
+
 type ChapaResult = {
   chapa_id: string;
   nome_chapa: string;
@@ -84,6 +92,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [tasks, setTasks] = useState<RecentTask[]>([]);
   const [query, setQuery] = useState("");
   const [chapaResults, setChapaResults] = useState<ChapaResult[]>([]);
+  const [tarefaResults, setTarefaResults] = useState<TarefaResult[]>([]);
 
   // Load recent tasks when dialog opens
   useEffect(() => {
@@ -137,6 +146,26 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       .catch(() => {});
   }, [query, open]);
 
+  // Tarefas pela remessa (CTE, container...) ou pelo tipo de trabalho (mín. 2 caracteres)
+  useEffect(() => {
+    if (!open || query.trim().length < 2) {
+      setTarefaResults([]);
+      return;
+    }
+    const like = `%${query.trim().toLowerCase()}%`;
+    getDb()
+      .then((db) =>
+        db.select<TarefaResult[]>(
+          `SELECT id_tarefa, empresa, data_tarefa, remessa, tipo_trabalho FROM tarefas
+           WHERE ativo = 1 AND (LOWER(COALESCE(remessa, '')) LIKE ? OR LOWER(COALESCE(tipo_trabalho, '')) LIKE ?)
+           ORDER BY data_tarefa DESC LIMIT 8`,
+          [like, like],
+        ),
+      )
+      .then(setTarefaResults)
+      .catch(() => setTarefaResults([]));
+  }, [query, open]);
+
   function go(href: string) {
     navigate(href);
     onOpenChange(false);
@@ -188,6 +217,28 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   <span className="font-medium capitalize">{r.nome_chapa.toLowerCase()}</span>
                   <span className="ml-2 text-xs text-muted-foreground truncate">
                     {r.empresa} · #{r.id_tarefa} · {fmtSP(r.data_tarefa, "dd/MM HH:mm")}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </>
+        )}
+
+        {/* Tarefas pela remessa ou tipo de trabalho */}
+        {tarefaResults.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading="Tarefas por remessa ou tipo">
+              {tarefaResults.map((r) => (
+                <CommandItem
+                  key={`rem-${r.id_tarefa}`}
+                  value={`tarefa-${r.id_tarefa} ${r.remessa ?? ""} ${r.tipo_trabalho ?? ""} ${r.empresa}`}
+                  onSelect={() => go(`/dashboard?q=${encodeURIComponent(query.trim())}&flash=${r.id_tarefa}`)}
+                >
+                  <Truck className="mr-2 h-4 w-4 opacity-60 shrink-0" />
+                  <span className="font-medium capitalize">{r.empresa.toLowerCase()}</span>
+                  <span className="ml-2 text-xs text-muted-foreground truncate">
+                    {[r.tipo_trabalho, r.remessa].filter(Boolean).join(" · ")} · #{r.id_tarefa} · {fmtSP(r.data_tarefa, "dd/MM HH:mm")}
                   </span>
                 </CommandItem>
               ))}

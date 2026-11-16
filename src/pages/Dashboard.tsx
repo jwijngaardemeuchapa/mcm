@@ -82,6 +82,7 @@ import { readSettings } from "@/lib/settings";
 import { normalize } from "@/lib/normalize";
 import { invoke } from "@tauri-apps/api/core";
 import { ingestTarefas } from "@/lib/ingestTarefas";
+import { estaEmOferta, tarefaCasaBusca, textoOuNulo } from "@/lib/tarefaExtras";
 import { sincronizarMetabase, sincronizarMetabase30h } from "@/lib/metabaseSync";
 import * as XLSX from "xlsx";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -279,6 +280,10 @@ export default function Dashboard() {
         observacoes?: string | null;
         observacoes_updated_at?: string | null;
         importado_em?: string | null;
+        remessa?: string | null;
+        tipo_trabalho?: string | null;
+        em_oferta?: number | boolean | null;
+        chapa_em_oferta?: string | null;
       };
       // Agrupa por tarefa uma vez (antes: 3 .filter() sobre as listas inteiras
       // pra CADA card — custo quadrático com o histórico).
@@ -300,6 +305,10 @@ export default function Dashboard() {
           obs_validacao: t.obs_validacao,
           observacoes: t.observacoes ?? null,
           observacoes_updated_at: t.observacoes_updated_at ?? null,
+          remessa: t.remessa ?? null,
+          tipo_trabalho: t.tipo_trabalho ?? null,
+          em_oferta: t.em_oferta ?? 0,
+          chapa_em_oferta: t.chapa_em_oferta ?? null,
           importado_em: t.importado_em ?? null,
           chapas: [...(chapasPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["chapas"],
           fup_log: [...(fupPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["fup_log"],
@@ -752,6 +761,7 @@ export default function Dashboard() {
           if (String(t.id_tarefa).includes(q)) return true;
           if (normalize(t.empresa ?? "").includes(q)) return true;
           if (t.chapas.some((c) => normalize(c.nome_chapa ?? "").includes(q))) return true;
+          if (tarefaCasaBusca(t, q, normalize)) return true; // remessa (CTE, container) e tipo de trabalho
           if (
             onlyDigits.length >= 3 &&
             t.chapas.some((c) => (c.telefone_chapa ?? "").replace(/\D/g, "").includes(onlyDigits))
@@ -1052,19 +1062,28 @@ export default function Dashboard() {
       flatX.map(({ c }) => ({ id: (c as { id?: string }).id, cpf: (c as { cpf?: string | null }).cpf, telefone_chapa: c.telefone_chapa, nome_chapa: c.nome_chapa })),
     );
     let ix = 0;
+    const colunasDaTarefa = (task: (typeof selecionadas)[number]) => ({
+      "ID Tarefa": task.id_tarefa,
+      "Data Tarefa": task.data_tarefa ? fmtSP(task.data_tarefa, "dd/MM/yyyy HH:mm") : "",
+      "Empresa": task.empresa,
+      "Cidade/UF": task.cidade_uf ?? "",
+      "Status Tarefa": task.status_tarefa,
+      "Tipo de Trabalho": textoOuNulo(task.tipo_trabalho) ?? "",
+      "Remessa": textoOuNulo(task.remessa) ?? "",
+      "Em Oferta": estaEmOferta(task) ? (textoOuNulo(task.chapa_em_oferta) ? `SIM — ${task.chapa_em_oferta}` : "SIM") : "",
+    });
+    // Tarefa sem nenhum chapa (ex.: em oferta) também sai, numa linha, pra não sumir da planilha.
     const rows = selecionadas.flatMap((task) =>
-      task.chapas.map((c) => ({
-        "ID Tarefa": task.id_tarefa,
-        "Data Tarefa": task.data_tarefa ? fmtSP(task.data_tarefa, "dd/MM/yyyy HH:mm") : "",
-        "Empresa": task.empresa,
-        "Cidade/UF": task.cidade_uf ?? "",
-        "Status Tarefa": task.status_tarefa,
-        "Nome Chapa": c.nome_chapa ?? "",
-        "Telefone": c.telefone_chapa ?? "",
-        "CPF": cpfsX[ix++] ?? "",
-        "Status": c.status_contato,
-        "Confirmado": c.status_contato === "confirmado" ? "SIM" : "NÃO",
-      })),
+      task.chapas.length === 0
+        ? [{ ...colunasDaTarefa(task), "Nome Chapa": "", "Telefone": "", "CPF": "", "Status": "", "Confirmado": "" }]
+        : task.chapas.map((c) => ({
+            ...colunasDaTarefa(task),
+            "Nome Chapa": c.nome_chapa ?? "",
+            "Telefone": c.telefone_chapa ?? "",
+            "CPF": cpfsX[ix++] ?? "",
+            "Status": c.status_contato,
+            "Confirmado": c.status_contato === "confirmado" ? "SIM" : "NÃO",
+          })),
     );
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();

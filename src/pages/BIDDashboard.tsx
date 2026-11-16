@@ -79,6 +79,9 @@ import {
   PhoneCall,
   Star,
 } from "lucide-react";
+import { Hourglass } from "lucide-react";
+import { TarefaInfo } from "@/components/TarefaInfo";
+import { estaEmOferta, textoOuNulo } from "@/lib/tarefaExtras";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BidMatchmaker } from "@/components/BidMatchmaker";
 import { BidRadar } from "@/components/BidRadar";
@@ -156,6 +159,11 @@ export type OpenTask = {
   quantidade_chapas: number;
   alocados: number;
   status_tarefa: string;
+  // Do Metabase (ver lib/tarefaExtras.ts): vaga "em oferta" já tem um chapa dirigido que ainda não aceitou
+  remessa?: string | null;
+  tipo_trabalho?: string | null;
+  em_oferta?: number | null;
+  chapa_em_oferta?: string | null;
 };
 
 export type ClienteAddress = {
@@ -1964,6 +1972,7 @@ function BidTaskCard({
           <Badge variant="outline" className="text-warning border-warning/40 bg-warning/5 text-[10px] px-1.5 py-0 h-4">
             {vagas} vaga{vagas !== 1 ? "s" : ""}
           </Badge>
+          <TarefaInfo t={task} maxRemessa={18} />
           <a
             href={`https://app.meu-chapa.com/admin/edit-task/${task.id_tarefa}`}
             target="_blank" rel="noopener noreferrer"
@@ -1978,6 +1987,17 @@ function BidTaskCard({
 
       {expanded && (
         <>
+          {/* ── Em oferta: já existe um chapa dirigido ── */}
+          {estaEmOferta(task) && (
+            <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5">
+              <Hourglass className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-warning leading-relaxed">
+                Em oferta{textoOuNulo(task.chapa_em_oferta) ? ` para ${task.chapa_em_oferta}` : ""}: o chapa dirigido ainda não aceitou.
+                Convidar outros candidatos para esta vaga pode duplicar — confira antes de disparar.
+              </p>
+            </div>
+          )}
+
           {/* ── Status Em Análise warning ── */}
           {task.status_tarefa === "Em Análise" && (
             <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5">
@@ -3392,6 +3412,7 @@ export default function BIDDashboard() {
         db.select<{ cnt: number }[]>("SELECT COUNT(*) as cnt FROM chapa_registry").catch(() => [{ cnt: 0 }]),
         db.select<OpenTask[]>(`
           SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas, t.status_tarefa,
+            t.remessa, t.tipo_trabalho, t.em_oferta, t.chapa_em_oferta,
             (SELECT COUNT(*) FROM chapas c WHERE c.id_tarefa = t.id_tarefa
              AND c.nome_chapa IS NOT NULL AND c.status_contato != 'removido') as alocados
           FROM tarefas t
@@ -4623,6 +4644,7 @@ function BloqueadosTab() {
         `),
         db.select<OpenTask[]>(`
           SELECT t.id_tarefa, t.empresa, t.data_tarefa, t.cidade_uf, t.quantidade_chapas, t.status_tarefa,
+            t.remessa, t.tipo_trabalho, t.em_oferta, t.chapa_em_oferta,
             (SELECT COUNT(*) FROM chapas c WHERE c.id_tarefa = t.id_tarefa
              AND c.nome_chapa IS NOT NULL AND c.status_contato != 'removido') as alocados
           FROM tarefas t

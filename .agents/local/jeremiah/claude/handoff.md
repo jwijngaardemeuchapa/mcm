@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-11-16 (Sonnet 5.5) — ver JOURNAL.md.
+
+**Tipo de trabalho, remessa e "Em oferta" nas telas — COMMITADO NA MAIN, NÃO LANÇADO, beta ainda não portada.** Os cards 1290/1289 do Metabase (18 colunas) trazem `Remessa`, `Tipo de Trabalho`, `Em Oferta`, `Chapa em Oferta`; o sync grava em 4 colunas novas de `tarefas` (criadas sozinhas, preservadas quando a fonte não traz). `TarefaInfo` aparece nos Cards, Detalhe, Panorama, Timeline e BID (com aviso de oferta); busca/Ctrl+K por remessa e tipo; Lista de Presença, XLSX (agora inclui tarefa sem chapa) e Troca de Turno trazem os campos. Em oferta = vaga aberta com selo. 375 testes, typecheck 14. **Falta:** portar pra beta (ingest diferente); conferir no app com o card real; alarme de oferta sem aceite precisa da coluna `CreateDate` (Metabase); a versão atual publicada segue v1.0.75 (a mudança vai na próxima).
+
+---
+
 **Data:** 2026-10-28, 4ª entrada (Sonnet 5.5) — ver JOURNAL.md.
 
 **Versão atual: main v1.0.75 (PUBLICADA e verificada) / beta v1.0.76 (última lançada).** A v1.0.75 leva o alarme de chapas pendentes, a confirmação em duas fases (PréFUP/FUP, sem reabertura às 21h) e o FUP automático de chapa novo (desligado por padrão). **Falta a beta v1.0.77**: a beta local tem tudo isso + o BID/PréFUP da v1.0.73, nada enviado ao GitHub — só lançar quando o usuário pedir. Para validar em uso real: som e notificação do Windows do alarme, reforço do FUP, confirmação que não expira às 21h. Nada testado com a Umbler real.

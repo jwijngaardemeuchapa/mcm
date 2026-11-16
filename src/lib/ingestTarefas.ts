@@ -1,6 +1,7 @@
 import { getDb, uuid, placeholders } from "@/lib/db";
 import { todayDateISO_SP, fmtSP } from "@/lib/datetime";
 import { cleanupTaskLocalStorage } from "@/lib/storageCleanup";
+import { garantirColunasDaTarefa, lerSimNao, textoOuNulo } from "@/lib/tarefaExtras";
 import {
   analisarAvistamentos, carregarVistos, garantirChapasVistos, normCpfChapa, normNomeChapa, registrarVistos, type Vistos,
 } from "@/lib/chapasNovos";
@@ -96,8 +97,20 @@ export async function ingestTarefas(
         ativo: 1,
         is_overnight: is_overnight ? 1 : 0,
         importado_em: new Date().toISOString(),
+        remessa: null,
+        tipo_trabalho: null,
+        em_oferta: 0,
+        chapa_em_oferta: null,
       });
     }
+
+    // Tipo de trabalho, remessa e oferta a chapa dirigido (card consulta_fup do Metabase) — lidos por NOME de
+    // coluna; o 1º valor preenchido entre as linhas da tarefa vale (a tarefa em oferta não tem chapa alocado).
+    const tarefaAtual = tarefasMap.get(id_tarefa)!;
+    if (!tarefaAtual.remessa) tarefaAtual.remessa = textoOuNulo(pick(row, "Remessa", "remessa", "Shipping"));
+    if (!tarefaAtual.tipo_trabalho) tarefaAtual.tipo_trabalho = textoOuNulo(pick(row, "Tipo de Trabalho", "tipo_trabalho"));
+    if (!tarefaAtual.chapa_em_oferta) tarefaAtual.chapa_em_oferta = textoOuNulo(pick(row, "Chapa em Oferta", "chapa_em_oferta"));
+    if (lerSimNao(pick(row, "Em Oferta", "em_oferta"))) tarefaAtual.em_oferta = 1;
 
     const nome = pick(row, "Nome do Chapa", "nome_chapa");
     if (nome) {
@@ -106,6 +119,16 @@ export async function ingestTarefas(
       chapas.push({ id_tarefa, nome_chapa: nome, telefone_chapa: tel, cpf });
     }
   }
+
+  // A fonte trouxe essas colunas? (CSV antigo e Central não trazem: nesse caso o que já está gravado fica como está,
+  // em vez de ser apagado pelo INSERT OR REPLACE.)
+  const temColuna = (...nomes: string[]) =>
+    rows.some((r) => Object.keys(r).some((k) => nomes.some((n) => n.toLowerCase() === k.toLowerCase().trim())));
+  const fonteTem = {
+    remessa: temColuna("Remessa", "remessa", "Shipping"),
+    tipo: temColuna("Tipo de Trabalho", "tipo_trabalho"),
+    oferta: temColuna("Em Oferta", "em_oferta", "Chapa em Oferta", "chapa_em_oferta"),
+  };
 
   // Dedupe chapas por id_tarefa | cpf || nome
   const seen = new Set<string>();
@@ -142,6 +165,8 @@ export async function ingestTarefas(
   }
 
   const db = await getDb();
+  // As colunas novas da tarefa; se não der pra criá-las, o sync segue sem elas (nunca quebra por isso).
+  const extras = await garantirColunasDaTarefa(db).catch(() => false);
 
   const norm = (s: string | null | undefined) =>
     (s ?? "").toString().trim().toLowerCase().replace(/\s+/g, " ");
@@ -157,7 +182,7 @@ export async function ingestTarefas(
     const chunk = ids.slice(i, i + 900);
     const ph = placeholders(chunk.length);
     const existingT = await db.select<Record<string, unknown>[]>(
-      `SELECT id_tarefa, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao FROM tarefas WHERE id_tarefa IN (${ph})`,
+      `SELECT id_tarefa, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao${extras ? ", remessa, tipo_trabalho, em_oferta, chapa_em_oferta" : ""} FROM tarefas WHERE id_tarefa IN (${ph})`,
       chunk,
     );
     existingT.forEach((e) => tarefaPrev.set(e.id_tarefa as number, e));
@@ -197,6 +222,14 @@ export async function ingestTarefas(
     if (prev?.importado_em) t.importado_em = prev.importado_em as string;
     t.observacoes = prev?.observacoes ?? null;
     t.observacoes_updated_at = prev?.observacoes_updated_at ?? null;
+    if (prev) {
+      if (!fonteTem.remessa) t.remessa = prev.remessa ?? null;
+      if (!fonteTem.tipo) t.tipo_trabalho = prev.tipo_trabalho ?? null;
+      if (!fonteTem.oferta) {
+        t.em_oferta = prev.em_oferta ?? 0;
+        t.chapa_em_oferta = prev.chapa_em_oferta ?? null;
+      }
+    }
     const status = String(t.status_tarefa ?? "");
     const inProgressOrDone = /em\s*andamento|finalizado|conclu/i.test(status);
     const prevValStatus = prev?.validacao_status as string | undefined;
@@ -266,17 +299,21 @@ export async function ingestTarefas(
 
   // Upsert tarefas em lote (50 linhas × 16 colunas = 800 binds por statement)
   const tarefasArr = Array.from(tarefasMap.values());
-  for (let i = 0; i < tarefasArr.length; i += 50) {
-    const chunk = tarefasArr.slice(i, i + 50);
+  // (com as 4 colunas novas são 20 binds por linha: 40 linhas = 800 binds por statement, como antes)
+  const colsTarefa = 16 + (extras ? 4 : 0);
+  const porLote = extras ? 40 : 50;
+  for (let i = 0; i < tarefasArr.length; i += porLote) {
+    const chunk = tarefasArr.slice(i, i + porLote);
     const params = chunk.flatMap((t) => [
       t.id_tarefa, t.data_tarefa, t.cidade_uf ?? null, t.empresa, t.cnpj ?? null,
       t.status_tarefa, t.quantidade_chapas, t.ativo, t.is_overnight, t.importado_em,
       t.observacoes ?? null, t.observacoes_updated_at ?? null,
       t.validacao_status, t.data_validacao_recebida ?? null,
       t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
+      ...(extras ? [t.remessa ?? null, t.tipo_trabalho ?? null, t.em_oferta ? 1 : 0, t.chapa_em_oferta ?? null] : []),
     ]);
     await db.execute(
-      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao) VALUES ${rowGroup(16, chunk.length)}`,
+      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao${extras ? ", remessa, tipo_trabalho, em_oferta, chapa_em_oferta" : ""}) VALUES ${rowGroup(colsTarefa, chunk.length)}`,
       params,
     );
   }

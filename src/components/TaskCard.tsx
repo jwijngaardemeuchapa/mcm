@@ -90,6 +90,8 @@ import { useUnreadChats } from "@/lib/WatcherContext";
 import { aguardaReforcoDeFup, atualizarChapa, comFlagManual, confirmarManualEmLote, entraNoFupEmMassa } from "@/lib/fasesConfirmacao";
 import { emJanelaDeFup } from "@/lib/prefup";
 import { FasesChip } from "@/components/FasesChip";
+import { TarefaInfo } from "@/components/TarefaInfo";
+import { linhaTipoRemessaPlanilha } from "@/lib/tarefaExtras";
 
 async function clipboardWrite(text: string, successMsg: string) {
   try {
@@ -126,6 +128,11 @@ export type TaskWithChapas = {
   observacoes?: string | null;
   observacoes_updated_at?: string | null;
   importado_em?: string | null;
+  // Do Metabase (card consulta_fup) — ver lib/tarefaExtras.ts
+  remessa?: string | null;
+  tipo_trabalho?: string | null;
+  em_oferta?: number | boolean | null;
+  chapa_em_oferta?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;
@@ -459,7 +466,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       ["LISTA DE PRESENÇA", "", "", "", "", ""],
       ["Data:", fmtSP(task.data_tarefa, "dd/MM/yyyy"), "Empresa:", task.empresa, "", ""],
       ["Local da operação:", task.cidade_uf ?? "", "", "Responsável:", operadorNome || "", ""],
-      [],
+      linhaTipoRemessaPlanilha(task),
       ["Nº", "Nome", "CPF", "Horário de Entrada", "Horário de Saída", "Assinatura"],
       ...chapasValidas.map((c, i) => [i + 1, c.nome_chapa ?? "", cpfs[i] ? formatCpf(cpfs[i]!) : "", "", "", ""]),
     ];
@@ -903,6 +910,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 {task.empresa.toLowerCase()}
               </span>
               {isOvernight && <OvernightBadge />}
+              <TarefaInfo t={task} />
               {autoFupActive && minUntilAutoFup !== null && (
                 <Tooltip>
                   <TooltipTrigger asChild>

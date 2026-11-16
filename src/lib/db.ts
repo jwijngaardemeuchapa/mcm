@@ -1,5 +1,6 @@
 import Database from "@tauri-apps/plugin-sql";
 import { garantirFasesConfirmacao } from "./fasesConfirmacao";
+import { garantirColunasDaTarefa } from "./tarefaExtras";
 
 // Uma abertura só, compartilhada: quem chama getDb() enquanto o banco ainda está sendo
 // preparado (PRAGMAs, colunas das fases de confirmação) espera a MESMA promessa — antes um
@@ -34,6 +35,8 @@ async function abrirBanco(): Promise<Database> {
   // Colunas das fases de confirmação (PréFUP/FUP) e gatilho que as limpa. Nunca deve
   // impedir o app de abrir: se falhar, o resto funciona (só as flags ficam sem gravar).
   try { await garantirFasesConfirmacao(db); } catch (e) { console.warn("fases de confirmação:", e); }
+  // Colunas de tipo de trabalho / remessa / oferta da tarefa (ver tarefaExtras.ts); telas que as leem contam com elas.
+  try { await garantirColunasDaTarefa(db); } catch (e) { console.warn("colunas da tarefa:", e); }
   return db;
 }
 
