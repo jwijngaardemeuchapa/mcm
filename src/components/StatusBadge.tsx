@@ -29,7 +29,7 @@ export function ContactStatusBadge({ status }: { status: string }) {
   };
   const s = m[status] ?? m.pendente;
   return (
-    <Badge variant="outline" className={`font-semibold text-[10px] uppercase tracking-wide ${s.cls}`}>
+    <Badge variant="outline" className={`font-semibold text-[11px] uppercase tracking-wide ${s.cls}`}>
       {s.label}
     </Badge>
   );

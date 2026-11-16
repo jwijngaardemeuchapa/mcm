@@ -852,7 +852,7 @@ Precisamos de 1 substituto para esta tarefa.`;
   return (
     <div
       data-task-card={task.id_tarefa}
-      className={`bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${taskSeverityCardBorderClass(severity)} ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
+      className={`group/card bg-card rounded-xl border shadow-card overflow-hidden transition-shadow ${taskSeverityCardBorderClass(severity)} ${matchHighlight ? "ring-2 ring-primary shadow-elevated" : ""} ${isDone && userExpanded ? "animate-fade-in" : ""}`}
     >
       <div
         className={`relative p-4 flex flex-wrap items-center gap-3 justify-between border-b border-border bg-card ${
@@ -874,7 +874,7 @@ Precisamos de 1 substituto para esta tarefa.`;
           >
             <div className="text-xl font-bold leading-none">{fmtTime(task.data_tarefa)}</div>
             {taskTzLabel(task.cidade_uf) && (
-              <div className="text-[10px] font-bold opacity-75 tracking-wide leading-none mt-0.5">
+              <div className="text-[11px] font-bold opacity-75 tracking-wide leading-none mt-0.5">
                 {taskTzLabel(task.cidade_uf)}
               </div>
             )}
@@ -914,7 +914,7 @@ Precisamos de 1 substituto para esta tarefa.`;
               {autoFupActive && minUntilAutoFup !== null && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border shrink-0 ${
                       minUntilAutoFup <= 0
                         ? "bg-warning/20 text-warning border-warning/40 animate-pulse"
                         : minUntilAutoFup <= 15
@@ -984,7 +984,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-semibold text-foreground">{clienteInfo.nome}</span>
                         {clienteInfo.status_cliente !== "ativo" && (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full border ${
                             clienteInfo.status_cliente === "suspenso"
                               ? "bg-destructive/15 text-destructive border-destructive/30"
                               : "bg-muted/60 text-muted-foreground border-border"
@@ -995,7 +995,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                       </div>
                       {clienteInfo.particularidades && (
                         <div className="space-y-0.5">
-                          <p className="text-[10px] font-bold text-warning flex items-center gap-1">
+                          <p className="text-[11px] font-bold text-warning flex items-center gap-1">
                             <AlertCircle className="h-2.5 w-2.5" /> Particularidades
                           </p>
                           <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.particularidades}</p>
@@ -1003,7 +1003,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                       )}
                       {clienteInfo.exigencias && (
                         <div className="space-y-0.5">
-                          <p className="text-[10px] font-bold text-primary flex items-center gap-1">
+                          <p className="text-[11px] font-bold text-primary flex items-center gap-1">
                             <ClipboardList className="h-2.5 w-2.5" /> Exigências
                           </p>
                           <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.exigencias}</p>
@@ -1011,17 +1011,17 @@ Precisamos de 1 substituto para esta tarefa.`;
                       )}
                       {clienteInfo.pedidos && (
                         <div className="space-y-0.5">
-                          <p className="text-[10px] font-semibold text-muted-foreground">Pedidos / histórico</p>
+                          <p className="text-[11px] font-semibold text-muted-foreground">Pedidos / histórico</p>
                           <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.pedidos}</p>
                         </div>
                       )}
                       {clienteInfo.observacoes && (
                         <div className="space-y-0.5">
-                          <p className="text-[10px] font-semibold text-muted-foreground">Observações</p>
+                          <p className="text-[11px] font-semibold text-muted-foreground">Observações</p>
                           <p className="text-[11px] text-popover-foreground/80 whitespace-pre-wrap leading-relaxed">{clienteInfo.observacoes}</p>
                         </div>
                       )}
-                      <p className="text-[10px] text-muted-foreground pt-1 border-t border-border">
+                      <p className="text-[11px] text-muted-foreground pt-1 border-t border-border">
                         Clique para abrir o Caderno de Clientes
                       </p>
                     </div>
@@ -1126,7 +1126,7 @@ Precisamos de 1 substituto para esta tarefa.`;
             </Button>
           )}
           {showCardNav && (
-            <div className="flex items-center gap-0.5 border-l border-border/60 pl-1.5 ml-0.5">
+            <div className="flex items-center gap-0.5 border-l border-border/60 pl-1.5 ml-0.5 opacity-0 transition-opacity group-hover/card:opacity-100 group-focus-within/card:opacity-100 focus-within:opacity-100">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -1293,7 +1293,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                   <div key={f.id} className="text-xs flex items-center gap-3 py-1">
                     <span className="font-semibold text-foreground">{canalLabelLong[f.canal] ?? f.canal}</span>
                     {prefup && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-info/15 text-info border border-info/30">
+                      <span className="px-1.5 py-0.5 rounded text-[11px] font-bold bg-info/15 text-info border border-info/30">
                         PréFUP
                       </span>
                     )}
@@ -1347,7 +1347,7 @@ Precisamos de 1 substituto para esta tarefa.`;
               title={csvExportedAt ? `Exportado em ${fmtDateTime(csvExportedAt)} — clique para exportar novamente` : "Exporta a lista de presença (nome e CPF dos alocados) para impressão e validação do cliente"}
             >
               {csvExportedAt ? <Check className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
-              {csvExportedAt ? "Lista de Presença exportada · reexportar" : "Lista de Presença"}
+              {csvExportedAt ? "Lista exportada" : "Lista de Presença"}
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1395,7 +1395,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                             ? "border-info/40 bg-info/10 text-info hover:bg-info/20"
                             : customMsgCount > 0
                             ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
-                            : "border-primary/40 text-primary hover:bg-primary/10"
+                            : "text-muted-foreground hover:text-foreground"
                         }`}
                         onClick={
                           customMsgState
@@ -1440,7 +1440,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                             }`}
                           >
                             <Pencil className="h-3.5 w-3.5" />
-                            {fupEmpresaOvr.trim() && <span className="text-[10px] font-semibold max-w-[100px] truncate">{fupEmpresaOvr.trim()}</span>}
+                            {fupEmpresaOvr.trim() && <span className="text-[11px] font-semibold max-w-[100px] truncate">{fupEmpresaOvr.trim()}</span>}
                           </Button>
                         </PopoverTrigger>
                       </TooltipTrigger>
@@ -1624,7 +1624,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                   className="flex items-center gap-1.5 w-full text-left"
                 >
                   <span className="text-xs font-medium text-muted-foreground">Atalhos</span>
-                  <span className="text-[10px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
+                  <span className="text-[11px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
                     {msgTemplates.length}
                   </span>
                   <ChevronDown
@@ -1717,7 +1717,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 >
                   <Plus className="h-3 w-3" /> Salvar como atalho
                 </button>
-                <p className="text-[10px] text-muted-foreground">{customMsgText.length} caracteres</p>
+                <p className="text-[11px] text-muted-foreground">{customMsgText.length} caracteres</p>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -1753,7 +1753,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                       }
                     />
                     <span className="font-medium text-foreground truncate">{c.nome_chapa}</span>
-                    <span className="text-muted-foreground ml-auto font-mono text-[10px]">{c.telefone_chapa}</span>
+                    <span className="text-muted-foreground ml-auto font-mono text-[11px]">{c.telefone_chapa}</span>
                   </label>
                 ))}
               </div>
@@ -2004,7 +2004,7 @@ function ChapaRowView({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span
-                    className={`shrink-0 inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums cursor-help ${
+                    className={`shrink-0 inline-flex items-center gap-0.5 text-[11px] font-semibold tabular-nums cursor-help ${
                       conf.stars >= 4 ? "text-success" : conf.stars <= 2 ? "text-destructive/80" : "text-muted-foreground"
                     }`}
                   >
@@ -2024,7 +2024,7 @@ function ChapaRowView({
             )}
             {isNew && (
               <span
-                className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-success/20 text-success border border-success/40 animate-pulse whitespace-nowrap"
+                className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-success/20 text-success border border-success/40 animate-pulse whitespace-nowrap"
                 title="Adicionado na última atualização"
               >
                 NOVO

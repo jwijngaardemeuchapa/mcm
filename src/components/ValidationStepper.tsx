@@ -87,7 +87,7 @@ export function ValidationStepper({ status }: { status: ValidationStep }) {
         return (
           <span key={step} className="flex items-center gap-1.5">
             <span
-              className={`flex items-center justify-center h-5 w-5 rounded-full text-[10px] font-bold border-2 ${
+              className={`flex items-center justify-center h-5 w-5 rounded-full text-[11px] font-bold border-2 ${
                 done
                   ? "bg-success border-success text-success-foreground"
                   : current

@@ -24,7 +24,7 @@ export function OfertaBadge({ chapa, compacto = false, sobreCor = false }: { cha
   return (
     <span
       title={nome ? `Em oferta para ${nome}: o chapa dirigido ainda não aceitou (a vaga conta como aberta)` : "Em oferta: o chapa dirigido ainda não aceitou (a vaga conta como aberta)"}
-      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0 max-w-full ${
+      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded border shrink-0 max-w-full ${
         sobreCor ? "border-white/40 bg-white/20 text-white" : "border-warning/40 bg-warning/10 text-warning"
       }`}
     >
@@ -47,7 +47,7 @@ export function TarefaInfo({ t, maxRemessa = 24, className = "", sobreCor = fals
       {tipo && (
         <span
           title="Tipo de trabalho"
-          className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+          className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded border ${
             sobreCor ? "border-white/30 bg-white/15 text-white" : "border-border bg-muted/40 text-muted-foreground"
           }`}
         >
@@ -60,7 +60,7 @@ export function TarefaInfo({ t, maxRemessa = 24, className = "", sobreCor = fals
           type="button"
           title={`Remessa: ${remessa} — clique para copiar`}
           onClick={(e) => { e.stopPropagation(); void copiarRemessa(remessa); }}
-          className={`inline-flex items-center gap-1 text-[10px] font-mono transition-colors ${
+          className={`inline-flex items-center gap-1 text-[11px] font-mono transition-colors ${
             sobreCor ? "text-white/85 hover:text-white" : "text-muted-foreground hover:text-foreground"
           }`}
         >

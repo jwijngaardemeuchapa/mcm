@@ -114,11 +114,11 @@ function LinhaAcionavel({ item, tarefa, acoes, umblerPronto, semRespostaPronto }
 
       <div className="flex flex-wrap items-center gap-1">
         {chips.map((x) => (
-          <span key={x} className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{x}</span>
+          <span key={x} className="text-[11px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{x}</span>
         ))}
         {c.telefone && (
           <button type="button" onClick={() => copiar(c.telefone!.replace(/\D/g, ""), "Número copiado")} title="Copiar número"
-            className="inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground hover:text-foreground">
+            className="inline-flex items-center gap-1 text-[11px] font-mono text-muted-foreground hover:text-foreground">
             <Copy className="h-2.5 w-2.5" /> {fmtPhone(c.telefone)}
           </button>
         )}
@@ -126,7 +126,7 @@ function LinhaAcionavel({ item, tarefa, acoes, umblerPronto, semRespostaPronto }
 
       <div className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold ${classe}`}>
         <Icon className="h-3.5 w-3.5 shrink-0" /> {d.titulo}
-        {d.recomendaRemocao && <span className="ml-auto text-[10px] font-medium uppercase tracking-wide">recomendado</span>}
+        {d.recomendaRemocao && <span className="ml-auto text-[11px] font-medium uppercase tracking-wide">recomendado</span>}
       </div>
 
       <p className="text-[11px] text-muted-foreground">
@@ -198,7 +198,7 @@ function GrupoDaTarefa({ grupo, acoes, umblerPronto, semRespostaPronto }: {
   return (
     <div className="px-4 py-3 space-y-2">
       <div className="flex items-center gap-2">
-        <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${nv.cab} ${nv.texto}`}>{nv.rotulo}</span>
+        <span className={`text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${nv.cab} ${nv.texto}`}>{nv.rotulo}</span>
         <span className={`text-xs font-bold tabular-nums shrink-0 ${nv.texto}`}>faltam {fmtMin(t.minParaTarefa)}</span>
         <span className="text-xs font-semibold text-foreground truncate flex-1 capitalize">{t.empresa.toLowerCase()}</span>
         <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">{fmtTime(t.data_tarefa)}</span>
@@ -445,7 +445,7 @@ export function PainelDeAlarme() {
 
       {aberto && (
         <div className="px-4 py-2 bg-muted/40 border-t border-border">
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             Nada é removido sozinho. <Phone className="inline h-2.5 w-2.5 -mt-0.5" /> Envios saem em 60 s (dá para cancelar).
           </p>
         </div>

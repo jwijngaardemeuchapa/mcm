@@ -1,5 +1,11 @@
 # Handoff — Jeremiah / claude
 
+**Data:** 2026-11-16, 2ª entrada (Sonnet 5.5) — ver JOURNAL.md.
+
+**Revisão visual (princípios de design/UX) — COMMITADA NA MAIN, vai na v1.0.76; beta ainda não portada.** Cor + ícone + texto na severidade (FillRateBar com listras no crítico; Timeline e Panorama com ícone; `severityLabel`), setas de navegação do card só no hover/foco, "Mensagem" neutra em repouso, Panorama com coluna da empresa que não some (rolagem horizontal), texto mínimo 11 px nas telas do FUP Dashboard e do alarme. 379 testes, typecheck 14. Não testado com os analistas: se as setas escondidas incomodarem, reverter a classe `opacity-0` do wrapper em `TaskCard.tsx`.
+
+---
+
 **Data:** 2026-11-16 (Sonnet 5.5) — ver JOURNAL.md.
 
 **Tipo de trabalho, remessa e "Em oferta" nas telas — COMMITADO NA MAIN, NÃO LANÇADO, beta ainda não portada.** Os cards 1290/1289 do Metabase (18 colunas) trazem `Remessa`, `Tipo de Trabalho`, `Em Oferta`, `Chapa em Oferta`; o sync grava em 4 colunas novas de `tarefas` (criadas sozinhas, preservadas quando a fonte não traz). `TarefaInfo` aparece nos Cards, Detalhe, Panorama, Timeline e BID (com aviso de oferta); busca/Ctrl+K por remessa e tipo; Lista de Presença, XLSX (agora inclui tarefa sem chapa) e Troca de Turno trazem os campos. Em oferta = vaga aberta com selo. 375 testes, typecheck 14. **Falta:** portar pra beta (ingest diferente); conferir no app com o card real; alarme de oferta sem aceite precisa da coluna `CreateDate` (Metabase); a versão atual publicada segue v1.0.75 (a mudança vai na próxima).

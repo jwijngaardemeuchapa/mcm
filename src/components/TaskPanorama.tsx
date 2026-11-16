@@ -14,7 +14,7 @@ import { FillRateBar } from "./FillRateBar";
 import { fmtTime, fmtSP, taskTzLabel } from "@/lib/datetime";
 import { todayDateISO_SP } from "@/lib/datetime";
 import { getDb } from "@/lib/db";
-import { computeTaskState, taskSeverityRowClass } from "@/lib/taskState";
+import { computeTaskState, taskSeverityRowClass, severityLabel } from "@/lib/taskState";
 import { last11Digits } from "@/lib/umbler";
 import { useUnreadChats } from "@/lib/WatcherContext";
 import { OfertaBadge } from "@/components/TarefaInfo";
@@ -36,6 +36,9 @@ type Props = {
   autoOpenTaskId?: number;
   autoRemoveChapaName?: string;
 };
+
+// Colunas do Panorama: a da empresa tem piso (nunca some em tela estreita) e a tabela rola se não couber.
+const PANORAMA_COLUNAS = "76px minmax(160px, 1fr) minmax(120px, 190px) 100px 80px 28px";
 
 export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold, autoOpenTaskId, autoRemoveChapaName }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -78,11 +81,12 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
 
   function renderTable(group: TaskWithChapas[], accent?: string) {
     return (
-      <div className={`rounded-xl border overflow-hidden divide-y divide-border ${accent ?? "border-border"}`}>
+      <div className={`rounded-xl border overflow-x-auto ${accent ?? "border-border"}`}>
+       <div className="min-w-[600px] divide-y divide-border">
         {/* Column header */}
         <div
           className="hidden md:grid bg-muted/40 px-4 py-2 text-[11px] uppercase tracking-wider font-semibold text-muted-foreground select-none"
-          style={{ gridTemplateColumns: "76px 1fr 190px 110px 90px 32px" }}
+          style={{ gridTemplateColumns: PANORAMA_COLUNAS }}
         >
           <span>Horário</span>
           <span>Empresa</span>
@@ -99,6 +103,7 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
             onClick={() => setSelectedId(t.id_tarefa)}
           />
         ))}
+       </div>
       </div>
     );
   }
@@ -249,15 +254,22 @@ function PanoramaRow({
       type="button"
       onClick={onClick}
       className={`w-full grid items-center px-4 py-3 text-left hover:bg-muted/30 active:bg-muted/50 transition-colors border-l-4 ${accentBorder} ${rowBg}`}
-      style={{ gridTemplateColumns: "76px 1fr 190px 110px 90px 32px" }}
+      style={{ gridTemplateColumns: PANORAMA_COLUNAS }}
     >
       {/* Time */}
       <div>
-        <div className={`font-display font-bold text-sm tabular-nums ${timeColor}`}>
+        <div className={`font-display font-bold text-sm tabular-nums inline-flex items-center gap-1 ${timeColor}`}>
           {fmtTime(task.data_tarefa)}
+          {/* a cor da hora não é o único sinal da severidade: ícone + texto (WCAG 1.4.1) */}
+          {severity === "urgent" && !isDone && (
+            <span title={severityLabel(severity) ?? undefined}><AlertTriangle className="h-3 w-3" aria-label="Urgente" /></span>
+          )}
+          {severity === "approach-alert" && !isDone && (
+            <span title={severityLabel(severity) ?? undefined}><Clock className="h-3 w-3" aria-label="Atenção" /></span>
+          )}
         </div>
         {taskTzLabel(task.cidade_uf) && (
-          <div className="text-[10px] font-semibold text-muted-foreground leading-none mt-0.5">
+          <div className="text-[11px] font-semibold text-muted-foreground leading-none mt-0.5">
             {taskTzLabel(task.cidade_uf)}
           </div>
         )}
@@ -310,7 +322,7 @@ function PanoramaRow({
         )}
         {!isDone && !fullyValidated && !showApproachAlert && !task.urgent && minutesSinceFup !== null && (
           <span
-            className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/80 tabular-nums"
+            className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground/80 tabular-nums"
             title={`Último disparo há ${fmtElapsed(minutesSinceFup)}`}
           >
             <Clock className="h-2.5 w-2.5 opacity-60" />

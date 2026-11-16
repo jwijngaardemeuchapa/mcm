@@ -3,7 +3,7 @@ import { fmtDateTime } from "@/lib/datetime";
 // As duas fases de confirmação do chapa (ver lib/fasesConfirmacao.ts): "PréFUP ✓" quando ele
 // confirmou o PréFUP, "FUP ✓" quando confirmou o FUP. Quem confirmou só o PréFUP mostra "FUP —"
 // (ainda sem resposta do reforço) — é quem o FUP em massa reforça quando chega a janela.
-const BASE = "inline-flex items-center rounded border px-1 text-[10px] font-semibold leading-4";
+const BASE = "inline-flex items-center rounded border px-1 text-[11px] font-semibold leading-4";
 
 function quando(iso: string): string {
   try {

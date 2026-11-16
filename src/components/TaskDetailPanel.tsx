@@ -700,7 +700,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                       <span title="Overnight"><Moon className="h-3.5 w-3.5 text-white/90 shrink-0" /></span>
                     )}
                     {task.continuingFromYesterday && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 shrink-0">
+                      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 shrink-0">
                         Ontem
                       </span>
                     )}
@@ -880,7 +880,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
               }`}
             >
               <div className="px-3 pt-2 pb-1 flex items-center justify-between">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                   Chapas ({realChapas.length})
                 </p>
                 <Tooltip>
@@ -918,7 +918,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
 
               {clienteInfo && (
                 <>
-                  <p className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground border-t border-border mt-1">
+                  <p className="px-3 pt-3 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground border-t border-border mt-1">
                     Cliente
                   </p>
                   <div className={`w-full flex items-center gap-2 px-3 py-2 transition-colors ${
@@ -1181,7 +1181,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                       className="flex items-center gap-1.5 w-full text-left"
                     >
                       <span className="text-xs font-medium text-muted-foreground">Atalhos</span>
-                      <span className="text-[10px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
+                      <span className="text-[11px] text-muted-foreground/60 bg-muted rounded-full px-1.5 py-0.5 leading-none tabular-nums">
                         {msgTemplates.length}
                       </span>
                       <ChevronDown
@@ -1454,7 +1454,7 @@ function CompactChapaRow({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); dispatchQueue.abortChapaJob(c.id); }}
-                className="shrink-0 h-6 px-1.5 inline-flex items-center justify-center gap-0.5 rounded text-[10px] font-semibold border border-warning/50 bg-warning/10 text-warning hover:bg-warning/20 transition-colors"
+                className="shrink-0 h-6 px-1.5 inline-flex items-center justify-center gap-0.5 rounded text-[11px] font-semibold border border-warning/50 bg-warning/10 text-warning hover:bg-warning/20 transition-colors"
                 aria-label="Cancelar envio"
               >
                 <X className="h-3 w-3" /><span>{countdown}s</span>

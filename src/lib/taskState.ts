@@ -168,3 +168,23 @@ export function taskSeverityRowClass(severity: TaskSeverity): { accentBorder: st
       return { accentBorder: "border-l-border", rowBg: "", timeColor: "text-foreground" };
   }
 }
+
+/**
+ * A severidade em TEXTO (pra tooltip e leitor de tela): a cor sozinha não pode ser a única forma de dizer
+ * "urgente" ou "atenção" (WCAG 1.4.1). `null` = sem destaque (nada a dizer).
+ */
+export function severityLabel(severity: TaskSeverity): string | null {
+  switch (severity) {
+    case "urgent":
+      return "Urgente: nenhum confirmado e faltam 60 min ou menos";
+    case "approach-alert":
+      return "Atenção: começa em até 3 h e ainda faltam confirmações";
+    case "andamento":
+      return "Em andamento";
+    case "done":
+    case "validated":
+      return "Completa: todos confirmados";
+    default:
+      return null;
+  }
+}
