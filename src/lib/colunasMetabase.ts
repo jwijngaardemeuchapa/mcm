@@ -6,13 +6,15 @@
  * Sem imports de propósito: é regra pura, usada no sync e na tela de Integrações.
  */
 
-export type CampoDoCard = "remessa" | "tipo_trabalho" | "em_oferta" | "chapa_em_oferta";
+export type CampoDoCard = "remessa" | "tipo_trabalho" | "em_oferta" | "chapa_em_oferta" | "criada_em";
 
 export const CAMPOS_DO_CARD: Array<{ campo: CampoDoCard; rotulo: string; nomes: string[] }> = [
   { campo: "remessa", rotulo: "Remessa", nomes: ["Remessa", "Shipping"] },
   { campo: "tipo_trabalho", rotulo: "Tipo de Trabalho", nomes: ["Tipo de Trabalho", "Tipo Trabalho", "Tipo do Trabalho", "Work Type"] },
   { campo: "em_oferta", rotulo: "Em Oferta", nomes: ["Em Oferta"] },
   { campo: "chapa_em_oferta", rotulo: "Chapa em Oferta", nomes: ["Chapa em Oferta", "Chapa Oferta", "Chapa Dirigido"] },
+  // Quando a tarefa foi criada no Meu Chapa (seção "Em análise" do Dashboard)
+  { campo: "criada_em", rotulo: "Data de Criação", nomes: ["Data de Criação", "Data Criação", "Data de Criação da Tarefa", "Criada em", "Criado em", "Created At", "Created Date", "Task Created At"] },
 ];
 
 export const nomesDoCampo = (campo: CampoDoCard): string[] => CAMPOS_DO_CARD.find((c) => c.campo === campo)!.nomes;

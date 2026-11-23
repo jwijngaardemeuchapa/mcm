@@ -261,9 +261,6 @@ function PanoramaRow({
         <div className={`font-display font-bold text-sm tabular-nums inline-flex items-center gap-1 ${timeColor}`}>
           {fmtTime(task.data_tarefa)}
           {/* a cor da hora não é o único sinal da severidade: ícone + texto (WCAG 1.4.1) */}
-          {severity === "urgent" && !isDone && (
-            <span title={severityLabel(severity) ?? undefined}><AlertTriangle className="h-3 w-3" aria-label="Urgente" /></span>
-          )}
           {severity === "approach-alert" && !isDone && (
             <span title={severityLabel(severity) ?? undefined}><Clock className="h-3 w-3" aria-label="Atenção" /></span>
           )}
@@ -320,7 +317,7 @@ function PanoramaRow({
             <Download className="h-3 w-3 text-warning opacity-60" />
           </span>
         )}
-        {!isDone && !fullyValidated && !showApproachAlert && !task.urgent && minutesSinceFup !== null && (
+        {!isDone && !fullyValidated && !showApproachAlert && minutesSinceFup !== null && (
           <span
             className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground/80 tabular-nums"
             title={`Último disparo há ${fmtElapsed(minutesSinceFup)}`}
@@ -331,9 +328,6 @@ function PanoramaRow({
         )}
         {!showApproachAlert && isDone && (
           <Check className={`h-3.5 w-3.5 ${emAndamento ? "text-info" : emAnalise ? "text-analise" : "text-success"}`} />
-        )}
-        {task.urgent && !isDone && !showApproachAlert && (
-          <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
         )}
       </div>
 

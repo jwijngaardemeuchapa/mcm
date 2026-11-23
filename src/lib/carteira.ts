@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { readSettings } from "./settings";
+import { nomesDaCarteiraComUniverso } from "./company";
 
 /**
  * Nomes de empresas "visíveis" segundo o filtro de grupos da carteira ativo no momento.
@@ -28,7 +29,8 @@ export async function getCarteiraDoAnalista(): Promise<string[]> {
     .then((r) => new Set(r.map((x) => x.nome_fantasia)))
     .catch(() => new Set<string>());
   const filtradas = rows.filter((r) => fixar.has(r.nome_fantasia) || (r.grupo !== null && grupos.includes(r.grupo))).map((r) => r.nome_fantasia);
-  return filtradas.length > 0 ? filtradas : todas;
+  // a lista leva a carteira inteira junto: cada empresa é atribuída a UMA entrada (ver company.ts)
+  return filtradas.length > 0 ? nomesDaCarteiraComUniverso(filtradas, todas) : todas;
 }
 
 export async function getActiveCarteiraNames(): Promise<string[]> {
@@ -46,7 +48,8 @@ export async function getActiveCarteiraNames(): Promise<string[]> {
     const filtered = rows
       .filter((r) => fixarSet.has(r.nome_fantasia) || (r.grupo !== null && grupos.includes(r.grupo)))
       .map((r) => r.nome_fantasia);
-    return filtered.length > 0 ? filtered : rows.map((r) => r.nome_fantasia);
+    const todas = rows.map((r) => r.nome_fantasia);
+    return filtered.length > 0 ? nomesDaCarteiraComUniverso(filtered, todas) : todas;
   } catch {
     return [];
   }

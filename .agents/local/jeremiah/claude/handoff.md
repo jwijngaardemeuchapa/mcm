@@ -1,5 +1,7 @@
 # Handoff — Jeremiah / claude
 
+**ATUALIZAÇÃO 2026-11-23 (mais recente):** em `main`, SEM release ainda: seção "Em análise" (3 visões), fix dos grupos G3/G4 da carteira, painel Emergente/Urgente removido — ver JOURNAL de hoje. Pendentes: (1) usuário/outro projeto incluir "Data de Criação" no card 1290/1289 do Metabase (hoje a seção mostra "—"); (2) confirmar com dado real se o bug G3/G4 sumiu — se não, pedir 2 nomes de empresa afetados + grupo de cada (outras causas: sync de carteira mantém grupo antigo, empresa fixada); (3) decidir o que mais da sinalização de urgência sai (AlertBanner "Urgente", cores de severidade, briefing de abertura); (4) migração da Central pro Supabase segue pendente (ver entrada de 2026-10-24). Main está na v1.0.77.
+
 **Data:** 2026-11-16, 5ª entrada (Sonnet 5.5) — ver JOURNAL.md.
 
 **Versão atual: main v1.0.77 (PUBLICADA e verificada) / beta v1.0.76 (última lançada).** A v1.0.77 traz o diagnóstico das colunas do card do Metabase (Integrações). **Aguardando o usuário:** "Sincronizar agora" em Integrações e o que o painel de colunas mostra — se Remessa/Tipo de Trabalho/Em Oferta/Chapa em Oferta vierem ✗, o problema é a visibilidade das colunas nos cards 1290/1289 no Metabase (⚙ da tabela + salvar). Se vierem ✓ e mesmo assim não aparecer na tela, investigar a gravação (`ingestTarefas`/colunas da tarefa). Beta-v1.0.77 segue sem release (a beta sincroniza tarefas pela Central).

@@ -164,14 +164,14 @@ describe("sync — nome da coluna tolerante e diagnóstico do que o card trouxe"
     const d = JSON.parse(localStorage.getItem("mcm_metabase_colunas")!);
     expect(d.origem).toBe("metabase");
     expect(d.colunas).toContain("Remessa");
-    expect(d.achadas).toEqual({ remessa: "Remessa", tipo_trabalho: null, em_oferta: "Em Oferta", chapa_em_oferta: null });
+    expect(d.achadas).toEqual({ remessa: "Remessa", tipo_trabalho: null, em_oferta: "Em Oferta", chapa_em_oferta: null, criada_em: null });
   });
 
   it("card que NÃO traz as colunas fica registrado como faltando (e o gravado é preservado)", async () => {
     await ingestTarefas([linha({ Remessa: "R1", "Tipo de Trabalho": "Descarga" })]);
     await ingestTarefas([linha()]); // o card deixou de trazer
     const d = JSON.parse(localStorage.getItem("mcm_metabase_colunas")!);
-    expect(d.achadas).toEqual({ remessa: null, tipo_trabalho: null, em_oferta: null, chapa_em_oferta: null });
+    expect(d.achadas).toEqual({ remessa: null, tipo_trabalho: null, em_oferta: null, chapa_em_oferta: null, criada_em: null });
     expect(tarefa()).toMatchObject({ remessa: "R1", tipo_trabalho: "Descarga" });
   });
 
@@ -179,5 +179,28 @@ describe("sync — nome da coluna tolerante e diagnóstico do que o card trouxe"
     await ingestTarefas([linha({ Remessa: "R1" })]);
     await ingestTarefas([linha()], { semFupAutomatico: true });
     expect(JSON.parse(localStorage.getItem("mcm_metabase_colunas")!).origem).toBe("metabase");
+  });
+});
+
+describe("sync — data de criação da tarefa (seção Em análise)", () => {
+  const criada = (id = 100) =>
+    (h.db.prepare("SELECT criada_em FROM tarefas WHERE id_tarefa = ?").get(id) as { criada_em: string | null }).criada_em;
+
+  it("lê 'Data de Criação' por nome de coluna e grava em ISO (fuso de Brasília)", async () => {
+    await ingestTarefas([linha({ "Data de Criação": "2026-11-18T09:30:00" })]);
+    expect(criada()).toBe("2026-11-18T09:30:00-03:00");
+  });
+
+  it("aceita o formato do export do Metabase ('November 18, 2026, 9:30 AM')", async () => {
+    await ingestTarefas([linha({ "Criada em": "November 18, 2026, 9:30 AM" })]);
+    expect(criada()).toBe("2026-11-18T09:30:00-03:00");
+  });
+
+  it("card que não traz a coluna preserva a data já gravada; sem nada gravado fica vazia", async () => {
+    await ingestTarefas([linha()]);
+    expect(criada()).toBeNull();
+    await ingestTarefas([linha({ "Data de Criação": "2026-11-18T09:30:00" })]);
+    await ingestTarefas([linha()]); // o card deixou de trazer
+    expect(criada()).toBe("2026-11-18T09:30:00-03:00");
   });
 });

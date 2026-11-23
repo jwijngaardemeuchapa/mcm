@@ -102,6 +102,7 @@ export async function ingestTarefas(
         tipo_trabalho: null,
         em_oferta: 0,
         chapa_em_oferta: null,
+        criada_em: null,
       });
     }
 
@@ -113,6 +114,10 @@ export async function ingestTarefas(
     if (!tarefaAtual.tipo_trabalho) tarefaAtual.tipo_trabalho = textoOuNulo(valorDaColuna(row, nomesDoCampo("tipo_trabalho")));
     if (!tarefaAtual.chapa_em_oferta) tarefaAtual.chapa_em_oferta = textoOuNulo(valorDaColuna(row, nomesDoCampo("chapa_em_oferta")));
     if (lerSimNao(valorDaColuna(row, nomesDoCampo("em_oferta")))) tarefaAtual.em_oferta = 1;
+    if (!tarefaAtual.criada_em) {
+      const bruto = textoOuNulo(valorDaColuna(row, nomesDoCampo("criada_em")));
+      tarefaAtual.criada_em = bruto ? parseDateForIngest(bruto) : null;
+    }
 
     const nome = pick(row, "Nome do Chapa", "nome_chapa");
     if (nome) {
@@ -126,11 +131,12 @@ export async function ingestTarefas(
   // em vez de ser apagado pelo INSERT OR REPLACE.)
   const diagnostico = diagnosticarColunas(rows, opts?.semFupAutomatico ? "planilha" : "metabase");
   gravarDiagnostico(diagnostico); // a tela de Integrações mostra o que o card realmente trouxe
-  const temColuna = (campo: "remessa" | "tipo_trabalho" | "em_oferta" | "chapa_em_oferta") => diagnostico.achadas[campo] !== null;
+  const temColuna = (campo: "remessa" | "tipo_trabalho" | "em_oferta" | "chapa_em_oferta" | "criada_em") => diagnostico.achadas[campo] !== null;
   const fonteTem = {
     remessa: temColuna("remessa"),
     tipo: temColuna("tipo_trabalho"),
     oferta: temColuna("em_oferta") || temColuna("chapa_em_oferta"),
+    criada: temColuna("criada_em"),
   };
 
   // Dedupe chapas por id_tarefa | cpf || nome
@@ -185,7 +191,7 @@ export async function ingestTarefas(
     const chunk = ids.slice(i, i + 900);
     const ph = placeholders(chunk.length);
     const existingT = await db.select<Record<string, unknown>[]>(
-      `SELECT id_tarefa, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao${extras ? ", remessa, tipo_trabalho, em_oferta, chapa_em_oferta" : ""} FROM tarefas WHERE id_tarefa IN (${ph})`,
+      `SELECT id_tarefa, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao${extras ? ", remessa, tipo_trabalho, em_oferta, chapa_em_oferta, criada_em" : ""} FROM tarefas WHERE id_tarefa IN (${ph})`,
       chunk,
     );
     existingT.forEach((e) => tarefaPrev.set(e.id_tarefa as number, e));
@@ -228,6 +234,7 @@ export async function ingestTarefas(
     if (prev) {
       if (!fonteTem.remessa) t.remessa = prev.remessa ?? null;
       if (!fonteTem.tipo) t.tipo_trabalho = prev.tipo_trabalho ?? null;
+      if (!fonteTem.criada) t.criada_em = prev.criada_em ?? null;
       if (!fonteTem.oferta) {
         t.em_oferta = prev.em_oferta ?? 0;
         t.chapa_em_oferta = prev.chapa_em_oferta ?? null;
@@ -302,9 +309,9 @@ export async function ingestTarefas(
 
   // Upsert tarefas em lote (50 linhas × 16 colunas = 800 binds por statement)
   const tarefasArr = Array.from(tarefasMap.values());
-  // (com as 4 colunas novas são 20 binds por linha: 40 linhas = 800 binds por statement, como antes)
-  const colsTarefa = 16 + (extras ? 4 : 0);
-  const porLote = extras ? 40 : 50;
+  // (com as 5 colunas novas são 21 binds por linha: 38 linhas = 798 binds por statement, como antes)
+  const colsTarefa = 16 + (extras ? 5 : 0);
+  const porLote = extras ? 38 : 50;
   for (let i = 0; i < tarefasArr.length; i += porLote) {
     const chunk = tarefasArr.slice(i, i + porLote);
     const params = chunk.flatMap((t) => [
@@ -313,10 +320,10 @@ export async function ingestTarefas(
       t.observacoes ?? null, t.observacoes_updated_at ?? null,
       t.validacao_status, t.data_validacao_recebida ?? null,
       t.data_upload_meu_chapa ?? null, t.obs_validacao ?? null,
-      ...(extras ? [t.remessa ?? null, t.tipo_trabalho ?? null, t.em_oferta ? 1 : 0, t.chapa_em_oferta ?? null] : []),
+      ...(extras ? [t.remessa ?? null, t.tipo_trabalho ?? null, t.em_oferta ? 1 : 0, t.chapa_em_oferta ?? null, t.criada_em ?? null] : []),
     ]);
     await db.execute(
-      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao${extras ? ", remessa, tipo_trabalho, em_oferta, chapa_em_oferta" : ""}) VALUES ${rowGroup(colsTarefa, chunk.length)}`,
+      `INSERT OR REPLACE INTO tarefas (id_tarefa, data_tarefa, cidade_uf, empresa, cnpj, status_tarefa, quantidade_chapas, ativo, is_overnight, importado_em, observacoes, observacoes_updated_at, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao${extras ? ", remessa, tipo_trabalho, em_oferta, chapa_em_oferta, criada_em" : ""}) VALUES ${rowGroup(colsTarefa, chunk.length)}`,
       params,
     );
   }

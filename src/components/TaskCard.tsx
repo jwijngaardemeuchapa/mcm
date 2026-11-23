@@ -133,6 +133,7 @@ export type TaskWithChapas = {
   tipo_trabalho?: string | null;
   em_oferta?: number | boolean | null;
   chapa_em_oferta?: string | null;
+  criada_em?: string | null;
   chapas: Array<{
     id: string;
     nome_chapa: string | null;

@@ -45,6 +45,7 @@ function casaCom(e: string, ns: string[]): boolean {
 export function companyMatches(empresa: string, carteira: string[]): boolean {
   const e = normalizeCompany(empresa);
   if (!e) return false;
+  if (universos.has(carteira)) return casaNoUniverso(e, carteira);
   // Listas minúsculas (ex.: [l.empresa]) não compensam o cache.
   if (carteira.length <= 3) return casaCom(e, carteira.map(normalizeCompany).filter(Boolean));
   let c = casadores.get(carteira);
@@ -61,6 +62,49 @@ export function companyMatches(empresa: string, carteira: string[]): boolean {
   const guardado = c.porEmpresa.get(e);
   if (guardado !== undefined) return guardado;
   const r = casaCom(e, c.ns);
+  c.porEmpresa.set(e, r);
+  return r;
+}
+
+// ── Filtro de carteira por grupo: cada empresa pertence a UMA entrada ────────────
+// `companyMatches` casa por substring nos dois sentidos. Com a lista só dos nomes
+// do grupo ativo, uma tarefa de "Havan Atacado" (G4) casava com "Havan" (G3) e
+// aparecia no Dashboard do G3, e vice-versa. Aqui a lista filtrada leva junto o
+// UNIVERSO inteiro da carteira: a tarefa é atribuída à entrada MAIS PARECIDA do
+// universo (menor diferença de tamanho; igual vence) e só passa se essa entrada
+// estiver no grupo ativo. Listas sem universo (testes, usos antigos) seguem a regra
+// de antes.
+const universos = new WeakMap<string[], string[]>();
+const casadoresDeUniverso = new WeakMap<string[], { visiveis: Set<string>; ns: string[]; porEmpresa: Map<string, boolean> }>();
+
+/** Lista de nomes visíveis que "lembra" a carteira inteira (use no lugar de passar só os nomes do grupo). */
+export function nomesDaCarteiraComUniverso(visiveis: string[], universo: string[]): string[] {
+  const lista = [...visiveis];
+  universos.set(lista, universo);
+  return lista;
+}
+
+function casaNoUniverso(e: string, carteira: string[]): boolean {
+  let c = casadoresDeUniverso.get(carteira);
+  if (!c) {
+    c = {
+      visiveis: new Set(carteira.map(normalizeCompany).filter(Boolean)),
+      ns: Array.from(new Set((universos.get(carteira) ?? carteira).map(normalizeCompany).filter(Boolean))),
+      porEmpresa: new Map(),
+    };
+    casadoresDeUniverso.set(carteira, c);
+  }
+  const guardado = c.porEmpresa.get(e);
+  if (guardado !== undefined) return guardado;
+  let menorDif = Infinity;
+  let melhores: string[] = [];
+  for (const n of c.ns) {
+    if (!(e === n || e.includes(n) || n.includes(e))) continue;
+    const dif = Math.abs(e.length - n.length);
+    if (dif < menorDif) { menorDif = dif; melhores = [n]; }
+    else if (dif === menorDif) melhores.push(n);
+  }
+  const r = melhores.some((n) => c!.visiveis.has(n));
   c.porEmpresa.set(e, r);
   return r;
 }

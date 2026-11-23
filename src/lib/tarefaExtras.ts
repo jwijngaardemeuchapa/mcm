@@ -10,6 +10,8 @@ export type TarefaExtras = {
   tipo_trabalho?: string | null;
   em_oferta?: number | boolean | null;
   chapa_em_oferta?: string | null;
+  /** Quando a tarefa foi criada no Meu Chapa (ISO, fuso de Brasília). */
+  criada_em?: string | null;
 };
 
 type Banco = {
@@ -22,6 +24,7 @@ const COLUNAS: Array<[string, string]> = [
   ["tipo_trabalho", "TEXT"],
   ["em_oferta", "INTEGER NOT NULL DEFAULT 0"],
   ["chapa_em_oferta", "TEXT"],
+  ["criada_em", "TEXT"],
 ];
 
 async function colunasDe(db: Banco): Promise<Set<string>> {

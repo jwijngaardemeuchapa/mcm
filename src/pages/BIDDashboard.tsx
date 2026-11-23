@@ -19,7 +19,7 @@ import { chavesSelecionaveis, linhasExibidas, separarSelecionados } from "@/lib/
 import { rodarEmLevas } from "@/lib/levas";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
-import { companyMatches } from "@/lib/company";
+import { companyMatches, nomesDaCarteiraComUniverso } from "@/lib/company";
 import { cepGeocoder, cityGeocoder } from "@/lib/geocode";
 import { linhaIdNomeTelefone } from "@/lib/copyFormats";
 import { toast } from "sonner";
@@ -3444,7 +3444,7 @@ export default function BIDDashboard() {
         namesByFilter = carteiraRows
           .filter((r) => fixarSet.has(r.nome_fantasia) || (r.grupo !== null && gruposAtivos.includes(r.grupo)))
           .map((r) => r.nome_fantasia);
-        carteiraNames = namesByFilter.length > 0 ? namesByFilter : allCarteiraNames;
+        carteiraNames = namesByFilter.length > 0 ? nomesDaCarteiraComUniverso(namesByFilter, allCarteiraNames) : allCarteiraNames;
         carteiraFilterActive = true;
       } else {
         carteiraNames = allCarteiraNames;

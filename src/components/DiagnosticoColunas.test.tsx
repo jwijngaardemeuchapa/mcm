@@ -11,10 +11,10 @@ describe("DiagnosticoColunas", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("tudo veio: marca as quatro colunas e não avisa nada de errado", () => {
-    gravarDiagnostico(diagnosticarColunas([{ Remessa: "R", "Tipo de Trabalho": "Descarga", "Em Oferta": false, "Chapa em Oferta": "" }]));
+  it("tudo veio: marca as cinco colunas e não avisa nada de errado", () => {
+    gravarDiagnostico(diagnosticarColunas([{ Remessa: "R", "Tipo de Trabalho": "Descarga", "Em Oferta": false, "Chapa em Oferta": "", "Data de Criação": "2026-11-20T10:00:00" }]));
     render(<DiagnosticoColunas />);
-    expect(screen.getByText(/Último sync do Metabase: 1 linhas · 4 colunas/)).toBeTruthy();
+    expect(screen.getByText(/Último sync do Metabase: 1 linhas · 5 colunas/)).toBeTruthy();
     expect(screen.queryByText(/O card não trouxe/)).toBeNull();
     expect(screen.queryByText(/não veio/)).toBeNull();
   });
@@ -22,8 +22,8 @@ describe("DiagnosticoColunas", () => {
   it("faltou coluna: diz quais e explica a causa provável (coluna não exportada pelo card)", () => {
     gravarDiagnostico(diagnosticarColunas([{ "ID Tarefa": 1, Remessa: "R" }]));
     render(<DiagnosticoColunas />);
-    expect(screen.getByText(/O card não trouxe: Tipo de Trabalho, Em Oferta, Chapa em Oferta\./)).toBeTruthy();
-    expect(screen.getAllByText(/— não veio/)).toHaveLength(3);
+    expect(screen.getByText(/O card não trouxe: Tipo de Trabalho, Em Oferta, Chapa em Oferta, Data de Criação\./)).toBeTruthy();
+    expect(screen.getAllByText(/— não veio/)).toHaveLength(4);
     expect(screen.getByText(/só recebe as colunas que o Metabase exporta/)).toBeTruthy();
   });
 

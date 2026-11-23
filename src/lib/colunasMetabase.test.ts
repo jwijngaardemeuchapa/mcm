@@ -46,8 +46,8 @@ describe("diagnosticarColunas", () => {
   it("lista as colunas recebidas e diz quais das esperadas vieram (com o nome real)", () => {
     const d = diagnosticarColunas([{ "ID Tarefa": 1, Remessa: "R1", "Em Oferta": false }], "metabase", "2026-11-16T12:00:00Z");
     expect(d).toMatchObject({ origem: "metabase", linhas: 1, colunas: ["ID Tarefa", "Remessa", "Em Oferta"] });
-    expect(d.achadas).toEqual({ remessa: "Remessa", tipo_trabalho: null, em_oferta: "Em Oferta", chapa_em_oferta: null });
-    expect(rotulosFaltando(d)).toEqual(["Tipo de Trabalho", "Chapa em Oferta"]);
+    expect(d.achadas).toEqual({ remessa: "Remessa", tipo_trabalho: null, em_oferta: "Em Oferta", chapa_em_oferta: null, criada_em: null });
+    expect(rotulosFaltando(d)).toEqual(["Tipo de Trabalho", "Chapa em Oferta", "Data de Criação"]);
   });
 
   it("a coluna só precisa vir em UMA linha (linhas sem o campo não a escondem)", () => {

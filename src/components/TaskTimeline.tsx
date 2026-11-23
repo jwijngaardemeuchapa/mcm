@@ -192,7 +192,6 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                       {t.hasUnread && <UnreadDot title="Mensagem nova no Umbler nesta tarefa" />}
                       {estaEmOferta(t) && <Hourglass className="h-3 w-3 shrink-0" aria-label="Em oferta" />}
                       {/* a cor do bloco não é o único sinal: ícone + texto no tooltip (WCAG 1.4.1) */}
-                      {!t.concluida && !t.validada && t.severity === "urgent" && <AlertTriangle className="h-3 w-3 shrink-0" aria-label="Urgente" />}
                       {!t.concluida && !t.validada && t.severity === "approach-alert" && <Clock className="h-3 w-3 shrink-0" aria-label="Atenção" />}
                       <span className="truncate">{t.empresa.toUpperCase()}</span>
                     </div>

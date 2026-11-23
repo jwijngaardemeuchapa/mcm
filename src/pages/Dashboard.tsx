@@ -2,8 +2,10 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDb, placeholders } from "@/lib/db";
 import { resolveCpfs } from "@/lib/cpfResolver";
+import { EmAnaliseSection } from "@/components/EmAnaliseSection";
+import { selecionarEmAnalise, soNaSecaoEmAnalise } from "@/lib/emAnalise";
 import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate, dataSP } from "@/lib/datetime";
-import { companyMatches } from "@/lib/company";
+import { companyMatches, nomesDaCarteiraComUniverso } from "@/lib/company";
 import { type TaskWithChapas } from "@/components/TaskCard";
 import { LazyTaskCard, montarCardAgora } from "@/components/LazyTaskCard";
 import { criarExecutorAgrupado } from "@/lib/agruparChamadas";
@@ -12,7 +14,7 @@ import { TaskPanorama } from "@/components/TaskPanorama";
 import { TaskTimeline } from "@/components/TaskTimeline";
 import { ActivityBell } from "@/components/ActivityBell";
 import { AlertBanner, type AlertItem } from "@/components/AlertBanner";
-import { PriorityPanel, type LembreteAlertItem } from "@/components/PriorityPanel";
+import { type LembreteAlertItem } from "@/components/PriorityPanel";
 import { RefreshDiff, computeRefreshDiff, chapKey, type DiffResult } from "@/components/RefreshDiff";
 import {
   agruparPorTarefa,
@@ -227,7 +229,7 @@ export default function Dashboard() {
         namesByFilter = carteiraRows
           .filter((r) => fixarSet.has(r.nome_fantasia) || (r.grupo !== null && gruposAtivos.includes(r.grupo)))
           .map((r) => r.nome_fantasia);
-        names = namesByFilter.length > 0 ? namesByFilter : allCarteiraNames;
+        names = namesByFilter.length > 0 ? nomesDaCarteiraComUniverso(namesByFilter, allCarteiraNames) : allCarteiraNames;
         carteiraFilterActive = true;
       } else {
         names = allCarteiraNames;
@@ -284,6 +286,7 @@ export default function Dashboard() {
         tipo_trabalho?: string | null;
         em_oferta?: number | boolean | null;
         chapa_em_oferta?: string | null;
+        criada_em?: string | null;
       };
       // Agrupa por tarefa uma vez (antes: 3 .filter() sobre as listas inteiras
       // pra CADA card — custo quadrático com o histórico).
@@ -309,6 +312,7 @@ export default function Dashboard() {
           tipo_trabalho: t.tipo_trabalho ?? null,
           em_oferta: t.em_oferta ?? 0,
           chapa_em_oferta: t.chapa_em_oferta ?? null,
+          criada_em: t.criada_em ?? null,
           importado_em: t.importado_em ?? null,
           chapas: [...(chapasPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["chapas"],
           fup_log: [...(fupPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["fup_log"],
@@ -694,6 +698,8 @@ export default function Dashboard() {
     let base = hiddenCompanies.length > 0
       ? tasksToday.filter((t) => !companyMatches(t.empresa, hiddenCompanies))
       : tasksToday;
+    // Em análise sem ninguém alocado fica só na seção "Em análise" (nada pra operar no card)
+    base = base.filter((t) => !soNaSecaoEmAnalise(t));
     if (!hourFilter) return base;
     const m = hourFilter.match(/^(\d{1,2}):?(\d{2})?$/);
     if (!m) return base;
@@ -721,12 +727,20 @@ export default function Dashboard() {
   const displayCards = useMemo(() => {
     const base = selectedDate === todayDateISO_SP()
       ? [...overnightContinuing, ...filteredToday]
-      : allDatesCards.filter((t) => dataSP(t.data_tarefa) === selectedDate);
+      : allDatesCards.filter((t) => dataSP(t.data_tarefa) === selectedDate && !soNaSecaoEmAnalise(t));
     if (hiddenCompanies.length === 0) return base;
     return base.filter((t) => !companyMatches(t.empresa, hiddenCompanies));
   }, [selectedDate, overnightContinuing, filteredToday, allDatesCards, hiddenCompanies]);
 
   const tasksForDisplay = isOnToday ? filteredToday : displayCards;
+
+  // Seção "Em análise": hoje em diante, independente do dia selecionado e do filtro de horário
+  const emAnaliseTarefas = useMemo(() => {
+    const visiveis = hiddenCompanies.length > 0
+      ? allDatesCards.filter((t) => !companyMatches(t.empresa, hiddenCompanies))
+      : allDatesCards;
+    return selecionarEmAnalise(visiveis, todayDateISO_SP());
+  }, [allDatesCards, hiddenCompanies]);
   const overnightForDisplay = useMemo(
     () =>
       isOnToday
@@ -1446,7 +1460,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Central de Atenção: AlertBanner + PriorityPanel ── */}
+        {/* ── Central de Atenção: AlertBanner ── */}
         <div className="space-y-2">
           <AlertBanner
             tasks={allCards}
@@ -1463,19 +1477,6 @@ export default function Dashboard() {
               })),
             ]}
           />
-          {isOnToday && (() => {
-            const s = readSettings();
-            if (!s.priorityPanelEnabled) return null;
-            return (
-              <PriorityPanel
-                tasks={allCards}
-                onFlashTask={flashTask}
-                fillThreshold={s.fillRateWarningThreshold}
-                hideMonitorar={s.priorityPanelHideMonitorar}
-                lembreteItems={lembreteAlerts}
-              />
-            );
-          })()}
         </div>
 
         {/* Listener Log removido — substituído pelo ActivityBell na toolbar */}
@@ -1588,6 +1589,8 @@ export default function Dashboard() {
             ))}
         </section>
       )}
+
+      <EmAnaliseSection tarefas={emAnaliseTarefas} onAbrir={(id) => setTimelineOverlayTaskId(id)} />
 
       <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
         <div className="flex items-center gap-2 flex-wrap">

@@ -64,7 +64,6 @@ const CONFIG_SECTIONS = [
   { id: "cfg-sons",         icon: Volume2,        label: "Sons",           desc: "Intro, alertas, confirmações, troca de turno" },
   { id: "cfg-alertas",      icon: Bell,          label: "Alertas",        desc: "Painel flutuante, sonoro, timers, portaria" },
   { id: "cfg-fillrate",     icon: TriangleAlert, label: "Fill Rate",      desc: "Threshold mínimo de preenchimento" },
-  { id: "cfg-prioridades",  icon: Zap,           label: "Prioridades",    desc: "Painel de urgência no Dashboard" },
   { id: "cfg-visualizacao", icon: LayoutList,    label: "Visualização",   desc: "Modo padrão Cards ou Panorama" },
   { id: "cfg-agenda",       icon: KanbanSquare,  label: "Agenda",         desc: "Ordenação do Kanban" },
   { id: "cfg-msg-auto",     icon: MessageSquare, label: "Mensagem automática", desc: "Texto enviado ao chapa depois de confirmar" },
@@ -845,60 +844,6 @@ export default function Configuracoes() {
                 <p className="text-xs text-success">
                   <strong>{exampleAbove}% de fill</strong> → sem alerta
                 </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Priority panel ── */}
-      <div id="cfg-prioridades" className="scroll-mt-20">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Zap className="h-5 w-5 text-warning" />
-              Painel de Prioridades
-            </CardTitle>
-            <CardDescription>
-              Ranking de tarefas por urgência exibido no dashboard — Emergente, Urgente e Monitorar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Exibir painel no dashboard</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Aparece abaixo dos KPIs e do fill rate por empresa, apenas na visão de hoje.
-                </p>
-              </div>
-              <Switch
-                checked={settings.priorityPanelEnabled}
-                onCheckedChange={(v) => setSettings(writeSettings({ priorityPanelEnabled: v }))}
-              />
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Ocultar nível "Monitorar"</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Mostra apenas Emergente e Urgente — reduz o ruído quando há muitas tarefas no dia.
-                </p>
-              </div>
-              <Switch
-                checked={settings.priorityPanelHideMonitorar}
-                onCheckedChange={(v) => setSettings(writeSettings({ priorityPanelHideMonitorar: v }))}
-                disabled={!settings.priorityPanelEnabled}
-              />
-            </div>
-
-            <div className="rounded-lg bg-muted/40 border border-border p-3 flex items-start gap-2">
-              <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p><strong className="text-foreground">Emergente:</strong> sem chapas confirmados com início próximo, fill &lt; 50% em menos de 1h, ou tarefa urgente.</p>
-                <p><strong className="text-foreground">Urgente:</strong> fill abaixo do threshold em até 1h30, overnight com fill baixo, tarefas grandes com vagas abertas.</p>
-                <p><strong className="text-foreground">Monitorar:</strong> fill abaixo do threshold entre 1h30 e 8h.</p>
               </div>
             </div>
           </CardContent>

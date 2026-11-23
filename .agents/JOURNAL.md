@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-11-23 — MCM — Seção "Em análise" + bug de grupos da carteira (G3/G4) + fim do painel Emergente/Urgente
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
+**Tickets:** nenhum (não aberto)
+**Commits:** ver git log (feat: seção Em análise / fix: carteira por grupo)
+
+Pedido: (1) seção didática pras tarefas "Em Análise" nas 3 visualizações (empresa, horário, qtd de chapas pedida, data de criação da tarefa); (2) tirar a sinalização de urgente/emergente ("ninguém usa"); (3) bug: empresa do G4 aparecendo no Dashboard do G3 e vice-versa. Nada disso estava em andamento (só existia o amarelo "Em Análise" da v1.0.40).
+
+**Seção Em análise** — `EmAnaliseSection.tsx` + regra pura `lib/emAnalise.ts`. Renderizada UMA vez, acima da lista "Tarefas", fora dos branches de visualização (por isso vale pros 3 modos). Hoje em diante, ordenada por data/horário, independe do dia selecionado e do filtro de horário. Colapsável (lembra a escolha), some quando vazia, linha = botão que abre o TaskDetailPanel. Princípios: heurísticas de Nielsen (reconhecimento > memória, minimalismo), proximidade/alinhamento (`tabular-nums`), cor nunca sozinha (WCAG 1.4.1: ícone + texto + contagem), alvo de clique grande e foco visível — aplicados por conhecimento, não pesquisados na web nesta sessão. **Decisão minha:** Em Análise SEM chapa alocado sai das listas principais (nada pra operar no card); COM chapa continua nelas e também aparece na seção. Fácil de inverter (`soNaSecaoEmAnalise`).
+**Data de criação:** o card do Metabase (1290/1289) provavelmente NÃO traz — nenhum campo de criação era lido. Agora `criada_em` é lida por nome ("Data de Criação", "Criada em"...; mesmo caminho de remessa/tipo: coluna criada em runtime em `tarefaExtras.ts`, sem migration; fonte sem a coluna preserva o já gravado; binds do INSERT 21/linha, lote 38). Sem a coluna a seção mostra "—" e um aviso explicando; Integrações → Metabase passa a listar "Data de Criação" como esperada (✓/✗). **Pendente (Metabase, não consigo daqui): incluir "Data de Criação" no card 1290/1289 E na exportação JSON.**
+
+**Bug dos grupos** — causa por análise de código (NÃO confirmada com dado real: o banco local deste PC é de junho, grupo nulo em todas as linhas): `companyMatches` casa por substring nos dois sentidos e o filtro só conhecia os nomes do grupo ativo; "Havan Atacado" (G4) casava com "Havan" (G3). Correção em `company.ts`: `nomesDaCarteiraComUniverso(visiveis, universo)` — a lista filtrada carrega a carteira inteira e cada empresa é atribuída à entrada MAIS PARECIDA (menor diferença de tamanho; igual vence); só passa se essa entrada está no grupo ativo. Usada em Dashboard, BIDDashboard e carteira.ts (alarme, FUP automático, watcher). Lista sem universo segue a regra antiga (teste de equivalência intacto). Empresa fixada (`fixar_visivel`) continua visível em qualquer grupo. **Outras causas possíveis NÃO tratadas:** sync da carteira usa `COALESCE(excluded.grupo, carteira.grupo)` — grupo fora de G1–G5 no Metabase mantém o antigo; e a carteira nunca remove empresa que saiu do card.
+
+**Urgente/emergente removido:** `PriorityPanel` (Emergente/Urgente/Monitorar) sai do Dashboard e o card "Painel de Prioridades" sai de Configurações (+ item do índice); ícone de urgente e faixa `task.urgent` saem do Panorama; ícone de urgente sai da Timeline. **Ficou (decisão a confirmar):** `AlertBanner` (texto "Urgente · empresa · iniciou às…"), `ApproachingAlert`, cores de severidade nos cards (vermelho/âmbar), rótulos EMERGENTE/URGENTE do briefing de abertura (`AppStartup`), flag `urgent` calculada em `buildCard`, settings `priorityPanel*` (agora sem uso).
+Testes: 414 passando (eram 379+; novos: emAnalise, EmAnaliseSection, company.grupos, ingest criada_em); 5 testes que fixavam "4 colunas esperadas" foram atualizados pra 5. Typecheck 14 (baseline). **Não testado visualmente** (app Tauri não roda aqui). Sem release.
+
+---
+
 ## 2026-10-24 — MCM — Release v1.0.74 (fix CPF vazio) + preparo da migração da Central pro Supabase
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
 **Commits:** c6e103d (bump), 945c52f (latest.json)
