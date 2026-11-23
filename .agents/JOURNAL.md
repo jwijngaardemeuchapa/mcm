@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-11-23 — MCM — Lista do 3C: telefone sempre em DDD+número; sem DDD fica de fora (bug do DDD 11)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
+**Tickets:** nenhum (não aberto)
+
+Relato: lista do 3C saindo com DDD 11 em tarefa de outro estado, "alguma formatação que não deveria". **O MCM não adiciona DDD 11 em lugar nenhum** (busca por "11"/DDD no código: nada) — `exportDisponiveisCsv` (BIDDashboard) gravava `c.telefone` exatamente como está no banco. O banco mistura formatos: na tabela `chapas` local (dado de junho) 1581 telefones com 11 dígitos, 317 com 13 ("+55…") e 3 com 10. **Hipótese (não confirmada com a lista real):** número SEM DDD (8/9 dígitos) é completado pelo 3C com o DDD padrão da conta (11) — único mecanismo que explica um DDD fixo. Correção defensiva em `lib/telefone3c.ts`: todo número vai como DDD+número só dígitos (tira +55 e zero de tronco); sem DDD ou inválido (DDD 00, celular sem o 9) NÃO entra na lista e aparece num aviso com os nomes; número repetido (mesmo telefone em formatos diferentes) é removido. Testes: `telefone3c.test.ts`; 425 testes passando; typecheck 14.
+**Pra confirmar:** pegar 1-2 chapas que saíram com DDD 11 e comparar o telefone no MCM com o da lista no 3C; se o MCM mostrar o DDD certo e o 3C o errado, a causa era DDI/formato (agora uniforme); se o MCM já mostrar sem DDD, a origem é o cadastro (Metabase `Phone`).
+
+---
+
 ## 2026-11-23 — MCM — Seção "Em análise" + bug de grupos da carteira (G3/G4) + fim do painel Emergente/Urgente
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
 **Tickets:** nenhum (não aberto)

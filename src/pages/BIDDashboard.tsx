@@ -20,6 +20,7 @@ import { rodarEmLevas } from "@/lib/levas";
 import { fmtSP, fmtDateTime, fmtTime, todayDateISO_SP } from "@/lib/datetime";
 import { normalize } from "@/lib/normalize";
 import { companyMatches, nomesDaCarteiraComUniverso } from "@/lib/company";
+import { montarLista3c } from "@/lib/telefone3c";
 import { cepGeocoder, cityGeocoder } from "@/lib/geocode";
 import { linhaIdNomeTelefone } from "@/lib/copyFormats";
 import { toast } from "sonner";
@@ -1659,9 +1660,14 @@ function BidTaskCard({
     if (available.length === 0) return;
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? nome;
-    const rows = available
-      .filter((c) => c.telefone)
-      .map((c) => [primeiroNome(c.nome), c.telefone].map(esc).join(";"));
+    // Telefone sempre em DDD + número (o banco mistura formatos); sem DDD válido não vai pra lista,
+    // senão o 3C completa com o DDD padrão da conta (11). Ver lib/telefone3c.ts.
+    const lista = montarLista3c(available.map((c) => ({ nome: primeiroNome(c.nome), telefone: c.telefone })));
+    if (lista.linhas.length === 0) {
+      toast.error(lista.semDdd.length > 0 ? `Nenhum telefone com DDD válido (${lista.semDdd.length} sem DDD)` : "Nenhum telefone válido pra exportar");
+      return;
+    }
+    const rows = lista.linhas.map((l) => [l.nome, l.telefone].map(esc).join(";"));
     const csv = "Nome;Telefone\n" + rows.join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -1686,7 +1692,12 @@ function BidTaskCard({
     a.download = `3C_${filenameParts.join("_")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success(`${rows.length} disponíveis exportados pro 3C`);
+    toast.success(`${rows.length} disponíveis exportados pro 3C${lista.repetidos ? ` (${lista.repetidos} número repetido removido)` : ""}`);
+    const fora = lista.semDdd.length + lista.invalidos.length;
+    if (fora > 0) {
+      const nomes = [...lista.semDdd, ...lista.invalidos].slice(0, 5).join(", ");
+      toast.warning(`${fora} fora da lista por telefone sem DDD ou inválido: ${nomes}${fora > 5 ? "…" : ""}`, { duration: 12000 });
+    }
   }
 
   function toggleSelect(key: string) {
