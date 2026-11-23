@@ -1,5 +1,7 @@
 # Handoff — Jeremiah / claude
 
+**ATUALIZAÇÃO 2026-11-23 (mais recente):** **v1.0.78 publicada, assinada e verificada** (substitui a nota "sem release ainda" logo abaixo). Pendências em aberto estão listadas no JOURNAL de hoje (entrada "Release v1.0.78").
+
 **ATUALIZAÇÃO 2026-11-23 (mais recente):** em `main`, SEM release ainda: seção "Em análise" (3 visões), fix dos grupos G3/G4 da carteira, painel Emergente/Urgente removido — ver JOURNAL de hoje. Pendentes: (1) usuário/outro projeto incluir "Data de Criação" no card 1290/1289 do Metabase (hoje a seção mostra "—"); (2) confirmar com dado real se o bug G3/G4 sumiu — se não, pedir 2 nomes de empresa afetados + grupo de cada (outras causas: sync de carteira mantém grupo antigo, empresa fixada); (3) decidir o que mais da sinalização de urgência sai (AlertBanner "Urgente", cores de severidade, briefing de abertura); (4) migração da Central pro Supabase segue pendente (ver entrada de 2026-10-24). Main está na v1.0.77.
 
 **Data:** 2026-11-16, 5ª entrada (Sonnet 5.5) — ver JOURNAL.md.

@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-11-23 — MCM — Release v1.0.78 (Em análise, carteira por grupo, Emergente/Urgente removido, lista 3C)
+**Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
+**Commits:** 3699efd (bump), caba941 (latest.json)
+
+Publicada, assinada e verificada (latest.json 200, instalador 302, assinatura de 412 caracteres) a **v1.0.78**, a pedido do usuário ("release e assinar com o que fizemos até agora"). Contém tudo desde a v1.0.77: seção "Em análise" nas 3 visões, fix dos grupos G3/G4 da carteira, painel Emergente/Urgente removido, lista do 3C com telefone padronizado (DDD+número; sem DDD fora com aviso) e CPF buscado em mais fontes (o resolvedor já estava na v1.0.74). Antes: 425 testes passando, typecheck 14 (baseline). Build `npx tauri build` (~12 min) saiu com o instalador de 310 MB; a assinatura automática falhou como sempre (sem `TAURI_SIGNING_PRIVATE_KEY`), assinada à mão com `npx tauri signer sign -f tauri_update_key -p ""`; release criada SEM assets inline, depois `gh release upload` do .exe e do .sig, depois `latest.json`.
+**Continua pendente (da sessão):** coluna "Data de Criação" no card 1290/1289 (a seção mostra "—" até lá); confirmar com dado real o bug G3/G4 e a causa do DDD 11 do 3C; decidir o que mais da sinalização de urgência sai (AlertBanner, cores de severidade, briefing de abertura); otimização do carregamento (Camadas 0–3 descritas em conversa, nada implementado); migração da Central pro Supabase; rotação de JIRA_TOKEN/PGPASSWORD/CENTRAL_HOOK_SECRET; análise de viabilidade mobile (só conversa).
+
+---
+
 ## 2026-11-23 — MCM — Lista do 3C: telefone sempre em DDD+número; sem DDD fica de fora (bug do DDD 11)
 **Actor:** Jeremiah | **Agent:** claude (Sonnet 5.5)
 **Tickets:** nenhum (não aberto)
