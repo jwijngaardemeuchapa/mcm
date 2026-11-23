@@ -1,11 +1,11 @@
 {
-  "version": "1.0.77",
-  "notes": "Correção: remessa, tipo de trabalho e 'Em oferta' — o app aceita variações no nome dessas colunas e mostra em Integrações quais colunas o card do Metabase trouxe no último sync (✓ ou ✗, com os nomes recebidos).",
-  "pub_date": "2026-11-16T15:51:58Z",
+  "version": "1.0.78",
+  "notes": "Seção Em análise (3 visões), carteira por grupo corrigida (G3/G4), painel Emergente/Urgente removido, lista do 3C com telefone padronizado (DDD + número; sem DDD fica de fora com aviso), CPF buscado em mais de uma fonte.",
+  "pub_date": "2026-11-23T21:05:22Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaGFlNGJJT3ZseEtFSHIxc1pVbjMvQ1VZbkVVQXhTVEZjWVVwNkpnL0hsdkVRS2tJWHdpTFZINFdJMW1ZUmJjZXJDemVIczJpYXVGY0gwMU9yVUhkZUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0ODQ0Mjg3CWZpbGU6TUNNXzEuMC43N194NjQtc2V0dXAuZXhlCnpMNTVTclpOUnR4S1JOUDQvMG1YNEV4QnJyTHdXeXVrRXBjUnRDdTJpRXZXc2RObFQ4cy83RWt5ZVZmU3FIMEpBYjJiTmJUUnRDMUlUdWlCWHlCWUJ3PT0K",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.77/MCM_1.0.77_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFVrMTc5QSs2QnFPelVJWm05SFpVNFFVYWhzdXdZNWJFaVlSUFA3QlBjMWU1WFpDMWZNQlhCTDl1bE5uZmtqSFdFQXpBYUFaYTF6QUJzQ3V5Mk9OZEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NDY3ODU4CWZpbGU6TUNNXzEuMC43OF94NjQtc2V0dXAuZXhlClk5dHpyaThja0FNN2Y3Y0VFSElzbnk4ZjB1SlQvWmNiZU1BeUZ3dzl4N2llbUFlSExtZ0t2cy96K1piT1B1Y3J6MWRrTFYvUlJlWXpXUUNwNTJMVUJBPT0K",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.78/MCM_1.0.78_x64-setup.exe"
     }
   }
 }
