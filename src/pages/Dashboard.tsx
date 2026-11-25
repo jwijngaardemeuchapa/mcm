@@ -4,6 +4,17 @@ import { getDb, placeholders } from "@/lib/db";
 import { resolveCpfs } from "@/lib/cpfResolver";
 import { EmAnaliseSection } from "@/components/EmAnaliseSection";
 import { selecionarEmAnalise, soNaSecaoEmAnalise } from "@/lib/emAnalise";
+import {
+  agruparCards,
+  ehGrupo,
+  gravarAgruparAtivo,
+  gravarDesfeitos,
+  idsDoCard,
+  lerAgruparAtivo,
+  lerDesfeitos,
+  novoCacheDeGrupos,
+  type CacheDeGrupos,
+} from "@/lib/agrupamentoTarefas";
 import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate, dataSP } from "@/lib/datetime";
 import { companyMatches, nomesDaCarteiraComUniverso } from "@/lib/company";
 import { type TaskWithChapas } from "@/components/TaskCard";
@@ -58,6 +69,7 @@ import {
   Trash2,
   Send,
   FileSpreadsheet,
+  Layers,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -139,6 +151,9 @@ export default function Dashboard() {
     return (localStorage.getItem("dash_view_mode") as "detailed" | "panorama" | "timeline" | null) ??
       readSettings().defaultDashboardView;
   });
+  // Agrupar tarefas do mesmo cliente + endereço + horário (ver lib/agrupamentoTarefas.ts)
+  const [agruparAtivo, setAgruparAtivo] = useState<boolean>(lerAgruparAtivo);
+  const [tarefasDesfeitas, setTarefasDesfeitas] = useState<Set<number>>(lerDesfeitos);
   const [selectedDate, setSelectedDate] = useState(() => todayDateISO_SP());
   const [allDatesCards, setAllDatesCards] = useState<TaskWithChapas[]>([]);
   const [showCompanyBreakdown, setShowCompanyBreakdown] = useState(false);
@@ -189,6 +204,12 @@ export default function Dashboard() {
       const fixarSet = await carteiraDb.select<{ nome_fantasia: string }[]>(
         "SELECT nome_fantasia FROM empresa_config WHERE fixar_visivel = 1"
       ).then((r) => new Set(r.map((x) => x.nome_fantasia))).catch(() => new Set<string>());
+      // Vínculo tarefa→endereço (Metabase): "mesmo endereço" no agrupamento de tarefas iguais.
+      // Tabela pequena e opcional: sem ela (ou sem o vínculo da tarefa) o endereço é a cidade.
+      const enderecoPorTarefa = await carteiraDb.select<{ id_tarefa: number; metabase_address_id: string }[]>(
+        "SELECT id_tarefa, metabase_address_id FROM tarefa_enderecos"
+      ).then((r) => new Map(r.map((x) => [x.id_tarefa, String(x.metabase_address_id)] as const)))
+        .catch(() => new Map<number, string>());
 
       // Score de confiabilidade — janela de 15 dias sobre o histórico completo já carregado
       try {
@@ -313,6 +334,7 @@ export default function Dashboard() {
           em_oferta: t.em_oferta ?? 0,
           chapa_em_oferta: t.chapa_em_oferta ?? null,
           criada_em: t.criada_em ?? null,
+          endereco_id: enderecoPorTarefa.get(t.id_tarefa) ?? null,
           importado_em: t.importado_em ?? null,
           chapas: [...(chapasPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["chapas"],
           fup_log: [...(fupPorTarefa.get(t.id_tarefa) ?? [])] as unknown as TaskWithChapas["fup_log"],
@@ -732,24 +754,65 @@ export default function Dashboard() {
     return base.filter((t) => !companyMatches(t.empresa, hiddenCompanies));
   }, [selectedDate, overnightContinuing, filteredToday, allDatesCards, hiddenCompanies]);
 
-  const tasksForDisplay = isOnToday ? filteredToday : displayCards;
+  // Agrupamento de tarefas do mesmo cliente + endereço + horário (clientes que lançam uma tarefa por
+  // chapa). É só apresentação: as listas cruas (alarmes, notificações, exportações, estatísticas)
+  // continuam por tarefa; só o que vai pra tela passa por aqui. Um cache por lista mantém o MESMO
+  // card de grupo entre recargas (senão todos os cards re-renderizariam a cada 30 s).
+  const agruparLista = (lista: TaskWithChapas[], cache: CacheDeGrupos<TaskWithChapas>) =>
+    agruparAtivo ? agruparCards(lista, tarefasDesfeitas, cache) : lista;
+  const cacheGruposLista = useRef(novoCacheDeGrupos<TaskWithChapas>());
+  const cacheGruposOvernight = useRef(novoCacheDeGrupos<TaskWithChapas>());
+  const cacheGruposAnalise = useRef(novoCacheDeGrupos<TaskWithChapas>());
+
+  const tasksForDisplay = useMemo(
+    () => agruparLista(isOnToday ? filteredToday : displayCards, cacheGruposLista.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isOnToday, filteredToday, displayCards, agruparAtivo, tarefasDesfeitas],
+  );
 
   // Seção "Em análise": hoje em diante, independente do dia selecionado e do filtro de horário
   const emAnaliseTarefas = useMemo(() => {
     const visiveis = hiddenCompanies.length > 0
       ? allDatesCards.filter((t) => !companyMatches(t.empresa, hiddenCompanies))
       : allDatesCards;
-    return selecionarEmAnalise(visiveis, todayDateISO_SP());
-  }, [allDatesCards, hiddenCompanies]);
+    return agruparLista(selecionarEmAnalise(visiveis, todayDateISO_SP()), cacheGruposAnalise.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDatesCards, hiddenCompanies, agruparAtivo, tarefasDesfeitas]);
   const overnightForDisplay = useMemo(
     () =>
       isOnToday
-        ? (hiddenCompanies.length > 0
-            ? overnightContinuing.filter((t) => !companyMatches(t.empresa, hiddenCompanies))
-            : overnightContinuing)
+        ? agruparLista(
+            hiddenCompanies.length > 0
+              ? overnightContinuing.filter((t) => !companyMatches(t.empresa, hiddenCompanies))
+              : overnightContinuing,
+            cacheGruposOvernight.current,
+          )
         : ([] as TaskWithChapas[]),
-    [isOnToday, hiddenCompanies, overnightContinuing],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isOnToday, hiddenCompanies, overnightContinuing, agruparAtivo, tarefasDesfeitas],
   );
+  // quantos grupos aparecem agora (no selo do interruptor da barra)
+  const gruposNaTela = useMemo(
+    () => new Set([...tasksForDisplay, ...overnightForDisplay, ...emAnaliseTarefas].filter(ehGrupo).map((t) => t.id_tarefa)).size,
+    [tasksForDisplay, overnightForDisplay, emAnaliseTarefas],
+  );
+
+  function alternarAgrupar() {
+    setAgruparAtivo((v) => {
+      gravarAgruparAtivo(!v);
+      return !v;
+    });
+  }
+  // "Desfazer grupo": as tarefas do grupo voltam a ser cards próprios (e continuam assim nas próximas cargas)
+  const desfazerGrupo = useCallback((ids: number[]) => {
+    setTarefasDesfeitas((atual) => {
+      const novo = new Set(atual);
+      ids.forEach((id) => novo.add(id));
+      gravarDesfeitos(novo);
+      return novo;
+    });
+    toast.success("Grupo desfeito — as tarefas voltaram a aparecer separadas");
+  }, []);
 
   const allCards = useMemo(() => {
     const base = [...overnightContinuing, ...filteredToday];
@@ -786,6 +849,8 @@ export default function Dashboard() {
         .map((t) => t.id_tarefa),
     );
   }, [search, allCards]);
+  // Card de grupo passa na busca se QUALQUER tarefa do grupo casa (ex.: o chapa buscado é de outra tarefa que não a líder)
+  const passaBusca = (t: TaskWithChapas) => !searchMatchIds || idsDoCard(t).some((id) => searchMatchIds.has(id));
 
   // Companies present in current visible cards — for dropdown
   const companyOptions = useMemo(() => {
@@ -820,10 +885,10 @@ export default function Dashboard() {
   const cardsOrderCalculado = useMemo(() => {
     if (viewMode !== "detailed") return [] as number[];
     const overnightIds = overnightForDisplay
-      .filter((t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)))
+      .filter((t) => passesExtraFilters(t) && passaBusca(t))
       .map((t) => t.id_tarefa);
     const visible = tasksForDisplay.filter(
-      (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
+      (t) => passesExtraFilters(t) && passaBusca(t),
     );
     const byDate = new Map<string, TaskWithChapas[]>();
     visible.forEach((t) => {
@@ -863,7 +928,7 @@ export default function Dashboard() {
     if (viewMode !== "timeline") return [] as TaskWithChapas[];
     return tasksForDisplay.filter(
       (t) => passesExtraFilters(t)
-        && (!searchMatchIds || searchMatchIds.has(t.id_tarefa))
+        && passaBusca(t)
         && dataSP(t.data_tarefa) === selectedDate,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -938,7 +1003,9 @@ export default function Dashboard() {
     setTimeout(() => el.classList.remove("ring-2", "ring-primary", "ring-offset-2"), 500);
   }
 
-  function flashTask(id: number) {
+  function flashTask(idPedido: number) {
+    // alerta/notificação aponta pra uma TAREFA; se ela está dentro de um card de grupo, vai pro card do grupo
+    const id = [...tasksForDisplay, ...overnightForDisplay, ...emAnaliseTarefas].find((t) => idsDoCard(t).includes(idPedido))?.id_tarefa ?? idPedido;
     if (viewMode === "timeline") { setTimelineOverlayTaskId(id); return; }
     const el = document.querySelector(`[data-task-card="${id}"]`) as HTMLElement | null;
     if (el) { doFlash(id); return; }
@@ -1280,6 +1347,24 @@ export default function Dashboard() {
             <Send className="h-3.5 w-3.5" />
             Sem FUP Umbler
           </Button>
+          <Button
+            size="sm"
+            variant={agruparAtivo ? "default" : "ghost"}
+            aria-pressed={agruparAtivo}
+            className={`h-[30px] gap-1.5 text-xs ${
+              agruparAtivo
+                ? "bg-info/15 text-info hover:bg-info/25 border border-info/40"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={alternarAgrupar}
+            title="Junta num card só as tarefas do mesmo cliente, endereço e horário (clientes que lançam uma tarefa por chapa)"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            Agrupar iguais
+            {agruparAtivo && gruposNaTela > 0 && (
+              <span className="px-1 rounded bg-info/20 text-[11px] font-semibold tabular-nums">{gruposNaTela}</span>
+            )}
+          </Button>
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={companyFilter} onValueChange={setCompanyFilter}>
@@ -1572,7 +1657,7 @@ export default function Dashboard() {
             <Moon className="h-5 w-5" /> Em andamento — iniciadas ontem
           </h2>
           {overnightForDisplay
-            .filter((t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)))
+            .filter((t) => passesExtraFilters(t) && passaBusca(t))
             .map((t, i) => (
               <LazyTaskCard
                 eager={i < 3}
@@ -1580,11 +1665,12 @@ export default function Dashboard() {
                 task={t}
                 onRefresh={loadAgrupado}
                 forceCollapse={forceCollapseMap[t.id_tarefa]}
-                matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
+                matchHighlight={!!(search && searchMatchIds && passaBusca(t))}
                 newChapaKeys={newChapaKeys}
                 confiabilidade={confiabilidade}
                 cardsOrder={cardsOrder}
                 onNavigateCard={navCallbackDe(t.id_tarefa)}
+                onDesfazerGrupo={desfazerGrupo}
               />
             ))}
         </section>
@@ -1729,12 +1815,13 @@ export default function Dashboard() {
       ) : viewMode === "panorama" ? (
         <TaskPanorama
           tasks={tasksForDisplay.filter(
-            (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
+            (t) => passesExtraFilters(t) && passaBusca(t),
           )}
           overnightTasks={overnightForDisplay.filter(
-            (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
+            (t) => passesExtraFilters(t) && passaBusca(t),
           )}
           onRefresh={loadAgrupado}
+          onDesfazerGrupo={desfazerGrupo}
           threshold={readSettings().fillRateWarningThreshold}
           autoOpenTaskId={autoOpenTaskId ?? undefined}
           autoRemoveChapaName={autoRemoveChapaName ?? undefined}
@@ -1746,7 +1833,7 @@ export default function Dashboard() {
             t.chapas.every((c) => c.status_contato === "confirmado") &&
             (t.validacao_status ?? "aguardando") === "subido_meu_chapa";
           const visible = tasksForDisplay.filter(
-            (t) => passesExtraFilters(t) && (!searchMatchIds || searchMatchIds.has(t.id_tarefa)),
+            (t) => passesExtraFilters(t) && passaBusca(t),
           );
 
           // Group by date (yyyy-MM-dd)
@@ -1799,11 +1886,12 @@ export default function Dashboard() {
                         task={t}
                         onRefresh={loadAgrupado}
                         forceCollapse={forceCollapseMap[t.id_tarefa]}
-                        matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
+                        matchHighlight={!!(search && searchMatchIds && passaBusca(t))}
                         newChapaKeys={newChapaKeys}
                         confiabilidade={confiabilidade}
                         cardsOrder={cardsOrder}
                         onNavigateCard={navCallbackDe(t.id_tarefa)}
+                        onDesfazerGrupo={desfazerGrupo}
                       />
                     ))}
                   </>
@@ -1825,11 +1913,12 @@ export default function Dashboard() {
                         task={t}
                         onRefresh={loadAgrupado}
                         forceCollapse={forceCollapseMap[t.id_tarefa]}
-                        matchHighlight={!!(search && searchMatchIds?.has(t.id_tarefa))}
+                        matchHighlight={!!(search && searchMatchIds && passaBusca(t))}
                         newChapaKeys={newChapaKeys}
                         confiabilidade={confiabilidade}
                         cardsOrder={cardsOrder}
                         onNavigateCard={navCallbackDe(t.id_tarefa)}
+                        onDesfazerGrupo={desfazerGrupo}
                       />
                     ))}
                   </>
@@ -1924,6 +2013,8 @@ export default function Dashboard() {
       {(() => {
         const overlayTask = timelineOverlayTaskId !== null
           ? tasksForDisplay.find((t) => t.id_tarefa === timelineOverlayTaskId) ??
+            overnightForDisplay.find((t) => t.id_tarefa === timelineOverlayTaskId) ??
+            emAnaliseTarefas.find((t) => t.id_tarefa === timelineOverlayTaskId) ??
             allDatesCards.find((t) => t.id_tarefa === timelineOverlayTaskId) ?? null
           : null;
         return (
@@ -1931,6 +2022,7 @@ export default function Dashboard() {
             task={overlayTask}
             open={timelineOverlayTaskId !== null}
             onClose={() => setTimelineOverlayTaskId(null)}
+            onDesfazerGrupo={desfazerGrupo}
             onRefresh={loadAgrupado}
             orderedIds={timelineOrderedIds}
             onNavigateTask={(id) => setTimelineOverlayTaskId(id)}

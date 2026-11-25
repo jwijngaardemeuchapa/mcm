@@ -51,6 +51,8 @@ import { atualizarChapa, comFlagManual, confirmarManualEmLote, entraNoFupEmMassa
 import { emJanelaDeFup } from "@/lib/prefup";
 import { FasesChip } from "@/components/FasesChip";
 import { TarefaInfo } from "@/components/TarefaInfo";
+import { GrupoBadge } from "@/components/GrupoBadge";
+import { idTarefaDoChapa } from "@/lib/agrupamentoTarefas";
 import { linhaTipoRemessaPlanilha } from "@/lib/tarefaExtras";
 import { setActiveTaskNav } from "@/lib/taskNav";
 import { formatCpf } from "@/lib/normalize";
@@ -153,12 +155,14 @@ type TaskDetailPanelProps = {
   // isso o painel funciona exatamente como antes, sem setas de navegação.
   orderedIds?: number[];
   onNavigateTask?: (id: number) => void;
+  // Só no card de grupo: o analista separa as tarefas (ver lib/agrupamentoTarefas.ts).
+  onDesfazerGrupo?: (ids: number[]) => void;
 };
 
 // Painel de tarefa — lista de chapas + grupo do cliente à esquerda, conversa
 // da pessoa selecionada à direita. Tela cheia, slide-up ao abrir/slide-down
 // ao fechar (Radix Dialog customizado) — desenho pedido pelo usuário.
-export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, onNavigateTask }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, onNavigateTask, onDesfazerGrupo }: TaskDetailPanelProps) {
   const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [groupPickerOpen, setGroupPickerOpen] = useState(false);
@@ -358,7 +362,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
       return;
     }
     enviarMensagemPosConfirmacao(
-      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa, empresa: task.empresa })),
+      targets.map((c) => ({ idTarefa: idTarefaDoChapa(c, task), chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa, empresa: task.empresa })),
       "manual",
     );
     push({
@@ -540,7 +544,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
     }
     if (patch.status_contato === "confirmado") {
       enviarMensagemPosConfirmacao(
-        [{ idTarefa: task!.id_tarefa, chapaId, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa, empresa: task!.empresa }],
+        [{ idTarefa: idTarefaDoChapa(chapa, task!), chapaId, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa, empresa: task!.empresa }],
         "manual",
       );
     }
@@ -569,14 +573,14 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   function copyConfirmedIdList() {
     const confirmados = task!.chapas.filter((c) => c.status_contato === "confirmado" && c.nome_chapa);
     if (confirmados.length === 0) { toast.error("Nenhum confirmado ainda"); return; }
-    const lines = confirmados.map((c) => linhaIdNomeTelefone(task!.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    const lines = confirmados.map((c) => linhaIdNomeTelefone(idTarefaDoChapa(c, task!), c.nome_chapa, c.telefone_chapa));
     clipboardWrite(lines.join("\n"), `${confirmados.length} confirmado(s) copiado(s) com ID da tarefa`);
   }
 
   function copyAllIdList() {
     const ativos = task!.chapas.filter((c) => c.status_contato !== "removido" && c.nome_chapa);
     if (ativos.length === 0) { toast.error("Nenhum ajudante nesta tarefa"); return; }
-    const lines = ativos.map((c) => linhaIdNomeTelefone(task!.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    const lines = ativos.map((c) => linhaIdNomeTelefone(idTarefaDoChapa(c, task!), c.nome_chapa, c.telefone_chapa));
     clipboardWrite(lines.join("\n"), `${ativos.length} ajudante(s) copiado(s) com ID da tarefa`);
   }
 
@@ -712,6 +716,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                     >
                       #{task.id_tarefa}
                     </button>
+                    <GrupoBadge grupo={task.grupo} onDesfazer={onDesfazerGrupo} sobreCor />
                   </div>
                   <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                     <span className="inline-flex items-center gap-1 text-xs text-white/85">
@@ -908,7 +913,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                   setSelectedKey={setSelectedKey}
                   lastDispatch={lastDispatchByChapa.get(c.id) ?? null}
                   fupLog={task.fup_log}
-                  taskSnap={{ id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null }}
+                  taskSnap={{ id_tarefa: idTarefaDoChapa(c, task), data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null }}
                   cancelTemplateReady={cancelTemplateReady}
                   taskCancelTemplateReady={taskCancelTemplateReady}
                   unreadPhones={unreadPhones}
@@ -965,6 +970,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
               <div className="border-t border-border mt-2">
                 <ValidationPanel
                   id_tarefa={task.id_tarefa}
+                  membros={task.grupo?.membros}
                   chapas={task.chapas}
                   validacao_status={(task.validacao_status ?? "aguardando") as import("@/components/ValidationStepper").ValidationStep}
                   data_validacao_recebida={task.data_validacao_recebida ?? null}
@@ -1051,7 +1057,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                             ? "border-success/40 bg-success/10 text-success hover:bg-success/20"
                             : "border-primary/50 bg-primary/10 text-primary hover:bg-primary/20"
                         }`}
-                        onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "fup", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
+                        onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "fup", selectedChapa as ChapaSnap, { id_tarefa: idTarefaDoChapa(selectedChapa, task), data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
                       >
                         {umblerEverSent ? <Check className="h-3 w-3" /> : <Send className="h-3 w-3" />}
                         {umblerEverSent ? `Enviado${umblerCount > 0 ? ` (${umblerCount}x)` : ""}` : "Enviar Umbler"}
@@ -1092,7 +1098,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                       <DropdownMenuItem
                         onClick={() =>
                           clipboardWrite(
-                            linhaIdNomeTelefone(task.id_tarefa, selectedChapa.nome_chapa, selectedChapa.telefone_chapa),
+                            linhaIdNomeTelefone(idTarefaDoChapa(selectedChapa, task), selectedChapa.nome_chapa, selectedChapa.telefone_chapa),
                             "ID da tarefa, nome e telefone copiados",
                           )
                         }
@@ -1115,7 +1121,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                       {selectedChapa.telefone_chapa && (cancelTemplateReady || everSentCancel) && (
                         <DropdownMenuItem
                           disabled={chapaPendingAction === "fup"}
-                          onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
+                          onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel", selectedChapa as ChapaSnap, { id_tarefa: idTarefaDoChapa(selectedChapa, task), data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
                         >
                           <UserMinus className="h-3.5 w-3.5 mr-1.5 opacity-60" />
                           {everSentCancel ? `Notificar sem resposta${cancelCount > 0 ? ` (${cancelCount}x)` : ""} — reenviar` : "Notificar sem resposta"}
@@ -1124,7 +1130,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                       {selectedChapa.telefone_chapa && (taskCancelTemplateReady || everSentTask) && (
                         <DropdownMenuItem
                           disabled={chapaPendingAction === "fup"}
-                          onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel_task", selectedChapa as ChapaSnap, { id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
+                          onClick={() => dispatchQueue.startChapaJob(selectedChapa.id, "cancel_task", selectedChapa as ChapaSnap, { id_tarefa: idTarefaDoChapa(selectedChapa, task), data_tarefa: task.data_tarefa, empresa: task.empresa, cidade_uf: task.cidade_uf ?? null })}
                           className="text-destructive focus:text-destructive focus:bg-destructive/10"
                         >
                           <XCircle className="h-3.5 w-3.5 mr-1.5 opacity-60" />

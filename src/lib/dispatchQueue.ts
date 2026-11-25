@@ -45,6 +45,9 @@ export type ActiveJob = {
 
 export type ChapaSnap = {
   id: string;
+  // Tarefa de origem do chapa. No card de GRUPO (lib/agrupamentoTarefas.ts) os chapas vêm de tarefas
+  // diferentes e cada registro (Central, fup_log, chat link) tem que ir pra tarefa DELE, não pra líder.
+  id_tarefa?: number | null;
   nome_chapa: string | null;
   telefone_chapa: string | null;
   status_contato: string;
@@ -297,7 +300,7 @@ class DispatchQueue {
         sent++;
         sentIds.push(chapa.id);
         pushDispatchEventToCentral({
-          id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          id_tarefa: chapa.id_tarefa ?? taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
           nome_chapa: chapa.nome_chapa, canal: "umbler_custom", observacao: "Mensagem personalizada",
         });
       } catch (e) {
@@ -321,7 +324,7 @@ class DispatchQueue {
         for (const id of sentIds) {
           await db.execute(
             "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id) VALUES (?, ?, ?, ?, ?, ?)",
-            [uuid(), taskId, "umbler_custom", now, `"${preview}"${operador}`, id],
+            [uuid(), chapas.find((c) => c.id === id)?.id_tarefa ?? taskId, "umbler_custom", now, `"${preview}"${operador}`, id],
           );
         }
       }
@@ -487,7 +490,7 @@ class DispatchQueue {
         sentIds.push(chapa.id);
         sentChatIds.set(chapa.id, chatId);
         pushDispatchEventToCentral({
-          id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          id_tarefa: chapa.id_tarefa ?? taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
           nome_chapa: chapa.nome_chapa, canal: isD1 ? "umbler_prefup" : "umbler_talk", observacao: "FUP em massa",
         });
         await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
@@ -525,7 +528,7 @@ class DispatchQueue {
             sentIds.push(chapa.id);
             sentChatIds.set(chapa.id, chatId);
             pushDispatchEventToCentral({
-              id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+              id_tarefa: chapa.id_tarefa ?? taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
               nome_chapa: chapa.nome_chapa, canal: "umbler_talk", observacao: "FUP em massa (reenvio)",
             });
             await this._markCanalContato(chapa.id); // marca já — fecha a corrida com a resposta
@@ -564,13 +567,13 @@ class DispatchQueue {
         for (const id of sentIds) {
           const chatId = sentChatIds.get(id) ?? null;
           if (!chatId) continue;
+          const chapaRef = chapas.find((c) => c.id === id);
           await db.execute(
             "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id, aguarda_resposta_chat) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [uuid(), taskId, "umbler_talk", now, "Disparado via API (massa)", id, chatId, isD1 ? 1 : 0],
+            [uuid(), chapaRef?.id_tarefa ?? taskId, "umbler_talk", now, "Disparado via API (massa)", id, chatId, isD1 ? 1 : 0],
           );
-          const chapaRef = chapas.find((c) => c.id === id);
           upsertChatLink({
-            id_tarefa: taskId, telefone_chapa: chapaRef?.telefone_chapa ?? null, cpf: null,
+            id_tarefa: chapaRef?.id_tarefa ?? taskId, telefone_chapa: chapaRef?.telefone_chapa ?? null, cpf: null,
             nome_chapa: chapaRef?.nome_chapa ?? null, umbler_chat_id: chatId, canal: "umbler_talk",
           });
         }
@@ -651,7 +654,7 @@ class DispatchQueue {
         sent++;
         sentChatIds.set(chapa.id, chatId);
         pushDispatchEventToCentral({
-          id_tarefa: taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
+          id_tarefa: chapa.id_tarefa ?? taskId, telefone_chapa: chapa.telefone_chapa, cpf: null,
           nome_chapa: chapa.nome_chapa, canal: "umbler_cancelamento_geral", observacao: "Cancelamento geral",
         });
       } catch {
@@ -668,13 +671,13 @@ class DispatchQueue {
       try { await db.execute("ALTER TABLE fup_log ADD COLUMN umbler_chat_id TEXT"); } catch { /* exists */ }
       for (const [chapaId, chatId] of sentChatIds) {
         if (!chatId) continue;
+        const chapaRef = chapas.find((c) => c.id === chapaId);
         await db.execute(
           "INSERT INTO fup_log (id, id_tarefa, canal, data_disparo, observacao, chapa_id, umbler_chat_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [uuid(), taskId, "umbler_cancelamento_geral", now, "Cancelamento geral — disparado via API", chapaId, chatId],
+          [uuid(), chapaRef?.id_tarefa ?? taskId, "umbler_cancelamento_geral", now, "Cancelamento geral — disparado via API", chapaId, chatId],
         );
-        const chapaRef = chapas.find((c) => c.id === chapaId);
         upsertChatLink({
-          id_tarefa: taskId, telefone_chapa: chapaRef?.telefone_chapa ?? null, cpf: null,
+          id_tarefa: chapaRef?.id_tarefa ?? taskId, telefone_chapa: chapaRef?.telefone_chapa ?? null, cpf: null,
           nome_chapa: chapaRef?.nome_chapa ?? null, umbler_chat_id: chatId, canal: "umbler_cancelamento_geral",
         });
       }

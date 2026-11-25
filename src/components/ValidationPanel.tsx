@@ -26,8 +26,20 @@ type Chapa = {
   data_validacao?: string | null;
 };
 
+// Tarefa de um card de GRUPO (lib/agrupamentoTarefas.ts): a validação é por tarefa, então "validação
+// recebida" e "subido no Meu Chapa" valem pra todas as do grupo (quem já subiu não volta atrás).
+type MembroDoGrupo = {
+  id_tarefa: number;
+  validacao_status?: string | null;
+  data_validacao_recebida?: string | null;
+  data_upload_meu_chapa?: string | null;
+  obs_validacao?: string | null;
+};
+
 type Props = {
   id_tarefa: number;
+  /** só no card de grupo */
+  membros?: MembroDoGrupo[];
   chapas: Chapa[];
   validacao_status: ValidationStep;
   data_validacao_recebida: string | null;
@@ -38,6 +50,7 @@ type Props = {
 
 export function ValidationPanel({
   id_tarefa,
+  membros,
   chapas,
   validacao_status,
   data_validacao_recebida,
@@ -150,15 +163,23 @@ export function ValidationPanel({
     onRefresh();
   }
 
+  // Tarefas que a ação atinge (e o estado anterior de cada uma, pro desfazer). Tarefa única: só ela.
+  const alvos: MembroDoGrupo[] =
+    membros && membros.length > 1
+      ? membros
+      : [{ id_tarefa, validacao_status, data_validacao_recebida, data_upload_meu_chapa, obs_validacao }];
+
   async function markReceived() {
-    const prevStatus = validacao_status;
-    const prevDate = data_validacao_recebida;
+    const afetadas = alvos.length > 1 ? alvos.filter((m) => m.validacao_status !== "subido_meu_chapa") : alvos;
+    const now = new Date().toISOString();
     try {
       const db = await getDb();
-      await db.execute(
-        "UPDATE tarefas SET validacao_status = 'validacao_recebida', data_validacao_recebida = ? WHERE id_tarefa = ?",
-        [new Date().toISOString(), id_tarefa],
-      );
+      for (const m of afetadas) {
+        await db.execute(
+          "UPDATE tarefas SET validacao_status = 'validacao_recebida', data_validacao_recebida = ? WHERE id_tarefa = ?",
+          [now, m.id_tarefa],
+        );
+      }
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -167,10 +188,12 @@ export function ValidationPanel({
       label: "marcar validação recebida",
       revert: async () => {
         const db = await getDb();
-        await db.execute(
-          "UPDATE tarefas SET validacao_status = ?, data_validacao_recebida = ? WHERE id_tarefa = ?",
-          [prevStatus, prevDate, id_tarefa],
-        );
+        for (const m of afetadas) {
+          await db.execute(
+            "UPDATE tarefas SET validacao_status = ?, data_validacao_recebida = ? WHERE id_tarefa = ?",
+            [m.validacao_status ?? null, m.data_validacao_recebida ?? null, m.id_tarefa],
+          );
+        }
       },
       onReverted: onRefresh,
     });
@@ -179,15 +202,16 @@ export function ValidationPanel({
   }
 
   async function confirmUpload() {
-    const prevStatus = validacao_status;
-    const prevUpload = data_upload_meu_chapa;
-    const prevObs = obs_validacao;
+    const afetadas = alvos.length > 1 ? alvos.filter((m) => m.validacao_status !== "subido_meu_chapa") : alvos;
+    const now = new Date().toISOString();
     try {
       const db = await getDb();
-      await db.execute(
-        "UPDATE tarefas SET validacao_status = 'subido_meu_chapa', data_upload_meu_chapa = ?, obs_validacao = ? WHERE id_tarefa = ?",
-        [new Date().toISOString(), uploadObs || null, id_tarefa],
-      );
+      for (const m of afetadas) {
+        await db.execute(
+          "UPDATE tarefas SET validacao_status = 'subido_meu_chapa', data_upload_meu_chapa = ?, obs_validacao = ? WHERE id_tarefa = ?",
+          [now, uploadObs || null, m.id_tarefa],
+        );
+      }
     } catch (e) {
       toast.error(errMsg(e));
       return;
@@ -196,10 +220,12 @@ export function ValidationPanel({
       label: "subir no Meu Chapa",
       revert: async () => {
         const db = await getDb();
-        await db.execute(
-          "UPDATE tarefas SET validacao_status = ?, data_upload_meu_chapa = ?, obs_validacao = ? WHERE id_tarefa = ?",
-          [prevStatus, prevUpload, prevObs, id_tarefa],
-        );
+        for (const m of afetadas) {
+          await db.execute(
+            "UPDATE tarefas SET validacao_status = ?, data_upload_meu_chapa = ?, obs_validacao = ? WHERE id_tarefa = ?",
+            [m.validacao_status ?? null, m.data_upload_meu_chapa ?? null, m.obs_validacao ?? null, m.id_tarefa],
+          );
+        }
       },
       onReverted: onRefresh,
     });

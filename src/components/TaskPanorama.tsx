@@ -7,6 +7,7 @@ import {
   Moon,
   ChevronRight,
   Download,
+  Layers,
 } from "lucide-react";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { type TaskWithChapas, UnreadDot, fmtElapsed } from "./TaskCard";
@@ -32,6 +33,8 @@ type Props = {
   tasks: TaskWithChapas[];
   overnightTasks?: TaskWithChapas[];
   onRefresh: () => void;
+  // Só no card de grupo: o analista separa as tarefas (ver lib/agrupamentoTarefas.ts).
+  onDesfazerGrupo?: (ids: number[]) => void;
   threshold: number;
   autoOpenTaskId?: number;
   autoRemoveChapaName?: string;
@@ -40,7 +43,7 @@ type Props = {
 // Colunas do Panorama: a da empresa tem piso (nunca some em tela estreita) e a tabela rola se não couber.
 const PANORAMA_COLUNAS = "76px minmax(160px, 1fr) minmax(120px, 190px) 100px 80px 28px";
 
-export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold, autoOpenTaskId, autoRemoveChapaName }: Props) {
+export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, onDesfazerGrupo, threshold, autoOpenTaskId, autoRemoveChapaName }: Props) {
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -49,7 +52,11 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
 
   const allForLookup = [...overnightTasks, ...tasks];
   const selectedTask =
-    selectedId != null ? allForLookup.find((t) => t.id_tarefa === selectedId) ?? null : null;
+    selectedId != null
+      ? allForLookup.find((t) => t.id_tarefa === selectedId) ??
+        allForLookup.find((t) => t.grupo?.ids.includes(selectedId)) ?? // link de notificação pra tarefa que está dentro de um grupo
+        null
+      : null;
 
   // Efeito colateral (não visual): abrir a tarefa vinda de uma notificação de
   // remoção já marca o chapa correspondente como removido — antes vivia
@@ -157,6 +164,7 @@ export function TaskPanorama({ tasks, overnightTasks = [], onRefresh, threshold,
         open={selectedId !== null}
         onClose={() => setSelectedId(null)}
         onRefresh={onRefresh}
+        onDesfazerGrupo={onDesfazerGrupo}
         orderedIds={allForLookup.map((t) => t.id_tarefa)}
         onNavigateTask={(id) => setSelectedId(id)}
       />
@@ -286,6 +294,15 @@ function PanoramaRow({
           >
             {task.empresa.toLowerCase()}
           </span>
+          {task.grupo && (
+            <span
+              title={`${task.grupo.ids.length} tarefas do mesmo cliente, endereço e horário reunidas (${task.grupo.ids.map((i) => "#" + i).join(", ")})`}
+              className="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded border border-info/40 bg-info/10 text-info shrink-0"
+            >
+              <Layers className="h-3 w-3" aria-hidden="true" />
+              {task.grupo.ids.length} tarefas
+            </span>
+          )}
           {estaEmOferta(task) && <OfertaBadge chapa={task.chapa_em_oferta} compacto />}
         </div>
         <div

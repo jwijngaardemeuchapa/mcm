@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useEffect, useCallback } from "react";
 import { type TaskWithChapas, UnreadDot, fmtElapsed } from "./TaskCard";
 import { fmtSP, todayDateISO_SP, nowSP } from "@/lib/datetime";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
-import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed, Hourglass, Package, Tag, AlertTriangle, Info } from "lucide-react";
+import { Building2, Clock, Users, CheckCircle2, BadgeCheck, LocateFixed, Hourglass, Package, Tag, AlertTriangle, Info, Layers } from "lucide-react";
 import { estaEmOferta, textoOuNulo } from "@/lib/tarefaExtras";
 import { computeTaskState, taskSeverityBlockClass, severityLabel } from "@/lib/taskState";
 import { readSettings } from "@/lib/settings";
@@ -198,6 +198,12 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                     <div className="text-[11px] flex items-center gap-1 opacity-90 whitespace-nowrap">
                       <Users className="h-3 w-3 shrink-0" />
                       {t.confirmados}/{t.totalVagas}
+                      {t.grupo && (
+                        <span className="inline-flex items-center gap-0.5 ml-1" title={`Grupo de ${t.grupo.ids.length} tarefas`}>
+                          <Layers className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          {t.grupo.ids.length} tarefas
+                        </span>
+                      )}
                     </div>
                   </button>
                 </TooltipTrigger>
@@ -205,6 +211,11 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                   <div className="font-bold border-b border-border/50 pb-1 mb-1">{t.empresa}</div>
                   <div className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> {fmtSP(t.data_tarefa, "HH:mm")}</div>
                   <div className="flex items-center gap-1.5"><Building2 className="h-3 w-3" /> {t.cidade_uf || "N/A"}</div>
+                  {t.grupo && (
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <Layers className="h-3 w-3 shrink-0" /> Grupo de {t.grupo.ids.length} tarefas ({t.grupo.ids.map((i) => `#${i}`).join(", ")})
+                    </div>
+                  )}
                   {severityLabel(t.severity) && !t.concluida && (
                     <div className="flex items-center gap-1.5 font-medium"><Info className="h-3 w-3 shrink-0" /> {severityLabel(t.severity)}</div>
                   )}

@@ -91,6 +91,8 @@ import { aguardaReforcoDeFup, atualizarChapa, comFlagManual, confirmarManualEmLo
 import { emJanelaDeFup } from "@/lib/prefup";
 import { FasesChip } from "@/components/FasesChip";
 import { TarefaInfo } from "@/components/TarefaInfo";
+import { GrupoBadge } from "@/components/GrupoBadge";
+import { idTarefaDoChapa } from "@/lib/agrupamentoTarefas";
 import { linhaTipoRemessaPlanilha } from "@/lib/tarefaExtras";
 
 async function clipboardWrite(text: string, successMsg: string) {
@@ -134,8 +136,15 @@ export type TaskWithChapas = {
   em_oferta?: number | boolean | null;
   chapa_em_oferta?: string | null;
   criada_em?: string | null;
+  // Vínculo tarefa→endereço (Metabase, tabela tarefa_enderecos): base do agrupamento de tarefas iguais.
+  endereco_id?: string | null;
+  // Presente só no card de GRUPO (lib/agrupamentoTarefas.ts): tarefas do mesmo cliente + endereço +
+  // horário fundidas num card. `id_tarefa` do card é o da líder; cada chapa mantém o `id_tarefa` de origem.
+  grupo?: { ids: number[]; membros: TaskWithChapas[] };
   chapas: Array<{
     id: string;
+    // tarefa de origem do chapa (no card de grupo, cada chapa vem de uma tarefa diferente)
+    id_tarefa?: number | null;
     nome_chapa: string | null;
     telefone_chapa: string | null;
     cpf: string | null;
@@ -148,7 +157,7 @@ export type TaskWithChapas = {
     fup_confirmado_em?: string | null;
   }>;
   fup_log: Array<{
-    id: string; data_disparo: string; canal: string; observacao: string | null;
+    id: string; id_tarefa?: number | null; data_disparo: string; canal: string; observacao: string | null;
     chapa_id?: string | null; umbler_chat_id?: string | null;
     // 1 = PréFUP (template direto, fora da janela de bot — ver
     // isPrefupTemplateWindow em lib/prefup.ts), 0/null = FUP normal via bot.
@@ -234,6 +243,7 @@ function TaskCardBase({
   confiabilidade,
   cardsOrder,
   onNavigateCard,
+  onDesfazerGrupo,
 }: {
   task: TaskWithChapas;
   onRefresh: () => void;
@@ -248,6 +258,8 @@ function TaskCardBase({
   // funciona exatamente como antes, sem as setas.
   cardsOrder?: number[];
   onNavigateCard?: (targetId: number) => void;
+  // Só no card de grupo: o analista separa as tarefas (ver lib/agrupamentoTarefas.ts).
+  onDesfazerGrupo?: (ids: number[]) => void;
 }) {
   const navigate = useNavigate();
   useEffect(() => {
@@ -349,7 +361,7 @@ function TaskCardBase({
     }
     if (patch.status_contato === "confirmado") {
       enviarMensagemPosConfirmacao(
-        [{ idTarefa: task.id_tarefa, chapaId: chapa.id, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa, empresa: task.empresa }],
+        [{ idTarefa: idTarefaDoChapa(chapa, task), chapaId: chapa.id, nome: chapa.nome_chapa, telefone: chapa.telefone_chapa, empresa: task.empresa }],
         "manual",
       );
     }
@@ -397,7 +409,7 @@ function TaskCardBase({
       onReverted: onRefresh,
     });
     onRefresh();
-    const msg = `⚠️ Remoção sinalizada — Tarefa #${task.id_tarefa} | ${task.empresa} | ${fmtTime(task.data_tarefa)}
+    const msg = `⚠️ Remoção sinalizada — Tarefa #${idTarefaDoChapa(chapa, task)} | ${task.empresa} | ${fmtTime(task.data_tarefa)}
 Chapa removido: ${chapa.nome_chapa ?? "(sem nome)"} | Tel: ${chapa.telefone_chapa ?? "-"}
 Precisamos de 1 substituto para esta tarefa.`;
     toast(`${chapa.nome_chapa ?? "Chapa"} removido`, {
@@ -437,7 +449,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       return;
     }
     enviarMensagemPosConfirmacao(
-      targets.map((c) => ({ idTarefa: task.id_tarefa, chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa, empresa: task.empresa })),
+      targets.map((c) => ({ idTarefa: idTarefaDoChapa(c, task), chapaId: c.id, nome: c.nome_chapa, telefone: c.telefone_chapa, empresa: task.empresa })),
       "manual",
     );
     push({
@@ -560,7 +572,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       toast.error("Nenhum ajudante nesta tarefa");
       return;
     }
-    const lines = ativos.map((c) => linhaIdNomeTelefone(task.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    const lines = ativos.map((c) => linhaIdNomeTelefone(idTarefaDoChapa(c, task), c.nome_chapa, c.telefone_chapa));
     clipboardWrite(lines.join("\n"), `${ativos.length} ajudante(s) copiado(s) com ID da tarefa`);
   }
 
@@ -570,7 +582,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       toast.error("Nenhum confirmado ainda");
       return;
     }
-    const lines = confirmados.map((c) => linhaIdNomeTelefone(task.id_tarefa, c.nome_chapa, c.telefone_chapa));
+    const lines = confirmados.map((c) => linhaIdNomeTelefone(idTarefaDoChapa(c, task), c.nome_chapa, c.telefone_chapa));
     clipboardWrite(lines.join("\n"), `${confirmados.length} confirmado(s) copiado(s) com ID da tarefa`);
   }
 
@@ -911,6 +923,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 {task.empresa.toLowerCase()}
               </span>
               {isOvernight && <OvernightBadge />}
+              <GrupoBadge grupo={task.grupo} onDesfazer={onDesfazerGrupo} />
               <TarefaInfo t={task} />
               {autoFupActive && minUntilAutoFup !== null && (
                 <Tooltip>
@@ -1222,8 +1235,8 @@ Precisamos de 1 substituto para esta tarefa.`;
               <ChapaRowView
                 key={c.id}
                 chapa={c}
-                taskId={task.id_tarefa}
-                taskSnap={{ id_tarefa: task.id_tarefa, data_tarefa: task.data_tarefa, empresa: fupEmpresa }}
+                taskId={idTarefaDoChapa(c, task)}
+                taskSnap={{ id_tarefa: idTarefaDoChapa(c, task), data_tarefa: task.data_tarefa, empresa: fupEmpresa }}
                 newChapaKeys={newChapaKeys}
                 conf={lookupConfiabilidade(confiabilidade, c)}
                 fupLog={task.fup_log}
@@ -1592,6 +1605,7 @@ Precisamos de 1 substituto para esta tarefa.`;
       {realChapas.length > 0 && (
         <ValidationPanel
           id_tarefa={task.id_tarefa}
+          membros={task.grupo?.membros}
           chapas={task.chapas}
           validacao_status={vStatus}
           data_validacao_recebida={task.data_validacao_recebida ?? null}
