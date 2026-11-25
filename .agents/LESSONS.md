@@ -269,3 +269,15 @@ A 1ª correção do "clica e congela" (só o `Dashboard.load`) melhorou e não r
 ## 2026-11-16 — Release de correção: o ciclo continua o mesmo
 
 (1) Bump → push → `gh release create` com `.exe` + `.sig` → `latest.json` → push → verificar 200/302. (2) Um release de diagnóstico vale a pena quando o problema só se vê no ambiente do usuário: o app passa a mostrar a evidência (colunas recebidas) em vez de eu adivinhar.
+
+## 2026-11-25 — Antes de mexer, `git fetch`: outra sessão pode ter feito a mesma feature
+
+Comecei o dia com 2 commits locais da seção "Em análise" e o GitHub já tinha uma versão diferente da MESMA feature lançada (v1.0.78). Deu pra alinhar sem perda porque os commits ficaram em branches de backup — antes de `reset --hard`, sempre crie `backup/...`. Regra: fetch/pull no começo de TODA sessão (já era regra), e se local e origin divergirem, compare as duas versões antes de integrar.
+
+## 2026-11-25 — Agrupar itens na tela: não funda o dado, funda a apresentação
+
+(1) Mantenha as listas cruas (alarmes, exportações, notificações) por tarefa e agrupe só o que vai pra tela — o raio de impacto fica em poucas funções. (2) O que cada linha filha grava no banco (FUP, log, chat link, evento da Central) precisa carregar o id da tarefa DE ORIGEM; na hora do disparo em massa a tarefa "dona" do card é só a líder. (3) Ações por tarefa (validação, subir no Meu Chapa) viram um loop sobre os membros, e o desfazer restaura o estado anterior de CADA um. (4) Card sintético novo a cada recarga de 30 s derruba o memo de centenas de cards: cache por conjunto de membros devolve o mesmo objeto. (5) Botão dentro de botão é HTML inválido: onde o cabeçalho inteiro é um botão (BID), o selo é só texto e a ação "Desfazer" vai no corpo. (6) Teste de atribuição só vale se falhar sem a correção: confira com `git stash` do arquivo.
+
+## 2026-11-25 — "O botão sumiu depois de X" pode ser "ele nunca existiu onde eu estou"
+
+O "Busca Chapa" só existia numa aba do card; o analista trocou de aba pra disparar e achou que sumiu. Quando um controle é ação da tarefa (e não da aba), ele não deve depender da aba. E uma ação que só tem efeito visível numa aba precisa levar o usuário pra lá (aqui: importar → ir pra "Disponíveis").

@@ -1,5 +1,9 @@
 # Handoff — Jeremiah / claude
 
+**ATUALIZAÇÃO 2026-11-25 (mais recente):** em `main`, SEM release: (1) **agrupamento de tarefas do mesmo cliente/endereço/horário** no FUP Dashboard (Cards/Panorama/Timeline) e no BID — interruptor "Agrupar iguais" (ligado por padrão), selo "Grupo · N tarefas" com "Desfazer grupo"; (2) **fix do "Busca Chapa"** (botão agora nas 6 abas do card do BID). Ver JOURNAL de hoje. **Sincronizei antes de mexer:** a main estava atrás do GitHub (v1.0.78 de outra sessão, com a própria seção "Em análise"); meus commits duplicados da seção ficaram em `backup/em-analise-main` e `backup/em-analise-beta`. **Próximo:** validar com um cliente real "uma tarefa por chapa" (depende do vínculo `tarefa_enderecos` pro endereço; sem ele agrupa por cidade), decidir se "ligado por padrão" fica, portar pra beta, e lançar só se o usuário pedir (main v1.0.79). Se o analista viu o "Busca Chapa" sumir ESTANDO em "Disponíveis", reabrir o bug — não consegui reproduzir ali.
+
+---
+
 **ATUALIZAÇÃO 2026-11-23 (mais recente):** **v1.0.78 publicada, assinada e verificada** (substitui a nota "sem release ainda" logo abaixo). Pendências em aberto estão listadas no JOURNAL de hoje (entrada "Release v1.0.78").
 
 **ATUALIZAÇÃO 2026-11-23 (mais recente):** em `main`, SEM release ainda: seção "Em análise" (3 visões), fix dos grupos G3/G4 da carteira, painel Emergente/Urgente removido — ver JOURNAL de hoje. Pendentes: (1) usuário/outro projeto incluir "Data de Criação" no card 1290/1289 do Metabase (hoje a seção mostra "—"); (2) confirmar com dado real se o bug G3/G4 sumiu — se não, pedir 2 nomes de empresa afetados + grupo de cada (outras causas: sync de carteira mantém grupo antigo, empresa fixada); (3) decidir o que mais da sinalização de urgência sai (AlertBanner "Urgente", cores de severidade, briefing de abertura); (4) migração da Central pro Supabase segue pendente (ver entrada de 2026-10-24). Main está na v1.0.77.
