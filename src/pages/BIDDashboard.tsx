@@ -80,8 +80,17 @@ import {
   PhoneCall,
   Star,
 } from "lucide-react";
-import { Hourglass } from "lucide-react";
+import { Hourglass, Layers } from "lucide-react";
 import { TarefaInfo } from "@/components/TarefaInfo";
+import { GrupoBadge } from "@/components/GrupoBadge";
+import {
+  agruparTarefasSimples,
+  gravarAgruparAtivo,
+  gravarDesfeitos,
+  idsDoCard,
+  lerAgruparAtivo,
+  lerDesfeitos,
+} from "@/lib/agrupamentoTarefas";
 import { estaEmOferta, textoOuNulo } from "@/lib/tarefaExtras";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { BidMatchmaker } from "@/components/BidMatchmaker";
@@ -165,6 +174,11 @@ export type OpenTask = {
   tipo_trabalho?: string | null;
   em_oferta?: number | null;
   chapa_em_oferta?: string | null;
+  // Vínculo tarefa→endereço (tarefa_enderecos): base do agrupamento de tarefas iguais.
+  endereco_id?: string | null;
+  // Só no card de GRUPO (lib/agrupamentoTarefas.ts): tarefas do mesmo cliente + endereço + horário
+  // reunidas; vagas e alocados são a soma. `id_tarefa` do card é o da líder.
+  grupo?: { ids: number[]; membros: OpenTask[] };
 };
 
 export type ClienteAddress = {
@@ -523,6 +537,7 @@ function BidTaskCard({
   forceExpand,
   onDidExpand,
   onOpenExtras,
+  onDesfazerGrupo,
 }: {
   task: OpenTask;
   disparos: BidDisparo[];
@@ -533,7 +548,12 @@ function BidTaskCard({
   forceExpand?: boolean;
   onDidExpand?: () => void;
   onOpenExtras: (task: OpenTask) => void;
+  // Só no card de grupo: o analista separa as tarefas.
+  onDesfazerGrupo?: (ids: number[]) => void;
 }) {
+  // Tarefas que este card representa (1 se não for grupo): os disparos e as vagas valem pro conjunto.
+  const idsDoGrupo = idsDoCard(task);
+  const idsKey = idsDoGrupo.join(",");
   const [expanded, setExpanded] = useState(initialExpanded);
   // MCM-159: ponto vermelho didático em chapas disponíveis com mensagem nova
   // no Umbler — mesmo padrão visual de TaskCard/TaskDetailPanel/Panorama/Timeline.
@@ -656,8 +676,9 @@ function BidTaskCard({
   }, [forceExpand, onDidExpand]);
 
   const taskDisparos = useMemo(
-    () => disparos.filter((d) => d.id_tarefa === task.id_tarefa),
-    [disparos, task.id_tarefa],
+    () => disparos.filter((d) => idsDoGrupo.includes(d.id_tarefa)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [disparos, idsKey],
   );
 
   // Respostas ordenadas por prioridade de ação (interesse/aceite no topo → aguardando no fim),
@@ -859,9 +880,9 @@ function BidTaskCard({
             FROM chapas c
             JOIN tarefas t ON c.id_tarefa = t.id_tarefa
             WHERE substr(t.data_tarefa, 1, 10) = ? AND c.status_contato != 'removido'
-            AND c.nome_chapa IS NOT NULL AND t.id_tarefa != ?
+            AND c.nome_chapa IS NOT NULL AND t.id_tarefa NOT IN (${idsDoGrupo.map(() => "?").join(",")})
             ORDER BY c.nome_chapa ASC
-          `, [taskDate, task.id_tarefa]),
+          `, [taskDate, ...idsDoGrupo]),
           db.select<{ telefone: string }[]>(
             "SELECT telefone FROM chapas_novos WHERE telefone IS NOT NULL",
           ).catch(() => []),
@@ -964,7 +985,7 @@ function BidTaskCard({
       } catch { /* silencioso */ }
       finally { setCandidatesLoading(false); }
     })();
-  }, [expanded, task.id_tarefa, task.cidade_uf, task.data_tarefa, candReloadKey]); // eslint-disable-line
+  }, [expanded, task.id_tarefa, idsKey, task.cidade_uf, task.data_tarefa, candReloadKey]); // eslint-disable-line
 
   // Load blocked chapas lazily when the "Bloqueados" tab is first opened
   useEffect(() => {
@@ -1533,7 +1554,7 @@ function BidTaskCard({
       esperar: captacaoWait,
       deveParar: async () =>
         captacaoAbortRef.current ||
-        (!!opcoes.pararSeTarefaPreenchida && (await tarefaPreenchida(task.id_tarefa, task.quantidade_chapas))),
+        (!!opcoes.pararSeTarefaPreenchida && (await tarefaPreenchida(idsDoGrupo, task.quantidade_chapas))),
     });
     if (r.parou) {
       toast.info(
@@ -1595,6 +1616,7 @@ function BidTaskCard({
           dataParam: dispatchParams.dataParam,
         },
         quantidadeChapas: task.quantidade_chapas,
+        taskIds: idsDoGrupo,
       });
       // Espera o batch de BID (todas as levas) terminar ANTES de começar a
       // Captação — sem isso os dois rodavam em paralelo (startBatch é
@@ -1652,6 +1674,7 @@ function BidTaskCard({
         dataParam: dispatchParams.dataParam,
       },
       quantidadeChapas: task.quantidade_chapas,
+      taskIds: idsDoGrupo,
     });
     if (started) setSelectedIds(new Set());
   }
@@ -1970,6 +1993,15 @@ function BidTaskCard({
               </div>
             );
           })()}
+          {task.grupo && (
+            <span
+              title={`${task.grupo.ids.length} tarefas do mesmo cliente, endereço e horário reunidas (${task.grupo.ids.map((i) => "#" + i).join(", ")}). As vagas somam.`}
+              className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-info/40 bg-info/10 text-info shrink-0"
+            >
+              <Layers className="h-2.5 w-2.5" aria-hidden="true" />
+              Grupo · {task.grupo.ids.length} tarefas
+            </span>
+          )}
           {task.status_tarefa === "Em Análise" && (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border shrink-0">
               Em Análise
@@ -2002,6 +2034,16 @@ function BidTaskCard({
 
       {expanded && (
         <>
+          {/* ── Grupo: tarefas reunidas neste card ── */}
+          {task.grupo && (
+            <div className="mx-4 mt-3 flex items-center gap-2 flex-wrap rounded-lg border border-info/30 bg-info/5 px-3 py-2">
+              <GrupoBadge grupo={task.grupo} onDesfazer={onDesfazerGrupo} />
+              <p className="text-xs text-muted-foreground flex-1 min-w-[200px]">
+                {vagas} vaga{vagas !== 1 ? "s" : ""} em aberto somando as {task.grupo.ids.length} tarefas. O disparo vale pro grupo todo
+                e para sozinho quando todas as vagas fecham.
+              </p>
+            </div>
+          )}
           {/* ── Em oferta: já existe um chapa dirigido ── */}
           {estaEmOferta(task) && (
             <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5">
@@ -3338,6 +3380,9 @@ export default function BIDDashboard() {
   const [extrasForTask, setExtrasForTask] = useState<OpenTask | null>(null);
   const [extrasActivatedForTask, setExtrasActivatedForTask] = useState<number | null>(null);
   const [expandTaskId, setExpandTaskId] = useState<number | null>(null);
+  // Agrupar tarefas do mesmo cliente + endereço + horário (mesma preferência do FUP Dashboard)
+  const [agruparAtivo, setAgruparAtivo] = useState<boolean>(lerAgruparAtivo);
+  const [tarefasDesfeitas, setTarefasDesfeitas] = useState<Set<number>>(lerDesfeitos);
   const [respostasClearedAt, setRespostasClearedAt] = useState<number>(() => {
     const v = localStorage.getItem("bid_respostas_cleared_at");
     return v ? Number(v) : 0;
@@ -3468,10 +3513,17 @@ export default function BIDDashboard() {
       setCarteiraFilterInfo(carteiraFilterActive
         ? { gruposAtivos, activeCount: namesByFilter.length, totalCount: allCarteiraNames.length, fallback: namesByFilter.length === 0 }
         : null);
-      const withVagas = tasks.filter((t) => {
-        if (carteiraNames.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
-        return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;
-      });
+      // Vínculo tarefa→endereço: "mesmo endereço" no agrupamento de tarefas iguais (sem ele, a cidade).
+      const enderecoPorTarefa = await db.select<{ id_tarefa: number; metabase_address_id: string }[]>(
+        "SELECT id_tarefa, metabase_address_id FROM tarefa_enderecos",
+      ).then((r) => new Map(r.map((x) => [x.id_tarefa, String(x.metabase_address_id)] as const)))
+        .catch(() => new Map<number, string>());
+      const withVagas = tasks
+        .filter((t) => {
+          if (carteiraNames.length > 0 && !companyMatches(t.empresa, carteiraNames)) return false;
+          return t.quantidade_chapas > t.alocados || t.quantidade_chapas === 0;
+        })
+        .map((t) => ({ ...t, endereco_id: enderecoPorTarefa.get(t.id_tarefa) ?? null }));
       setRegistryCount(cntRows[0]?.cnt ?? 0);
       setOpenTasks(withVagas);
       setDisparos(disp);
@@ -3599,9 +3651,29 @@ export default function BIDDashboard() {
     d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   })();
-  const todayCount = openTasks.filter((t) => fmtSP(t.data_tarefa, "yyyy-MM-dd") === todayStr).length;
-  const tomorrowCount = openTasks.filter((t) => fmtSP(t.data_tarefa, "yyyy-MM-dd") === tomorrowStr).length;
-  const filteredTasks = openTasks.filter((t) => {
+  const tarefasAbertas = useMemo(
+    () => (agruparAtivo ? agruparTarefasSimples(openTasks, tarefasDesfeitas) : openTasks),
+    [openTasks, agruparAtivo, tarefasDesfeitas],
+  );
+  const gruposNaTela = tarefasAbertas.filter((t) => !!t.grupo).length;
+  function alternarAgrupar() {
+    setAgruparAtivo((v) => {
+      gravarAgruparAtivo(!v);
+      return !v;
+    });
+  }
+  const desfazerGrupo = useCallback((ids: number[]) => {
+    setTarefasDesfeitas((atual) => {
+      const novo = new Set(atual);
+      ids.forEach((id) => novo.add(id));
+      gravarDesfeitos(novo);
+      return novo;
+    });
+    toast.success("Grupo desfeito — as tarefas voltaram a aparecer separadas");
+  }, []);
+  const todayCount = tarefasAbertas.filter((t) => fmtSP(t.data_tarefa, "yyyy-MM-dd") === todayStr).length;
+  const tomorrowCount = tarefasAbertas.filter((t) => fmtSP(t.data_tarefa, "yyyy-MM-dd") === tomorrowStr).length;
+  const filteredTasks = tarefasAbertas.filter((t) => {
     const d = fmtSP(t.data_tarefa, "yyyy-MM-dd");
     return selectedDay === "today" ? d === todayStr : d === tomorrowStr;
   });
@@ -3796,6 +3868,23 @@ export default function BIDDashboard() {
                   </button>
                 )}
               </div>
+              <button
+                type="button"
+                aria-pressed={agruparAtivo}
+                onClick={alternarAgrupar}
+                title="Junta num card só as tarefas do mesmo cliente, endereço e horário (clientes que lançam uma tarefa por chapa). As vagas somam."
+                className={`h-9 px-3 inline-flex items-center gap-1.5 rounded-md border text-xs transition-colors ${
+                  agruparAtivo
+                    ? "bg-info/15 text-info border-info/40 hover:bg-info/25"
+                    : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                Agrupar iguais
+                {agruparAtivo && gruposNaTela > 0 && (
+                  <span className="px-1 rounded bg-info/20 text-[11px] font-semibold tabular-nums">{gruposNaTela}</span>
+                )}
+              </button>
               {cidades.length > 2 && (
                 <Select value={cidadeFilter} onValueChange={setCidadeFilter}>
                   <SelectTrigger className="h-9 w-[160px] text-xs">
@@ -3895,12 +3984,13 @@ export default function BIDDashboard() {
                       task={t}
                       disparos={disparos}
                       onDisparoStatusUpdate={updateDisparoStatus}
-                      initialExpanded={t.id_tarefa === autoExpandId}
+                      initialExpanded={autoExpandId != null && idsDoCard(t).includes(autoExpandId)}
                       leoCache={leoCache.size > 0 ? leoCache : undefined}
-                      focusExtras={extrasActivatedForTask === t.id_tarefa}
-                      forceExpand={expandTaskId === t.id_tarefa}
+                      focusExtras={extrasActivatedForTask != null && idsDoCard(t).includes(extrasActivatedForTask)}
+                      forceExpand={expandTaskId != null && idsDoCard(t).includes(expandTaskId)}
                       onDidExpand={() => setExpandTaskId(null)}
                       onOpenExtras={setExtrasForTask}
+                      onDesfazerGrupo={desfazerGrupo}
                     />
                   ))}
                 </div>

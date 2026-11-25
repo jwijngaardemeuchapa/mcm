@@ -19,16 +19,20 @@ const ORDEM_VALIDACAO = ["aguardando", "pendente", "validacao_recebida", "subido
 type Chapa = { id: string; id_tarefa?: number } & Record<string, unknown>;
 type Disparo = { data_disparo: string } & Record<string, unknown>;
 
-/** O que o agrupamento precisa saber de um card. O card do Dashboard (TaskWithChapas) cabe aqui. */
-export type CardAgrupavel = {
-  id_tarefa: number;
+/** O mínimo pra decidir se duas tarefas são "a mesma": cliente, endereço, horário e status. */
+export type ChaveAgrupavel = {
   data_tarefa: string;
   empresa: string;
   cidade_uf: string | null;
   status_tarefa: string;
-  quantidade_chapas: number;
   /** vínculo tarefa→endereço (Metabase). Sem ele, o endereço é a cidade. */
   endereco_id?: string | null;
+};
+
+/** O que o agrupamento precisa saber de um card. O card do Dashboard (TaskWithChapas) cabe aqui. */
+export type CardAgrupavel = ChaveAgrupavel & {
+  id_tarefa: number;
+  quantidade_chapas: number;
   is_overnight?: boolean | null;
   validacao_status?: string | null;
   data_validacao_recebida?: string | null;
@@ -59,7 +63,7 @@ export type InfoGrupo<T> = {
 export type CardDeGrupo<T extends CardAgrupavel> = T & { grupo: InfoGrupo<T> };
 
 /** Tarefa do mesmo cliente + endereço + horário (+ "em análise" separado das aprovadas). */
-export function chaveDeAgrupamento(t: CardAgrupavel): string {
+export function chaveDeAgrupamento(t: ChaveAgrupavel): string {
   const empresa = normalize(t.empresa ?? "").replace(/\s+/g, " ").trim();
   const endereco = t.endereco_id ? `end:${t.endereco_id}` : `cid:${normalize(t.cidade_uf ?? "").replace(/\s+/g, " ").trim()}`;
   const quando = fmtSP(t.data_tarefa, "yyyy-MM-dd HH:mm");
@@ -141,6 +145,67 @@ export function fundirTarefas<T extends CardAgrupavel>(membros: T[]): CardDeGrup
     continuingFromYesterday: membros.some((m) => !!m.continuingFromYesterday),
     grupo: { ids: membros.map((m) => m.id_tarefa), membros },
   } as CardDeGrupo<T>;
+}
+
+// ---- agrupamento "simples" (BID): tarefas abertas sem chapas/FUP no objeto, só vagas ----
+
+/** Tarefa da lista do BID: só números de vagas, sem os chapas (o card carrega isso sozinho). */
+export type TarefaSimples = ChaveAgrupavel & {
+  id_tarefa: number;
+  quantidade_chapas: number;
+  alocados?: number;
+  remessa?: string | null;
+  tipo_trabalho?: string | null;
+  em_oferta?: number | boolean | null;
+  chapa_em_oferta?: string | null;
+};
+
+/**
+ * Agrupa tarefas abertas do BID: vagas e alocados SOMAM, a líder (menor id) dá o rosto do card.
+ * Quem não tem par fica como está (mesma referência). `desfeitos` = tarefas tiradas do agrupamento.
+ */
+export function agruparTarefasSimples<T extends TarefaSimples>(
+  lista: T[],
+  desfeitos: ReadonlySet<number>,
+): Array<T & { grupo?: InfoGrupo<T> }> {
+  const porChave = new Map<string, T[]>();
+  for (const t of lista) {
+    if (desfeitos.has(t.id_tarefa)) continue;
+    const k = chaveDeAgrupamento(t);
+    const g = porChave.get(k);
+    if (g) g.push(t);
+    else porChave.set(k, [t]);
+  }
+  const cardDoGrupo = new Map<string, T & { grupo: InfoGrupo<T> }>();
+  for (const [chave, membros] of porChave) {
+    if (membros.length < 2) continue;
+    const m = [...membros].sort((a, b) => a.id_tarefa - b.id_tarefa);
+    const nomesEmOferta = unicos(m.map((x) => x.chapa_em_oferta));
+    cardDoGrupo.set(chave, {
+      ...m[0],
+      quantidade_chapas: m.reduce((soma, x) => soma + (x.quantidade_chapas || 0), 0),
+      alocados: m.reduce((soma, x) => soma + (x.alocados ?? 0), 0),
+      remessa: unicos(m.map((x) => x.remessa)).join(" · ") || null,
+      tipo_trabalho: unicos(m.map((x) => x.tipo_trabalho)).join(" · ") || null,
+      em_oferta: m.some((x) => !!x.em_oferta) ? 1 : 0,
+      chapa_em_oferta: nomesEmOferta.length > 0 ? nomesEmOferta.join(", ") : null,
+      grupo: { ids: m.map((x) => x.id_tarefa), membros: m },
+    });
+  }
+  const jaPosto = new Set<string>();
+  const saida: Array<T & { grupo?: InfoGrupo<T> }> = [];
+  for (const t of lista) {
+    const k = desfeitos.has(t.id_tarefa) ? null : chaveDeAgrupamento(t);
+    const card = k ? cardDoGrupo.get(k) : undefined;
+    if (!card) {
+      saida.push(t);
+      continue;
+    }
+    if (jaPosto.has(k!)) continue;
+    jaPosto.add(k!);
+    saida.push(card);
+  }
+  return saida;
 }
 
 type Guardado<T extends CardAgrupavel> = { membros: T[]; card: CardDeGrupo<T> };

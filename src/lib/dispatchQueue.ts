@@ -954,6 +954,9 @@ export type BidBatchJob = {
   // Vagas totais da tarefa — usado só pra parar o disparo cedo se a tarefa
   // fechar no meio do lote (ver _run); não influencia mais o tamanho da leva.
   quantidadeChapas: number;
+  // Card de GRUPO (lib/agrupamentoTarefas.ts): as tarefas que ele reúne. As vagas (quantidadeChapas) são
+  // a soma delas, então os alocados também são contados em todas — o disparo para quando o GRUPO fecha.
+  taskIds?: number[];
 };
 
 // Leva FIXA de 30 disparos a cada 5min (pedido explícito do usuário) — antes
@@ -964,18 +967,19 @@ export type BidBatchJob = {
 export const BID_WAVE_SIZE = 30;
 const BID_WAVE_PAUSE_S = 5 * 60;
 
-async function countAlocados(taskId: number): Promise<number> {
+async function countAlocados(taskId: number | number[]): Promise<number> {
   const db = await getDb();
+  const ids = Array.isArray(taskId) ? taskId : [taskId];
   const [row] = await db.select<{ n: number }[]>(
-    `SELECT COUNT(*) as n FROM chapas WHERE id_tarefa = ? AND nome_chapa IS NOT NULL AND status_contato != 'removido'`,
-    [taskId],
+    `SELECT COUNT(*) as n FROM chapas WHERE id_tarefa IN (${ids.map(() => "?").join(",")}) AND nome_chapa IS NOT NULL AND status_contato != 'removido'`,
+    ids,
   );
   return row?.n ?? 0;
 }
 
 /** A tarefa já tem todas as vagas ocupadas? Mesma conta que o BID em massa usa pra parar.
  *  Sem quantidade de vagas conhecida (0), nunca considera preenchida. */
-export async function tarefaPreenchida(taskId: number, quantidadeChapas: number): Promise<boolean> {
+export async function tarefaPreenchida(taskId: number | number[], quantidadeChapas: number): Promise<boolean> {
   if (!(quantidadeChapas > 0)) return false;
   return (await countAlocados(taskId)) >= quantidadeChapas;
 }
@@ -1130,7 +1134,7 @@ class BidDispatchQueue {
     while (offset < totalSelecionados) {
       if (this.batchAborts.get(taskId)) break;
 
-      const alocadosAgora = await countAlocados(taskId);
+      const alocadosAgora = await countAlocados(job.taskIds ?? taskId);
       const vagasRestantes = Math.max(0, job.quantidadeChapas - alocadosAgora);
       if (vagasRestantes <= 0) { filledEarly = true; break; }
 
@@ -1141,7 +1145,7 @@ class BidDispatchQueue {
 
         // Reconsulta vagas a cada envio dentro da leva — se a tarefa fechou
         // no meio do caminho, para aqui em vez de continuar disparando.
-        const alocadosNow = await countAlocados(taskId);
+        const alocadosNow = await countAlocados(job.taskIds ?? taskId);
         if (alocadosNow >= job.quantidadeChapas) { filledEarly = true; break; }
 
         const posGlobal = offset + i + 1;

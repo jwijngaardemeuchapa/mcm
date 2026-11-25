@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   agruparCards,
+  agruparTarefasSimples,
   chaveDeAgrupamento,
   ehGrupo,
   fundirTarefas,
@@ -218,5 +219,54 @@ describe("preferências do analista", () => {
     expect(lerDesfeitos().size).toBe(0);
     localStorage.setItem("dash_grupos_desfeitos", JSON.stringify([1, "x", null, 2]));
     expect([...lerDesfeitos()].sort()).toEqual([1, 2]);
+  });
+});
+
+describe("agruparTarefasSimples (BID)", () => {
+  type Bid = {
+    id_tarefa: number; data_tarefa: string; empresa: string; cidade_uf: string | null; status_tarefa: string;
+    quantidade_chapas: number; alocados: number; endereco_id?: string | null;
+    remessa?: string | null; tipo_trabalho?: string | null; em_oferta?: number | null; chapa_em_oferta?: string | null;
+  };
+  const bid = (id: number, extra: Partial<Bid> = {}): Bid => ({
+    id_tarefa: id, data_tarefa: "2026-11-25T09:00:00-03:00", empresa: "Atacadista Pereira", cidade_uf: "Campinas/SP",
+    status_tarefa: "Em Aberto", quantidade_chapas: 1, alocados: 0, ...extra,
+  });
+
+  it("junta as tarefas iguais; vagas e alocados SOMAM e a líder (menor id) dá o rosto", () => {
+    const r = agruparTarefasSimples([bid(7, { alocados: 1 }), bid(3), bid(5, { quantidade_chapas: 2 })], new Set());
+    expect(r).toHaveLength(1);
+    expect(r[0].id_tarefa).toBe(3);
+    expect(r[0].quantidade_chapas).toBe(4);
+    expect(r[0].alocados).toBe(1);
+    expect(r[0].grupo?.ids).toEqual([3, 5, 7]);
+  });
+
+  it("quem não tem par fica igual (mesma referência) e a ordem da lista se mantém", () => {
+    const solo = bid(10, { empresa: "Outro Cliente" });
+    const r = agruparTarefasSimples([bid(1), solo, bid(2)], new Set());
+    expect(r.map((t) => t.id_tarefa)).toEqual([1, 10]);
+    expect(r[1]).toBe(solo);
+  });
+
+  it("tarefas desfeitas pelo analista voltam a ser cards próprios", () => {
+    const r = agruparTarefasSimples([bid(1), bid(2), bid(3)], new Set([2]));
+    expect(r.map((t) => [t.id_tarefa, !!t.grupo])).toEqual([[1, true], [2, false]]);
+  });
+
+  it("oferta: basta uma tarefa em oferta; remessa e tipo juntam os valores distintos", () => {
+    const r = agruparTarefasSimples(
+      [bid(1, { remessa: "CTE 1", tipo_trabalho: "Descarga" }), bid(2, { remessa: "CTE 2", tipo_trabalho: "Descarga", em_oferta: 1, chapa_em_oferta: "Ana" })],
+      new Set(),
+    );
+    expect(r[0].remessa).toBe("CTE 1 · CTE 2");
+    expect(r[0].tipo_trabalho).toBe("Descarga");
+    expect(r[0].em_oferta).toBe(1);
+    expect(r[0].chapa_em_oferta).toBe("Ana");
+  });
+
+  it("endereços diferentes (pelo vínculo) não se juntam, mesmo na mesma cidade e hora", () => {
+    const r = agruparTarefasSimples([bid(1, { endereco_id: "10" }), bid(2, { endereco_id: "20" }), bid(3, { endereco_id: "10" })], new Set());
+    expect(r.map((t) => [t.id_tarefa, t.grupo?.ids ?? null])).toEqual([[1, [1, 3]], [2, null]]);
   });
 });
