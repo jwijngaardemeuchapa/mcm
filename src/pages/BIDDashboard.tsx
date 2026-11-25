@@ -626,7 +626,7 @@ function BidTaskCard({
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (focusExtras) { setOnlyExtras(true); setExpanded(true); }
+    if (focusExtras) { setOnlyExtras(true); setExpanded(true); setCandidateView("disponiveis"); }
   }, [focusExtras]);
 
   // Recarrega candidatos quando extras são importados para esta tarefa — cobre o
@@ -637,6 +637,10 @@ function BidTaskCard({
       if (taskId !== task.id_tarefa) return;
       setExpanded(true);
       setOnlyExtras(true);
+      // Os extras só aparecem em "Disponíveis" (o ranking dos Recomendados e as outras abas não
+      // os trazem): quem importou de outra aba vê a lista importada em vez de "nada aconteceu".
+      setCandidateView("disponiveis");
+      setShowAll(false);
       setCandReloadKey((k) => k + 1);
     };
     window.addEventListener("bid:extras-imported", onExtrasImported);
@@ -2569,16 +2573,17 @@ function BidTaskCard({
                   {onlyExtras ? `Extras (${extrasCount})` : `Só extras (${extrasCount})`}
                 </button>
               )}
-              {candidateView === "disponiveis" && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onOpenExtras(task); }}
-                  className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors flex items-center gap-1"
-                  title="Importar chapas extras (CSV/XLSX Busca Chapa) para esta empresa/cidade"
-                >
-                  <UserPlus className="h-3 w-3" /> Busca Chapa
-                </button>
-              )}
+              {/* Importar lista (Busca Chapa) é ação da TAREFA, não de uma aba: fica em todas as
+                  visões (antes só em "Disponíveis" — em "Recomendados", onde o disparo em levas
+                  acontece, o botão não existia e parecia ter sumido depois do disparo). */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onOpenExtras(task); }}
+                className="text-[10px] px-2 py-1 rounded border border-border text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors flex items-center gap-1"
+                title="Importar chapas extras (CSV/XLSX Busca Chapa) para esta empresa/cidade"
+              >
+                <UserPlus className="h-3 w-3" /> Busca Chapa
+              </button>
               {candidateView === "disponiveis" && leoCache && leoCache.size > 0 && (
                 <button
                   type="button"
