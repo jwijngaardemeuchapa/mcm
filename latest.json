@@ -1,11 +1,11 @@
 {
-  "version": "1.0.78",
-  "notes": "Seção Em análise (3 visões), carteira por grupo corrigida (G3/G4), painel Emergente/Urgente removido, lista do 3C com telefone padronizado (DDD + número; sem DDD fica de fora com aviso), CPF buscado em mais de uma fonte.",
-  "pub_date": "2026-11-23T21:05:22Z",
+  "version": "1.0.79",
+  "notes": "Agrupar iguais: tarefas do mesmo cliente, endereço e horário viram um card só (FUP Dashboard e BID, as vagas somam, dá pra desfazer o grupo). Fase do FUP: quem confirmou só o PréFUP aparece \"Aguardando FUP\" (âmbar) até confirmar o FUP, com \"FUP enviado há X\" ou \"FUP não enviado\"; começa sozinha 5 h antes da tarefa e o botão \"Resetar PréFUPs\" antecipa. BID: botão \"Busca Chapa\" em todas as abas do card.",
+  "pub_date": "2026-11-26T10:05:48Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaFVrMTc5QSs2QnFPelVJWm05SFpVNFFVYWhzdXdZNWJFaVlSUFA3QlBjMWU1WFpDMWZNQlhCTDl1bE5uZmtqSFdFQXpBYUFaYTF6QUJzQ3V5Mk9OZEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NDY3ODU4CWZpbGU6TUNNXzEuMC43OF94NjQtc2V0dXAuZXhlClk5dHpyaThja0FNN2Y3Y0VFSElzbnk4ZjB1SlQvWmNiZU1BeUZ3dzl4N2llbUFlSExtZ0t2cy96K1piT1B1Y3J6MWRrTFYvUlJlWXpXUUNwNTJMVUJBPT0K",
-      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.78/MCM_1.0.78_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSL05CUjhtTDVWaGR2NG81aGpmY25keCtDaWMvQ0QweGNvWVVldHNEd0hLSWFFZUtZTVRlMTdYeHkyUnI5TVN6UHh6R3JoaGVmMTRWdytiWHgvVWwrSTdEYmZuMDZSeFFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1Njg3NDY1CWZpbGU6TUNNXzEuMC43OV94NjQtc2V0dXAuZXhlCkt5eW5UZTYrY3ZGR1krOUNNanNXeXlDQVRQTTR1VTRjajBaL1Q1U01Fa2ZYak95TXpKY092a1lkblZFU2g2Ulo2aG13VjVXVWRyK2lDd1RxSDVKcUJBPT0K",
+      "url": "https://github.com/jwijngaardemeuchapa/mcm/releases/download/v1.0.79/MCM_1.0.79_x64-setup.exe"
     }
   }
 }
