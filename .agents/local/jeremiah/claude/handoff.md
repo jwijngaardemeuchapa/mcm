@@ -1,5 +1,9 @@
 # Handoff — Jeremiah / claude
 
+**ATUALIZAÇÃO 2026-11-26 (mais recente):** **main v1.0.79 PUBLICADA, assinada e verificada** (substitui as notas "SEM release" de hoje logo abaixo): agrupar iguais (FUP + BID), fase do FUP / "Resetar PréFUPs" e fix do "Busca Chapa". A main está sincronizada com o GitHub. **Beta NÃO lançada:** beta-v1.0.77 segue sem release, com 22 commits locais nunca enviados, e ainda sem a seção "Em análise" e o resto da v1.0.78 (grupos G3/G4 da carteira, painel Emergente/Urgente removido, lista do 3C com DDD) — portar antes de lançar a beta. Pendências: validar a v1.0.79 em uso real (cliente "uma tarefa por chapa"; endereço depende de `tarefa_enderecos`); "Data de Criação" nos cards 1290/1289 do Metabase; Remessa/Tipo/Oferta visíveis nos cards.
+
+---
+
 **ATUALIZAÇÃO 2026-11-26 (mais recente):** em `main`, SEM release: **"Resetar PréFUPs" / fase do FUP** — quem confirmou só o PréFUP vira "Aguardando FUP" (âmbar) quando a tarefa entra na janela de ≤ 5 h (ou após o botão, por card e na barra, desfazível); card só fica verde quando ninguém aguarda o FUP; a linha mostra "FUP enviado há X / não enviado". Só visual: fill rate e confirmação não mudam. Ver JOURNAL de hoje. **Pendente de decisão do usuário:** o push (nada foi enviado ao GitHub: main com 4 commits do agrupamento/Busca Chapa + este; beta com 20+ locais). Próximo: validar com os analistas, portar pra beta (feito se a entrada da beta existir), lançar só se pedirem (main v1.0.79).
 
 ---
