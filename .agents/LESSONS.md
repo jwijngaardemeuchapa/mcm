@@ -281,3 +281,7 @@ Comecei o dia com 2 commits locais da seção "Em análise" e o GitHub já tinha
 ## 2026-11-25 — "O botão sumiu depois de X" pode ser "ele nunca existiu onde eu estou"
 
 O "Busca Chapa" só existia numa aba do card; o analista trocou de aba pra disparar e achou que sumiu. Quando um controle é ação da tarefa (e não da aba), ele não deve depender da aba. E uma ação que só tem efeito visível numa aba precisa levar o usuário pra lá (aqui: importar → ir pra "Disponíveis").
+
+## 2026-11-26 — "Está tudo verde": o problema é a falta de uma segunda cor, não o botão
+
+O pedido veio como "botão de resetar", mas o que o analista precisava era enxergar DUAS fases (PréFUP x FUP). Reset de verdade (voltar a pendente) tinha sido tirado antes por derrubar o fill rate; o desenho que serviu foi separar confirmação (conta) de fase (cor), com a mudança automática na janela do FUP e o botão só pra antecipar. Quando o pedido vier como "um botão pra X", pergunte o que o usuário quer VER depois do clique. Regras de cor num ponto só (`computeTaskState`) fazem Cards, Panorama e Timeline mudarem juntos — e o teste exaustivo de severidades pegou o nível novo antes de eu esquecer um `switch`.

@@ -1,5 +1,9 @@
 # Handoff — Jeremiah / claude
 
+**ATUALIZAÇÃO 2026-11-26 (mais recente):** em `main`, SEM release: **"Resetar PréFUPs" / fase do FUP** — quem confirmou só o PréFUP vira "Aguardando FUP" (âmbar) quando a tarefa entra na janela de ≤ 5 h (ou após o botão, por card e na barra, desfazível); card só fica verde quando ninguém aguarda o FUP; a linha mostra "FUP enviado há X / não enviado". Só visual: fill rate e confirmação não mudam. Ver JOURNAL de hoje. **Pendente de decisão do usuário:** o push (nada foi enviado ao GitHub: main com 4 commits do agrupamento/Busca Chapa + este; beta com 20+ locais). Próximo: validar com os analistas, portar pra beta (feito se a entrada da beta existir), lançar só se pedirem (main v1.0.79).
+
+---
+
 **ATUALIZAÇÃO 2026-11-25 (mais recente):** em `main`, SEM release: (1) **agrupamento de tarefas do mesmo cliente/endereço/horário** no FUP Dashboard (Cards/Panorama/Timeline) e no BID — interruptor "Agrupar iguais" (ligado por padrão), selo "Grupo · N tarefas" com "Desfazer grupo"; (2) **fix do "Busca Chapa"** (botão agora nas 6 abas do card do BID). Ver JOURNAL de hoje. **Sincronizei antes de mexer:** a main estava atrás do GitHub (v1.0.78 de outra sessão, com a própria seção "Em análise"); meus commits duplicados da seção ficaram em `backup/em-analise-main` e `backup/em-analise-beta`. **Próximo:** validar com um cliente real "uma tarefa por chapa" (depende do vínculo `tarefa_enderecos` pro endereço; sem ele agrupa por cidade), decidir se "ligado por padrão" fica, portar pra beta, e lançar só se o usuário pedir (main v1.0.79). Se o analista viu o "Busca Chapa" sumir ESTANDO em "Disponíveis", reabrir o bug — não consegui reproduzir ali.
 
 ---
