@@ -1,4 +1,5 @@
 import { parseTaskDate } from "@/lib/datetime";
+import { contagemDaFase, faseFupAtiva } from "@/lib/faseFup";
 import type { TaskWithChapas } from "@/components/TaskCard";
 
 /**
@@ -16,6 +17,7 @@ export type TaskSeverity =
   | "done"
   | "validated"
   | "approach-alert"
+  | "aguarda-fup" // fase do FUP: todos/alguns confirmaram só o PréFUP e ainda falta o FUP (âmbar)
   | "urgent"
   | "default";
 
@@ -30,6 +32,12 @@ export type TaskState = {
   isValidated: boolean;
   emAndamento: boolean;
   emAnalise: boolean;
+  /** a tarefa está na fase do FUP (≤ 5 h do início ou "Resetar PréFUPs") — ver lib/faseFup.ts */
+  faseFup: boolean;
+  /** confirmaram só o PréFUP e, na fase do FUP, ainda não responderam o FUP (contam no fill rate, mas não ficam verdes) */
+  aguardaFup: number;
+  /** confirmaram o FUP */
+  fupOk: number;
   severity: TaskSeverity;
 };
 
@@ -87,6 +95,13 @@ export function computeTaskState(
   // Overnight/continuando-de-ontem saíram do cálculo de cor — o ícone de
   // lua e o banner "continuando desde ontem" continuam sinalizando isso,
   // só não mudam mais a cor da borda.
+  //
+  // Fase do FUP (lib/faseFup.ts): quem confirmou só o PréFUP continua contando no fill rate, mas NÃO
+  // deixa o card verde — "todos confirmados" só vale quando ninguém está aguardando o FUP. Com tudo
+  // confirmado só no PréFUP (ou faltando ainda alguém, fora da janela de 3 h) o card fica âmbar
+  // ("aguarda-fup"); a regra de 3 h ("faltam confirmações") continua valendo na frente quando falta gente.
+  const faseFup = faseFupAtiva(task);
+  const { fupOk, aguardaFup } = contagemDaFase(task.chapas, faseFup);
   const isFullyConfirmed = requested > 0 && confirmed === requested;
   const zeroConfirmedNearOrPastStart = confirmed === 0 && minutesUntilStart <= 60;
   const withinApproachWindow = minutesUntilStart <= 180;
@@ -94,9 +109,11 @@ export function computeTaskState(
   let severity: TaskSeverity = "default";
   if (emAndamento) severity = "andamento";
   else if (emAnalise) severity = "default";
-  else if (isFullyConfirmed) severity = "done";
+  else if (isFullyConfirmed && aguardaFup === 0) severity = "done";
   else if (zeroConfirmedNearOrPastStart) severity = "urgent";
+  else if (isFullyConfirmed && aguardaFup > 0) severity = "aguarda-fup";
   else if (withinApproachWindow) severity = "approach-alert";
+  else if (aguardaFup > 0) severity = "aguarda-fup";
 
   return {
     confirmed,
@@ -109,6 +126,9 @@ export function computeTaskState(
     isValidated,
     emAndamento,
     emAnalise,
+    faseFup,
+    aguardaFup,
+    fupOk,
     severity,
   };
 }
@@ -126,6 +146,7 @@ export function taskSeverityBlockClass(severity: TaskSeverity): string {
     case "validated":
       return "bg-success border-success/50 text-success-foreground";
     case "approach-alert":
+    case "aguarda-fup":
       return "bg-warning border-warning/50 text-warning-foreground";
     case "urgent":
       return "bg-destructive border-destructive/50 text-destructive-foreground";
@@ -144,6 +165,7 @@ export function taskSeverityCardBorderClass(severity: TaskSeverity): string {
     case "validated":
       return "border-success/60 border-l-4 border-l-success ring-1 ring-success/20";
     case "approach-alert":
+    case "aguarda-fup":
       return "border-warning/60 ring-2 ring-warning/30";
     case "urgent":
       return "border-destructive/50 ring-1 ring-destructive/20";
@@ -161,6 +183,7 @@ export function taskSeverityRowClass(severity: TaskSeverity): { accentBorder: st
     case "validated":
       return { accentBorder: "border-l-success", rowBg: "bg-success/[0.04]", timeColor: "text-muted-foreground" };
     case "approach-alert":
+    case "aguarda-fup":
       return { accentBorder: "border-l-warning", rowBg: "bg-warning/5", timeColor: "text-warning" };
     case "urgent":
       return { accentBorder: "border-l-destructive", rowBg: "bg-destructive/[0.04]", timeColor: "text-destructive" };
@@ -179,6 +202,8 @@ export function severityLabel(severity: TaskSeverity): string | null {
       return "Urgente: nenhum confirmado e faltam 60 min ou menos";
     case "approach-alert":
       return "Atenção: começa em até 3 h e ainda faltam confirmações";
+    case "aguarda-fup":
+      return "Aguardando FUP: confirmaram só o PréFUP";
     case "andamento":
       return "Em andamento";
     case "done":

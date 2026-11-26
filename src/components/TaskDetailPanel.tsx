@@ -52,6 +52,18 @@ import { emJanelaDeFup } from "@/lib/prefup";
 import { FasesChip } from "@/components/FasesChip";
 import { TarefaInfo } from "@/components/TarefaInfo";
 import { GrupoBadge } from "@/components/GrupoBadge";
+import { FaseFupResumo } from "@/components/FaseFupResumo";
+import {
+  anteciparFaseFup,
+  contagemDaFase,
+  desfazerFaseFup,
+  estadoDaFase,
+  faseFupAntecipada,
+  faseFupAtiva,
+  fupEnviadoDepoisDoPrefup,
+  naJanelaAutomaticaDoFup,
+} from "@/lib/faseFup";
+import { useVersaoDaFaseFup } from "@/lib/useFaseFup";
 import { idTarefaDoChapa } from "@/lib/agrupamentoTarefas";
 import { linhaTipoRemessaPlanilha } from "@/lib/tarefaExtras";
 import { setActiveTaskNav } from "@/lib/taskNav";
@@ -164,6 +176,7 @@ type TaskDetailPanelProps = {
 // ao fechar (Radix Dialog customizado) — desenho pedido pelo usuário.
 export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, onNavigateTask, onDesfazerGrupo }: TaskDetailPanelProps) {
   const navigate = useNavigate();
+  useVersaoDaFaseFup(); // "Resetar PréFUPs" (aqui ou na barra) re-renderiza o painel
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [groupPickerOpen, setGroupPickerOpen] = useState(false);
   // "Enviar lista pro grupo do cliente" — preenche o composer da conversa
@@ -477,6 +490,17 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
   const requested = task.quantidade_chapas || task.chapas.length;
   const fillPct = requested > 0 ? Math.round((confirmedCount / requested) * 100) : 0;
   const vacantCount = Math.max(0, requested - realChapas.length);
+  // Fase do FUP (lib/faseFup.ts): quem confirmou só o PréFUP deixa de ficar verde quando a tarefa entra nela
+  const faseFup = faseFupAtiva(task);
+  const { fupOk, aguardaFup, prefupOk } = contagemDaFase(task.chapas, faseFup);
+  const idsDaTarefa = task.grupo?.ids ?? [task.id_tarefa];
+  const faseAntecipada = faseFup && faseFupAntecipada(idsDaTarefa) && !naJanelaAutomaticaDoFup(task.data_tarefa, task.cidade_uf);
+  function resetarPrefups() {
+    anteciparFaseFup(idsDaTarefa);
+    toast.success("Fase do FUP: quem confirmou só o PréFUP agora aparece como 'Aguardando FUP'", {
+      action: { label: "Desfazer", onClick: () => desfazerFaseFup(idsDaTarefa) },
+    });
+  }
   const minutesUntilStart = (parseTaskDate(task.data_tarefa, task.cidade_uf).getTime() - Date.now()) / 60_000;
   const showApproachAlert = minutesUntilStart > 0 && minutesUntilStart <= 60 && fillPct < 95;
   const allPending = realChapas.length > 0 && realChapas.every((c) => c.status_contato === "pendente");
@@ -766,6 +790,20 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
             </div>
 
             <div className="px-4 pt-3 pb-3">
+              {(prefupOk > 0 || aguardaFup > 0 || fupOk > 0) && (
+                <div className="mb-2.5 flex items-center gap-2 flex-wrap">
+                  <FaseFupResumo
+                    faseFup={faseFup}
+                    antecipada={faseAntecipada}
+                    fupOk={fupOk}
+                    aguardaFup={aguardaFup}
+                    prefupOk={prefupOk}
+                    requested={requested}
+                    onResetar={resetarPrefups}
+                    onDesfazer={() => desfazerFaseFup(idsDaTarefa)}
+                  />
+                </div>
+              )}
               {showApproachAlert && (
                 <div className="mb-2.5 flex items-center gap-1.5 text-[11px] text-warning bg-warning/10 border border-warning/30 rounded-md px-2.5 py-1.5">
                   <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -899,6 +937,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
                   </TooltipTrigger>
                   <TooltipContent side="left" className="text-xs space-y-0.5">
                     <p><span className="text-success">●</span> Confirmado</p>
+                    <p><span className="text-warning">●</span> Aguardando FUP — confirmou só o PréFUP</p>
                     <p><span className="text-info">●</span> Pendente — FUP já enviado</p>
                     <p><span className="text-warning">●</span> Sem resposta</p>
                     <p><span className="text-destructive">●</span> Sem contato ainda / negou FUP</p>
@@ -908,6 +947,7 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
               {realChapas.map((c) => (
                 <CompactChapaRow
                   key={c.id}
+                  faseFup={faseFup}
                   c={c}
                   selected={selectedKey === c.id}
                   setSelectedKey={setSelectedKey}
@@ -1338,6 +1378,8 @@ export function TaskDetailPanel({ task, open, onClose, onRefresh, orderedIds, on
 }
 
 type CompactChapaRowProps = {
+  /** a tarefa está na fase do FUP: quem confirmou só o PréFUP aparece "Aguardando FUP" (âmbar) */
+  faseFup?: boolean;
   c: TaskWithChapas["chapas"][number];
   selected: boolean;
   setSelectedKey: (k: string | null) => void;
@@ -1356,6 +1398,7 @@ type CompactChapaRowProps = {
 // componente pai (regra dos hooks). Mesmo motivo/estrutura do ChapaRowView
 // em TaskCard.tsx (Cards) — segue o mesmo padrão aqui.
 function CompactChapaRow({
+  faseFup = false,
   c,
   selected,
   setSelectedKey,
@@ -1371,7 +1414,12 @@ function CompactChapaRow({
   const pendingAction = chapaJobState?.action ?? null;
   const countdown = chapaJobState?.remaining ?? 0;
 
-  const meta = chapaStatusMeta(c.status_contato, !!lastDispatch);
+  const aguardaFup = estadoDaFase(c, faseFup) === "aguarda_fup";
+  const fupEnviadoEm = aguardaFup ? fupEnviadoDepoisDoPrefup(fupLog, c.id, c.prefup_confirmado_em) : null;
+  // Confirmou só o PréFUP na fase do FUP: âmbar (não verde) até confirmar o FUP
+  const meta = aguardaFup
+    ? { dot: "bg-warning", text: "text-warning", bg: "bg-warning/[0.07]", border: "border-l-warning", avatar: "from-warning to-warning/70" }
+    : chapaStatusMeta(c.status_contato, !!lastDispatch);
   const elapsedMin = lastDispatch ? Math.floor((Date.now() - new Date(lastDispatch).getTime()) / 60_000) : null;
   // MCM-159: some sozinho no próximo poll (~40s) quando a
   // conversa é aberta e o totalUnread zera no servidor.
@@ -1412,8 +1460,13 @@ function CompactChapaRow({
           </p>
           <p className={`text-[11px] truncate flex items-center gap-1 font-medium ${meta.text}`}>
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
-            {STATUS_LABEL[c.status_contato] ?? c.status_contato}
+            {aguardaFup ? "Aguardando FUP" : (STATUS_LABEL[c.status_contato] ?? c.status_contato)}
             {c.status_contato === "confirmado" && <FasesChip prefup={c.prefup_confirmado_em} fup={c.fup_confirmado_em} />}
+            {aguardaFup && (
+              <span className="text-muted-foreground font-normal">
+                · {fupEnviadoEm ? `FUP enviado há ${fmtElapsed(Math.max(0, Math.floor((Date.now() - new Date(fupEnviadoEm).getTime()) / 60_000)))}` : "FUP não enviado"}
+              </span>
+            )}
             {c.status_contato === "pendente" && !lastDispatch && " — sem contato"}
             {elapsedMin !== null && c.status_contato !== "confirmado" && (
               <span className="text-muted-foreground font-normal">· há {fmtElapsed(elapsedMin)}</span>

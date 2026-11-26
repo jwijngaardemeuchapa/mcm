@@ -18,6 +18,7 @@ import { getDb } from "@/lib/db";
 import { computeTaskState, taskSeverityRowClass, severityLabel } from "@/lib/taskState";
 import { last11Digits } from "@/lib/umbler";
 import { useUnreadChats } from "@/lib/WatcherContext";
+import { useVersaoDaFaseFup } from "@/lib/useFaseFup";
 import { OfertaBadge } from "@/components/TarefaInfo";
 import { estaEmOferta, resumoDaTarefa } from "@/lib/tarefaExtras";
 
@@ -185,7 +186,8 @@ function PanoramaRow({
   threshold: number;
   onClick: () => void;
 }) {
-  const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert, severity } =
+  useVersaoDaFaseFup(); // "Resetar PréFUPs" re-renderiza a linha
+  const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert, severity, faseFup, aguardaFup, fupOk } =
     computeTaskState(task, threshold);
 
   // MCM-159: agregado — visão densa (sem linha por chapa visível), então o
@@ -269,8 +271,10 @@ function PanoramaRow({
         <div className={`font-display font-bold text-sm tabular-nums inline-flex items-center gap-1 ${timeColor}`}>
           {fmtTime(task.data_tarefa)}
           {/* a cor da hora não é o único sinal da severidade: ícone + texto (WCAG 1.4.1) */}
-          {severity === "approach-alert" && !isDone && (
-            <span title={severityLabel(severity) ?? undefined}><Clock className="h-3 w-3" aria-label="Atenção" /></span>
+          {(severity === "approach-alert" || severity === "aguarda-fup") && !isDone && (
+            <span title={severityLabel(severity) ?? undefined}>
+              <Clock className="h-3 w-3" aria-label={severity === "aguarda-fup" ? "Aguardando FUP" : "Atenção"} />
+            </span>
           )}
         </div>
         {taskTzLabel(task.cidade_uf) && (
@@ -316,6 +320,15 @@ function PanoramaRow({
       {/* Fill rate bar */}
       <div className="pr-3">
         <FillRateBar confirmed={confirmed} requested={requested} variant="compact" heightClass="h-1.5" />
+        {faseFup && aguardaFup > 0 && (
+          <div
+            className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold text-warning tabular-nums"
+            title={`${aguardaFup} confirmaram só o PréFUP e ainda não responderam o FUP (contam no fill rate, mas não ficam verdes)`}
+          >
+            <Clock className="h-3 w-3" aria-hidden="true" />
+            FUP {fupOk}/{requested}
+          </div>
+        )}
       </div>
 
       {/* Status */}

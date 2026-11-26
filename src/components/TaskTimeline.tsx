@@ -8,6 +8,7 @@ import { computeTaskState, taskSeverityBlockClass, severityLabel } from "@/lib/t
 import { readSettings } from "@/lib/settings";
 import { last11Digits } from "@/lib/umbler";
 import { useUnreadChats } from "@/lib/WatcherContext";
+import { useVersaoDaFaseFup } from "@/lib/useFaseFup";
 
 interface TaskTimelineProps {
   tasks: TaskWithChapas[];
@@ -26,6 +27,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
   // considera chapas por telefone, mesmo trade-off do TaskPanorama (grupo do
   // cliente ficaria de fora pra não disparar 1 query por tarefa).
   const { unreadPhones } = useUnreadChats();
+  const versaoFase = useVersaoDaFaseFup(); // "Resetar PréFUPs" recolore os blocos
 
   const { startHour, endHour, processedTasks } = useMemo(() => {
     if (tasks.length === 0) return { startHour: 6, endHour: 18, processedTasks: [] };
@@ -70,6 +72,8 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
         startFloat,
         endFloat,
         fillPct: state.fillPct,
+        aguardaFup: state.faseFup ? state.aguardaFup : 0,
+        fupOk: state.fupOk,
         confirmados: state.confirmed,
         totalVagas: state.requested,
         colorClass,
@@ -102,7 +106,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
     });
 
     return { startHour: minH, endHour: maxH, processedTasks: withLanes };
-  }, [tasks, unreadPhones]);
+  }, [tasks, unreadPhones, versaoFase]);
 
   // É hoje? (linha do "Agora" só faz sentido quando a timeline mostra o dia atual)
   const today = todayDateISO_SP();
@@ -193,6 +197,7 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                       {estaEmOferta(t) && <Hourglass className="h-3 w-3 shrink-0" aria-label="Em oferta" />}
                       {/* a cor do bloco não é o único sinal: ícone + texto no tooltip (WCAG 1.4.1) */}
                       {!t.concluida && !t.validada && t.severity === "approach-alert" && <Clock className="h-3 w-3 shrink-0" aria-label="Atenção" />}
+                      {!t.concluida && !t.validada && t.severity === "aguarda-fup" && <Clock className="h-3 w-3 shrink-0" aria-label="Aguardando FUP" />}
                       <span className="truncate">{t.empresa.toUpperCase()}</span>
                     </div>
                     <div className="text-[11px] flex items-center gap-1 opacity-90 whitespace-nowrap">
@@ -233,6 +238,11 @@ export function TaskTimeline({ tasks, onTaskClick }: TaskTimelineProps) {
                   <div className="flex items-center gap-1.5">
                     <Users className="h-3 w-3" /> {t.confirmados} de {t.totalVagas} confirmados ({Math.round(t.fillPct)}%)
                   </div>
+                  {t.aguardaFup > 0 && (
+                    <div className="flex items-center gap-1.5 font-medium text-warning">
+                      <Clock className="h-3 w-3" /> FUP {t.fupOk}/{t.totalVagas} · {t.aguardaFup} aguardando FUP (confirmaram só o PréFUP)
+                    </div>
+                  )}
                   {!t.concluida && t.minutesSinceFup !== null && (
                     <div className="flex items-center gap-1.5 text-muted-foreground">
                       <Clock className="h-3 w-3" /> Último disparo há {fmtElapsed(t.minutesSinceFup)}

@@ -90,9 +90,20 @@ import { useUnreadChats } from "@/lib/WatcherContext";
 import { aguardaReforcoDeFup, atualizarChapa, comFlagManual, confirmarManualEmLote, entraNoFupEmMassa } from "@/lib/fasesConfirmacao";
 import { emJanelaDeFup } from "@/lib/prefup";
 import { FasesChip } from "@/components/FasesChip";
+import { FaseFupResumo } from "@/components/FaseFupResumo";
+import {
+  anteciparFaseFup,
+  contagemDaFase,
+  desfazerFaseFup,
+  estadoDaFase,
+  faseFupAntecipada,
+  fupEnviadoDepoisDoPrefup,
+  naJanelaAutomaticaDoFup,
+} from "@/lib/faseFup";
+import { useVersaoDaFaseFup } from "@/lib/useFaseFup";
 import { TarefaInfo } from "@/components/TarefaInfo";
 import { GrupoBadge } from "@/components/GrupoBadge";
-import { idTarefaDoChapa } from "@/lib/agrupamentoTarefas";
+import { idTarefaDoChapa, idsDoCard } from "@/lib/agrupamentoTarefas";
 import { linhaTipoRemessaPlanilha } from "@/lib/tarefaExtras";
 
 async function clipboardWrite(text: string, successMsg: string) {
@@ -336,8 +347,20 @@ function TaskCardBase({
     (!!clienteInfo?.umbler_group_chat_id && unreadChatIds.has(clienteInfo.umbler_group_chat_id));
 
   const { fillRateWarningThreshold } = readSettings();
+  useVersaoDaFaseFup(); // "Resetar PréFUPs" (aqui ou na barra) re-renderiza o card
   const taskState = computeTaskState(task, fillRateWarningThreshold);
   const { confirmed, requested, fillPct, minutesUntilStart, isDone, fullyValidated, showApproachAlert, severity } = taskState;
+  // Fase do FUP (lib/faseFup.ts): quem confirmou só o PréFUP deixa de ficar verde quando a tarefa entra nela
+  const { faseFup, fupOk, aguardaFup } = taskState;
+  const idsDaTarefa = idsDoCard(task);
+  const prefupOk = contagemDaFase(task.chapas, faseFup).prefupOk;
+  const faseAntecipada = faseFup && faseFupAntecipada(idsDaTarefa) && !naJanelaAutomaticaDoFup(task.data_tarefa, task.cidade_uf);
+  function resetarPrefups() {
+    anteciparFaseFup(idsDaTarefa);
+    toast.success("Fase do FUP: quem confirmou só o PréFUP agora aparece como 'Aguardando FUP'", {
+      action: { label: "Desfazer", onClick: () => desfazerFaseFup(idsDaTarefa) },
+    });
+  }
 
   type ChapaRow = (typeof task.chapas)[number] & {
     canal_contato?: string | null;
@@ -1109,6 +1132,16 @@ Precisamos de 1 substituto para esta tarefa.`;
             <StatusBadge status={task.status_tarefa} />
           )}
           <FillRateBar confirmed={confirmed} requested={task.quantidade_chapas || task.chapas.length} />
+          <FaseFupResumo
+            faseFup={faseFup}
+            antecipada={faseAntecipada}
+            fupOk={fupOk}
+            aguardaFup={aguardaFup}
+            prefupOk={prefupOk}
+            requested={requested}
+            onResetar={resetarPrefups}
+            onDesfazer={() => desfazerFaseFup(idsDaTarefa)}
+          />
           {vacantCount > 0 && (
             <>
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-md border border-dashed border-warning/60 text-warning bg-warning/5 shrink-0">
@@ -1237,6 +1270,7 @@ Precisamos de 1 substituto para esta tarefa.`;
                 chapa={c}
                 taskId={idTarefaDoChapa(c, task)}
                 taskSnap={{ id_tarefa: idTarefaDoChapa(c, task), data_tarefa: task.data_tarefa, empresa: fupEmpresa }}
+                faseFup={faseFup}
                 newChapaKeys={newChapaKeys}
                 conf={lookupConfiabilidade(confiabilidade, c)}
                 fupLog={task.fup_log}
@@ -1865,6 +1899,8 @@ type RowProps = {
   chapa: TaskWithChapas["chapas"][number];
   taskId: number;
   taskSnap: TaskSnap;
+  /** a tarefa está na fase do FUP: quem confirmou só o PréFUP aparece "Aguardando FUP" (âmbar) */
+  faseFup?: boolean;
   newChapaKeys?: Set<string>;
   fupLog: TaskWithChapas["fup_log"];
   hasIndividualDispatch: boolean;
@@ -1886,6 +1922,7 @@ function ChapaRowView({
   chapa,
   taskId,
   taskSnap,
+  faseFup = false,
   newChapaKeys,
   fupLog,
   hasIndividualDispatch,
@@ -1986,8 +2023,14 @@ function ChapaRowView({
   const isRemoved = status === "removido";
   const isCancelado = status === "cancelado";
 
+  // Fase do FUP: confirmou só o PréFUP → âmbar "Aguardando FUP" (não verde) até confirmar o FUP
+  const aguardaFup = isConfirmed && estadoDaFase(chapa, faseFup) === "aguarda_fup";
+  const fupEnviadoEm = aguardaFup ? fupEnviadoDepoisDoPrefup(fupLog, chapa.id, chapa.prefup_confirmado_em) : null;
+
   // Light tint based on outcome
-  const bg = isConfirmed
+  const bg = aguardaFup
+    ? "bg-[color-mix(in_srgb,hsl(var(--warning))_8%,transparent)]"
+    : isConfirmed
     ? "bg-[color-mix(in_srgb,hsl(var(--success))_6%,transparent)]"
     : isNoResponse
     ? "bg-[color-mix(in_srgb,hsl(var(--warning))_6%,transparent)]"
@@ -2100,7 +2143,27 @@ function ChapaRowView({
       </div>
 
       {/* Post-confirmation chip */}
-      {isConfirmed ? (
+      {aguardaFup ? (
+        <>
+          <div className="flex flex-col items-end gap-0.5">
+            <span
+              className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-md bg-warning/15 text-warning border border-warning/40 min-h-[28px]"
+              title="Confirmou o PréFUP e ainda não respondeu o FUP (conta no fill rate, mas não fica verde)"
+            >
+              <Clock className="h-3.5 w-3.5" /> Aguardando FUP
+              <FasesChip prefup={chapa.prefup_confirmado_em} fup={null} />
+            </span>
+            <span className="text-[11px] text-muted-foreground tabular-nums">
+              {fupEnviadoEm
+                ? `FUP enviado há ${fmtElapsed(Math.max(0, Math.floor((nowTs - new Date(fupEnviadoEm).getTime()) / 60_000)))}`
+                : "FUP não enviado"}
+            </span>
+          </div>
+          {conversaTrigger}
+          {conversaSheet}
+          <RowMenu chapa={chapa} onRemove={onRemove} onEditPhone={onEditPhone} onUndoOutcome={onUndoOutcome} onContact3C={() => onContact(chapa, "ligacao_3c")} />
+        </>
+      ) : isConfirmed ? (
         <>
           <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-md bg-success/15 text-success border border-success/30 min-h-[28px]">
             <Check className="h-3.5 w-3.5" /> Confirmado

@@ -6,6 +6,7 @@ describe("severityLabel — a severidade em texto (nunca só cor)", () => {
     const esperado: Record<TaskSeverity, RegExp | null> = {
       urgent: /^Urgente: nenhum confirmado/,
       "approach-alert": /^Atenção: começa em até 3 h/,
+      "aguarda-fup": /^Aguardando FUP/,
       andamento: /^Em andamento$/,
       done: /^Completa/,
       validated: /^Completa/,

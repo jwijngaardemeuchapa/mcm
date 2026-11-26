@@ -15,6 +15,8 @@ import {
   novoCacheDeGrupos,
   type CacheDeGrupos,
 } from "@/lib/agrupamentoTarefas";
+import { anteciparFaseFup, contagemDaFase, desfazerFaseFup, faseFupAtiva } from "@/lib/faseFup";
+import { useVersaoDaFaseFup } from "@/lib/useFaseFup";
 import { toSP, todayDateISO_SP, fmtSP, fmtTime, parseTaskDate, dataSP } from "@/lib/datetime";
 import { companyMatches, nomesDaCarteiraComUniverso } from "@/lib/company";
 import { type TaskWithChapas } from "@/components/TaskCard";
@@ -70,6 +72,7 @@ import {
   Send,
   FileSpreadsheet,
   Layers,
+  RotateCcw,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -797,6 +800,40 @@ export default function Dashboard() {
     [tasksForDisplay, overnightForDisplay, emAnaliseTarefas],
   );
 
+  // "Resetar PréFUPs": nas tarefas visíveis que ainda estão na fase do PréFUP e têm gente que confirmou
+  // só o PréFUP, passa a mostrar quem falta no FUP (quem confirmou só o PréFUP deixa de ficar verde).
+  // A fase do FUP também começa sozinha 5 h antes da tarefa; o botão serve pra antecipar.
+  const versaoFase = useVersaoDaFaseFup();
+  const [minutoAgora, setMinutoAgora] = useState(() => Math.floor(Date.now() / 60_000));
+  useEffect(() => {
+    const id = setInterval(() => setMinutoAgora(Math.floor(Date.now() / 60_000)), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const prefupsParaResetar = useMemo(() => {
+    const ids: number[] = [];
+    let tarefas = 0;
+    let chapas = 0;
+    for (const t of [...tasksForDisplay, ...overnightForDisplay]) {
+      if (faseFupAtiva(t)) continue; // já está na fase do FUP (janela automática ou antecipada)
+      const { prefupOk } = contagemDaFase(t.chapas, false);
+      if (prefupOk <= 0) continue;
+      ids.push(...idsDoCard(t));
+      tarefas++;
+      chapas += prefupOk;
+    }
+    return { ids, tarefas, chapas };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasksForDisplay, overnightForDisplay, versaoFase, minutoAgora]);
+  function resetarPrefupsVisiveis() {
+    const { ids, tarefas, chapas } = prefupsParaResetar;
+    if (ids.length === 0) return;
+    anteciparFaseFup(ids);
+    toast.success(
+      `${chapas} chapa${chapas !== 1 ? "s" : ""} de ${tarefas} tarefa${tarefas !== 1 ? "s" : ""} agora aguarda${chapas !== 1 ? "m" : ""} o FUP (deixam de ficar verdes)`,
+      { action: { label: "Desfazer", onClick: () => desfazerFaseFup(ids) } },
+    );
+  }
+
   function alternarAgrupar() {
     setAgruparAtivo((v) => {
       gravarAgruparAtivo(!v);
@@ -1365,6 +1402,19 @@ export default function Dashboard() {
               <span className="px-1 rounded bg-info/20 text-[11px] font-semibold tabular-nums">{gruposNaTela}</span>
             )}
           </Button>
+          {prefupsParaResetar.chapas > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-[30px] gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={resetarPrefupsVisiveis}
+              title="Passa a mostrar quem já respondeu o FUP: quem confirmou só o PréFUP deixa de ficar verde e fica 'Aguardando FUP' (ninguém perde a confirmação nem o fill rate). Começa sozinho 5 h antes de cada tarefa; este botão antecipa. Dá pra desfazer."
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Resetar PréFUPs
+              <span className="px-1 rounded bg-warning/20 text-[11px] font-semibold tabular-nums text-warning">{prefupsParaResetar.chapas}</span>
+            </Button>
+          )}
           <div className="flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={companyFilter} onValueChange={setCompanyFilter}>
